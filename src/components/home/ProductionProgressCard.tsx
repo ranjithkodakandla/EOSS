@@ -20,17 +20,18 @@ export default function ProductionProgressCard() {
 
   return (
     <div
-      className="p-5 rounded-2xl border flex flex-col justify-between bg-white"
+      className="p-5 rounded-2xl border flex flex-col justify-between"
       style={{
+        background: 'var(--card-gradient, linear-gradient(180deg, #FFFFFF 0%, #FAF9FE 100%))',
         borderColor: 'var(--border, #E5E0F5)',
-        boxShadow: 'var(--shadow-card, 0 4px 18px rgba(24, 27, 65, 0.08))',
+        boxShadow: '0 4px 20px -2px rgba(24, 27, 65, 0.06), 0 2px 6px -1px rgba(24, 27, 65, 0.04), inset 0 1px 1px #FFFFFF',
       }}
     >
       {/* Header */}
       <div className="flex items-center justify-between mb-3.5">
         <div className="flex items-center gap-2">
           <div
-            className="w-7 h-7 rounded-lg flex items-center justify-center"
+            className="w-7 h-7 rounded-lg flex items-center justify-center shadow-2xs"
             style={{ background: 'var(--brand-soft, #EEE9FF)', color: 'var(--brand-primary, #7048F5)' }}
           >
             <BarChart2 size={16} />
@@ -55,15 +56,15 @@ export default function ProductionProgressCard() {
           <div
             key={order.orderId}
             onClick={() => navigate(`/jobs/${order.jobId}`)}
-            className="flex items-center gap-3 p-1 rounded-lg hover:bg-[var(--surface-muted, #F3F0FF)] cursor-pointer group transition-colors"
+            className="flex items-center gap-3 p-1 rounded-lg hover:bg-white/80 hover:shadow-2xs cursor-pointer group transition-all"
             title={`View Job for ${order.orderId}`}
           >
             <span className="font-mono text-xs md:text-sm font-bold text-gray-800 w-16 flex-shrink-0 group-hover:text-[var(--brand-primary)]">
               {order.orderId}
             </span>
 
-            {/* Progress Track */}
-            <div className="flex-1 h-2.5 rounded-full bg-gray-100 overflow-hidden">
+            {/* Progress Track with Inner Shadow */}
+            <div className="flex-1 h-2.5 rounded-full bg-gray-100 overflow-hidden shadow-inner">
               <div
                 className="h-full rounded-full transition-all duration-500 shadow-2xs"
                 style={{

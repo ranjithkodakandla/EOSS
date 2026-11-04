@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, ChevronRight } from 'lucide-react';
+import { X } from 'lucide-react';
 
 export default function BusinessHealthCard() {
   const [showDetail, setShowDetail] = useState(false);
@@ -15,10 +15,11 @@ export default function BusinessHealthCard() {
     <>
       <div
         onClick={() => setShowDetail(true)}
-        className="p-5 rounded-2xl border flex flex-col justify-between cursor-pointer hover:shadow-md transition-all group bg-white"
+        className="p-5 rounded-2xl border flex flex-col justify-between cursor-pointer hover:shadow-md transition-all group"
         style={{
+          background: 'var(--card-gradient, linear-gradient(180deg, #FFFFFF 0%, #FAF9FE 100%))',
           borderColor: 'var(--border, #E5E0F5)',
-          boxShadow: 'var(--shadow-card, 0 4px 18px rgba(24, 27, 65, 0.08))',
+          boxShadow: '0 4px 20px -2px rgba(24, 27, 65, 0.06), 0 2px 6px -1px rgba(24, 27, 65, 0.04), inset 0 1px 1px #FFFFFF',
         }}
         title="Click to view detailed Health Breakdown & Cash Flow"
       >
@@ -50,13 +51,16 @@ export default function BusinessHealthCard() {
                 strokeLinecap="round"
                 strokeDasharray={arcLength}
                 strokeDashoffset={strokeDashoffset}
-                style={{ transition: 'stroke-dashoffset 0.8s ease-in-out' }}
+                style={{
+                  filter: 'drop-shadow(0 2px 6px rgba(22, 163, 74, 0.3))',
+                  transition: 'stroke-dashoffset 0.8s ease-in-out',
+                }}
               />
             </svg>
 
             {/* Centered Values Below The Arch */}
             <div className="absolute inset-0 flex flex-col items-center justify-center pt-5">
-              <span className="text-2xl font-black tracking-tight text-gray-900 font-mono">
+              <span className="text-2xl font-black tracking-tight text-gray-900">
                 {healthScore}%
               </span>
               <span className="text-[11px] font-bold text-emerald-600 tracking-wide uppercase -mt-0.5">

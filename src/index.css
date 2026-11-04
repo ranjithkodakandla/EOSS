@@ -34,9 +34,10 @@
   --brand-primary-dark: #191A4A;
   --brand-secondary: #A855F7;
   --brand-soft: #EEE9FF;
-  --app-bg: #F6F4FF;
+  --app-bg: #F7F6FE;
   --surface: #FFFFFF;
   --surface-muted: #F3F0FF;
+  --card-gradient: linear-gradient(180deg, #FFFFFF 0%, #FAF9FE 100%);
   --text-primary: #1A1F36;
   --text-secondary: #626A84;
   --border: #E5E0F5;
@@ -44,11 +45,12 @@
   --warning: #F59E0B;
   --danger: #EF4444;
   --info: #3B82F6;
-  --copilot-start: #4C1D95;
-  --copilot-end: #A855F7;
+  --copilot-start: #4A1FB8;
+  --copilot-end: #1E0A4C;
+  --copilot-glow: rgba(168, 85, 247, 0.45);
 
   /* App variables bridge */
-  --bg: #F6F4FF;
+  --bg: #F7F6FE;
   --text: #1A1F36;
   --text-2: #626A84;
   --text-3: #8C94A8;
@@ -65,11 +67,12 @@
 .theme-ocean {
   --brand-primary: #087F8C;
   --brand-primary-dark: #102D3A;
-  --brand-secondary: #367CB5;
+  --brand-secondary: #0EA5A5;
   --brand-soft: #DDF4F2;
-  --app-bg: #F1F7F7;
+  --app-bg: #F2F9F9;
   --surface: #FFFFFF;
   --surface-muted: #EAF5F5;
+  --card-gradient: linear-gradient(180deg, #FFFFFF 0%, #F5FAFA 100%);
   --text-primary: #0F2D2E;
   --text-secondary: #557174;
   --border: #D8E9E8;
@@ -77,11 +80,12 @@
   --warning: #F59E0B;
   --danger: #EF4444;
   --info: #3B82F6;
-  --copilot-start: #063F4A;
-  --copilot-end: #0EA5A5;
+  --copilot-start: #0A5D6B;
+  --copilot-end: #03282E;
+  --copilot-glow: rgba(20, 184, 166, 0.45);
 
   /* App variables bridge */
-  --bg: #F1F7F7;
+  --bg: #F2F9F9;
   --text: #0F2D2E;
   --text-2: #557174;
   --text-3: #879EA1;
@@ -91,35 +95,37 @@
   --sidebar-text: rgba(255, 255, 255, 0.65);
   --sidebar-text-active: #FFFFFF;
   --sidebar-text-hover: #FFFFFF;
-  --sidebar-active-bg: linear-gradient(135deg, #087F8C, #367CB5);
+  --sidebar-active-bg: linear-gradient(135deg, #087F8C, #0EA5A5);
 }
 
 /* Theme C — Graphite Amber */
 .theme-graphite {
-  --brand-primary: #3D61D8;
-  --brand-primary-dark: #252B38;
-  --brand-secondary: #E58A36;
-  --brand-soft: #E9EEFF;
-  --app-bg: #F6F5F1;
+  --brand-primary: #E58A36;
+  --brand-primary-dark: #1F222B;
+  --brand-secondary: #F59E0B;
+  --brand-soft: #FEF3C7;
+  --app-bg: #FAF8F5;
   --surface: #FFFFFF;
-  --surface-muted: #F0F1F3;
+  --surface-muted: #F5F1EB;
+  --card-gradient: linear-gradient(180deg, #FFFFFF 0%, #FAF8F5 100%);
   --text-primary: #1F2937;
   --text-secondary: #667085;
-  --border: #E6E4DD;
+  --border: #E8E2D7;
   --success: #16A34A;
   --warning: #F59E0B;
   --danger: #EF4444;
   --info: #3B82F6;
-  --copilot-start: #1F2937;
-  --copilot-end: #3D61D8;
+  --copilot-start: #2A2A32;
+  --copilot-end: #121318;
+  --copilot-glow: rgba(245, 158, 11, 0.38);
 
   /* App variables bridge */
-  --bg: #F6F5F1;
+  --bg: #FAF8F5;
   --text: #1F2937;
   --text-2: #667085;
   --text-3: #9CA3AF;
-  --brand: #3D61D8;
-  --sidebar-bg: #252B38;
+  --brand: #E58A36;
+  --sidebar-bg: #1F222B;
   --sidebar-border: rgba(255, 255, 255, 0.08);
   --sidebar-text: rgba(255, 255, 255, 0.65);
   --sidebar-text-active: #FFFFFF;
@@ -323,6 +329,10 @@
 
 /* ── Base ── */
 * { box-sizing: border-box; }
+
+html {
+  overflow-y: scroll;
+}
 
 body {
   margin: 0;

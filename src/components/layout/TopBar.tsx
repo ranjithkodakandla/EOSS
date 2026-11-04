@@ -20,7 +20,7 @@ export default function TopBar() {
   return (
     <>
       <header
-        className="fixed top-0 right-0 z-30 h-[70px] flex items-center justify-between px-3 sm:px-5 lg:px-7 gap-2 sm:gap-4 transition-all duration-200 select-none"
+        className="fixed top-0 right-0 z-30 h-[70px] flex items-center justify-between px-3 sm:px-5 lg:px-7 gap-2 sm:gap-4 transition-[left] duration-200 select-none"
         style={{
           left: sidebarCollapsed ? 'var(--sidebar-w-collapsed, 64px)' : 'var(--sidebar-width, 216px)',
           background: 'var(--app-bg, #F6F4FF)',

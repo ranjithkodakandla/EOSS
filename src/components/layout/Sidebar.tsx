@@ -97,6 +97,9 @@ export default function Sidebar() {
               background: isActive
                 ? 'var(--sidebar-active-bg, linear-gradient(135deg, var(--brand-primary), var(--brand-secondary)))'
                 : 'transparent',
+              boxShadow: isActive
+                ? '0 4px 14px -2px rgba(0, 0, 0, 0.3), inset 0 1px 1px rgba(255, 255, 255, 0.4)'
+                : undefined,
             })}
           >
             <span className="flex-shrink-0">{item.icon}</span>

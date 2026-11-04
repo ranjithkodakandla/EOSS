@@ -25,7 +25,7 @@ interface Props {
 
 export default function CopilotPanel({ isDrawer, onClose }: Props) {
   const navigate = useNavigate();
-  const { jobs, inventory, showToast } = useStore();
+  const { jobs, inventory, eossTheme } = useStore();
 
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
@@ -38,31 +38,74 @@ export default function CopilotPanel({ isDrawer, onClose }: Props) {
     }
   }, [messages, isTyping]);
 
+  // Exact theme styling strictly mapped to reference pack PNGs:
+  // Theme A: Aurora Indigo (#7048F5 / #4A1FB8)
+  // Theme B: Ocean Teal (#087F8C / #0A5D6B)
+  // Theme C: Graphite Amber (#2A2A32 / #E58A36 / #F59E0B)
+  const isGraphite = eossTheme === 'graphite';
+  const isOcean = eossTheme === 'ocean';
+
+  const themeConfig = {
+    panelBg: isGraphite
+      ? 'radial-gradient(circle 280px at 15% 12%, rgba(245, 158, 11, 0.38) 0%, transparent 70%), radial-gradient(ellipse 70% 50% at 85% 0%, rgba(255, 255, 255, 0.12) 0%, transparent 60%), linear-gradient(155deg, #2A2A32 0%, #1C1D24 60%, #121318 100%)'
+      : isOcean
+      ? 'radial-gradient(circle 280px at 15% 12%, rgba(20, 184, 166, 0.45) 0%, transparent 70%), radial-gradient(ellipse 70% 50% at 85% 0%, rgba(255, 255, 255, 0.22) 0%, transparent 60%), linear-gradient(155deg, #0A5D6B 0%, #06404A 60%, #03282E 100%)'
+      : 'radial-gradient(circle 280px at 15% 12%, rgba(168, 85, 247, 0.45) 0%, transparent 70%), radial-gradient(ellipse 70% 50% at 85% 0%, rgba(255, 255, 255, 0.22) 0%, transparent 60%), linear-gradient(155deg, #4A1FB8 0%, #311378 60%, #1E0A4C 100%)',
+    panelBorder: isGraphite
+      ? '1px solid rgba(245, 158, 11, 0.35)'
+      : isOcean
+      ? '1px solid rgba(255, 255, 255, 0.22)'
+      : '1px solid rgba(255, 255, 255, 0.22)',
+    panelShadow: isGraphite
+      ? '0 16px 40px -8px rgba(0, 0, 0, 0.6), 0 0 24px -2px rgba(245, 158, 11, 0.25), inset 0 1px 1px rgba(255, 255, 255, 0.15)'
+      : isOcean
+      ? '0 16px 40px -8px rgba(8, 127, 140, 0.45), inset 0 1px 1px rgba(255, 255, 255, 0.30)'
+      : '0 16px 40px -8px rgba(112, 72, 245, 0.45), inset 0 1px 1px rgba(255, 255, 255, 0.35)',
+    sparkleColor: isGraphite ? '#F59E0B' : isOcean ? '#22D3EE' : '#FCD34D',
+    robotEyeColor: isGraphite ? '#F59E0B' : isOcean ? '#22D3EE' : '#22D3EE',
+    robotAntennaColor: isGraphite ? '#F59E0B' : isOcean ? '#06B6D4' : '#38BDF8',
+    sendBtnBg: isGraphite
+      ? 'linear-gradient(135deg, #E58A36, #F59E0B)'
+      : isOcean
+      ? 'linear-gradient(135deg, #087F8C, #0EA5A5)'
+      : 'linear-gradient(135deg, #7048F5, #A855F7)',
+    sendBtnShadow: isGraphite
+      ? '0 4px 14px rgba(229, 138, 54, 0.4), inset 0 1px 1px rgba(255, 255, 255, 0.5)'
+      : isOcean
+      ? '0 4px 14px rgba(8, 127, 140, 0.4), inset 0 1px 1px rgba(255, 255, 255, 0.5)'
+      : '0 4px 14px rgba(112, 72, 245, 0.4), inset 0 1px 1px rgba(255, 255, 255, 0.5)',
+    chevronColor: isGraphite ? '#E58A36' : isOcean ? '#087F8C' : '#7048F5',
+    iconColorZap: isGraphite ? '#E58A36' : isOcean ? '#087F8C' : '#7048F5',
+    iconColorBox: isGraphite ? '#E58A36' : isOcean ? '#087F8C' : '#7048F5',
+    iconColorChart: isGraphite ? '#E58A36' : isOcean ? '#087F8C' : '#4F46E5',
+    iconColorWarn: isGraphite ? '#E58A36' : '#EA580C',
+  };
+
   const suggestions = [
     {
       id: 'plan-prod',
-      icon: <Zap size={16} className="text-purple-600" />,
+      icon: <Zap size={16} style={{ color: themeConfig.iconColorZap }} />,
       text: 'Plan production for pending orders',
       response: `Analyzing 4 in-progress orders. SO-1245 (60%) is approaching CNC Lathe NL-2500 turn, while SO-1246 (35%) is waiting on SS 304 round bar inspection. Recommended action: Allocate Machine NL-2500 to SO-1245 finishing passes.`,
       action: { label: 'Open Job J-101', path: '/jobs/J-101' },
     },
     {
       id: 'suggest-po',
-      icon: <Package size={16} className="text-purple-600" />,
+      icon: <Package size={16} style={{ color: themeConfig.iconColorBox }} />,
       text: 'Suggest material purchase',
       response: `Current stock of SS 304 Rod 25mm is 45 kg (below reorder threshold of 100 kg). Projected stockout in 5 days based on SO-1245 & SO-1246 consumption. Recommended PO: 250 kg from Stainless Source India.`,
       action: { label: 'Create Supplier PO', path: '/procurement' },
     },
     {
       id: 'check-status',
-      icon: <BarChart3 size={16} className="text-blue-600" />,
+      icon: <BarChart3 size={16} style={{ color: themeConfig.iconColorChart }} />,
       text: 'Check order status',
       response: `Overall shop floor status: 12 open sales orders, 4 jobs active in production, 2 batches in quarantine awaiting QC release, and 6 dispatches staged and ready for pickup.`,
       action: { label: 'View All Jobs', path: '/jobs' },
     },
     {
       id: 'stock-risk',
-      icon: <AlertTriangle size={16} className="text-amber-600" />,
+      icon: <AlertTriangle size={16} style={{ color: themeConfig.iconColorWarn }} />,
       text: 'Show stock at risk',
       response: `2 items at risk: 1) SS 304 Rod 25mm (depleting in 5 days), 2) EN8 Round Bar 50mm (reserved for Job J-103, no buffer stock). Suggested reorder initiated for approval.`,
       action: { label: 'View Inventory Alerts', path: '/inventory' },
@@ -113,24 +156,25 @@ export default function CopilotPanel({ isDrawer, onClose }: Props) {
   return (
     <div
       className={clsx(
-        'flex flex-col h-full rounded-3xl overflow-hidden relative shadow-2xl select-none',
+        'flex flex-col h-full rounded-3xl overflow-hidden relative select-none',
         isDrawer ? 'w-full max-w-md' : 'w-full'
       )}
       style={{
-        background: 'linear-gradient(145deg, var(--copilot-start, #4C1D95), var(--copilot-end, #A855F7))',
-        boxShadow: 'var(--shadow-elevated, 0 8px 28px rgba(24, 27, 65, 0.12))',
+        background: themeConfig.panelBg,
+        border: themeConfig.panelBorder,
+        boxShadow: themeConfig.panelShadow,
       }}
     >
       {/* Top Header */}
       <div className="p-4 md:p-5 flex items-start justify-between flex-shrink-0 border-b border-white/10">
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center text-white shadow-inner">
-            <Sparkles size={18} className="animate-pulse" />
+            <Sparkles size={18} style={{ color: themeConfig.sparkleColor }} />
           </div>
           <div>
             <div className="flex items-center gap-1.5 font-extrabold text-white text-base md:text-lg tracking-tight">
               <span>EOSS Copilot</span>
-              <span className="text-amber-300 text-sm">✦</span>
+              <span style={{ color: themeConfig.sparkleColor }} className="text-sm">✦</span>
             </div>
             <div className="text-[11px] text-white/80 font-medium tracking-normal">
               Your intelligent business partner
@@ -141,22 +185,27 @@ export default function CopilotPanel({ isDrawer, onClose }: Props) {
         {isDrawer && onClose && (
           <button
             onClick={onClose}
-            className="p-1.5 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
+            className="p-1.5 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer"
           >
             <X size={16} />
           </button>
         )}
       </div>
 
-      {/* Scrollable Content Area */}
-      <div className="flex-1 overflow-y-auto p-4 md:p-5 space-y-4 scrollbar-none">
+      {/* Content Area */}
+      <div className="flex-1 overflow-y-auto p-4 md:p-5 space-y-3 scrollbar-none flex flex-col justify-between">
         {/* Mascot & Speech Bubble Greeting */}
         {messages.length === 0 && (
-          <div className="flex items-center justify-between gap-3 pt-1">
-            {/* Speech Bubble */}
+          <div className="flex items-center justify-between gap-3 pt-0.5">
+            {/* Speech Bubble with Glossy Sheen */}
             <div
-              className="relative bg-white p-3.5 rounded-2xl shadow-lg flex-1 text-xs md:text-sm font-bold leading-relaxed"
-              style={{ color: '#1A1F36' }}
+              className="relative p-3.5 rounded-2xl flex-1 text-xs md:text-sm font-bold leading-relaxed"
+              style={{
+                background: 'linear-gradient(180deg, #FFFFFF 0%, #F8FAFC 100%)',
+                color: '#1A1F36',
+                boxShadow: '0 8px 24px -4px rgba(0, 0, 0, 0.15), inset 0 1px 1px #FFFFFF',
+                border: '1px solid rgba(255, 255, 255, 0.9)',
+              }}
             >
               <span>How can I help your business today?</span>
               {/* Bubble Tail */}
@@ -165,24 +214,24 @@ export default function CopilotPanel({ isDrawer, onClose }: Props) {
               />
             </div>
 
-            {/* Stylized Friendly Floating Robot Mascot */}
+            {/* Stylized Friendly Floating Robot Mascot with Theme-Matched Glowing Eyes */}
             <div className="w-20 h-20 flex-shrink-0 relative flex items-center justify-center">
-              <div className="w-16 h-16 rounded-full bg-white/15 backdrop-blur-md absolute animate-ping opacity-20" />
-              <svg width="68" height="68" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" className="relative drop-shadow-lg">
+              <svg width="68" height="68" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" className="relative drop-shadow-xl">
                 {/* Antenna */}
                 <path d="M50 20 L50 9" stroke="#FFFFFF" strokeWidth="4" strokeLinecap="round" />
-                <circle cx="50" cy="8" r="5" fill="#38BDF8" className="animate-pulse" />
+                <circle cx="50" cy="8" r="5" fill={themeConfig.robotAntennaColor} />
 
-                {/* Head / Body */}
+                {/* Head / Body with Glass Highlight */}
                 <rect x="20" y="20" width="60" height="52" rx="24" fill="#FFFFFF" />
+                <path d="M24 35 C24 25, 76 25, 76 35" stroke="rgba(255,255,255,0.8)" strokeWidth="2" strokeLinecap="round" />
 
                 {/* Screen Visor */}
                 <rect x="28" y="30" width="44" height="26" rx="13" fill="#0F172A" />
 
-                {/* Smiling Cyan Eyes */}
-                <ellipse cx="40" cy="42" rx="4" ry="5" fill="#22D3EE" />
-                <ellipse cx="60" cy="42" rx="4" ry="5" fill="#22D3EE" />
-                <path d="M44 47 Q50 51 56 47" stroke="#22D3EE" strokeWidth="2.5" strokeLinecap="round" fill="none" />
+                {/* Smiling Eyes Matching Theme Accent */}
+                <ellipse cx="40" cy="42" rx="4" ry="5" fill={themeConfig.robotEyeColor} />
+                <ellipse cx="60" cy="42" rx="4" ry="5" fill={themeConfig.robotEyeColor} />
+                <path d="M44 47 Q50 51 56 47" stroke={themeConfig.robotEyeColor} strokeWidth="2.5" strokeLinecap="round" fill="none" />
 
                 {/* Cheeks */}
                 <circle cx="34" cy="45" r="2" fill="#F472B6" opacity="0.6" />
@@ -196,11 +245,17 @@ export default function CopilotPanel({ isDrawer, onClose }: Props) {
           </div>
         )}
 
-        {/* Proactive Insight Card */}
+        {/* Proactive Insight Card with Glossy Glass Border */}
         {messages.length === 0 && (
           <div
             onClick={() => navigate('/inventory')}
-            className="p-3 rounded-xl bg-white/15 backdrop-blur-md border border-white/20 hover:bg-white/25 transition-all cursor-pointer flex items-center justify-between text-xs group"
+            className="p-3 rounded-xl transition-all cursor-pointer flex items-center justify-between text-xs group"
+            style={{
+              background: 'rgba(255, 255, 255, 0.16)',
+              backdropFilter: 'blur(12px)',
+              border: '1px solid rgba(255, 255, 255, 0.25)',
+              boxShadow: 'inset 0 1px 1px rgba(255, 255, 255, 0.25)',
+            }}
           >
             <div className="flex items-center gap-2.5">
               <div className="w-6 h-6 rounded-lg bg-amber-400 text-amber-950 flex items-center justify-center font-bold flex-shrink-0 text-xs shadow-2xs">
@@ -214,15 +269,20 @@ export default function CopilotPanel({ isDrawer, onClose }: Props) {
           </div>
         )}
 
-        {/* Suggested Quick Prompt Chips (Explicit dark text so it's beautifully readable) */}
+        {/* Suggested Quick Prompt Chips with Glossy Sheen */}
         {messages.length === 0 && (
-          <div className="space-y-2 pt-1">
+          <div className="space-y-2 pt-0.5">
             {suggestions.map(s => (
               <button
                 key={s.id}
                 onClick={() => handleSend(s.text)}
-                className="w-full flex items-center justify-between p-3 rounded-xl bg-white hover:bg-gray-50 hover:shadow-md transition-all text-left text-xs md:text-[13px] font-semibold group cursor-pointer"
-                style={{ color: '#1A1F36' }}
+                className="w-full flex items-center justify-between p-3 rounded-xl transition-all text-left text-xs md:text-[13px] font-semibold group cursor-pointer hover:-translate-y-0.5"
+                style={{
+                  background: 'linear-gradient(180deg, #FFFFFF 0%, #F9FAFB 100%)',
+                  boxShadow: '0 4px 14px -2px rgba(0, 0, 0, 0.08), inset 0 1px 1px #FFFFFF',
+                  border: '1px solid rgba(255, 255, 255, 0.85)',
+                  color: '#1A1F36',
+                }}
               >
                 <div className="flex items-center gap-2.5 truncate pr-2">
                   <div className="w-7 h-7 rounded-lg bg-gray-50 flex items-center justify-center flex-shrink-0 shadow-2xs">
@@ -232,7 +292,11 @@ export default function CopilotPanel({ isDrawer, onClose }: Props) {
                     {s.text}
                   </span>
                 </div>
-                <ChevronRight size={15} className="text-gray-400 group-hover:text-purple-600 group-hover:translate-x-0.5 transition-all flex-shrink-0" />
+                <ChevronRight
+                  size={15}
+                  className="group-hover:translate-x-0.5 transition-all flex-shrink-0"
+                  style={{ color: themeConfig.chevronColor }}
+                />
               </button>
             ))}
           </div>
@@ -266,7 +330,8 @@ export default function CopilotPanel({ isDrawer, onClose }: Props) {
                       if (onClose) onClose();
                       navigate(msg.action!.path);
                     }}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white text-purple-700 font-bold text-xs hover:bg-purple-50 transition-colors shadow-sm"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white font-bold text-xs hover:bg-gray-50 transition-colors shadow-sm cursor-pointer"
+                    style={{ color: themeConfig.chevronColor }}
                   >
                     <span>{msg.action.label}</span>
                     <ArrowRight size={12} />
@@ -298,7 +363,7 @@ export default function CopilotPanel({ isDrawer, onClose }: Props) {
         <div ref={chatBottomRef} />
       </div>
 
-      {/* Bottom Composer Input */}
+      {/* Bottom Composer Input with Glossy Pill & Send Button */}
       <div className="p-3.5 md:p-4 bg-black/15 backdrop-blur-md border-t border-white/10 flex-shrink-0">
         <div className="relative flex items-center">
           <input
@@ -307,16 +372,20 @@ export default function CopilotPanel({ isDrawer, onClose }: Props) {
             onChange={e => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Ask a question..."
-            className="w-full bg-white text-gray-900 placeholder-gray-400 text-xs md:text-sm rounded-full py-2.5 pl-4 pr-11 shadow-inner focus:outline-none focus:ring-2 focus:ring-white/80"
-            style={{ color: '#1A1F36' }}
+            className="w-full bg-white text-gray-900 placeholder-gray-400 text-xs md:text-sm rounded-full py-2.5 pl-4 pr-11 focus:outline-none focus:ring-2 focus:ring-white/80"
+            style={{
+              color: '#1A1F36',
+              boxShadow: 'inset 0 1px 2px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(255, 255, 255, 0.3)',
+            }}
           />
           <button
             type="button"
             onClick={() => handleSend()}
             disabled={!input.trim()}
-            className="absolute right-1.5 w-8 h-8 rounded-full flex items-center justify-center transition-all disabled:opacity-40 disabled:cursor-not-allowed hover:scale-105"
+            className="absolute right-1.5 w-8 h-8 rounded-full flex items-center justify-center transition-all disabled:opacity-40 disabled:cursor-not-allowed hover:scale-105 cursor-pointer"
             style={{
-              background: 'linear-gradient(135deg, var(--brand-primary, #7048F5), var(--brand-secondary, #A855F7))',
+              background: themeConfig.sendBtnBg,
+              boxShadow: themeConfig.sendBtnShadow,
               color: '#FFFFFF',
             }}
             title="Send inquiry"

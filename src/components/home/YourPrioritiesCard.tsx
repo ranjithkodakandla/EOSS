@@ -55,16 +55,17 @@ export default function YourPrioritiesCard() {
 
   return (
     <div
-      className="p-5 rounded-2xl border flex flex-col justify-between bg-white"
+      className="p-5 rounded-2xl border flex flex-col justify-between"
       style={{
+        background: 'var(--card-gradient, linear-gradient(180deg, #FFFFFF 0%, #FAF9FE 100%))',
         borderColor: 'var(--border, #E5E0F5)',
-        boxShadow: 'var(--shadow-card, 0 4px 18px rgba(24, 27, 65, 0.08))',
+        boxShadow: '0 4px 20px -2px rgba(24, 27, 65, 0.06), 0 2px 6px -1px rgba(24, 27, 65, 0.04), inset 0 1px 1px #FFFFFF',
       }}
     >
       {/* Header */}
       <div className="flex items-center gap-2 mb-3.5">
         <div
-          className="w-7 h-7 rounded-lg flex items-center justify-center"
+          className="w-7 h-7 rounded-lg flex items-center justify-center shadow-2xs"
           style={{ background: 'var(--brand-soft, #EEE9FF)', color: 'var(--brand-primary, #7048F5)' }}
         >
           <Target size={16} />
@@ -80,19 +81,21 @@ export default function YourPrioritiesCard() {
           <div
             key={item.id}
             onClick={() => navigate(item.path)}
-            className="flex items-center justify-between p-2 rounded-xl hover:bg-[var(--surface-muted, #F3F0FF)] transition-all cursor-pointer group"
+            className="flex items-center justify-between p-2 rounded-xl hover:bg-white/80 hover:shadow-2xs transition-all cursor-pointer group"
           >
             <div className="flex items-center gap-2.5 min-w-0 pr-2">
               <button
                 type="button"
                 onClick={e => toggleCheck(e, item.id)}
-                className="flex-shrink-0 text-left transition-transform hover:scale-110 cursor-pointer"
+                className="flex-shrink-0 text-left transition-transform hover:scale-105 cursor-pointer"
                 title={item.completed ? 'Mark incomplete' : 'Mark complete'}
               >
                 {item.completed ? (
-                  <CheckCircle2 size={18} className="text-emerald-500 fill-emerald-100" />
+                  <div className="w-4 h-4 rounded-md bg-emerald-500 text-white flex items-center justify-center text-[10px] font-bold shadow-2xs">
+                    ✓
+                  </div>
                 ) : (
-                  <Circle size={18} className="text-gray-300 hover:text-[var(--brand-primary)]" />
+                  <div className="w-4 h-4 rounded-md border-2 border-gray-300 bg-white hover:border-[var(--brand-primary)] transition-colors" />
                 )}
               </button>
 
