@@ -1,9 +1,8 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, ChevronRight, Truck, Search } from 'lucide-react';
+import { Plus, ChevronRight, Search } from 'lucide-react';
 import { useStore } from '../../store';
 import StatusChip from '../../components/layout/StatusChip';
-import clsx from 'clsx';
 
 export default function Dispatch() {
   const { dispatches, currentUser } = useStore();
@@ -13,7 +12,11 @@ export default function Dispatch() {
   const readyToDispatch = dispatches.filter(d => d.status === 'ready').length;
   const inTransit = dispatches.filter(d => d.status === 'in_transit').length;
 
-  const filtered = dispatches.filter(d => !search || d.dispatchNumber.toLowerCase().includes(search.toLowerCase()) || d.customerName.toLowerCase().includes(search.toLowerCase()));
+  const filtered = dispatches.filter(d =>
+    !search ||
+    d.dispatchNumber.toLowerCase().includes(search.toLowerCase()) ||
+    d.customerName.toLowerCase().includes(search.toLowerCase())
+  );
 
   return (
     <div className="p-4 md:p-6">
@@ -46,22 +49,17 @@ export default function Dispatch() {
       <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl overflow-hidden">
         <div className="overflow-x-auto">
           <table className="eoss-table">
-            <thead><tr><th>Dispatch #</th><th>Customer</th><th>Job #</th><th>Mode</th><th>Courier / Vehicle</th><th>Dispatch Date</th><th>ETA</th><th>Invoiced</th><th>Status</th><th></th></tr></thead>
+            <thead><tr><th>Dispatch #</th><th>Customer</th><th>Jobs</th><th>Carrier / Vehicle</th><th>Dispatch Date</th><th>Expected Delivery</th><th>Qty</th><th>Status</th><th></th></tr></thead>
             <tbody>
               {filtered.map(d => (
                 <tr key={d.id} className="cursor-pointer" onClick={() => navigate(`/dispatch/${d.id}`)}>
                   <td><span className="font-mono text-xs font-semibold text-[var(--brand)]">{d.dispatchNumber}</span></td>
                   <td className="text-sm text-[var(--text)]">{d.customerName}</td>
-                  <td><span className="font-mono text-xs text-[var(--text-2)]">{d.jobNumber}</span></td>
-                  <td className="text-sm text-[var(--text-2)]">{d.mode}</td>
-                  <td className="text-sm text-[var(--text-2)]">{d.courierName ?? d.vehicleNumber ?? '—'}</td>
+                  <td><span className="font-mono text-xs text-[var(--text-2)]">{(d.jobs ?? []).join(', ') || '—'}</span></td>
+                  <td className="text-sm text-[var(--text-2)]">{d.carrier ?? d.vehicleNumber ?? '—'}</td>
                   <td className="text-sm text-[var(--text-2)]">{d.dispatchDate ? new Date(d.dispatchDate).toLocaleDateString('en-IN') : '—'}</td>
-                  <td className="text-sm text-[var(--text-2)]">{d.eta ? new Date(d.eta).toLocaleDateString('en-IN') : '—'}</td>
-                  <td>
-                    {d.invoiceNumber
-                      ? <span className="font-mono text-xs text-[var(--success)]">{d.invoiceNumber}</span>
-                      : <span className="text-xs text-[var(--text-3)]">—</span>}
-                  </td>
+                  <td className="text-sm text-[var(--text-2)]">{d.expectedDelivery ? new Date(d.expectedDelivery).toLocaleDateString('en-IN') : '—'}</td>
+                  <td className="text-sm text-[var(--text-2)]">{d.totalQty ?? '—'}</td>
                   <td><StatusChip status={d.status} size="sm" /></td>
                   <td><ChevronRight size={14} className="text-[var(--text-3)]" /></td>
                 </tr>

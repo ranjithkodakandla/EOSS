@@ -1,3 +1,6 @@
+// Deterministic reference date for all prototype time calculations — do not use new Date()
+export const DEMO_NOW = '2024-11-04';
+
 import type {
   DemoUser, Site, StoreLocation, Party, MaterialItem, MaterialLot,
   CustomerRFQ, CustomerPO, POLine, SupplierPO, SupplierPOLine,

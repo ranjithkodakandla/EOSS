@@ -1,6 +1,6 @@
 import React from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Truck } from 'lucide-react';
+import { ArrowLeft, Truck, Package } from 'lucide-react';
 import { useStore } from '../../store';
 import StatusChip from '../../components/layout/StatusChip';
 
@@ -32,44 +32,46 @@ export default function DispatchDetail() {
           <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
             <h3 className="font-semibold text-sm text-[var(--text)] mb-3">Dispatch Details</h3>
             <dl className="space-y-2.5 text-sm">
-              <Field label="Job #" value={dispatch.jobNumber} mono />
-              <Field label="Customer PO" value={dispatch.customerPoNumber ?? '—'} mono />
-              <Field label="Mode" value={dispatch.mode} />
-              {dispatch.courierName && <Field label="Courier" value={dispatch.courierName} />}
-              {dispatch.awbNumber && <Field label="AWB / Tracking" value={dispatch.awbNumber} mono />}
+              {(dispatch.jobs ?? []).length > 0 && (
+                <div>
+                  <dt className="text-xs text-[var(--text-3)]">Jobs</dt>
+                  <dd className="text-sm text-[var(--text)] mt-0.5 font-mono">{(dispatch.jobs ?? []).join(', ')}</dd>
+                </div>
+              )}
+              {dispatch.carrier && <Field label="Carrier" value={dispatch.carrier} />}
               {dispatch.vehicleNumber && <Field label="Vehicle" value={dispatch.vehicleNumber} mono />}
-              {dispatch.driverName && <Field label="Driver" value={dispatch.driverName} />}
-              {dispatch.dispatchDate && <Field label="Dispatch Date" value={new Date(dispatch.dispatchDate).toLocaleDateString('en-IN')} />}
-              {dispatch.eta && <Field label="ETA" value={new Date(dispatch.eta).toLocaleDateString('en-IN')} />}
-              {dispatch.deliveredAt && <Field label="Delivered" value={new Date(dispatch.deliveredAt).toLocaleDateString('en-IN')} />}
-              {dispatch.invoiceNumber && <Field label="Invoice #" value={dispatch.invoiceNumber} mono />}
               {dispatch.lrNumber && <Field label="LR Number" value={dispatch.lrNumber} mono />}
+              {dispatch.dispatchDate && <Field label="Dispatch Date" value={new Date(dispatch.dispatchDate).toLocaleDateString('en-IN')} />}
+              {dispatch.expectedDelivery && <Field label="Expected Delivery" value={new Date(dispatch.expectedDelivery).toLocaleDateString('en-IN')} />}
             </dl>
           </div>
 
           <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
-            <h3 className="font-semibold text-sm text-[var(--text)] mb-3">Quantity</h3>
+            <h3 className="font-semibold text-sm text-[var(--text)] mb-3 flex items-center gap-2"><Package size={14} /> Shipment Summary</h3>
             <dl className="space-y-2 text-sm">
-              <Field label="Dispatched Qty" value={`${dispatch.dispatchedQty} ${dispatch.uom}`} />
-              {dispatch.packages && <Field label="Packages" value={String(dispatch.packages)} />}
-              {dispatch.grossWeight && <Field label="Gross Weight" value={`${dispatch.grossWeight} kg`} />}
+              {dispatch.totalQty != null && <Field label="Total Qty" value={String(dispatch.totalQty)} />}
+              {dispatch.lineCount != null && <Field label="Line Count" value={String(dispatch.lineCount)} />}
+              <div>
+                <dt className="text-xs text-[var(--text-3)]">Proof of Delivery</dt>
+                <dd className="text-sm mt-0.5">
+                  {dispatch.hasPoD
+                    ? <span className="text-[var(--success)] font-medium">Received</span>
+                    : <span className="text-[var(--text-3)]">Not yet received</span>}
+                </dd>
+              </div>
             </dl>
           </div>
         </div>
 
         <div className="space-y-4">
-          <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
-            <h3 className="font-semibold text-sm text-[var(--text)] mb-3">Delivery Address</h3>
-            {dispatch.deliveryAddress ? (
-              <p className="text-sm text-[var(--text)] whitespace-pre-line">{dispatch.deliveryAddress}</p>
-            ) : <p className="text-sm text-[var(--text-3)]">No address recorded</p>}
-          </div>
-
           {canDispatch && dispatch.status === 'ready' && (
             <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
               <h3 className="font-semibold text-sm text-[var(--text)] mb-3">Dispatch Actions</h3>
               <div className="space-y-2">
-                <button onClick={() => showToast({ type: 'success', title: 'Dispatched', body: `${dispatch.dispatchNumber} marked in transit` })} className="w-full py-2.5 bg-[var(--brand)] text-white rounded-lg text-sm font-medium flex items-center justify-center gap-2">
+                <button
+                  onClick={() => showToast({ type: 'success', title: 'Dispatched', body: `${dispatch.dispatchNumber} marked in transit` })}
+                  className="w-full py-2.5 bg-[var(--brand)] text-white rounded-lg text-sm font-medium flex items-center justify-center gap-2"
+                >
                   <Truck size={14} /> Mark Dispatched
                 </button>
                 <button className="w-full py-2 border border-[var(--border)] text-[var(--text)] rounded-lg text-sm">Generate E-Way Bill</button>
@@ -79,9 +81,30 @@ export default function DispatchDetail() {
 
           {dispatch.status === 'in_transit' && canDispatch && (
             <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
-              <button onClick={() => showToast({ type: 'success', title: 'Delivered', body: `${dispatch.dispatchNumber} marked as delivered` })} className="w-full py-2.5 bg-[var(--success)] text-white rounded-lg text-sm font-medium">
+              <h3 className="font-semibold text-sm text-[var(--text)] mb-3">Transit Actions</h3>
+              <button
+                onClick={() => showToast({ type: 'success', title: 'Delivered', body: `${dispatch.dispatchNumber} marked as delivered` })}
+                className="w-full py-2.5 bg-[var(--success)] text-white rounded-lg text-sm font-medium"
+              >
                 Confirm Delivery
               </button>
+            </div>
+          )}
+
+          {dispatch.status === 'delivered' && (
+            <div className="bg-[var(--surface-2)] border border-[var(--border)] rounded-xl p-4">
+              <div className="flex items-center gap-2 text-[var(--success)]">
+                <Truck size={16} />
+                <span className="text-sm font-semibold">Delivered</span>
+              </div>
+              {!dispatch.hasPoD && canDispatch && (
+                <button
+                  onClick={() => showToast({ type: 'info', title: 'PoD Recorded', body: `Proof of delivery recorded for ${dispatch.dispatchNumber}` })}
+                  className="mt-3 w-full py-2 border border-[var(--border)] text-[var(--text)] rounded-lg text-sm"
+                >
+                  Record Proof of Delivery
+                </button>
+              )}
             </div>
           )}
         </div>
