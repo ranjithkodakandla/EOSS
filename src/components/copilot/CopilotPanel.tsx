@@ -168,8 +168,23 @@ export default function CopilotPanel({ isDrawer, onClose }: Props) {
         boxShadow: themeConfig.panelShadow,
       }}
     >
+      {/* Robot mascot — absolutely pinned to top-right of panel */}
+      {messages.length === 0 && (
+        <div
+          className="absolute z-10 pointer-events-none select-none"
+          style={{ top: 2, right: 6, width: 120 }}
+        >
+          <img
+            src={themeConfig.robotImg}
+            alt="EOSS Copilot Mascot"
+            className="w-full h-auto object-contain"
+            style={{ filter: 'drop-shadow(0 6px 18px rgba(0,0,0,0.4))' }}
+          />
+        </div>
+      )}
+
       {/* Top Header */}
-      <div className="p-4 md:p-5 flex items-start justify-between flex-shrink-0 border-b border-white/10">
+      <div className="p-4 md:p-5 flex items-start justify-between flex-shrink-0 border-b border-white/10 pr-[130px]">
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center text-white shadow-inner">
             <Sparkles size={18} style={{ color: themeConfig.sparkleColor }} />
@@ -197,35 +212,19 @@ export default function CopilotPanel({ isDrawer, onClose }: Props) {
 
       {/* Content Area */}
       <div className="flex-1 overflow-y-auto p-4 md:p-5 space-y-3.5 scrollbar-none flex flex-col justify-between">
-        {/* 3D Mascot & Speech Bubble Greeting strictly matching reference pack */}
+        {/* Speech Bubble Greeting */}
         {messages.length === 0 && (
-          <div className="flex items-center justify-between gap-3 pt-1">
-            {/* Speech Bubble with Glossy Sheen */}
-            <div
-              className="relative p-3.5 rounded-2xl flex-1 text-xs md:text-sm font-bold leading-relaxed"
-              style={{
-                background: 'linear-gradient(180deg, #FFFFFF 0%, #F8FAFC 100%)',
-                color: '#1A1F36',
-                boxShadow: '0 8px 24px -4px rgba(0, 0, 0, 0.15), inset 0 1px 1px #FFFFFF',
-                border: '1px solid rgba(255, 255, 255, 0.9)',
-              }}
-            >
-              <span>How can I help your business today?</span>
-              {/* Bubble Tail pointing to robot */}
-              <div
-                className="absolute top-1/2 -right-2 transform -translate-y-1/2 w-0 h-0 border-t-6 border-t-transparent border-b-6 border-b-transparent border-l-8 border-l-white"
-              />
-            </div>
-
-            {/* 3D Robot Mascot — RGBA PNG with transparent bg, render as-is */}
-            <div className="flex-shrink-0 select-none pointer-events-none">
-              <img
-                src={themeConfig.robotImg}
-                alt="EOSS Copilot Mascot"
-                className="w-20 h-auto object-contain"
-                style={{ filter: 'drop-shadow(0 4px 16px rgba(0,0,0,0.35))' }}
-              />
-            </div>
+          <div
+            className="p-3.5 rounded-2xl text-xs md:text-sm font-bold leading-relaxed"
+            style={{
+              background: 'linear-gradient(180deg, #FFFFFF 0%, #F8FAFC 100%)',
+              color: '#1A1F36',
+              boxShadow: '0 8px 24px -4px rgba(0, 0, 0, 0.15), inset 0 1px 1px #FFFFFF',
+              border: '1px solid rgba(255, 255, 255, 0.9)',
+              maxWidth: '65%',
+            }}
+          >
+            How can I help your business today?
           </div>
         )}
 
