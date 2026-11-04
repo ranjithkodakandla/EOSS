@@ -217,12 +217,13 @@ export default function CopilotPanel({ isDrawer, onClose }: Props) {
               />
             </div>
 
-            {/* 3D Robot Mascot — clipped to circle so rectangular PNG corners vanish */}
-            <div className="w-20 h-20 flex-shrink-0 rounded-full overflow-hidden select-none pointer-events-none">
+            {/* 3D Robot Mascot — RGBA PNG with transparent bg, render as-is */}
+            <div className="flex-shrink-0 select-none pointer-events-none">
               <img
                 src={themeConfig.robotImg}
                 alt="EOSS Copilot Mascot"
-                className="w-full h-full object-cover"
+                className="w-20 h-auto object-contain"
+                style={{ filter: 'drop-shadow(0 4px 16px rgba(0,0,0,0.35))' }}
               />
             </div>
           </div>
