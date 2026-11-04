@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { ArrowLeft, AlertTriangle, ChevronRight, Clock, Package, FileText, Activity, Layers, Users, CheckCircle, Play, Pause } from 'lucide-react';
+import { ArrowLeft, AlertTriangle, ChevronRight, Clock, Package, FileText, Activity, Layers, Users, CheckCircle, Play, Pause, Truck } from 'lucide-react';
 import { useStore, JOB_BLOCKERS, PURCHASE_REQS } from '../../store';
-import { MATERIALS, SUPPLIER_PO_LINES } from '../../data/seed';
+import { MATERIALS, SUPPLIER_PO_LINES, JOB_MATERIAL_REQS } from '../../data/seed';
 import StatusChip from '../../components/layout/StatusChip';
 import clsx from 'clsx';
 
-const TABS = ['Overview', 'Stages', 'Materials', 'Updates', 'Documents', 'Quality', 'Blockers'];
+const TABS = ['Overview', 'Stages', 'Materials', 'Updates', 'Documents', 'Quality', 'NCR/Rework', 'Dispatch', 'Blockers'];
 
 export default function JobWorkspace() {
   const { id } = useParams<{ id: string }>();
@@ -83,7 +83,9 @@ export default function JobWorkspace() {
         {tab === 'Materials' && <Materials job={job} />}
         {tab === 'Updates' && <Updates job={job} />}
         {tab === 'Documents' && <DocTab job={job} />}
-        {tab === 'Quality' && <QualityTab job={job} />}
+        {tab === 'Quality' && <QualityTab job={job} navigate={navigate} />}
+        {tab === 'NCR/Rework' && <NCRTab job={job} navigate={navigate} />}
+        {tab === 'Dispatch' && <DispatchTab job={job} navigate={navigate} />}
         {tab === 'Blockers' && <BlockersTab blockers={blockers} job={job} />}
       </div>
     </div>
@@ -220,8 +222,7 @@ function Stages({ job, canUpdate, navigate }: any) {
 }
 
 function Materials({ job }: any) {
-  const { lots } = useStore();
-  const jobLots = lots.filter(l => l.status === 'reserved' || l.status === 'issued');
+  const reqs = JOB_MATERIAL_REQS.filter(r => r.jobId === job.id);
   return (
     <div className="space-y-3">
       <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl overflow-hidden">
@@ -230,42 +231,23 @@ function Materials({ job }: any) {
         </div>
         <table className="eoss-table">
           <thead>
-            <tr><th>Material</th><th>Required</th><th>Reserved</th><th>Issued</th><th>UOM</th><th>Status</th></tr>
+            <tr><th>Material</th><th>Stage</th><th>Required</th><th>Reserved</th><th>Issued</th><th>UOM</th><th>Status</th></tr>
           </thead>
           <tbody>
-            {job.id === 'job-101' && (
-              <>
-                <tr>
-                  <td className="text-sm">MS Plate 8mm</td>
-                  <td className="font-mono text-sm">320</td>
-                  <td className="font-mono text-sm">320</td>
-                  <td className="font-mono text-sm">320</td>
-                  <td className="text-xs text-[var(--text-2)]">kg</td>
-                  <td><StatusChip status="issued" size="sm" /></td>
-                </tr>
-                <tr>
-                  <td className="text-sm">Welding Rods E6013</td>
-                  <td className="font-mono text-sm">200</td>
-                  <td className="font-mono text-sm">200</td>
-                  <td className="font-mono text-sm">0</td>
-                  <td className="text-xs text-[var(--text-2)]">pcs</td>
-                  <td><StatusChip status="reserved" size="sm" /></td>
-                </tr>
-              </>
+            {reqs.length === 0 && (
+              <tr><td colSpan={7} className="text-center py-6 text-sm text-[var(--text-3)]">No material requirements recorded for this job</td></tr>
             )}
-            {job.id === 'job-102' && (
-              <tr>
-                <td className="text-sm">SS Sheet 3mm 304L</td>
-                <td className="font-mono text-sm">432</td>
-                <td className="font-mono text-sm">108</td>
-                <td className="font-mono text-sm">0</td>
-                <td className="text-xs text-[var(--text-2)]">kg</td>
-                <td><StatusChip status="shortage" label="shortage" size="sm" /></td>
+            {reqs.map(r => (
+              <tr key={r.id}>
+                <td className="text-sm">{r.materialName}</td>
+                <td className="text-xs text-[var(--text-2)]">{r.stageName}</td>
+                <td className="font-mono text-sm">{r.requiredQty}</td>
+                <td className="font-mono text-sm">{r.reservedQty}</td>
+                <td className="font-mono text-sm">{r.issuedQty}</td>
+                <td className="text-xs text-[var(--text-2)]">{r.uom}</td>
+                <td><StatusChip status={r.shortage ? 'shortage' : r.issuedQty > 0 ? 'issued' : r.reservedQty > 0 ? 'reserved' : 'pending'} label={r.shortage ? 'shortage' : undefined} size="sm" /></td>
               </tr>
-            )}
-            {!['job-101', 'job-102'].includes(job.id) && (
-              <tr><td colSpan={6} className="text-center py-6 text-sm text-[var(--text-3)]">Material requirements tracked at stage level</td></tr>
-            )}
+            ))}
           </tbody>
         </table>
       </div>
@@ -317,7 +299,7 @@ function DocTab({ job }: any) {
   );
 }
 
-function QualityTab({ job }: any) {
+function QualityTab({ job, navigate }: any) {
   const { inspections, ncrs } = useStore();
   const jobInsp = inspections.filter(i => i.jobId === job.id);
   const jobNcrs = ncrs.filter(n => n.jobId === job.id);
@@ -332,8 +314,8 @@ function QualityTab({ job }: any) {
           <tbody>
             {jobInsp.length === 0 && <tr><td colSpan={8} className="text-center py-6 text-sm text-[var(--text-3)]">No inspections recorded</td></tr>}
             {jobInsp.map(i => (
-              <tr key={i.id}>
-                <td className="font-mono text-xs">{i.inspectionNumber}</td>
+              <tr key={i.id} className="cursor-pointer" onClick={() => navigate(`/quality/inspection/${i.id}`)}>
+                <td className="font-mono text-xs text-[var(--brand)]">{i.inspectionNumber}</td>
                 <td className="text-sm">{i.type}</td>
                 <td className="text-sm text-[var(--text-2)]">{i.stageName ?? '—'}</td>
                 <td className="text-sm">{new Date(i.date).toLocaleDateString('en-IN')}</td>
@@ -350,13 +332,64 @@ function QualityTab({ job }: any) {
         <div className="bg-[var(--error-bg)] border border-[var(--error)] rounded-xl p-4">
           <h3 className="font-semibold text-sm text-[var(--error)] mb-2">NCRs ({jobNcrs.length})</h3>
           {jobNcrs.map(n => (
-            <div key={n.id} className="text-sm mt-2">
-              <span className="font-mono font-semibold">{n.ncrNumber}</span> — {n.description}
+            <div key={n.id} className="flex items-center gap-2 mt-2 cursor-pointer" onClick={() => navigate(`/quality/ncr/${n.id}`)}>
+              <span className="font-mono text-xs font-semibold text-[var(--error)]">{n.ncrNumber}</span>
               <StatusChip status={n.status} size="sm" />
+              <span className="text-xs text-[var(--text-2)] truncate">{n.description}</span>
             </div>
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+function NCRTab({ job, navigate }: any) {
+  const { ncrs } = useStore();
+  const jobNcrs = ncrs.filter(n => n.jobId === job.id);
+  return (
+    <div className="space-y-3">
+      {jobNcrs.length === 0 && (
+        <div className="bg-[var(--success-bg)] border border-[var(--success)] rounded-xl p-6 text-center">
+          <CheckCircle size={24} className="text-[var(--success)] mx-auto mb-2" />
+          <p className="font-semibold text-[var(--success)]">No NCRs for this job</p>
+        </div>
+      )}
+      {jobNcrs.map(n => (
+        <div key={n.id} className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 cursor-pointer hover:border-[var(--brand)]" onClick={() => navigate(`/quality/ncr/${n.id}`)}>
+          <div className="flex items-center gap-2 mb-1">
+            <span className="font-mono text-xs font-semibold text-[var(--brand)]">{n.ncrNumber}</span>
+            <StatusChip status={n.severity.toLowerCase()} label={n.severity} size="sm" />
+            <StatusChip status={n.status} size="sm" />
+          </div>
+          <p className="text-sm text-[var(--text)]">{n.description}</p>
+          <p className="text-xs text-[var(--text-2)] mt-1">Disposition: {n.disposition} · Raised by {n.raisedBy}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function DispatchTab({ job, navigate }: any) {
+  const { dispatches } = useStore();
+  const jobDispatches = dispatches.filter(d => (d.jobs ?? []).includes(job.jobNumber));
+  return (
+    <div className="space-y-3">
+      {jobDispatches.length === 0 && (
+        <div className="text-center py-10 text-sm text-[var(--text-3)]">No dispatches linked to this job.</div>
+      )}
+      {jobDispatches.map(d => (
+        <div key={d.id} className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 flex items-center gap-3 cursor-pointer hover:border-[var(--brand)]" onClick={() => navigate(`/dispatch/${d.id}`)}>
+          <Truck size={18} className="text-[var(--brand)] flex-shrink-0" />
+          <div className="flex-1 min-w-0">
+            <div className="font-mono text-xs font-semibold text-[var(--brand)]">{d.dispatchNumber}</div>
+            <div className="text-sm text-[var(--text)]">{d.customerName}</div>
+            <div className="text-xs text-[var(--text-2)]">{d.carrier} · {d.dispatchDate ? new Date(d.dispatchDate).toLocaleDateString('en-IN') : '—'}</div>
+          </div>
+          <StatusChip status={d.status} size="sm" />
+          <ChevronRight size={14} className="text-[var(--text-3)]" />
+        </div>
+      ))}
     </div>
   );
 }

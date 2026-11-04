@@ -2,12 +2,14 @@ import React from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, CheckCircle, XCircle } from 'lucide-react';
 import { useStore } from '../../store';
+import { AlertTriangle } from 'lucide-react';
 import StatusChip from '../../components/layout/StatusChip';
 
 export default function InspectionDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { inspections, lots, jobs } = useStore();
+  const { inspections, lots, jobs, currentUser, showToast } = useStore();
+  const canRaiseNCR = ['owner', 'qc'].includes(currentUser.role);
 
   const ins = inspections.find(i => i.id === id);
   if (!ins) return <div className="p-6 text-[var(--text-2)]">Inspection not found</div>;
@@ -91,6 +93,20 @@ export default function InspectionDetail() {
               <div className="font-semibold text-sm text-[var(--error)] mb-1">NCR Raised</div>
               <div className="font-mono text-xs text-[var(--text)]">{ins.ncrNumber}</div>
               <button onClick={() => navigate(`/quality/ncr/${ins.ncrId}`)} className="mt-2 text-xs text-[var(--error)] underline">View NCR →</button>
+            </div>
+          )}
+          {ins.result === 'fail' && !ins.ncrId && canRaiseNCR && (
+            <div className="bg-[var(--warning-bg)] border border-[var(--warning)] rounded-xl p-4">
+              <div className="font-semibold text-sm text-[var(--warning)] mb-1 flex items-center gap-1.5">
+                <AlertTriangle size={14} /> Inspection Failed — No NCR
+              </div>
+              <p className="text-xs text-[var(--text-2)] mb-3">This inspection failed but no NCR has been raised yet.</p>
+              <button
+                onClick={() => showToast({ type: 'info', title: 'NCR Raised', body: `NCR created for ${ins.inspectionNumber}` })}
+                className="w-full py-2 bg-[var(--warning)] text-white rounded-lg text-sm font-medium"
+              >
+                Raise NCR
+              </button>
             </div>
           )}
         </div>

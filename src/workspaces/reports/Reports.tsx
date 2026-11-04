@@ -15,8 +15,8 @@ export default function Reports() {
   const { jobs, inventory, inspections, assets, dispatches, maintenanceEvents } = useStore();
   const [activeReport, setActiveReport] = useState<string | null>(null);
 
-  const completedJobs = jobs.filter(j => j.status === 'completed').length;
-  const inProgressJobs = jobs.filter(j => j.status === 'in_progress').length;
+  const completedJobs = jobs.filter(j => j.status === 'complete').length;
+  const inProgressJobs = jobs.filter(j => j.status === 'active').length;
   const passRate = Math.round((inspections.filter(i => i.result === 'pass').length / Math.max(inspections.filter(i => i.result !== 'pending').length, 1)) * 100);
   const assetUptime = Math.round(((assets.length - assets.filter(a => a.status === 'breakdown').length) / assets.length) * 100);
 
@@ -69,7 +69,7 @@ export default function Reports() {
                     <td className="text-sm text-[var(--text)]">{j.customerName}</td>
                     <td><span className="text-xs text-[var(--text-2)]">{j.status}</span></td>
                     <td><span className="text-xs text-[var(--text-2)]">{j.priority}</span></td>
-                    <td className="text-sm text-[var(--text-2)]">{j.plannedEndDate ? new Date(j.plannedEndDate).toLocaleDateString('en-IN') : '—'}</td>
+                    <td className="text-sm text-[var(--text-2)]">{j.plannedEnd ? new Date(j.plannedEnd).toLocaleDateString('en-IN') : '—'}</td>
                   </tr>
                 ))}
               </tbody>

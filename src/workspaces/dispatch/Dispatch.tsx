@@ -1,13 +1,16 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, ChevronRight, Search } from 'lucide-react';
+import { Plus, ChevronRight, Search, X } from 'lucide-react';
 import { useStore } from '../../store';
+import { CUSTOMERS } from '../../store';
 import StatusChip from '../../components/layout/StatusChip';
 
 export default function Dispatch() {
-  const { dispatches, currentUser } = useStore();
+  const { dispatches, currentUser, showToast } = useStore();
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
+  const [showModal, setShowModal] = useState(false);
+  const [form, setForm] = useState({ customerName: '', carrier: '', vehicleNumber: '', lrNumber: '', dispatchDate: '', jobs: '' });
 
   const readyToDispatch = dispatches.filter(d => d.status === 'ready').length;
   const inTransit = dispatches.filter(d => d.status === 'in_transit').length;
@@ -30,7 +33,7 @@ export default function Dispatch() {
           </div>
         </div>
         {['owner', 'dispatch'].includes(currentUser.role) && (
-          <button className="flex items-center gap-2 px-4 py-2 bg-[var(--brand)] text-white rounded-lg text-sm font-medium"><Plus size={16} /> New Dispatch</button>
+          <button onClick={() => setShowModal(true)} className="flex items-center gap-2 px-4 py-2 bg-[var(--brand)] text-white rounded-lg text-sm font-medium"><Plus size={16} /> New Dispatch</button>
         )}
       </div>
 
@@ -68,6 +71,62 @@ export default function Dispatch() {
           </table>
         </div>
       </div>
+
+      {showModal && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-6 w-full max-w-md shadow-xl">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-bold text-[var(--text)]">New Dispatch</h2>
+              <button onClick={() => setShowModal(false)} className="text-[var(--text-3)] hover:text-[var(--text)]"><X size={18} /></button>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs text-[var(--text-3)] block mb-1">Customer *</label>
+                <select value={form.customerName} onChange={e => setForm(f => ({ ...f, customerName: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--surface)] text-sm text-[var(--text)] focus:outline-none focus:border-[var(--brand)]">
+                  <option value="">Select customer…</option>
+                  {CUSTOMERS.map(c => <option key={c.id} value={c.tradingName}>{c.tradingName}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs text-[var(--text-3)] block mb-1">Jobs (comma separated)</label>
+                <input value={form.jobs} onChange={e => setForm(f => ({ ...f, jobs: e.target.value }))} placeholder="J-101, J-105" className="w-full px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--surface)] text-sm text-[var(--text)] focus:outline-none focus:border-[var(--brand)]" />
+              </div>
+              <div>
+                <label className="text-xs text-[var(--text-3)] block mb-1">Carrier</label>
+                <input value={form.carrier} onChange={e => setForm(f => ({ ...f, carrier: e.target.value }))} placeholder="DTDC / Blue Dart…" className="w-full px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--surface)] text-sm text-[var(--text)] focus:outline-none focus:border-[var(--brand)]" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-[var(--text-3)] block mb-1">Vehicle No.</label>
+                  <input value={form.vehicleNumber} onChange={e => setForm(f => ({ ...f, vehicleNumber: e.target.value }))} placeholder="TS09XX0000" className="w-full px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--surface)] text-sm text-[var(--text)] focus:outline-none focus:border-[var(--brand)]" />
+                </div>
+                <div>
+                  <label className="text-xs text-[var(--text-3)] block mb-1">LR Number</label>
+                  <input value={form.lrNumber} onChange={e => setForm(f => ({ ...f, lrNumber: e.target.value }))} placeholder="LR-XXXX" className="w-full px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--surface)] text-sm text-[var(--text)] focus:outline-none focus:border-[var(--brand)]" />
+                </div>
+              </div>
+              <div>
+                <label className="text-xs text-[var(--text-3)] block mb-1">Dispatch Date *</label>
+                <input type="date" value={form.dispatchDate} onChange={e => setForm(f => ({ ...f, dispatchDate: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--surface)] text-sm text-[var(--text)] focus:outline-none focus:border-[var(--brand)]" />
+              </div>
+            </div>
+            <div className="flex gap-2 mt-5">
+              <button onClick={() => setShowModal(false)} className="flex-1 py-2 border border-[var(--border)] text-[var(--text)] rounded-lg text-sm">Cancel</button>
+              <button
+                disabled={!form.customerName || !form.dispatchDate}
+                onClick={() => {
+                  showToast({ type: 'success', title: 'Dispatch Created', body: `New dispatch created for ${form.customerName}` });
+                  setShowModal(false);
+                  setForm({ customerName: '', carrier: '', vehicleNumber: '', lrNumber: '', dispatchDate: '', jobs: '' });
+                }}
+                className="flex-1 py-2 bg-[var(--brand)] text-white rounded-lg text-sm font-medium disabled:opacity-50"
+              >
+                Create Dispatch
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

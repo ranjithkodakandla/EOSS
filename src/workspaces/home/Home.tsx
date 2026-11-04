@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AlertTriangle, TrendingUp, Package, Wrench, FileText, ChevronRight, AlertCircle, CheckCircle, Info, Clock, ArrowRight, BarChart2 } from 'lucide-react';
-import { useStore } from '../../store';
+import { useStore, PURCHASE_REQS } from '../../store';
+import { DEMO_NOW } from '../../data/seed';
 import StatusChip from '../../components/layout/StatusChip';
 import clsx from 'clsx';
 
@@ -22,7 +23,7 @@ const PRIORITY_CONFIG = {
 };
 
 export default function Home() {
-  const { pulseExceptions, jobs, inventory, assets, currentUser } = useStore();
+  const { pulseExceptions, jobs, inventory, assets, inspections, currentUser } = useStore();
   const navigate = useNavigate();
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
 
@@ -41,8 +42,12 @@ export default function Home() {
 
   const categories = ['all', ...Array.from(new Set(pulseExceptions.map(e => e.category)))];
 
+  const openPRs = PURCHASE_REQS.filter(pr => pr.status === 'approved' || pr.status === 'open').length;
+  const pendingQC = inspections.filter(i => i.result === 'pending').length;
+
   const relativeTime = (iso: string) => {
-    const diff = Date.now() - new Date(iso).getTime();
+    const demoMs = new Date(DEMO_NOW).getTime();
+    const diff = demoMs - new Date(iso).getTime();
     const h = Math.floor(diff / 3600000);
     if (h < 1) return `${Math.floor(diff / 60000)}m ago`;
     if (h < 24) return `${h}h ago`;
@@ -140,8 +145,8 @@ export default function Home() {
       <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mt-4">
         {[
           { label: 'Active Jobs', count: activeJobs, path: '/jobs', color: 'var(--info)' },
-          { label: 'Open PRs', count: 3, path: '/procurement', color: 'var(--warning)' },
-          { label: 'Pending QC', count: 2, path: '/quality', color: 'var(--hold)' },
+          { label: 'Open PRs', count: openPRs, path: '/procurement', color: 'var(--warning)' },
+          { label: 'Pending QC', count: pendingQC, path: '/quality', color: 'var(--hold)' },
         ].map(q => (
           <button key={q.path} onClick={() => navigate(q.path)} className="flex items-center justify-between p-4 bg-[var(--surface)] border border-[var(--border)] rounded-xl hover:border-[var(--brand)] transition-colors">
             <div className="text-left">
