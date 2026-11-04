@@ -1,136 +1,367 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, ChevronRight, Search, TrendingUp } from 'lucide-react';
+import {
+  Plus, Search, ChevronRight, ArrowUpRight, Calendar,
+  FileText, Briefcase, DollarSign, Clock, User
+} from 'lucide-react';
 import { useStore } from '../../store';
 import StatusChip from '../../components/layout/StatusChip';
 import clsx from 'clsx';
 
+type POTab = 'pos' | 'rfqs' | 'customers';
+
 export default function Sales() {
-  const { rfqs, customerPos, currentUser } = useStore();
+  const { rfqs, customerPos, jobs, currentUser } = useStore();
   const navigate = useNavigate();
-  const [tab, setTab] = useState<'rfqs' | 'pos' | 'customers'>('pos');
+  const [tab, setTab] = useState<POTab>('pos');
   const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [selectedPoId, setSelectedPoId] = useState<string | null>(null);
 
-  const filteredPos = customerPos.filter(p =>
-    !search || p.poNumber.toLowerCase().includes(search.toLowerCase()) || p.customerName.toLowerCase().includes(search.toLowerCase())
-  );
-  const filteredRfqs = rfqs.filter(r =>
-    !search || r.rfqNumber.toLowerCase().includes(search.toLowerCase()) || r.customerName.toLowerCase().includes(search.toLowerCase())
-  );
-
-  const totalActive = customerPos.filter(p => p.status === 'active').reduce((s, p) => s + p.totalValue, 0);
   const canCreate = ['owner', 'sales'].includes(currentUser.role);
 
+  const filteredPos = customerPos.filter(p => {
+    const q = search.toLowerCase();
+    const matchSearch = !q || p.poNumber.toLowerCase().includes(q) || p.customerName.toLowerCase().includes(q);
+    const matchStatus = statusFilter === 'all' || p.status === statusFilter;
+    return matchSearch && matchStatus;
+  });
+
+  const filteredRfqs = rfqs.filter(r => {
+    const q = search.toLowerCase();
+    return !q || r.rfqNumber.toLowerCase().includes(q) || r.customerName.toLowerCase().includes(q);
+  });
+
+  const selectedPo = customerPos.find(p => p.id === selectedPoId);
+  const poJobs = selectedPo ? jobs.filter(j => j.customerPoId === selectedPo.id) : [];
+
+  const totalActive = customerPos.filter(p => p.status === 'active').reduce((s, p) => s + p.totalValue, 0);
+
+  const poStatuses = ['all', 'active', 'complete', 'cancelled'];
+
+  const fmt = (d: string) => new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' });
+
   return (
-    <div className="p-4 md:p-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
+    <div className="flex flex-col h-full">
+      {/* Page Header */}
+      <div
+        className="flex-shrink-0 px-6 py-4 border-b flex items-center justify-between gap-4"
+        style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
+      >
         <div>
-          <h1 className="text-xl font-bold text-[var(--text)]">Sales</h1>
-          <p className="text-sm text-[var(--text-2)]">
+          <h1 className="text-lg font-bold" style={{ color: 'var(--text)' }}>Sales</h1>
+          <p className="text-xs mt-0.5" style={{ color: 'var(--text-2)' }}>
             {customerPos.filter(p => p.status === 'active').length} active POs · ₹{(totalActive / 100000).toFixed(1)}L in progress
           </p>
         </div>
         {canCreate && (
-          <button className="flex items-center gap-2 px-4 py-2 bg-[var(--brand)] text-white rounded-lg text-sm font-medium">
-            <Plus size={16} /> New RFQ
+          <button
+            className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white transition-opacity hover:opacity-90"
+            style={{ background: 'var(--brand)' }}
+          >
+            <Plus size={15} /> New RFQ
           </button>
         )}
       </div>
 
-      {/* KPIs */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
-        <KpiTile label="Open RFQs" value={rfqs.filter(r => r.status === 'open').length} accent="info" />
-        <KpiTile label="Active POs" value={customerPos.filter(p => p.status === 'active').length} accent="success" />
-        <KpiTile label="Total PO Value" value={`₹${(totalActive / 100000).toFixed(1)}L`} accent="info" isString />
-        <KpiTile label="Completed" value={customerPos.filter(p => p.status === 'complete').length} accent="neutral" />
+      {/* Workspace Tabs — amber underline style */}
+      <div
+        className="flex-shrink-0 flex items-center gap-0 px-6 border-b"
+        style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
+      >
+        {([
+          { id: 'pos', label: `Customer POs (${customerPos.length})` },
+          { id: 'rfqs', label: `RFQs (${rfqs.length})` },
+          { id: 'customers', label: 'Customer Directory' },
+        ] as { id: POTab; label: string }[]).map(t => (
+          <button
+            key={t.id}
+            onClick={() => { setTab(t.id); if (t.id === 'customers') navigate('/sales/customers'); }}
+            className={clsx(
+              'px-4 py-3 text-sm font-medium transition-colors relative whitespace-nowrap',
+              tab === t.id
+                ? 'font-semibold'
+                : 'hover:opacity-80'
+            )}
+            style={{ color: tab === t.id ? 'var(--brand)' : 'var(--text-2)' }}
+          >
+            {t.label}
+            {tab === t.id && (
+              <span
+                className="absolute bottom-0 left-0 right-0 h-0.5 rounded-t-full"
+                style={{ background: 'var(--brand)' }}
+              />
+            )}
+          </button>
+        ))}
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-2 mb-4">
-        <button onClick={() => setTab('pos')} className={clsx('px-4 py-2 rounded-lg text-sm transition-colors', tab === 'pos' ? 'bg-[var(--brand)] text-white' : 'border border-[var(--border)] text-[var(--text-2)]')}>
-          Customer POs ({customerPos.length})
-        </button>
-        <button onClick={() => setTab('rfqs')} className={clsx('px-4 py-2 rounded-lg text-sm transition-colors', tab === 'rfqs' ? 'bg-[var(--brand)] text-white' : 'border border-[var(--border)] text-[var(--text-2)]')}>
-          RFQs ({rfqs.length})
-        </button>
-        <button onClick={() => navigate('/sales/customers')} className="px-4 py-2 rounded-lg text-sm transition-colors border border-[var(--border)] text-[var(--text-2)] hover:bg-[var(--surface-muted,#F8F9FC)]">
-          Customer Directory
-        </button>
+      {/* Filter Bar */}
+      <div
+        className="flex-shrink-0 flex items-center gap-3 px-6 py-3 border-b"
+        style={{ borderColor: 'var(--border)', background: 'var(--surface-muted,#F8F9FC)' }}
+      >
+        <div className="relative flex-1 max-w-xs">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-3)' }} />
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search PO number, customer…"
+            className="w-full pl-8 pr-3 py-1.5 rounded-lg text-sm border focus:outline-none focus:ring-1"
+            style={{
+              borderColor: 'var(--border)',
+              background: 'var(--surface)',
+              color: 'var(--text)',
+              focusRingColor: 'var(--brand)',
+            }}
+          />
+        </div>
+        {tab === 'pos' && (
+          <div className="flex items-center gap-1.5">
+            {poStatuses.map(s => (
+              <button
+                key={s}
+                onClick={() => setStatusFilter(s)}
+                className="px-3 py-1 rounded-full text-xs font-medium transition-colors capitalize"
+                style={
+                  statusFilter === s
+                    ? { background: 'var(--brand)', color: '#fff' }
+                    : { background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text-2)' }
+                }
+              >
+                {s === 'all' ? 'All' : s}
+              </button>
+            ))}
+          </div>
+        )}
+        {search && (
+          <button
+            onClick={() => setSearch('')}
+            className="text-xs underline"
+            style={{ color: 'var(--text-3)' }}
+          >
+            Clear
+          </button>
+        )}
       </div>
 
-      {/* Search */}
-      <div className="relative mb-4">
-        <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-3)]" />
-        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search…" className="w-full pl-9 pr-4 py-2 rounded-lg border border-[var(--border)] bg-[var(--surface)] text-sm text-[var(--text)] placeholder:text-[var(--text-3)] focus:outline-none focus:border-[var(--brand)]" />
-      </div>
-
-      {tab === 'pos' && (
-        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="eoss-table">
-              <thead>
-                <tr><th>PO Number</th><th>Customer</th><th>Accepted</th><th>Payment Terms</th><th>Lines</th><th>Value</th><th>Status</th><th>Notes</th><th></th></tr>
+      {/* Content — master-detail split */}
+      <div className="flex flex-1 overflow-hidden">
+        {/* List panel */}
+        <div
+          className={clsx(
+            'overflow-auto',
+            selectedPo ? 'w-[58%] border-r' : 'w-full'
+          )}
+          style={{ borderColor: 'var(--border)' }}
+        >
+          {tab === 'pos' && (
+            <table className="w-full text-sm border-collapse">
+              <thead className="sticky top-0 z-10" style={{ background: 'var(--surface-muted,#F8F9FC)' }}>
+                <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                  {['PO Number', 'Customer', 'Date', 'Value', 'Lines', 'Terms', 'Status'].map(h => (
+                    <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-3)' }}>
+                      {h}
+                    </th>
+                  ))}
+                </tr>
               </thead>
               <tbody>
-                {filteredPos.map(p => (
-                  <tr key={p.id} className="cursor-pointer" onClick={() => navigate(`/sales/po/${p.id}`)}>
-                    <td>
-                      <div className="font-mono text-xs font-semibold text-[var(--brand)]">{p.poNumber}</div>
-                      {p.hasAmendment && <div className="text-[11px] text-[var(--warning)]">Amendment pending</div>}
-                    </td>
-                    <td className="text-sm text-[var(--text)]">{p.customerName}</td>
-                    <td className="text-sm text-[var(--text-2)]">{new Date(p.acceptedDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</td>
-                    <td className="text-sm text-[var(--text-2)]">{p.paymentTerms}</td>
-                    <td className="text-sm text-center">{p.lineCount}</td>
-                    <td className="font-mono text-sm font-semibold text-[var(--text)]">₹{(p.totalValue / 1000).toFixed(0)}k</td>
-                    <td><StatusChip status={p.status} size="sm" /></td>
-                    <td className="text-xs text-[var(--text-2)]">{p.deliveryTerms}</td>
-                    <td><ChevronRight size={14} className="text-[var(--text-3)]" /></td>
-                  </tr>
-                ))}
-                {filteredPos.length === 0 && <tr><td colSpan={9} className="text-center py-8 text-sm text-[var(--text-3)]">No POs found</td></tr>}
+                {filteredPos.map(p => {
+                  const isSelected = p.id === selectedPoId;
+                  return (
+                    <tr
+                      key={p.id}
+                      onClick={() => setSelectedPoId(isSelected ? null : p.id)}
+                      className="cursor-pointer transition-colors"
+                      style={{
+                        borderBottom: '1px solid var(--border)',
+                        background: isSelected ? 'var(--brand-50, rgba(var(--brand-rgb,112,72,245),0.06))' : 'var(--surface)',
+                        borderLeft: isSelected ? '3px solid var(--brand)' : '3px solid transparent',
+                      }}
+                      onMouseEnter={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.background = 'var(--surface-muted,#F8F9FC)'; }}
+                      onMouseLeave={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.background = 'var(--surface)'; }}
+                    >
+                      <td className="px-4 py-3">
+                        <div className="font-mono text-xs font-bold" style={{ color: 'var(--brand)' }}>{p.poNumber}</div>
+                        {p.hasAmendment && <div className="text-[10px] mt-0.5 font-medium" style={{ color: 'var(--warning)' }}>Amendment</div>}
+                      </td>
+                      <td className="px-4 py-3 font-medium" style={{ color: 'var(--text)' }}>{p.customerName}</td>
+                      <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-2)' }}>
+                        {fmt(p.acceptedDate)}
+                      </td>
+                      <td className="px-4 py-3 font-mono font-semibold text-xs" style={{ color: 'var(--text)' }}>
+                        ₹{(p.totalValue / 100000).toFixed(1)}L
+                      </td>
+                      <td className="px-4 py-3 text-center text-xs" style={{ color: 'var(--text-2)' }}>{p.lineCount}</td>
+                      <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-2)' }}>{p.paymentTerms}</td>
+                      <td className="px-4 py-3">
+                        <StatusChip status={p.status} size="sm" />
+                      </td>
+                    </tr>
+                  );
+                })}
+                {filteredPos.length === 0 && (
+                  <tr><td colSpan={7} className="text-center py-12 text-sm" style={{ color: 'var(--text-3)' }}>No POs match the current filters</td></tr>
+                )}
               </tbody>
             </table>
-          </div>
-        </div>
-      )}
+          )}
 
-      {tab === 'rfqs' && (
-        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="eoss-table">
-              <thead>
-                <tr><th>RFQ Number</th><th>Customer</th><th>Received</th><th>Required By</th><th>Lines</th><th>Channel</th><th>Status</th><th>Owner</th></tr>
+          {tab === 'rfqs' && (
+            <table className="w-full text-sm border-collapse">
+              <thead className="sticky top-0 z-10" style={{ background: 'var(--surface-muted,#F8F9FC)' }}>
+                <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                  {['RFQ Number', 'Customer', 'Received', 'Required By', 'Lines', 'Channel', 'Status', 'Owner'].map(h => (
+                    <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-3)' }}>{h}</th>
+                  ))}
+                </tr>
               </thead>
               <tbody>
                 {filteredRfqs.map(r => (
-                  <tr key={r.id}>
-                    <td><span className="font-mono text-xs font-semibold text-[var(--brand)]">{r.rfqNumber}</span></td>
-                    <td className="text-sm text-[var(--text)]">{r.customerName}</td>
-                    <td className="text-sm text-[var(--text-2)]">{new Date(r.receivedDate).toLocaleDateString('en-IN')}</td>
-                    <td className="text-sm text-[var(--text-2)]">{new Date(r.requiredBy).toLocaleDateString('en-IN')}</td>
-                    <td className="text-center text-sm">{r.lineCount}</td>
-                    <td className="text-sm text-[var(--text-2)]">{r.channel}</td>
-                    <td><StatusChip status={r.status} size="sm" /></td>
-                    <td className="text-sm text-[var(--text-2)]">{r.owner}</td>
+                  <tr
+                    key={r.id}
+                    className="cursor-pointer transition-colors"
+                    style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--surface-muted,#F8F9FC)'; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'var(--surface)'; }}
+                  >
+                    <td className="px-4 py-3 font-mono text-xs font-bold" style={{ color: 'var(--brand)' }}>{r.rfqNumber}</td>
+                    <td className="px-4 py-3 font-medium" style={{ color: 'var(--text)' }}>{r.customerName}</td>
+                    <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-2)' }}>{fmt(r.receivedDate)}</td>
+                    <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-2)' }}>{fmt(r.requiredBy)}</td>
+                    <td className="px-4 py-3 text-center text-xs" style={{ color: 'var(--text-2)' }}>{r.lineCount}</td>
+                    <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-2)' }}>{r.channel}</td>
+                    <td className="px-4 py-3"><StatusChip status={r.status} size="sm" /></td>
+                    <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-2)' }}>{r.owner}</td>
                   </tr>
                 ))}
-                {filteredRfqs.length === 0 && <tr><td colSpan={8} className="text-center py-8 text-sm text-[var(--text-3)]">No RFQs found</td></tr>}
+                {filteredRfqs.length === 0 && (
+                  <tr><td colSpan={8} className="text-center py-12 text-sm" style={{ color: 'var(--text-3)' }}>No RFQs found</td></tr>
+                )}
               </tbody>
             </table>
-          </div>
+          )}
         </div>
-      )}
+
+        {/* Detail Preview Panel */}
+        {selectedPo && (
+          <div className="w-[42%] overflow-auto flex flex-col" style={{ background: 'var(--surface)' }}>
+            {/* Preview Header */}
+            <div className="px-5 py-4 border-b flex items-start justify-between" style={{ borderColor: 'var(--border)' }}>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-mono font-bold text-base" style={{ color: 'var(--brand)' }}>{selectedPo.poNumber}</span>
+                  <StatusChip status={selectedPo.status} />
+                  {selectedPo.hasAmendment && (
+                    <span className="text-[10px] px-2 py-0.5 rounded-full border font-medium" style={{ background: 'var(--warning-bg)', color: 'var(--warning)', borderColor: 'var(--warning)' }}>
+                      Amendment
+                    </span>
+                  )}
+                </div>
+                <p className="text-sm mt-0.5 font-medium" style={{ color: 'var(--text)' }}>{selectedPo.customerName}</p>
+              </div>
+              <button
+                onClick={() => navigate(`/sales/po/${selectedPo.id}`)}
+                className="flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors hover:opacity-80"
+                style={{ borderColor: 'var(--brand)', color: 'var(--brand)' }}
+              >
+                Open full record <ArrowUpRight size={12} />
+              </button>
+            </div>
+
+            {/* Value Summary */}
+            <div className="px-5 py-4 border-b grid grid-cols-3 gap-4" style={{ borderColor: 'var(--border)', background: 'var(--surface-muted,#F8F9FC)' }}>
+              <Metric icon={<DollarSign size={14} />} label="Total Value" value={`₹${(selectedPo.totalValue / 100000).toFixed(2)}L`} />
+              <Metric icon={<FileText size={14} />} label="Line Items" value={String(selectedPo.lineCount)} />
+              <Metric icon={<Clock size={14} />} label="Terms" value={selectedPo.paymentTerms} small />
+            </div>
+
+            {/* Detail Fields */}
+            <div className="px-5 py-4 space-y-4 flex-1">
+              <Section title="PO Details">
+                <Field label="Accepted Date" value={fmt(selectedPo.acceptedDate)} />
+                <Field label="Delivery Terms" value={selectedPo.deliveryTerms} />
+                <Field label="Currency" value={selectedPo.currency} />
+                {selectedPo.quotationRef && <Field label="Quotation Ref" value={selectedPo.quotationRef} mono />}
+              </Section>
+
+              <Section title={`Linked Jobs (${poJobs.length})`}>
+                {poJobs.length === 0 ? (
+                  <p className="text-xs" style={{ color: 'var(--text-3)' }}>No jobs linked to this PO yet.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {poJobs.map(j => (
+                      <button
+                        key={j.id}
+                        onClick={() => navigate(`/jobs/${j.id}`)}
+                        className="w-full flex items-center justify-between px-3 py-2 rounded-lg border text-left hover:opacity-80 transition-opacity"
+                        style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
+                      >
+                        <div>
+                          <div className="text-xs font-mono font-bold" style={{ color: 'var(--brand)' }}>{j.jobNumber}</div>
+                          <div className="text-xs mt-0.5" style={{ color: 'var(--text-2)' }}>{j.currentStage} · {j.status}</div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <StatusChip status={j.status} size="sm" />
+                          <ChevronRight size={12} style={{ color: 'var(--text-3)' }} />
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </Section>
+
+              <div className="pt-2 flex gap-2">
+                <button
+                  onClick={() => navigate(`/sales/po/${selectedPo.id}`)}
+                  className="flex-1 py-2 rounded-lg text-sm font-semibold text-white transition-opacity hover:opacity-90"
+                  style={{ background: 'var(--brand)' }}
+                >
+                  Open Full Record
+                </button>
+                <button
+                  onClick={() => navigate(`/sales/po/${selectedPo.id}/amend`)}
+                  className="px-4 py-2 rounded-lg text-sm font-semibold border transition-colors hover:opacity-80"
+                  style={{ borderColor: 'var(--border)', color: 'var(--text-2)' }}
+                >
+                  Amend
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
 
-function KpiTile({ label, value, accent, isString }: { label: string; value: number | string; accent: string; isString?: boolean }) {
-  const color = { error: 'var(--error)', success: 'var(--success)', info: 'var(--info)', warning: 'var(--warning)', neutral: 'var(--text)' }[accent] ?? 'var(--text)';
+function Metric({ icon, label, value, small }: { icon: React.ReactNode; label: string; value: string; small?: boolean }) {
   return (
-    <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
-      <div className="text-xl font-bold" style={{ color }}>{value}</div>
-      <div className="text-xs text-[var(--text-2)] mt-0.5">{label}</div>
+    <div>
+      <div className="flex items-center gap-1 mb-1" style={{ color: 'var(--text-3)' }}>
+        {icon}
+        <span className="text-[10px] uppercase tracking-wider">{label}</span>
+      </div>
+      <div className={clsx('font-bold', small ? 'text-sm' : 'text-base')} style={{ color: 'var(--text)' }}>{value}</div>
+    </div>
+  );
+}
+
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <div className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: 'var(--text-3)' }}>{title}</div>
+      <div className="space-y-2.5">{children}</div>
+    </div>
+  );
+}
+
+function Field({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+  return (
+    <div className="flex justify-between items-baseline gap-2">
+      <span className="text-xs" style={{ color: 'var(--text-3)' }}>{label}</span>
+      <span className={clsx('text-xs font-medium text-right', mono ? 'font-mono' : '')} style={{ color: 'var(--text)' }}>{value}</span>
     </div>
   );
 }
