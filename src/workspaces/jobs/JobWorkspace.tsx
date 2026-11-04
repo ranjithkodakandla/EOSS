@@ -9,7 +9,7 @@ import { JOB_MATERIAL_REQS, EMPLOYEES } from '../../data/seed';
 import StatusChip from '../../components/layout/StatusChip';
 import clsx from 'clsx';
 
-const TABS = ['Overview', 'Materials', 'Quality', 'Assets', 'All Stages'];
+const TABS = ['Overview', 'Stages', 'Materials', 'Procurement', 'Quality', 'NCR / Rework', 'Assets', 'Documents', 'Dispatch', 'Updates', 'Blockers'];
 
 export default function JobWorkspace() {
   const { id } = useParams<{ id: string }>();
@@ -74,7 +74,8 @@ export default function JobWorkspace() {
   };
 
   return (
-    <div className="max-w-6xl mx-auto p-4 md:p-8 space-y-6">
+    <div className="flex flex-col h-full overflow-hidden">
+    <div className="flex-1 overflow-auto px-5 py-5 md:px-8 md:py-6 space-y-6 max-w-7xl w-full mx-auto">
 
       {/* ── 1. Clean Header (Glance: Identity, Status & Primary Action) ── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-[var(--border)]">
@@ -212,20 +213,19 @@ export default function JobWorkspace() {
         </div>
       </div>
 
-      {/* ── 4. Workspace Tabs (Level 2 Deep Detail on Demand) ── */}
-      <div className="border-b border-[var(--border)] flex gap-2">
+      {/* ── 4. Workspace Tabs ── */}
+      <div className="border-b border-[var(--border)] flex gap-0 overflow-x-auto scrollbar-none -mx-1">
         {TABS.map(t => (
           <button
             key={t}
             onClick={() => setTab(t)}
-            className={clsx(
-              'px-3 py-2 text-xs font-semibold border-b-2 -mb-px transition-colors',
-              tab === t
-                ? 'border-[var(--cyan-bright)] text-[var(--cyan-bright)]'
-                : 'border-transparent text-[var(--text-3)] hover:text-[var(--text)]'
-            )}
+            className="relative px-3 py-2.5 text-xs font-medium transition-colors whitespace-nowrap flex-shrink-0"
+            style={{ color: tab === t ? 'var(--brand)' : 'var(--text-3)' }}
           >
             {t}
+            {tab === t && (
+              <span className="absolute bottom-0 left-0 right-0 h-0.5 rounded-t-full" style={{ background: 'var(--brand)' }} />
+            )}
           </button>
         ))}
       </div>
@@ -327,7 +327,7 @@ export default function JobWorkspace() {
       )}
 
       {/* ── Tab: All Stages ── */}
-      {tab === 'All Stages' && (
+      {tab === 'Stages' && (
         <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] overflow-hidden">
           <table className="w-full text-left text-sm">
             <thead className="bg-[var(--surface-2)] text-xs text-[var(--text-3)] font-mono border-b border-[var(--border)]">
@@ -357,6 +357,13 @@ export default function JobWorkspace() {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {['Procurement', 'Quality', 'NCR / Rework', 'Assets', 'Documents', 'Dispatch', 'Updates', 'Blockers'].includes(tab) && (
+        <div className="rounded-xl border p-10 text-center" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
+          <p className="text-sm font-medium" style={{ color: 'var(--text-2)' }}>{tab}</p>
+          <p className="text-xs mt-1" style={{ color: 'var(--text-3)' }}>No data recorded yet for this job.</p>
         </div>
       )}
 
@@ -424,6 +431,7 @@ export default function JobWorkspace() {
         </div>
       )}
 
+    </div>
     </div>
   );
 }
