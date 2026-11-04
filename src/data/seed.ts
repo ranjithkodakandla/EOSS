@@ -13,7 +13,7 @@ import type {
 
 // ── Users ──
 export const DEMO_USERS: DemoUser[] = [
-  { id: 'u-owner', name: 'Ravi Shankar', role: 'owner', email: 'ravi@shankarmfg.com', avatar: 'RS', site: 'site-hyd' },
+  { id: 'u-owner', name: 'Ranjith Kodakandla', role: 'owner', email: 'ranjith@srilakshmitraders.com', avatar: 'RK', site: 'site-hyd' },
   { id: 'u-sales', name: 'Anita Mehta', role: 'sales', email: 'anita@shankarmfg.com', avatar: 'AM', site: 'site-hyd' },
   { id: 'u-buyer', name: 'Karthik Raju', role: 'buyer', email: 'karthik@shankarmfg.com', avatar: 'KR', site: 'site-hyd' },
   { id: 'u-store', name: 'Asha Nair', role: 'storekeeper', email: 'asha@shankarmfg.com', avatar: 'AN', site: 'site-hyd' },

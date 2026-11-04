@@ -1,130 +1,185 @@
 import React, { useState } from 'react';
-import { Sun, Moon, Monitor, Search, Cpu, Building, ShieldCheck, Check } from 'lucide-react';
-import { useStore } from '../../store';
-import RoleSwitcher from './RoleSwitcher';
+import { Search, Bell, HelpCircle, ChevronDown, Check } from 'lucide-react';
+import { useStore, type EOSSTheme } from '../../store';
 import NotificationDropdown from './NotificationDropdown';
-import type { ThemeMode } from '../../store';
+import GlobalSearchModal from '../search/GlobalSearchModal';
+import clsx from 'clsx';
 
 export default function TopBar() {
-  const { theme, setTheme, sidebarCollapsed, jobs, assets, inventory } = useStore();
-  const [askOpen, setAskOpen] = useState(false);
-  const [query, setQuery] = useState('');
+  const { sidebarCollapsed, currentUser, eossTheme, setEOSSTheme } = useStore();
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [themeMenuOpen, setThemeMenuOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
 
-  const cycleTheme = () => {
-    const next: Record<ThemeMode, ThemeMode> = { system: 'light', light: 'dark', dark: 'system' };
-    setTheme(next[theme]);
-  };
-
-  const ThemeIcon = theme === 'dark' ? Moon : theme === 'light' ? Sun : Monitor;
-
-  const downMachines = assets.filter(a => a.status === 'breakdown').length;
-  const blockedJobs = jobs.filter(j => j.hasBlocker).length;
+  const themes: { id: EOSSTheme; label: string; accent: string }[] = [
+    { id: 'aurora', label: 'Theme 1 · Aurora Indigo', accent: '#7048F5' },
+    { id: 'ocean', label: 'Theme 2 · Ocean Teal', accent: '#087F8C' },
+    { id: 'graphite', label: 'Theme 3 · Graphite Amber', accent: '#E58A36' },
+  ];
 
   return (
     <>
       <header
-        className="fixed top-0 right-0 z-30 h-[var(--topbar-h)] bg-[var(--surface)] border-b border-[var(--border)] flex items-center justify-between px-3 md:px-5 gap-3 transition-all duration-200"
+        className="fixed top-0 right-0 z-30 h-[70px] flex items-center justify-between px-3 sm:px-5 lg:px-7 gap-2 sm:gap-4 transition-all duration-200 select-none"
         style={{
-          left: `var(--sidebar-w${sidebarCollapsed ? '-collapsed' : ''})`,
-          boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)',
+          left: sidebarCollapsed ? 'var(--sidebar-w-collapsed, 64px)' : 'var(--sidebar-width, 216px)',
+          background: 'var(--app-bg, #F6F4FF)',
+          borderBottom: '1px solid var(--border, #E5E0F5)',
         }}
       >
-        {/* Left: Facility Telemetry & Context */}
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2">
-            <span className="relative flex h-2 w-2">
-              <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${downMachines > 0 ? 'bg-amber-400' : 'bg-emerald-400'}`}></span>
-              <span className={`relative inline-flex rounded-full h-2 w-2 ${downMachines > 0 ? 'bg-amber-500' : 'bg-emerald-500'}`}></span>
-            </span>
-            <div className="flex items-center gap-1.5 text-xs font-semibold text-[var(--text)]">
-              <span>HYDERABAD PLANT</span>
-              <span className="text-[var(--text-3)] font-normal hidden sm:inline">|</span>
-              <span className="text-[var(--text-2)] text-[11px] font-mono hidden sm:inline">
-                {downMachines > 0 ? `${downMachines} MACHINE DOWN` : blockedJobs > 0 ? `${blockedJobs} JOBS BLOCKED` : 'SHOP FLOOR NOMINAL'}
-              </span>
-            </div>
-          </div>
-
-          {/* Quick Ask EOSS Trigger */}
+        {/* Left: Company Selector */}
+        <div className="flex items-center gap-1.5 sm:gap-3 flex-shrink-0">
           <button
-            onClick={() => setAskOpen(true)}
-            className="hidden md:flex items-center gap-2 px-2.5 py-1 rounded-md text-xs text-[var(--text-2)] bg-[var(--surface-2)] border border-[var(--border)] hover:border-[var(--cyan-border)] hover:text-[var(--cyan-bright)] transition-colors ml-2"
+            className="flex flex-col text-left group transition-opacity hover:opacity-90 cursor-pointer"
+            title="Active Organization Profile"
           >
-            <Search size={12} className="text-[var(--text-3)]" />
-            <span className="text-[11px]">Ask EOSS...</span>
-            <kbd className="font-mono text-[9px] px-1 py-0.5 rounded bg-[var(--surface-3)] text-[var(--text-3)] border border-[var(--border)]">
-              ⌘K
+            <div className="flex items-center gap-1">
+              <span className="text-sm sm:text-base font-extrabold text-[var(--text-primary, #1A1F36)] tracking-tight whitespace-nowrap">
+                Sri Lakshmi Traders
+              </span>
+              <ChevronDown size={13} className="text-[var(--text-secondary, #626A84)] hidden sm:inline" />
+            </div>
+            <span className="text-[10px] sm:text-[11px] text-[var(--text-secondary, #626A84)] font-medium -mt-0.5 truncate hidden md:inline">
+              Manufacturing & Trading · Hyderabad
+            </span>
+          </button>
+        </div>
+
+        {/* Center: Global Record Search (Ctrl + K) */}
+        <div className="flex-1 max-w-xs sm:max-w-md lg:max-w-xl mx-1 sm:mx-3 md:mx-6">
+          <button
+            onClick={() => setSearchOpen(true)}
+            className="w-full flex items-center gap-2 sm:gap-2.5 px-3 sm:px-4 py-2 rounded-full border text-xs sm:text-sm text-[var(--text-secondary, #626A84)] bg-white hover:border-[var(--brand-primary, #7048F5)] transition-all shadow-sm group cursor-pointer"
+            style={{ borderColor: 'var(--border, #E5E0F5)' }}
+            title="Global Record Search (Cmd+K / Ctrl+K)"
+          >
+            <Search size={15} className="text-[var(--text-secondary, #626A84)] group-hover:text-[var(--brand-primary)] flex-shrink-0" />
+            <span className="truncate flex-1 text-left text-xs sm:text-[13px] font-normal text-gray-500 hidden sm:inline">
+              Search orders, customers, materials, documents...
+            </span>
+            <span className="truncate flex-1 text-left text-xs font-normal text-gray-500 sm:hidden">
+              Search records...
+            </span>
+            <kbd className="hidden lg:inline-flex items-center font-mono text-[10px] px-2 py-0.5 rounded-md bg-gray-50 border border-gray-200 text-gray-500 shadow-2xs font-semibold">
+              Ctrl + K
             </kbd>
           </button>
         </div>
 
-        {/* Right actions */}
-        <div className="flex items-center gap-2 ml-auto">
-          <button
-            onClick={cycleTheme}
-            className="p-1.5 md:p-2 rounded-lg text-[var(--text-2)] hover:text-[var(--text)] hover:bg-[var(--surface-2)] transition-colors"
-            title={`Theme: ${theme}`}
-            aria-label="Toggle visual theme"
-          >
-            <ThemeIcon size={15} />
-          </button>
+        {/* Right: Theme Switcher, Notifications, Help & Avatar */}
+        <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+          {/* Theme Selector segmented pill for demo / review */}
+          <div className="relative">
+            <button
+              onClick={() => setThemeMenuOpen(o => !o)}
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full border text-xs font-semibold bg-white text-[var(--text-primary)] hover:border-[var(--brand-primary)] transition-colors shadow-2xs cursor-pointer"
+              style={{ borderColor: 'var(--border, #E5E0F5)' }}
+              title="Switch Visual Theme (Aurora Indigo / Ocean Teal / Graphite Amber)"
+            >
+              <span
+                className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                style={{
+                  background:
+                    eossTheme === 'aurora'
+                      ? '#7048F5'
+                      : eossTheme === 'ocean'
+                      ? '#087F8C'
+                      : '#E58A36',
+                }}
+              />
+              <span className="hidden sm:inline capitalize font-medium">{eossTheme}</span>
+              <ChevronDown size={11} className="text-[var(--text-secondary)] hidden sm:inline" />
+            </button>
+
+            {themeMenuOpen && (
+              <>
+                <div className="fixed inset-0 z-30" onClick={() => setThemeMenuOpen(false)} />
+                <div
+                  className="absolute right-0 mt-2 w-56 rounded-xl border bg-white shadow-xl z-40 p-1.5 animate-in fade-in"
+                  style={{
+                    background: 'var(--surface, #FFFFFF)',
+                    borderColor: 'var(--border, #E5E0F5)',
+                    boxShadow: 'var(--shadow-elevated)',
+                  }}
+                >
+                  <div className="px-3 py-1.5 text-[11px] font-bold text-[var(--text-secondary)] uppercase tracking-wider">
+                    EOSS Theme Presets
+                  </div>
+                  {themes.map(t => (
+                    <button
+                      key={t.id}
+                      onClick={() => {
+                        setEOSSTheme(t.id);
+                        setThemeMenuOpen(false);
+                      }}
+                      className={clsx(
+                        'w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-colors text-left cursor-pointer',
+                        eossTheme === t.id
+                          ? 'bg-[var(--surface-muted, #F3F0FF)] text-[var(--brand-primary)] font-semibold'
+                          : 'text-[var(--text-primary)] hover:bg-[var(--surface-muted)]'
+                      )}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="w-3 h-3 rounded-full" style={{ background: t.accent }} />
+                        <span>{t.label}</span>
+                      </div>
+                      {eossTheme === t.id && <Check size={14} className="text-[var(--brand-primary)]" />}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Notifications */}
           <NotificationDropdown />
-          <RoleSwitcher />
+
+          {/* Help Button */}
+          <div className="relative hidden sm:block">
+            <button
+              onClick={() => setHelpOpen(o => !o)}
+              className="p-1.5 rounded-full text-[var(--text-secondary, #626A84)] hover:text-[var(--text-primary)] hover:bg-white transition-colors cursor-pointer"
+              title="System Documentation & Help"
+            >
+              <HelpCircle size={19} />
+            </button>
+            {helpOpen && (
+              <>
+                <div className="fixed inset-0 z-30" onClick={() => setHelpOpen(false)} />
+                <div
+                  className="absolute right-0 mt-2 w-64 rounded-xl border bg-white shadow-xl z-40 p-3 text-xs space-y-2 animate-in fade-in"
+                  style={{
+                    background: 'var(--surface, #FFFFFF)',
+                    borderColor: 'var(--border, #E5E0F5)',
+                  }}
+                >
+                  <div className="font-bold text-[var(--text-primary)]">EOSS Business OS v1.0</div>
+                  <div className="text-[var(--text-secondary)]">
+                    Autonomous manufacturing & trading business operating system for growing Indian SMEs.
+                  </div>
+                  <div className="pt-2 border-t border-[var(--border)] font-mono text-[11px] text-[var(--brand-primary)]">
+                    Hyderabad Hub · Tenant: Sri Lakshmi Traders
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* User Avatar */}
+          <div
+            className="w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center font-bold text-white text-xs shadow-sm cursor-pointer select-none flex-shrink-0"
+            style={{
+              background: 'linear-gradient(135deg, var(--brand-primary, #7048F5), var(--brand-secondary, #A855F7))',
+            }}
+            title={`${currentUser.name} (${currentUser.role})`}
+          >
+            {currentUser.name.charAt(0)}
+          </div>
         </div>
       </header>
 
-      {/* Ask EOSS Modal Dialog */}
-      {askOpen && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center pt-20 p-4 bg-black/60 backdrop-blur-sm">
-          <div className="w-full max-w-xl bg-[var(--surface)] border border-[var(--border-strong)] rounded-xl shadow-2xl overflow-hidden panel-accent-top">
-            <div className="flex items-center gap-3 px-4 py-3 border-b border-[var(--border)] bg-[var(--surface-2)]">
-              <Search size={16} className="text-[var(--cyan-bright)]" />
-              <input
-                type="text"
-                value={query}
-                onChange={e => setQuery(e.target.value)}
-                placeholder="Ask EOSS anything: e.g. 'Show material status for J-102' or 'overdue POs'..."
-                className="w-full bg-transparent text-sm text-[var(--text)] placeholder-[var(--text-3)] focus:outline-none"
-                autoFocus
-              />
-              <button
-                onClick={() => setAskOpen(false)}
-                className="text-xs px-2 py-1 rounded bg-[var(--surface-3)] text-[var(--text-2)] hover:text-[var(--text)]"
-              >
-                ESC
-              </button>
-            </div>
-            <div className="p-4 space-y-3">
-              <div className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-3)]">
-                Suggested Operational Inquiries
-              </div>
-              <div className="space-y-1.5">
-                {[
-                  { text: 'Which jobs are blocked by material shortage today?', tag: 'Shortage Analysis' },
-                  { text: 'Show drill press DP-01 breakdown status and affected jobs', tag: 'Asset Telemetry' },
-                  { text: 'List unverified Mill Test Certificates in Quarantine', tag: 'Quality & Compliance' },
-                  { text: 'Check supplier commitment delivery for SPO-2024-002', tag: 'Procurement' },
-                ].map((s, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() => setQuery(s.text)}
-                    className="w-full text-left flex items-center justify-between p-2.5 rounded-lg text-xs hover:bg-[var(--surface-2)] transition-colors border border-transparent hover:border-[var(--border)]"
-                  >
-                    <span className="text-[var(--text)]">{s.text}</span>
-                    <span className="text-[10px] font-mono text-[var(--cyan-bright)] bg-[var(--cyan-muted)] px-2 py-0.5 rounded border border-[var(--cyan-border)]">
-                      {s.tag}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="px-4 py-2.5 bg-[var(--surface-2)] border-t border-[var(--border)] flex justify-between items-center text-[11px] text-[var(--text-3)] font-mono">
-              <span>EOSS Sensory AI Core v2.4</span>
-              <span>Deterministic query scoped to tenant data</span>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Global Record Search Dialog (Cmd+K) */}
+      <GlobalSearchModal isOpen={searchOpen} onClose={() => setSearchOpen(false)} />
     </>
   );
 }

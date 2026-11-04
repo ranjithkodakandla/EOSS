@@ -18,11 +18,13 @@ import {
 // ── App State ──
 
 export type ThemeMode = 'system' | 'light' | 'dark';
+export type EOSSTheme = 'aurora' | 'ocean' | 'graphite';
 
 interface EOSSState {
   // Session
   currentUser: DemoUser;
   theme: ThemeMode;
+  eossTheme: EOSSTheme;
   sidebarCollapsed: boolean;
   notifications: AppNotification[];
   unreadCount: number;
@@ -55,6 +57,7 @@ interface EOSSState {
   setCurrentUser: (user: DemoUser) => void;
   switchRole: (role: RoleKey) => void;
   setTheme: (t: ThemeMode) => void;
+  setEOSSTheme: (theme: EOSSTheme) => void;
   toggleSidebar: () => void;
   markNotificationRead: (id: string) => void;
   markAllRead: () => void;
@@ -113,7 +116,8 @@ let toastSeq = 0;
 export const useStore = create<EOSSState>((set, get) => ({
   // ── Initial State ──
   currentUser: DEMO_USERS[0], // owner by default
-  theme: (typeof window !== 'undefined' && (localStorage.getItem('eoss-theme') as ThemeMode)) || 'dark',
+  theme: (typeof window !== 'undefined' && (localStorage.getItem('eoss-theme') as ThemeMode)) || 'light',
+  eossTheme: (typeof window !== 'undefined' && (localStorage.getItem('eoss-palette') as EOSSTheme)) || 'aurora',
   sidebarCollapsed: false,
   notifications: [...NOTIFICATIONS],
   unreadCount: NOTIFICATIONS.filter(n => !n.read).length,
@@ -157,6 +161,14 @@ export const useStore = create<EOSSState>((set, get) => ({
       root.setAttribute('data-theme', theme);
       try { localStorage.setItem('eoss-theme', theme); } catch (_) {}
     }
+  },
+
+  setEOSSTheme: (eossTheme) => {
+    set({ eossTheme });
+    const root = document.documentElement;
+    root.classList.remove('theme-aurora', 'theme-ocean', 'theme-graphite');
+    root.classList.add(`theme-${eossTheme}`);
+    try { localStorage.setItem('eoss-palette', eossTheme); } catch (_) {}
   },
 
   toggleSidebar: () => set(s => ({ sidebarCollapsed: !s.sidebarCollapsed })),

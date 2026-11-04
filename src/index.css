@@ -1,7 +1,131 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* ── EOSS Theme Specification Tokens ── */
+:root {
+  --font-family: 'Plus Jakarta Sans', Inter, system-ui, sans-serif;
+  --font-size-xs: 12px;
+  --font-size-sm: 14px;
+  --font-size-base: 15px;
+  --font-size-lg: 18px;
+  --font-size-xl: 22px;
+  --font-size-2xl: 28px;
+  --radius-card: 16px;
+  --radius-control: 10px;
+  --radius-pill: 999px;
+  --shadow-card: 0 4px 18px rgba(24, 27, 65, 0.08);
+  --shadow-elevated: 0 8px 28px rgba(24, 27, 65, 0.12);
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --sidebar-width: 216px;
+  --copilot-width: 360px;
+}
+
+/* Theme A — Aurora Indigo (Default) */
+.theme-aurora, :root:not(.theme-ocean):not(.theme-graphite) {
+  --brand-primary: #7048F5;
+  --brand-primary-dark: #191A4A;
+  --brand-secondary: #A855F7;
+  --brand-soft: #EEE9FF;
+  --app-bg: #F6F4FF;
+  --surface: #FFFFFF;
+  --surface-muted: #F3F0FF;
+  --text-primary: #1A1F36;
+  --text-secondary: #626A84;
+  --border: #E5E0F5;
+  --success: #16A34A;
+  --warning: #F59E0B;
+  --danger: #EF4444;
+  --info: #3B82F6;
+  --copilot-start: #4C1D95;
+  --copilot-end: #A855F7;
+
+  /* App variables bridge */
+  --bg: #F6F4FF;
+  --text: #1A1F36;
+  --text-2: #626A84;
+  --text-3: #8C94A8;
+  --brand: #7048F5;
+  --sidebar-bg: #191A4A;
+  --sidebar-border: rgba(255, 255, 255, 0.08);
+  --sidebar-text: rgba(255, 255, 255, 0.65);
+  --sidebar-text-active: #FFFFFF;
+  --sidebar-text-hover: #FFFFFF;
+  --sidebar-active-bg: linear-gradient(135deg, #7048F5, #A855F7);
+}
+
+/* Theme B — Ocean Teal */
+.theme-ocean {
+  --brand-primary: #087F8C;
+  --brand-primary-dark: #102D3A;
+  --brand-secondary: #367CB5;
+  --brand-soft: #DDF4F2;
+  --app-bg: #F1F7F7;
+  --surface: #FFFFFF;
+  --surface-muted: #EAF5F5;
+  --text-primary: #0F2D2E;
+  --text-secondary: #557174;
+  --border: #D8E9E8;
+  --success: #16A34A;
+  --warning: #F59E0B;
+  --danger: #EF4444;
+  --info: #3B82F6;
+  --copilot-start: #063F4A;
+  --copilot-end: #0EA5A5;
+
+  /* App variables bridge */
+  --bg: #F1F7F7;
+  --text: #0F2D2E;
+  --text-2: #557174;
+  --text-3: #879EA1;
+  --brand: #087F8C;
+  --sidebar-bg: #102D3A;
+  --sidebar-border: rgba(255, 255, 255, 0.08);
+  --sidebar-text: rgba(255, 255, 255, 0.65);
+  --sidebar-text-active: #FFFFFF;
+  --sidebar-text-hover: #FFFFFF;
+  --sidebar-active-bg: linear-gradient(135deg, #087F8C, #367CB5);
+}
+
+/* Theme C — Graphite Amber */
+.theme-graphite {
+  --brand-primary: #3D61D8;
+  --brand-primary-dark: #252B38;
+  --brand-secondary: #E58A36;
+  --brand-soft: #E9EEFF;
+  --app-bg: #F6F5F1;
+  --surface: #FFFFFF;
+  --surface-muted: #F0F1F3;
+  --text-primary: #1F2937;
+  --text-secondary: #667085;
+  --border: #E6E4DD;
+  --success: #16A34A;
+  --warning: #F59E0B;
+  --danger: #EF4444;
+  --info: #3B82F6;
+  --copilot-start: #1F2937;
+  --copilot-end: #3D61D8;
+
+  /* App variables bridge */
+  --bg: #F6F5F1;
+  --text: #1F2937;
+  --text-2: #667085;
+  --text-3: #9CA3AF;
+  --brand: #3D61D8;
+  --sidebar-bg: #252B38;
+  --sidebar-border: rgba(255, 255, 255, 0.08);
+  --sidebar-text: rgba(255, 255, 255, 0.65);
+  --sidebar-text-active: #FFFFFF;
+  --sidebar-text-hover: #FFFFFF;
+  --sidebar-active-bg: linear-gradient(135deg, #E58A36, #F59E0B);
+}
 
 /* ── EOSS Design Tokens v3 — Dark-first Industrial Intelligence Platform ── */
 :root {
@@ -76,10 +200,10 @@
   --shadow-lg: 0 10px 30px -4px rgb(0 0 0 / 0.65), 0 4px 8px -4px rgb(0 0 0 / 0.45);
 
   /* Layout */
-  --sidebar-w: 228px;
-  --sidebar-w-collapsed: 56px;
-  --topbar-h: 52px;
-  --radius: 10px;
+  --sidebar-w: 216px;
+  --sidebar-w-collapsed: 64px;
+  --topbar-h: 70px;
+  --radius: 12px;
   --radius-sm: 7px;
   --radius-lg: 14px;
 
@@ -202,7 +326,7 @@
 
 body {
   margin: 0;
-  font-family: 'Inter', system-ui, sans-serif;
+  font-family: var(--font-family, 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif);
   font-size: 14px;
   line-height: 1.6;
   background: var(--bg);
