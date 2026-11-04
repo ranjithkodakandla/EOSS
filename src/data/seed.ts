@@ -8,7 +8,7 @@ import type {
   GoodsReceipt, StockMovement, InventoryItem, MaterialCertificate,
   Inspection, NCR, QualityRelease, Asset, MaintenanceEvent,
   Dispatch, VaultDocument, ApprovalRequest, AppNotification, PulseException,
-  Employee
+  Employee, SupplierQuotation, AuditEvent, ApprovalPolicy
 } from '../types';
 
 // ── Users ──
@@ -362,4 +362,52 @@ export const PULSE_EXCEPTIONS: PulseException[] = [
   { id: 'pe-006', category: 'document', priority: 'warning', title: 'Certificate expiring – 18 days', body: 'ISO 9001:2015 expires 22 Nov. Renewal obligation: Ravi Shankar. Reminder set for 8 Nov.', affectedRef: 'ISO 9001:2015', affectedId: 'doc-001', workspacePath: '/documents/doc-001', cta: 'View Document', since: '2024-11-04T07:00:00' },
   { id: 'pe-007', category: 'document', priority: 'info', title: 'Supplier certificate expired', body: 'Stainless Source India quality certificate expired 1 Nov. Renewal not initiated.', affectedRef: 'SSI-CERT-2024', affectedId: 'doc-002', workspacePath: '/documents/doc-002', cta: 'View Document', since: '2024-11-02T00:00:00' },
   { id: 'pe-008', category: 'procurement', priority: 'info', title: 'Approval pending – SPO revision', body: 'SPO-2024-002 qty revision requires Owner approval. Requested by Karthik Raju.', affectedRef: 'APR-001', affectedId: 'apr-001', workspacePath: '/admin', cta: 'Review', since: '2024-11-03T14:00:00' },
+];
+
+// ── Supplier Quotations ──
+export const SUPPLIER_QUOTATIONS: SupplierQuotation[] = [
+  {
+    id: 'sq-001', quoteNumber: 'SQ-2024-001', supplierId: 'sup-001', supplierName: 'Stainless Source India',
+    prId: 'pr-001', prNumber: 'PR-2024-001', quoteDate: '2024-10-28', validUntil: '2024-11-28',
+    currency: 'INR', status: 'selected', paymentTerms: '30 days net', deliveryDays: 7,
+    lines: [
+      { id: 'sql-001', quoteId: 'sq-001', materialItemId: 'mat-ss304-rod', materialName: 'SS 304 Rod 25mm', quotedQty: 250, uom: 'kg', unitPrice: 320, taxPct: 18, freightIncluded: true, discountPct: 2, lineTotal: 78400 },
+    ],
+    notes: 'Price includes freight to Hyderabad site.',
+  },
+  {
+    id: 'sq-002', quoteNumber: 'SQ-2024-002', supplierId: 'sup-002', supplierName: 'Metal Masters Pvt Ltd',
+    prId: 'pr-001', prNumber: 'PR-2024-001', quoteDate: '2024-10-29', validUntil: '2024-11-15',
+    currency: 'INR', status: 'rejected', paymentTerms: '15 days net', deliveryDays: 10,
+    lines: [
+      { id: 'sql-002', quoteId: 'sq-002', materialItemId: 'mat-ss304-rod', materialName: 'SS 304 Rod 25mm', quotedQty: 250, uom: 'kg', unitPrice: 335, taxPct: 18, freightIncluded: false, discountPct: 0, lineTotal: 99062 },
+    ],
+    notes: 'Freight extra. Lead time 10 days.',
+  },
+  {
+    id: 'sq-003', quoteNumber: 'SQ-2024-003', supplierId: 'sup-003', supplierName: 'AIS Engineering Supplies',
+    prId: 'pr-002', prNumber: 'PR-2024-002', quoteDate: '2024-11-01', validUntil: '2024-11-30',
+    currency: 'INR', status: 'received', paymentTerms: '30 days net', deliveryDays: 5,
+    lines: [
+      { id: 'sql-003', quoteId: 'sq-003', materialItemId: 'mat-en8-rod', materialName: 'EN8 Round Bar 50mm', quotedQty: 100, uom: 'kg', unitPrice: 95, taxPct: 18, freightIncluded: true, discountPct: 0, lineTotal: 11210 },
+    ],
+  },
+];
+
+// ── Audit Events (append-only seed — real events appended in store) ──
+export const AUDIT_EVENTS: AuditEvent[] = [
+  { id: 'ae-001', actor: 'Karthik Raju', actorId: 'u-buyer', scope: 'SupplierPO', action: 'create', entityId: 'spo-001', entityRef: 'SPO-2024-001', timestamp: '2024-10-15T09:12:00', source: 'ui' },
+  { id: 'ae-002', actor: 'Ranjith Kodakandla', actorId: 'u-owner', scope: 'SupplierPO', action: 'approve', entityId: 'spo-001', entityRef: 'SPO-2024-001', timestamp: '2024-10-15T11:30:00', source: 'ui', reason: 'Value within budget; supplier pre-approved.' },
+  { id: 'ae-003', actor: 'Asha Nair', actorId: 'u-store', scope: 'GoodsReceipt', action: 'create', entityId: 'grn-001', entityRef: 'GRN-2024-001', timestamp: '2024-10-22T14:05:00', source: 'ui' },
+  { id: 'ae-004', actor: 'Priya Patel', actorId: 'u-qc', scope: 'Inspection', action: 'complete', entityId: 'insp-001', entityRef: 'INSP-2024-001', timestamp: '2024-10-22T16:48:00', source: 'ui', after: { result: 'pass' } },
+  { id: 'ae-005', actor: 'Anita Mehta', actorId: 'u-sales', scope: 'CustomerPO', action: 'create', entityId: 'cpo-001', entityRef: 'CPO-2024-1245', timestamp: '2024-10-10T10:00:00', source: 'ui' },
+  { id: 'ae-006', actor: 'Suresh Kumar', actorId: 'u-super', scope: 'Job', action: 'update', entityId: 'job-101', entityRef: 'J-101', timestamp: '2024-11-04T08:30:00', source: 'ui', after: { currentStage: 'CNC Turning' } },
+];
+
+// ── Approval Policies ──
+export const APPROVAL_POLICIES: ApprovalPolicy[] = [
+  { id: 'ap-001', scope: 'SupplierPO', condition: 'PO value > ₹1,00,000', thresholdType: 'value', thresholdValue: 100000, requiredRole: 'owner', active: true },
+  { id: 'ap-002', scope: 'SupplierPO', condition: 'PO value ≤ ₹1,00,000', thresholdType: 'value', thresholdValue: 100000, requiredRole: 'buyer', active: true },
+  { id: 'ap-003', scope: 'StockAdjustment', condition: 'Any adjustment > 50 units', thresholdType: 'quantity', thresholdValue: 50, requiredRole: 'owner', active: true },
+  { id: 'ap-004', scope: 'CustomerPOAmendment', condition: 'All amendments', thresholdType: 'always', requiredRole: 'owner', escalationRole: 'sales', active: true },
 ];

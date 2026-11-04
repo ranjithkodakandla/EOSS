@@ -31,7 +31,13 @@ export default function Procurement() {
           </div>
         </div>
         {canCreate && (
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
+            <button
+              onClick={() => navigate('/procurement/supplier-return')}
+              className="flex items-center gap-2 px-3 py-2 border border-[var(--border)] rounded-lg text-sm text-[var(--text-2)] hover:bg-[var(--surface-2)] cursor-pointer"
+            >
+              Supplier Return
+            </button>
             <button className="flex items-center gap-2 px-3 py-2 border border-[var(--border)] rounded-lg text-sm text-[var(--text-2)] hover:bg-[var(--surface-2)]">
               <Plus size={14} /> New PR
             </button>

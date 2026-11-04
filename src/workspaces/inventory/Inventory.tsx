@@ -79,7 +79,19 @@ export default function Inventory() {
 
         <div className="flex items-center gap-2">
           <button
-            onClick={() => setTransferModalOpen(true)}
+            onClick={() => navigate('/inventory/cycle')}
+            className="btn-ghost text-xs py-2 px-3.5 flex items-center gap-1.5"
+          >
+            Cycle Count
+          </button>
+          <button
+            onClick={() => navigate('/inventory/remnants')}
+            className="btn-ghost text-xs py-2 px-3.5 flex items-center gap-1.5"
+          >
+            Remnants
+          </button>
+          <button
+            onClick={() => navigate('/inventory/transfer')}
             className="btn-ghost text-xs py-2 px-3.5 flex items-center gap-1.5"
           >
             <ArrowRightLeft size={13} />

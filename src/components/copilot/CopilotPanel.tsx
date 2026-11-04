@@ -217,12 +217,27 @@ export default function CopilotPanel({ isDrawer, onClose }: Props) {
               />
             </div>
 
-            {/* Authentic 3D Rendered Mascot from Reference Pack */}
+            {/* Authentic 3D Rendered Mascot — blend mode removes rectangular PNG artefact */}
             <div className="w-20 h-20 flex-shrink-0 relative flex items-center justify-center">
+              {/* Soft radial glow behind robot — blends naturally with panel gradient */}
+              <div
+                className="absolute inset-0 rounded-full"
+                style={{
+                  background: isGraphite
+                    ? 'radial-gradient(circle, rgba(245,158,11,0.25) 0%, transparent 70%)'
+                    : isOcean
+                    ? 'radial-gradient(circle, rgba(20,184,166,0.25) 0%, transparent 70%)'
+                    : 'radial-gradient(circle, rgba(168,85,247,0.25) 0%, transparent 70%)',
+                }}
+              />
               <img
                 src={themeConfig.robotImg}
                 alt="EOSS Copilot Mascot"
-                className="w-[74px] h-auto object-contain drop-shadow-xl select-none pointer-events-none"
+                className="w-[74px] h-auto object-contain select-none pointer-events-none relative z-10"
+                style={{
+                  mixBlendMode: 'screen',
+                  filter: 'drop-shadow(0 4px 12px rgba(0,0,0,0.4))',
+                }}
               />
             </div>
           </div>

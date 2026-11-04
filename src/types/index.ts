@@ -592,3 +592,82 @@ export interface AIProposal {
   fields: { label: string; extracted: string; verified?: boolean }[];
   status: 'pending' | 'confirmed' | 'edited' | 'dismissed';
 }
+
+// ── Supplier Quotation ──
+export interface SupplierQuotation {
+  id: ID;
+  quoteNumber: string;
+  supplierId: ID;
+  supplierName: string;
+  prId?: ID;
+  prNumber?: string;
+  quoteDate: string;
+  validUntil: string;
+  currency: string;
+  status: 'received' | 'selected' | 'rejected' | 'expired';
+  attachmentRef?: string;
+  paymentTerms: string;
+  deliveryDays: number;
+  lines: SupplierQuotationLine[];
+  notes?: string;
+}
+
+export interface SupplierQuotationLine {
+  id: ID;
+  quoteId: ID;
+  materialItemId: ID;
+  materialName: string;
+  quotedQty: number;
+  uom: string;
+  unitPrice: number;
+  taxPct: number;
+  freightIncluded: boolean;
+  discountPct: number;
+  moq?: number;
+  lineTotal: number;
+}
+
+// ── Customer Account ──
+// A dedicated profile linked to Party, capturing customer-specific business terms
+export interface CustomerAccount {
+  id: ID;
+  partyId: ID;
+  accountCode: string;
+  creditDays: number;
+  creditLimit: number;
+  discountPct?: number;
+  pricingTier?: string;
+  salesOwnerId?: ID;
+  salesOwnerName?: string;
+  createdAt: string;
+  notes?: string;
+}
+
+// ── Audit Event (append-only) ──
+export interface AuditEvent {
+  id: ID;
+  actor: string;
+  actorId: ID;
+  scope: string;          // e.g. 'Job', 'CustomerPO', 'SupplierPO'
+  action: string;         // e.g. 'create', 'update', 'approve', 'reject'
+  entityId: ID;
+  entityRef: string;      // human-readable reference number
+  timestamp: string;
+  source: 'ui' | 'api' | 'system';
+  before?: Record<string, unknown>;
+  after?: Record<string, unknown>;
+  reason?: string;
+  correlationRef?: string;
+}
+
+// ── Approval Policy ──
+export interface ApprovalPolicy {
+  id: ID;
+  scope: string;          // entity type this policy applies to
+  condition: string;      // human-readable condition description
+  thresholdType: 'value' | 'quantity' | 'always' | 'never';
+  thresholdValue?: number;
+  requiredRole: string;
+  escalationRole?: string;
+  active: boolean;
+}

@@ -1,0 +1,129 @@
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Search, Plus, Building2, Phone, Mail, ChevronRight, Star } from 'lucide-react';
+import { CUSTOMERS } from '../../store';
+import StatusChip from '../../components/layout/StatusChip';
+import EmptyState from '../../components/feedback/EmptyState';
+
+export default function CustomerDirectory() {
+  const navigate = useNavigate();
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
+
+  const filtered = CUSTOMERS.filter(c => {
+    const q = search.toLowerCase();
+    const matchSearch = !q || c.legalName.toLowerCase().includes(q) || c.tradingName.toLowerCase().includes(q) || c.gstin.includes(q) || c.city.toLowerCase().includes(q);
+    const matchStatus = statusFilter === 'all' || c.status === statusFilter;
+    return matchSearch && matchStatus;
+  });
+
+  return (
+    <div className="p-4 md:p-6 max-w-6xl mx-auto space-y-5">
+      {/* Header */}
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div>
+          <h1 className="text-xl font-bold text-[var(--text-primary,#1A1F36)]">Customer Directory</h1>
+          <p className="text-sm text-[var(--text-secondary,#626A84)] mt-0.5">
+            {CUSTOMERS.filter(c => c.status === 'active').length} active customers
+          </p>
+        </div>
+        <button
+          className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white cursor-pointer hover:opacity-90 transition-opacity"
+          style={{ background: 'var(--brand,#7048F5)' }}
+        >
+          <Plus size={15} />
+          Add Customer
+        </button>
+      </div>
+
+      {/* Filters */}
+      <div className="flex gap-3 flex-wrap items-center">
+        <div className="relative flex-1 min-w-[220px]">
+          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary,#626A84)]" />
+          <input
+            type="text"
+            placeholder="Search by name, GSTIN or city…"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border bg-white focus:outline-none focus:ring-2"
+            style={{ borderColor: 'var(--border,#E5E7EB)', color: 'var(--text-primary,#1A1F36)' }}
+          />
+        </div>
+        {(['all', 'active', 'inactive'] as const).map(s => (
+          <button
+            key={s}
+            onClick={() => setStatusFilter(s)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold capitalize border transition-colors cursor-pointer ${statusFilter === s ? 'text-white border-transparent' : 'border-transparent bg-transparent'}`}
+            style={statusFilter === s ? { background: 'var(--brand,#7048F5)' } : { color: 'var(--text-secondary,#626A84)' }}
+          >
+            {s === 'all' ? 'All' : s.charAt(0).toUpperCase() + s.slice(1)}
+          </button>
+        ))}
+      </div>
+
+      {/* Table */}
+      {filtered.length === 0 ? (
+        <EmptyState icon={<Building2 size={22} />} title="No customers found" body="Try adjusting your search or filters." />
+      ) : (
+        <div
+          className="rounded-2xl border overflow-hidden"
+          style={{ borderColor: 'var(--border,#E5E7EB)', background: 'var(--surface,#FFFFFF)' }}
+        >
+          <table className="w-full text-sm">
+            <thead>
+              <tr style={{ borderBottom: '1px solid var(--border,#E5E7EB)', background: 'var(--surface-muted,#F8F9FC)' }}>
+                {['Customer', 'GSTIN / State', 'Contact', 'Terms', 'Rating', 'Status', ''].map(h => (
+                  <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold text-[var(--text-secondary,#626A84)] uppercase tracking-wider">
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((c, i) => (
+                <tr
+                  key={c.id}
+                  className="hover:bg-[var(--surface-muted,#F8F9FC)] cursor-pointer transition-colors"
+                  style={{ borderBottom: i < filtered.length - 1 ? '1px solid var(--border,#E5E7EB)' : 'none' }}
+                  onClick={() => navigate(`/sales/customers/${c.id}`)}
+                >
+                  <td className="px-4 py-3">
+                    <div className="font-semibold text-[var(--text-primary,#1A1F36)]">{c.tradingName}</div>
+                    <div className="text-xs text-[var(--text-secondary,#626A84)]">{c.legalName}</div>
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="text-xs font-mono text-[var(--text-primary,#1A1F36)]">{c.gstin}</div>
+                    <div className="text-xs text-[var(--text-secondary,#626A84)]">{c.state} · {c.city}</div>
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-1 text-xs text-[var(--text-secondary,#626A84)]">
+                      <Phone size={11} /> {c.phone}
+                    </div>
+                    <div className="flex items-center gap-1 text-xs text-[var(--text-secondary,#626A84)] mt-0.5">
+                      <Mail size={11} /> {c.email}
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 text-xs text-[var(--text-secondary,#626A84)]">{c.paymentTerms}</td>
+                  <td className="px-4 py-3">
+                    {c.rating != null && (
+                      <div className="flex items-center gap-1 text-xs">
+                        <Star size={11} className="text-amber-400 fill-amber-400" />
+                        <span className="font-semibold text-[var(--text-primary,#1A1F36)]">{c.rating.toFixed(1)}</span>
+                      </div>
+                    )}
+                  </td>
+                  <td className="px-4 py-3">
+                    <StatusChip status={c.status as 'active' | 'archived'} />
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <ChevronRight size={15} className="text-[var(--text-secondary,#626A84)]" />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}

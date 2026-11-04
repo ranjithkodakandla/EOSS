@@ -4,7 +4,8 @@ import type {
   InventoryItem, StockMovement, Asset, MaintenanceEvent,
   Dispatch, VaultDocument, ApprovalRequest, AppNotification,
   PulseException, CustomerPO, SupplierPO, CustomerRFQ, GoodsReceipt,
-  Inspection, NCR, MaterialCertificate, Employee, StoreLocation
+  Inspection, NCR, MaterialCertificate, Employee, StoreLocation,
+  SupplierQuotation, AuditEvent, ApprovalPolicy
 } from '../types';
 import {
   DEMO_USERS, JOBS, MATERIAL_LOTS, INVENTORY, STOCK_MOVEMENTS,
@@ -12,7 +13,7 @@ import {
   APPROVAL_REQUESTS, NOTIFICATIONS, PULSE_EXCEPTIONS, CUSTOMER_POS,
   SUPPLIER_POS, RFQS, GRNS, INSPECTIONS, NCRS, CERTIFICATES,
   CUSTOMERS, SUPPLIERS, SUPPLIER_PO_LINES, JOB_BLOCKERS, PURCHASE_REQS,
-  EMPLOYEES, STORE_LOCATIONS
+  EMPLOYEES, STORE_LOCATIONS, SUPPLIER_QUOTATIONS, AUDIT_EVENTS, APPROVAL_POLICIES
 } from '../data/seed';
 
 // ── App State ──
@@ -49,6 +50,9 @@ interface EOSSState {
   certificates: MaterialCertificate[];
   employees: Employee[];
   storeLocations: StoreLocation[];
+  supplierQuotations: SupplierQuotation[];
+  auditEvents: AuditEvent[];
+  approvalPolicies: ApprovalPolicy[];
 
   // Toast
   toasts: Toast[];
@@ -98,6 +102,13 @@ interface EOSSState {
   closeNCR: (ncrId: string, resolution: string) => void;
   linkNCRToInspection: (inspectionId: string, ncrId: string, ncrNumber: string) => void;
 
+  // Supplier Quotation actions
+  addSupplierQuotation: (quote: SupplierQuotation) => void;
+  selectQuotation: (quoteId: string) => void;
+
+  // Audit actions (append-only)
+  appendAuditEvent: (event: Omit<AuditEvent, 'id'>) => void;
+
   // Toast actions
   showToast: (toast: Omit<Toast, 'id'>) => void;
   removeToast: (id: string) => void;
@@ -141,6 +152,9 @@ export const useStore = create<EOSSState>((set, get) => ({
   certificates: [...CERTIFICATES],
   employees: [...EMPLOYEES],
   storeLocations: [...STORE_LOCATIONS],
+  supplierQuotations: [...SUPPLIER_QUOTATIONS],
+  auditEvents: [...AUDIT_EVENTS],
+  approvalPolicies: [...APPROVAL_POLICIES],
   toasts: [],
 
   // ── Session Actions ──
@@ -324,6 +338,25 @@ export const useStore = create<EOSSState>((set, get) => ({
     inspections: s.inspections.map(i => i.id !== inspectionId ? i : { ...i, ncrId, ncrNumber }),
   })),
 
+  // ── Supplier Quotation Actions ──
+  addSupplierQuotation: (quote) => set(s => ({ supplierQuotations: [...s.supplierQuotations, quote] })),
+
+  selectQuotation: (quoteId) => set(s => ({
+    supplierQuotations: s.supplierQuotations.map(q =>
+      q.id === quoteId
+        ? { ...q, status: 'selected' as const }
+        : q.prId === s.supplierQuotations.find(sq => sq.id === quoteId)?.prId
+          ? { ...q, status: q.status === 'selected' ? 'rejected' as const : q.status }
+          : q
+    ),
+  })),
+
+  // ── Audit Actions (append-only) ──
+  appendAuditEvent: (event) => {
+    const id = `ae-${Date.now()}`;
+    set(s => ({ auditEvents: [...s.auditEvents, { ...event, id }] }));
+  },
+
   // ── Toast Actions ──
   showToast: (toast) => {
     const id = `toast-${++toastSeq}`;
@@ -344,4 +377,4 @@ export const selectLotMovements = (lotId: string) => (s: EOSSState) =>
   s.movements.filter(m => m.lotId === lotId);
 
 // Re-export seed data needed by components
-export { DEMO_USERS, CUSTOMERS, SUPPLIERS, SUPPLIER_PO_LINES, JOB_BLOCKERS, PURCHASE_REQS, EMPLOYEES, STORE_LOCATIONS };
+export { DEMO_USERS, CUSTOMERS, SUPPLIERS, SUPPLIER_PO_LINES, JOB_BLOCKERS, PURCHASE_REQS, EMPLOYEES, STORE_LOCATIONS, SUPPLIER_QUOTATIONS, AUDIT_EVENTS, APPROVAL_POLICIES };

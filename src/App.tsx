@@ -12,14 +12,21 @@ const Loading = () => (
 const Home = lazy(() => import('./workspaces/home/Home'));
 const Sales = lazy(() => import('./workspaces/sales/Sales'));
 const SalesPODetail = lazy(() => import('./workspaces/sales/PODetail'));
+const CustomerDirectory = lazy(() => import('./workspaces/sales/CustomerDirectory'));
+const CustomerDetail = lazy(() => import('./workspaces/sales/CustomerDetail'));
+const POAmend = lazy(() => import('./workspaces/sales/POAmend'));
 const Suppliers = lazy(() => import('./workspaces/suppliers/Suppliers'));
 const SupplierDetail = lazy(() => import('./workspaces/suppliers/SupplierDetail'));
 const Procurement = lazy(() => import('./workspaces/procurement/Procurement'));
 const SupplierPODetail = lazy(() => import('./workspaces/procurement/SupplierPODetail'));
 const GRNDetail = lazy(() => import('./workspaces/procurement/GRNDetail'));
+const SupplierReturn = lazy(() => import('./workspaces/procurement/SupplierReturn'));
 const Inventory = lazy(() => import('./workspaces/inventory/Inventory'));
 const LotDetail = lazy(() => import('./workspaces/inventory/LotDetail'));
 const CertificateDetail = lazy(() => import('./workspaces/inventory/CertificateDetail'));
+const StockTransfer = lazy(() => import('./workspaces/inventory/StockTransfer'));
+const CycleCount = lazy(() => import('./workspaces/inventory/CycleCount'));
+const Remnants = lazy(() => import('./workspaces/inventory/Remnants'));
 const Jobs = lazy(() => import('./workspaces/jobs/Jobs'));
 const JobWorkspace = lazy(() => import('./workspaces/jobs/JobWorkspace'));
 const StageUpdate = lazy(() => import('./workspaces/jobs/StageUpdate'));
@@ -44,14 +51,21 @@ export default function App() {
           <Route index element={<Home />} />
           <Route path="sales" element={<Sales />} />
           <Route path="sales/po/:id" element={<SalesPODetail />} />
+          <Route path="sales/po/:id/amend" element={<POAmend />} />
+          <Route path="sales/customers" element={<CustomerDirectory />} />
+          <Route path="sales/customers/:id" element={<CustomerDetail />} />
           <Route path="suppliers" element={<Suppliers />} />
           <Route path="suppliers/:id" element={<SupplierDetail />} />
           <Route path="procurement" element={<Procurement />} />
           <Route path="procurement/spo/:id" element={<SupplierPODetail />} />
           <Route path="procurement/grn/:id" element={<GRNDetail />} />
+          <Route path="procurement/supplier-return" element={<SupplierReturn />} />
           <Route path="inventory" element={<Inventory />} />
           <Route path="inventory/lot/:id" element={<LotDetail />} />
           <Route path="inventory/cert/:id" element={<CertificateDetail />} />
+          <Route path="inventory/transfer" element={<StockTransfer />} />
+          <Route path="inventory/cycle" element={<CycleCount />} />
+          <Route path="inventory/remnants" element={<Remnants />} />
           <Route path="jobs" element={<Jobs />} />
           <Route path="jobs/:id" element={<JobWorkspace />} />
           <Route path="jobs/:id/stage/:stageId" element={<StageUpdate />} />

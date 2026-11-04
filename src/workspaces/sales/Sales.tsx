@@ -8,7 +8,7 @@ import clsx from 'clsx';
 export default function Sales() {
   const { rfqs, customerPos, currentUser } = useStore();
   const navigate = useNavigate();
-  const [tab, setTab] = useState<'rfqs' | 'pos'>('pos');
+  const [tab, setTab] = useState<'rfqs' | 'pos' | 'customers'>('pos');
   const [search, setSearch] = useState('');
 
   const filteredPos = customerPos.filter(p =>
@@ -52,6 +52,9 @@ export default function Sales() {
         </button>
         <button onClick={() => setTab('rfqs')} className={clsx('px-4 py-2 rounded-lg text-sm transition-colors', tab === 'rfqs' ? 'bg-[var(--brand)] text-white' : 'border border-[var(--border)] text-[var(--text-2)]')}>
           RFQs ({rfqs.length})
+        </button>
+        <button onClick={() => navigate('/sales/customers')} className="px-4 py-2 rounded-lg text-sm transition-colors border border-[var(--border)] text-[var(--text-2)] hover:bg-[var(--surface-muted,#F8F9FC)]">
+          Customer Directory
         </button>
       </div>
 
