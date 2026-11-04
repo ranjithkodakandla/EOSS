@@ -102,7 +102,7 @@ export default function Jobs() {
                   <tr key={j.id} className="cursor-pointer" onClick={() => navigate(`/jobs/${j.id}`)}>
                     <td>
                       <div className="flex items-center gap-2">
-                        {j.hasBlocker && <AlertTriangle size={13} className="text-[var(--error)] flex-shrink-0" title="Has blocker" />}
+                        {j.hasBlocker && <span title="Has blocker"><AlertTriangle size={13} className="text-[var(--error)] flex-shrink-0" /></span>}
                         <span className="font-mono text-xs font-semibold text-[var(--brand)]">{j.jobNumber}</span>
                       </div>
                     </td>

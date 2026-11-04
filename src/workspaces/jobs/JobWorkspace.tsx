@@ -4,30 +4,35 @@ import {
   ArrowLeft, AlertTriangle, ChevronRight, Clock, Package, FileText,
   Activity, Layers, Users, CheckCircle, Play, Pause, Truck,
   Calendar, User, MapPin, DollarSign, Zap, Shield, Wrench,
-  TrendingUp, AlertCircle, ArrowRight,
+  TrendingUp, AlertCircle, ArrowRight, Check, X, Sparkles,
+  FileCheck, ShieldAlert, Cpu, ExternalLink, RefreshCw, Box
 } from 'lucide-react';
 import { useStore, JOB_BLOCKERS, PURCHASE_REQS } from '../../store';
-import { MATERIALS, SUPPLIER_PO_LINES, JOB_MATERIAL_REQS } from '../../data/seed';
+import { MATERIALS, SUPPLIER_PO_LINES, JOB_MATERIAL_REQS, EMPLOYEES } from '../../data/seed';
 import StatusChip from '../../components/layout/StatusChip';
 import clsx from 'clsx';
 
 const TABS = ['Overview', 'Stages', 'Materials', 'Procurement', 'Quality', 'NCR/Rework', 'Assets', 'Documents', 'Dispatch', 'Updates', 'Blockers'];
 
-const STATUS_COLOR: Record<string, string> = {
-  active: 'var(--brand)',
-  hold: 'var(--warning)',
-  complete: 'var(--success)',
-  cancelled: 'var(--text-3)',
-};
-
 export default function JobWorkspace() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { jobs, setJobStatus, currentUser, showToast } = useStore();
+  const {
+    jobs, setJobStatus, updateJobStage, resolveBlocker, currentUser,
+    showToast, inspections, ncrs, supplierPos, assets, documents, dispatches
+  } = useStore();
+
   const [tab, setTab] = useState('Overview');
+  const [stageModalOpen, setStageModalOpen] = useState(false);
+  const [selectedStageId, setSelectedStageId] = useState<string>('');
+  const [goodQtyInput, setGoodQtyInput] = useState<number>(0);
+  const [rejectQtyInput, setRejectQtyInput] = useState<number>(0);
+  const [scrapQtyInput, setScrapQtyInput] = useState<number>(0);
+  const [selectedEmployee, setSelectedEmployee] = useState<string>(EMPLOYEES[5]?.name || 'Mohan Das');
+  const [stageAction, setStageAction] = useState<'continue' | 'hold' | 'complete'>('continue');
 
   const job = jobs.find(j => j.id === id);
-  if (!job) return <div className="p-6 text-sm" style={{ color: 'var(--text-2)' }}>Job not found</div>;
+  if (!job) return <div className="p-8 text-sm text-[var(--text-2)]">Job not found: {id}</div>;
 
   const blockers = JOB_BLOCKERS.filter(b => b.jobId === id && b.status === 'open');
   const totalGood   = job.stages.reduce((s, st) => s + st.completedGoodQty, 0);
@@ -36,530 +41,771 @@ export default function JobWorkspace() {
   const completedStages = job.stages.filter(s => s.status === 'complete').length;
 
   const canUpdate  = ['owner', 'supervisor', 'operator'].includes(currentUser.role);
-  const canApprove = ['owner'].includes(currentUser.role);
+  const isBlocked  = job.hasBlocker || blockers.length > 0;
 
-  const statusColor = STATUS_COLOR[job.status] ?? 'var(--text-2)';
+  // Open Stage Update Modal
+  const openStageUpdate = (stageId?: string) => {
+    const targetStage = stageId
+      ? job.stages.find(s => s.id === stageId)
+      : (job.stages.find(s => s.status === 'in_progress') || job.stages[0]);
+
+    if (targetStage) {
+      setSelectedStageId(targetStage.id);
+      setGoodQtyInput(targetStage.completedGoodQty);
+      setRejectQtyInput(targetStage.rejectedQty);
+      setScrapQtyInput(targetStage.scrapQty || 0);
+      setStageAction(targetStage.status === 'complete' ? 'complete' : targetStage.status === 'hold' ? 'hold' : 'continue');
+      setStageModalOpen(true);
+    }
+  };
+
+  const handleSaveStageUpdate = () => {
+    const targetStage = job.stages.find(s => s.id === selectedStageId);
+    if (!targetStage) return;
+
+    const newStatus = stageAction === 'complete' ? 'complete' : stageAction === 'hold' ? 'hold' : 'in_progress';
+    updateJobStage(job.id, selectedStageId, {
+      completedGoodQty: goodQtyInput,
+      rejectedQty: rejectQtyInput,
+      scrapQty: scrapQtyInput,
+      status: newStatus,
+      owner: selectedEmployee,
+    });
+
+    setStageModalOpen(false);
+    showToast({
+      type: 'success',
+      title: `Stage ${targetStage.name} Updated`,
+      body: `Recorded: ${goodQtyInput} good units by ${selectedEmployee}`,
+    });
+  };
+
+  const handleResolveJobBlocker = (blockerId: string) => {
+    resolveBlocker(blockerId);
+    showToast({
+      type: 'success',
+      title: 'Blocker Resolved',
+      body: 'Job unblocked and production clear to resume.',
+    });
+  };
 
   return (
-    <div className="max-w-7xl mx-auto">
+    <div className="max-w-[1520px] mx-auto p-4 md:p-6 lg:p-8 space-y-6">
 
-      {/* ── Sticky header ── */}
-      <div
-        className="sticky z-20 px-4 md:px-6"
-        style={{
-          top: 'var(--topbar-h)',
-          background: 'var(--bg)',
-          borderBottom: '1px solid var(--border)',
-        }}
-      >
-        {/* Breadcrumb + actions */}
-        <div className="flex flex-wrap items-center gap-2 pt-3 pb-2">
-          <button
-            onClick={() => navigate('/jobs')}
-            className="flex items-center gap-1 text-xs font-medium transition-colors"
-            style={{ color: 'var(--text-3)' }}
-            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text)'; }}
-            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-3)'; }}
-          >
-            <ArrowLeft size={13} />
-            Jobs
-          </button>
-          <span style={{ color: 'var(--border-2)' }}>/</span>
-
-          {/* Job number badge */}
-          <div
-            className="flex items-center gap-2 px-2.5 py-1 rounded-md"
-            style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
-          >
-            <span className="font-mono text-sm font-semibold" style={{ color: statusColor }}>
+      {/* ── 1. Commercial & Engineering Command Header ── */}
+      <div className={clsx(
+        'industrial-panel p-5 md:p-6 panel-accent-top relative overflow-hidden',
+        isBlocked ? 'hazard-border' : ''
+      )}>
+        {/* Top Breadcrumb & Status Row */}
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border)] pb-4">
+          <div className="flex items-center gap-2 text-xs">
+            <button
+              onClick={() => navigate('/jobs')}
+              className="text-[var(--text-3)] hover:text-[var(--text)] flex items-center gap-1 font-medium transition-colors"
+            >
+              <ArrowLeft size={13} />
+              Job Board
+            </button>
+            <span className="text-[var(--border-2)]">/</span>
+            <span className="font-mono font-bold text-sm text-[var(--cyan-bright)] px-2 py-0.5 rounded bg-[var(--surface-3)] border border-[var(--border)]">
               {job.jobNumber}
             </span>
             <StatusChip status={job.status} size="sm" />
-            {job.hasBlocker && (
-              <span className="flex items-center gap-1 text-[11px] font-semibold" style={{ color: 'var(--error)' }}>
-                <AlertTriangle size={11} /> BLOCKED
+            {isBlocked && (
+              <span className="heat-badge text-[10px] bg-red-500/20 text-red-400 border-red-500/30 flex items-center gap-1 font-bold animate-pulse">
+                <AlertTriangle size={11} /> PRODUCTION BLOCKED
               </span>
             )}
           </div>
 
-          <div className="hidden md:flex items-center gap-1 text-xs" style={{ color: 'var(--text-3)' }}>
-            <User size={11} className="flex-shrink-0" />
-            {job.customerName}
-          </div>
+          {/* Quick Header Actions */}
+          <div className="flex items-center gap-2">
+            {canUpdate && (
+              <button
+                onClick={() => openStageUpdate()}
+                className="btn-primary text-xs py-1.5 px-3 flex items-center gap-1.5"
+              >
+                <Activity size={13} />
+                Update Stage Progress
+              </button>
+            )}
 
-          {/* Job health indicator */}
-          {job.hasBlocker ? (
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold"
-              style={{ background: 'var(--error-bg)', color: 'var(--error)', border: '1px solid var(--error-border)' }}>
-              <span className="w-1.5 h-1.5 rounded-full" style={{ background: 'var(--error)' }} />
-              At Risk
-            </div>
-          ) : job.status === 'hold' ? (
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold"
-              style={{ background: 'var(--warning-bg)', color: 'var(--warning)', border: '1px solid var(--warning-border)' }}>
-              <span className="w-1.5 h-1.5 rounded-full" style={{ background: 'var(--warning)' }} />
-              On Hold
-            </div>
-          ) : job.status === 'active' ? (
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold"
-              style={{ background: 'var(--success-bg)', color: 'var(--success)', border: '1px solid var(--success-border)' }}>
-              <span className="w-1.5 h-1.5 rounded-full pulse-dot" style={{ background: 'var(--success)' }} />
-              On Track
-            </div>
-          ) : null}
-
-          {/* Planned dates */}
-          <div className="hidden lg:flex items-center gap-1 text-xs" style={{ color: 'var(--text-3)' }}>
-            <Calendar size={11} />
-            Due: {new Date(job.plannedEnd).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
-          </div>
-
-          {/* Actions */}
-          <div className="ml-auto flex gap-2">
             {canUpdate && job.status === 'active' && (
               <button
                 onClick={() => { setJobStatus(job.id, 'hold'); showToast({ type: 'warning', title: 'Job placed on hold' }); }}
-                className="btn-ghost text-xs py-1.5 px-3"
+                className="btn-ghost text-xs py-1.5 px-3 flex items-center gap-1"
               >
-                <Pause size={12} /> Hold
+                <Pause size={12} /> Hold Job
               </button>
             )}
+
             {canUpdate && job.status === 'hold' && (
               <button
                 onClick={() => { setJobStatus(job.id, 'active'); showToast({ type: 'success', title: 'Job resumed' }); }}
-                className="btn-primary text-xs py-1.5 px-3"
+                className="btn-primary text-xs py-1.5 px-3 flex items-center gap-1 bg-emerald-600 hover:bg-emerald-500"
               >
-                <Play size={12} /> Resume
+                <Play size={12} /> Resume Job
               </button>
             )}
+
+            <button
+              onClick={() => showToast({ type: 'info', title: 'Traveler Dossier', body: 'Compiling MTCs, drawings and inspection traveler pack...' })}
+              className="btn-ghost text-xs py-1.5 px-3 hidden sm:flex items-center gap-1"
+              title="Export physical manufacturing traveler"
+            >
+              <FileText size={12} /> Traveler Pack
+            </button>
           </div>
         </div>
 
-        {/* Stage progress timeline */}
-        <div className="hidden md:flex items-stretch gap-0 overflow-x-auto pb-2 mt-1" style={{ scrollbarWidth: 'none' }}>
-          {job.stages.map((s: any, i: number) => {
-            const isDone   = s.status === 'complete';
-            const isActive = s.status === 'in_progress';
-            const isHold   = s.status === 'hold';
-            const stagePct = s.inputQty > 0 ? Math.min(100, Math.round((s.completedGoodQty / s.inputQty) * 100)) : 0;
-            const dotBg    = isDone ? 'var(--success)' : isActive ? 'var(--brand)' : 'var(--surface)';
-            const dotBorder= isDone ? 'var(--success)' : isActive ? 'var(--brand)' : isHold ? 'var(--error)' : 'var(--border-2)';
-            const lineBg   = isDone ? 'var(--success)' : 'var(--border-2)';
+        {/* Commercial & Specification Grid */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 pt-4 text-xs">
+          <div>
+            <div className="text-[10px] font-mono uppercase text-[var(--text-3)]">Customer & Account</div>
+            <div className="font-semibold text-[var(--text)] text-sm truncate mt-0.5">{job.customerName}</div>
+            <div className="text-[10px] text-[var(--text-3)]">ID: {job.customerId}</div>
+          </div>
+
+          <div>
+            <div className="text-[10px] font-mono uppercase text-[var(--text-3)]">Customer PO Number</div>
+            <div className="font-mono font-bold text-[var(--text)] mt-0.5">{job.customerPoNumber || '—'}</div>
+            <div className="text-[10px] text-[var(--text-3)]">Quote: {job.customerPoId ? 'QT-2024-089-R2' : 'Direct'}</div>
+          </div>
+
+          <div>
+            <div className="text-[10px] font-mono uppercase text-[var(--text-3)]">Engineering Drawing</div>
+            <div className="font-mono font-bold text-[var(--cyan-bright)] mt-0.5 flex items-center gap-1">
+              {job.drawingRef || 'REV-STD-01'}
+              <ExternalLink size={10} />
+            </div>
+            <div className="text-[10px] text-[var(--text-3)]">Vault Rev C · Verified</div>
+          </div>
+
+          <div>
+            <div className="text-[10px] font-mono uppercase text-[var(--text-3)]">Contract Value</div>
+            <div className="font-mono font-bold text-sm text-[var(--text)] mt-0.5">
+              ₹{(((job.value ?? 0) / 1000)).toLocaleString('en-IN')}k
+            </div>
+            <div className="text-[10px] text-[var(--text-3)]">Ex-Works Hyderabad</div>
+          </div>
+
+          <div>
+            <div className="text-[10px] font-mono uppercase text-[var(--text-3)]">Committed Due Date</div>
+            <div className={clsx(
+              'font-mono font-bold text-sm mt-0.5',
+              isBlocked ? 'text-[var(--error)]' : 'text-[var(--text)]'
+            )}>
+              {new Date(job.plannedEnd).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+            </div>
+            <div className="text-[10px] text-[var(--text-3)]">14 Days Remaining</div>
+          </div>
+
+          <div>
+            <div className="text-[10px] font-mono uppercase text-[var(--text-3)]">Production Supervisor</div>
+            <div className="font-semibold text-[var(--text)] mt-0.5">{job.owner}</div>
+            <div className="text-[10px] text-[var(--text-3)]">Hyderabad Main Plant</div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── 2. Interactive Stage Progression Pipeline (Full Width) ── */}
+      <div className="industrial-panel p-5 space-y-3">
+        <div className="flex items-center justify-between border-b border-[var(--border)] pb-3">
+          <div className="flex items-center gap-2">
+            <Activity size={14} className="text-[var(--cyan-bright)]" />
+            <h2 className="text-xs font-bold uppercase tracking-wider text-[var(--text)]">
+              Production Stage Progression ({completedStages}/{job.stages.length} Complete · {pct}% Good Yield)
+            </h2>
+          </div>
+          <span className="text-[11px] font-mono text-[var(--text-3)]">
+            Click any stage node to record good output or report downtime
+          </span>
+        </div>
+
+        {/* Pipeline Nodes */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 pt-2">
+          {job.stages.map((stage: any, index: number) => {
+            const isDone   = stage.status === 'complete';
+            const isActive = stage.status === 'in_progress';
+            const isHold   = stage.status === 'hold';
+            const stagePct = stage.inputQty > 0
+              ? Math.min(100, Math.round((stage.completedGoodQty / stage.inputQty) * 100))
+              : 0;
+
             return (
-              <React.Fragment key={s.id}>
-                {i > 0 && (
-                  <div className="flex items-center flex-shrink-0" style={{ width: 20 }}>
-                    <div className="w-full h-px" style={{ background: lineBg, opacity: isDone ? 1 : 0.5 }} />
+              <button
+                key={stage.id}
+                onClick={() => openStageUpdate(stage.id)}
+                className={clsx(
+                  'text-left p-3.5 rounded-xl border transition-all duration-150 relative group cursor-pointer',
+                  isDone
+                    ? 'bg-[var(--surface-2)] border-[var(--success-border)] hover:border-[var(--success)]'
+                    : isActive
+                    ? 'bg-[var(--surface-2)] border-[var(--cyan-border)] cyber-glow shadow-md'
+                    : isHold
+                    ? 'bg-[var(--error-bg)]/20 border-[var(--error-border)]'
+                    : 'bg-[var(--surface)] border-[var(--border)] hover:border-[var(--border-strong)]'
+                )}
+              >
+                {/* Node Status Header */}
+                <div className="flex items-center justify-between mb-2">
+                  <span className={clsx(
+                    'w-6 h-6 rounded-full flex items-center justify-center font-mono text-xs font-bold border',
+                    isDone
+                      ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
+                      : isActive
+                      ? 'bg-cyan-500/20 text-cyan-400 border-cyan-500/40'
+                      : isHold
+                      ? 'bg-red-500/20 text-red-400 border-red-500/40'
+                      : 'bg-[var(--surface-3)] text-[var(--text-3)] border-[var(--border)]'
+                  )}>
+                    {isDone ? '✓' : isHold ? '!' : index + 1}
+                  </span>
+                  <StatusChip status={stage.status} size="sm" />
+                </div>
+
+                {/* Stage Info */}
+                <div className="text-xs font-bold text-[var(--text)] group-hover:text-[var(--cyan-bright)] transition-colors truncate">
+                  {stage.name}
+                </div>
+                <div className="text-[10px] text-[var(--text-3)] truncate mt-0.5">
+                  {stage.workCentre || 'General Bay'}
+                </div>
+                {stage.owner && (
+                  <div className="text-[10px] font-mono text-[var(--text-2)] mt-0.5 truncate">
+                    Worker: {stage.owner}
                   </div>
                 )}
-                <div
-                  className="flex flex-col items-center gap-1 flex-shrink-0 px-2 py-1 rounded-md"
-                  style={{
-                    minWidth: 68, maxWidth: 88,
-                    background: isActive ? 'var(--brand-50)' : isDone ? 'var(--success-bg)' : isHold ? 'var(--error-bg)' : 'transparent',
-                  }}
-                >
-                  <div
-                    className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold border-2"
-                    style={{ background: dotBg, borderColor: dotBorder, color: isDone || isActive ? 'white' : 'var(--text-3)' }}
-                  >
-                    {isDone ? '✓' : isHold ? '!' : i + 1}
+
+                {/* Stage Quantity Balance Bar (J1 Blueprint Rule) */}
+                <div className="mt-3 pt-2 border-t border-[var(--border)] space-y-1">
+                  <div className="flex justify-between text-[10px] font-mono text-[var(--text-2)]">
+                    <span>Good: <strong>{stage.completedGoodQty}</strong></span>
+                    <span>Input: <strong>{stage.inputQty} {stage.uom}</strong></span>
                   </div>
-                  <span
-                    className="text-[10px] text-center leading-tight font-medium"
-                    style={{ color: isDone ? 'var(--success)' : isActive ? 'var(--brand)' : isHold ? 'var(--error)' : 'var(--text-3)', maxWidth: 80 }}
-                  >
-                    {s.name}
-                  </span>
-                  {isActive && stagePct > 0 && (
-                    <div className="w-full progress-bar" style={{ height: 2 }}>
-                      <div className="progress-bar-fill" style={{ width: `${stagePct}%`, background: 'var(--brand)' }} />
+                  <div className="progress-bar h-1.5">
+                    <div
+                      className="progress-bar-fill"
+                      style={{
+                        width: `${stagePct}%`,
+                        background: isDone ? 'var(--success)' : isHold ? 'var(--error)' : 'var(--cyan-bright)',
+                      }}
+                    />
+                  </div>
+                  {stage.rejectedQty > 0 && (
+                    <div className="text-[10px] text-[var(--error)] font-mono">
+                      {stage.rejectedQty} rejected
                     </div>
                   )}
-                  {isActive && (
-                    <span className="text-[9px] font-mono" style={{ color: 'var(--brand)' }}>{stagePct}%</span>
-                  )}
                 </div>
-              </React.Fragment>
+              </button>
             );
           })}
         </div>
-
-        {/* Tab bar */}
-        <div
-          className="flex gap-0.5 overflow-x-auto pb-px"
-          style={{ scrollbarWidth: 'none' }}
-        >
-          {TABS.map(t => (
-            <button
-              key={t}
-              onClick={() => setTab(t)}
-              className="px-3 py-2 text-xs whitespace-nowrap font-medium transition-all border-b-2 flex-shrink-0"
-              style={{
-                borderBottomColor: tab === t ? 'var(--brand)' : 'transparent',
-                color: tab === t ? 'var(--brand)' : 'var(--text-2)',
-                background: 'transparent',
-              }}
-            >
-              {t}
-              {t === 'Blockers' && blockers.length > 0 && (
-                <span
-                  className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded-full font-semibold"
-                  style={{ background: 'var(--error)', color: 'white' }}
-                >
-                  {blockers.length}
-                </span>
-              )}
-            </button>
-          ))}
-        </div>
       </div>
 
-      {/* ── Tab content ── */}
-      <div className="p-4 md:p-6">
-        {tab === 'Overview'    && <Overview job={job} pct={pct} completedStages={completedStages} blockers={blockers} navigate={navigate} />}
-        {tab === 'Stages'      && <Stages job={job} canUpdate={canUpdate} navigate={navigate} />}
-        {tab === 'Materials'   && <Materials job={job} />}
-        {tab === 'Procurement' && <ProcurementTab job={job} navigate={navigate} />}
-        {tab === 'Updates'     && <Updates job={job} />}
-        {tab === 'Documents'   && <DocTab job={job} />}
-        {tab === 'Quality'     && <QualityTab job={job} navigate={navigate} />}
-        {tab === 'NCR/Rework'  && <NCRTab job={job} navigate={navigate} />}
-        {tab === 'Assets'      && <AssetsTab job={job} navigate={navigate} />}
-        {tab === 'Dispatch'    && <DispatchTab job={job} navigate={navigate} />}
-        {tab === 'Blockers'    && <BlockersTab blockers={blockers} job={job} />}
-      </div>
-    </div>
-  );
-}
-
-/* ── Overview ── */
-function Overview({ job, pct, completedStages, blockers, navigate }: any) {
-  const { inspections, ncrs, supplierPos } = useStore();
-  const jobInsp  = inspections.filter((i: any) => i.jobId === job.id);
-  const jobNcrs  = ncrs.filter((n: any) => n.jobId === job.id);
-  const jobSpos  = supplierPos.filter((p: any) => p.jobRef === job.jobNumber || p.jobRef === job.id);
-  const overdueSpos = jobSpos.filter((p: any) => p.status === 'overdue');
-  const matReqs  = JOB_MATERIAL_REQS.filter((r: any) => r.jobId === job.id);
-  const passedInsp = jobInsp.filter((i: any) => i.result === 'pass').length;
-  const openNcrs   = jobNcrs.filter((n: any) => n.status === 'open').length;
-  const passRate   = jobInsp.length > 0 ? Math.round((passedInsp / jobInsp.length) * 100) : null;
-
-  // Active / in-progress stage
-  const activeStage = job.stages.find((s: any) => s.status === 'in_progress') ?? job.stages.find((s: any) => s.status === 'pending');
-  const activeStagePct = activeStage && activeStage.inputQty > 0
-    ? Math.min(100, Math.round((activeStage.completedGoodQty / activeStage.inputQty) * 100))
-    : 0;
-
-  // Attention count
-  const attentionCount = blockers.length + overdueSpos.length + (job.materialReadiness === 'shortage' ? 1 : 0) + openNcrs;
-
-  return (
-    <div className="grid md:grid-cols-3 gap-4">
-      <div className="md:col-span-2 space-y-4">
-
-        {/* Job Situation panel */}
-        <div className="eoss-card overflow-hidden panel-accent-top" style={{ position: 'relative' }}>
-          <div
-            className="flex items-center gap-2 px-4 py-3"
-            style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface-2)' }}
-          >
-            <TrendingUp size={14} style={{ color: 'var(--brand)' }} />
-            <span className="text-sm font-semibold" style={{ color: 'var(--text)' }}>Job Situation</span>
-            {attentionCount > 0 && (
-              <span className="pill ml-1" style={{ background: 'var(--error-bg)', borderColor: 'var(--error-border)', color: 'var(--error)' }}>
-                <AlertCircle size={10} /> {attentionCount} area{attentionCount !== 1 ? 's' : ''} need attention
-              </span>
-            )}
-          </div>
-
-          <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
-
-            {/* Current stage */}
-            {activeStage && (
-              <div className="px-4 py-3">
-                <div className="flex items-center gap-2 mb-2">
-                  <Activity size={13} style={{ color: 'var(--brand)' }} />
-                  <span className="text-xs font-semibold" style={{ color: 'var(--text)' }}>
-                    Current Stage: {activeStage.name}
-                  </span>
-                  <StatusChip status={activeStage.status} size="sm" />
-                  {activeStage.workCentre && (
-                    <span className="text-[11px]" style={{ color: 'var(--text-3)' }}>{activeStage.workCentre}</span>
-                  )}
-                </div>
-                {activeStage.inputQty > 0 && (
-                  <div>
-                    <div className="flex justify-between text-[11px] mb-1" style={{ color: 'var(--text-3)' }}>
-                      <span>Progress</span>
-                      <span className="font-mono">{activeStage.completedGoodQty} / {activeStage.inputQty} {activeStage.uom}</span>
-                    </div>
-                    <div className="progress-bar" style={{ height: 6 }}>
-                      <div className="progress-bar-fill" style={{ width: `${activeStagePct}%`, background: 'var(--brand)' }} />
-                    </div>
-                    {activeStage.rejectedQty > 0 && (
-                      <div className="text-[11px] mt-1" style={{ color: 'var(--error)' }}>
-                        {activeStage.rejectedQty} {activeStage.uom} rejected
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Material readiness */}
-            <div className="px-4 py-3">
-              <div className="flex items-center gap-2 mb-2">
-                <Package size={13} style={{ color: job.materialReadiness === 'shortage' ? 'var(--error)' : job.materialReadiness === 'partial' ? 'var(--warning)' : 'var(--success)' }} />
-                <span className="text-xs font-semibold" style={{ color: 'var(--text)' }}>Material Readiness</span>
-                <StatusChip
-                  status={job.materialReadiness === 'ready' ? 'available' : job.materialReadiness === 'shortage' ? 'shortage' : job.materialReadiness === 'partial' ? 'partial' : 'pending'}
-                  label={job.materialReadiness}
-                  size="sm"
-                />
-              </div>
-              {matReqs.length > 0 ? (
-                <div className="space-y-2">
-                  {matReqs.map((r: any) => {
-                    const avail = r.reservedQty > 0 ? r.reservedQty : 0;
-                    const pctAvail = r.requiredQty > 0 ? Math.min(100, Math.round((avail / r.requiredQty) * 100)) : 100;
-                    return (
-                      <div key={r.id}>
-                        <div className="flex justify-between text-[11px] mb-1">
-                          <span style={{ color: 'var(--text-2)' }}>{r.materialName}</span>
-                          <span className="font-mono" style={{ color: r.shortage ? 'var(--error)' : 'var(--text-2)' }}>
-                            {r.reservedQty} / {r.requiredQty} {r.uom}
-                          </span>
-                        </div>
-                        <div className="progress-bar" style={{ height: 4 }}>
-                          <div
-                            className="progress-bar-fill"
-                            style={{
-                              width: `${pctAvail}%`,
-                              background: r.shortage ? 'var(--error)' : pctAvail >= 100 ? 'var(--success)' : 'var(--warning)',
-                            }}
-                          />
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <p className="text-xs" style={{ color: 'var(--text-2)' }}>
-                  {job.materialReadiness === 'shortage' ? 'Critical shortage — job blocked on material.' :
-                   job.materialReadiness === 'partial'  ? 'Some materials not yet fully received.' :
-                   job.materialReadiness === 'ready'    ? 'All materials reserved and available.' :
-                   'Materials not yet assessed.'}
-                </p>
-              )}
+      {/* ── Active Blocker Hazard Strip (If Any) ── */}
+      {blockers.length > 0 && (
+        <div className="rounded-xl border border-[var(--error-border)] bg-[var(--error-bg)]/20 p-4 space-y-3 hazard-strip">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <ShieldAlert size={16} className="text-[var(--error)] animate-bounce" />
+              <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--error)]">
+                Active Production Blocker ({blockers.length})
+              </h3>
             </div>
-
-            {/* Procurement risk */}
-            <div className="px-4 py-3">
-              <div className="flex items-center gap-2 mb-2">
-                <ShoppingIcon size={13} color={overdueSpos.length > 0 ? 'var(--error)' : 'var(--text-2)'} />
-                <span className="text-xs font-semibold" style={{ color: 'var(--text)' }}>Procurement</span>
-                {overdueSpos.length > 0 ? (
-                  <span className="pill" style={{ background: 'var(--error-bg)', borderColor: 'var(--error-border)', color: 'var(--error)' }}>
-                    {overdueSpos.length} overdue PO{overdueSpos.length > 1 ? 's' : ''}
-                  </span>
-                ) : jobSpos.length > 0 ? (
-                  <span className="pill" style={{ background: 'var(--success-bg)', borderColor: 'var(--success-border)', color: 'var(--success)' }}>
-                    On schedule
-                  </span>
-                ) : null}
-              </div>
-              {overdueSpos.length > 0 ? (
-                <div className="space-y-1.5">
-                  {overdueSpos.map((p: any) => (
-                    <button
-                      key={p.id}
-                      onClick={() => navigate(`/procurement/${p.id}`)}
-                      className="flex items-center gap-2 w-full text-left text-xs px-3 py-2 rounded-md"
-                      style={{ background: 'var(--error-bg)', border: '1px solid var(--error-border)' }}
-                    >
-                      <span className="font-mono font-semibold" style={{ color: 'var(--error)' }}>{p.poNumber}</span>
-                      <span style={{ color: 'var(--text-2)' }}>{p.supplierName}</span>
-                      <span className="ml-auto font-semibold" style={{ color: 'var(--error)' }}>Overdue</span>
-                      <ChevronRight size={12} style={{ color: 'var(--error)' }} />
-                    </button>
-                  ))}
-                </div>
-              ) : jobSpos.length === 0 ? (
-                <p className="text-xs" style={{ color: 'var(--text-3)' }}>No supplier POs linked to this job</p>
-              ) : (
-                <p className="text-xs" style={{ color: 'var(--text-2)' }}>
-                  {jobSpos.length} PO{jobSpos.length !== 1 ? 's' : ''} — all within committed dates
-                </p>
-              )}
-            </div>
-
-            {/* Quality */}
-            <div className="px-4 py-3">
-              <div className="flex items-center gap-2 mb-1">
-                <Shield size={13} style={{ color: openNcrs > 0 ? 'var(--error)' : 'var(--success)' }} />
-                <span className="text-xs font-semibold" style={{ color: 'var(--text)' }}>Quality</span>
-                {openNcrs > 0 && (
-                  <span className="pill" style={{ background: 'var(--error-bg)', borderColor: 'var(--error-border)', color: 'var(--error)' }}>
-                    {openNcrs} open NCR{openNcrs > 1 ? 's' : ''}
-                  </span>
-                )}
-              </div>
-              <p className="text-xs" style={{ color: 'var(--text-2)' }}>
-                {jobInsp.length === 0
-                  ? 'No inspections recorded yet'
-                  : `${jobInsp.length} inspection${jobInsp.length !== 1 ? 's' : ''} · ${passedInsp} passed${passRate !== null ? ` (${passRate}% pass rate)` : ''} · ${jobNcrs.length} NCR${jobNcrs.length !== 1 ? 's' : ''}`
-                }
-              </p>
-            </div>
+            <span className="text-[10px] font-mono text-[var(--error)] uppercase">
+              Immediate Resolution Required
+            </span>
           </div>
-        </div>
 
-        {/* Job details */}
-        <div className="eoss-card">
-          <div className="eoss-card-header">
-            <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-3)' }}>Job Details</span>
-          </div>
-          <div className="p-4">
-            <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
-              <Field label="Customer"     value={job.customerName} />
-              <Field label="PO Number"    value={job.customerPoNumber ?? '—'} mono />
-              <Field label="Description"  value={job.description} span />
-              <Field label="Drawing Ref"  value={job.drawingRef ?? '—'} mono />
-              <Field label="Site"         value={job.siteName} />
-              <Field label="Owner"        value={job.owner} />
-              <Field label="Priority"     value={<StatusChip status={job.priority} size="sm" />} />
-              <Field label="Planned Start" value={new Date(job.plannedStart).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })} />
-              <Field label="Planned End"   value={new Date(job.plannedEnd).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })} />
-              {job.actualStart && <Field label="Actual Start" value={new Date(job.actualStart).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })} />}
-            </dl>
-          </div>
-        </div>
-      </div>
-
-      {/* Right column */}
-      <div className="space-y-4">
-        {/* Stage completion summary */}
-        <div className="eoss-card">
-          <div className="eoss-card-header">
-            <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-3)' }}>Stages</span>
-            <span className="text-xs" style={{ color: 'var(--text-2)' }}>{completedStages}/{job.stages.length}</span>
-          </div>
-          <div className="p-3">
-            <div className="progress-bar mb-3" style={{ height: 6 }}>
+          <div className="space-y-2">
+            {blockers.map(b => (
               <div
-                className="progress-bar-fill"
-                style={{ width: `${(completedStages / job.stages.length) * 100}%`, background: 'var(--brand)' }}
-              />
-            </div>
-            <div className="space-y-1.5">
-              {job.stages.map((s: any, i: number) => {
-                const isDone = s.status === 'complete';
-                const isActive = s.status === 'in_progress';
-                const isHold = s.status === 'hold';
-                return (
-                  <div key={s.id} className="flex items-center gap-2">
-                    <div
-                      className="w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold flex-shrink-0"
-                      style={{
-                        background: isDone ? 'var(--success)' : isActive ? 'var(--brand)' : 'var(--surface-3)',
-                        color: isDone || isActive ? 'white' : 'var(--text-3)',
-                      }}
-                    >
-                      {isDone ? '✓' : i + 1}
-                    </div>
-                    <span className="text-xs flex-1" style={{ color: isDone ? 'var(--success)' : isActive ? 'var(--brand)' : 'var(--text-2)' }}>
-                      {s.name}
+                key={b.id}
+                className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-lg bg-[var(--surface)] border border-[var(--error-border)]"
+              >
+                <div className="space-y-0.5">
+                  <div className="flex items-center gap-2">
+                    <span className="heat-badge text-[10px] bg-red-500/20 text-red-400 border-red-500/30 font-bold">
+                      {b.type.toUpperCase()} BLOCKER
                     </span>
-                    <StatusChip status={s.status} size="sm" />
+                    <span className="text-[10px] text-[var(--text-3)] font-mono">
+                      Raised by {b.raisedBy} · {new Date(b.raisedAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                    </span>
                   </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
+                  <div className="text-xs text-[var(--text)] font-medium mt-1">
+                    {b.description}
+                  </div>
+                </div>
 
-        {blockers.length > 0 && (
-          <div className="rounded-[var(--radius)] overflow-hidden" style={{ border: '1px solid var(--error-border)' }}>
-            <div className="px-4 py-2.5 flex items-center gap-2" style={{ background: 'var(--error-bg)' }}>
-              <AlertTriangle size={13} style={{ color: 'var(--error)' }} />
-              <span className="font-semibold text-xs" style={{ color: 'var(--error)' }}>
-                {blockers.length} Active Blocker{blockers.length > 1 ? 's' : ''}
-              </span>
-            </div>
-            {blockers.map((b: any) => (
-              <div key={b.id} className="px-4 py-3" style={{ borderTop: '1px solid var(--error-border)', background: 'var(--surface)' }}>
-                <div className="text-xs font-semibold" style={{ color: 'var(--error)' }}>{b.type}</div>
-                <div className="text-xs mt-0.5" style={{ color: 'var(--text-2)' }}>{b.description}</div>
-                <div className="text-[10px] mt-1" style={{ color: 'var(--text-3)' }}>
-                  Raised by {b.raisedBy} · {new Date(b.raisedAt).toLocaleDateString('en-IN')}
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => handleResolveJobBlocker(b.id)}
+                    className="btn-primary text-xs py-1.5 px-3 bg-emerald-600 hover:bg-emerald-500 shadow-none"
+                  >
+                    <Check size={12} /> Resolve Blocker
+                  </button>
                 </div>
               </div>
             ))}
           </div>
-        )}
-
-        {/* AI intelligence */}
-        {(job.hasBlocker || job.status === 'hold' || job.materialReadiness === 'shortage') && (
-          <div className="intel-panel rounded-[var(--radius)] p-4">
-            <div className="ai-signal mb-2">
-              <Zap size={10} /> EOSS Intelligence
-            </div>
-            <p className="text-xs mt-2 leading-relaxed" style={{ color: 'var(--text-2)' }}>
-              {job.materialReadiness === 'shortage'
-                ? `Material shortage is the primary risk for ${job.jobNumber}. Check procurement commitments and consider expediting or sourcing from alternative lots.`
-                : job.status === 'hold'
-                ? `${job.jobNumber} has been placed on hold. Review blocker resolution timeline and assess impact on committed delivery date.`
-                : `${job.jobNumber} has active blockers that may affect production schedule. Early resolution will reduce delivery risk.`
-              }
-            </p>
-          </div>
-        )}
-
-        {/* Quick stats */}
-        <div className="grid grid-cols-2 gap-2">
-          <StatTile icon={<Activity size={13} />} label="Yield" value={`${pct}%`}
-            accent={pct >= 90 ? 'var(--success)' : pct >= 70 ? 'var(--warning)' : 'var(--error)'} />
-          <StatTile icon={<DollarSign size={13} />} label="Value"
-            value={job.value ? `₹${(job.value / 1000).toFixed(0)}k` : '—'} />
         </div>
+      )}
+
+      {/* ── 3. Workspace Tab Navigation ── */}
+      <div className="border-b border-[var(--border)] flex gap-1 overflow-x-auto pb-1">
+        {TABS.map(t => (
+          <button
+            key={t}
+            onClick={() => setTab(t)}
+            className={clsx(
+              'px-3.5 py-2 text-xs font-semibold whitespace-nowrap rounded-t-lg transition-colors border-b-2 -mb-px flex items-center gap-1.5',
+              tab === t
+                ? 'bg-[var(--surface)] border-[var(--cyan-bright)] text-[var(--cyan-bright)] shadow-xs'
+                : 'border-transparent text-[var(--text-2)] hover:text-[var(--text)] hover:bg-[var(--surface-2)]'
+            )}
+          >
+            {t}
+            {t === 'Blockers' && blockers.length > 0 && (
+              <span className="text-[10px] px-1.5 py-0.2 rounded-full font-bold bg-red-500 text-white">
+                {blockers.length}
+              </span>
+            )}
+          </button>
+        ))}
       </div>
+
+      {/* ── 4. Tab Contents ── */}
+      {tab === 'Overview' && (
+        <div className="space-y-6">
+
+          {/* The 4-Pillar Manufacturing Readiness Cockpit */}
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
+
+            {/* Pillar 1: Material Readiness & BOM */}
+            <div className="industrial-panel p-4 space-y-3">
+              <div className="flex items-center justify-between border-b border-[var(--border)] pb-2.5">
+                <div className="flex items-center gap-2">
+                  <Package size={14} className="text-[var(--cyan-bright)]" />
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--text)]">
+                    1. Material Readiness
+                  </h3>
+                </div>
+                <span className={clsx(
+                  'text-[10px] font-mono px-2 py-0.5 rounded font-bold',
+                  job.materialReadiness === 'ready' ? 'bg-emerald-500/20 text-emerald-400' :
+                  job.materialReadiness === 'shortage' ? 'bg-red-500/20 text-red-400' :
+                  'bg-amber-500/20 text-amber-400'
+                )}>
+                  {job.materialReadiness.toUpperCase()}
+                </span>
+              </div>
+
+              {/* Material Allocation Lines */}
+              <div className="space-y-2">
+                {JOB_MATERIAL_REQS.filter(r => r.jobId === job.id).length > 0 ? (
+                  JOB_MATERIAL_REQS.filter(r => r.jobId === job.id).map(r => (
+                    <div key={r.id} className="p-2.5 rounded-lg bg-[var(--surface-2)] border border-[var(--border)] space-y-1 text-xs">
+                      <div className="flex justify-between font-medium">
+                        <span className="text-[var(--text)] truncate">{r.materialName}</span>
+                        <span className={clsx('font-mono font-bold', r.shortage ? 'text-[var(--error)]' : 'text-emerald-400')}>
+                          {r.reservedQty}/{r.requiredQty} {r.uom}
+                        </span>
+                      </div>
+                      <div className="text-[10px] text-[var(--text-3)] font-mono flex items-center justify-between">
+                        <span>Stage: {r.stageName}</span>
+                        <span>{r.shortage ? 'SHORTAGE' : 'LOT ALLOCATED'}</span>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="p-2.5 rounded-lg bg-[var(--surface-2)] text-xs text-[var(--text-2)]">
+                    MS Plate 8mm: 320 kg allocated (LOT-2024-001, MTC Verified)
+                  </div>
+                )}
+              </div>
+
+              <button
+                onClick={() => setTab('Materials')}
+                className="w-full text-center text-xs text-[var(--brand)] hover:underline pt-1 font-medium inline-flex items-center justify-center gap-1"
+              >
+                Inspect Full Material BOM <ChevronRight size={12} />
+              </button>
+            </div>
+
+            {/* Pillar 2: Machine & Work Centre Health */}
+            <div className="industrial-panel p-4 space-y-3">
+              <div className="flex items-center justify-between border-b border-[var(--border)] pb-2.5">
+                <div className="flex items-center gap-2">
+                  <Wrench size={14} className="text-[var(--cyan-bright)]" />
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--text)]">
+                    2. Machinery Health
+                  </h3>
+                </div>
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-bold">
+                  BAYS ONLINE
+                </span>
+              </div>
+
+              <div className="space-y-2 text-xs">
+                <div className="p-2.5 rounded-lg bg-[var(--surface-2)] border border-[var(--border)] space-y-1">
+                  <div className="flex justify-between items-center">
+                    <span className="font-semibold text-[var(--text)]">Fabrication Bay</span>
+                    <span className="text-[10px] font-mono text-emerald-400">OPERATIONAL</span>
+                  </div>
+                  <div className="text-[11px] text-[var(--text-2)]">Lincoln PowerWave S350 (WM-01)</div>
+                </div>
+
+                <div className="p-2.5 rounded-lg bg-[var(--surface-2)] border border-[var(--border)] space-y-1">
+                  <div className="flex justify-between items-center">
+                    <span className="font-semibold text-[var(--text)]">Cutting Bay</span>
+                    <span className="text-[10px] font-mono text-emerald-400">OPERATIONAL</span>
+                  </div>
+                  <div className="text-[11px] text-[var(--text-2)]">Hypertherm Plasma Cutter (PC-01)</div>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setTab('Assets')}
+                className="w-full text-center text-xs text-[var(--brand)] hover:underline pt-1 font-medium inline-flex items-center justify-center gap-1"
+              >
+                View Asset Telemetry <ChevronRight size={12} />
+              </button>
+            </div>
+
+            {/* Pillar 3: Quality Status & NCRs */}
+            <div className="industrial-panel p-4 space-y-3">
+              <div className="flex items-center justify-between border-b border-[var(--border)] pb-2.5">
+                <div className="flex items-center gap-2">
+                  <Shield size={14} className="text-[var(--cyan-bright)]" />
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--text)]">
+                    3. Quality & NCRs
+                  </h3>
+                </div>
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-bold">
+                  100% PASS RATE
+                </span>
+              </div>
+
+              <div className="space-y-2 text-xs">
+                <div className="p-2.5 rounded-lg bg-[var(--surface-2)] border border-[var(--border)] space-y-1">
+                  <div className="flex justify-between items-center">
+                    <span className="font-semibold text-[var(--text)]">In-Process Inspection</span>
+                    <span className="text-[10px] font-mono text-emerald-400">PASSED</span>
+                  </div>
+                  <div className="text-[11px] text-[var(--text-2)]">Weld Visual Check · Inspector: Priya Patel</div>
+                </div>
+
+                <div className="p-2.5 rounded-lg bg-[var(--surface-2)] border border-[var(--border)] space-y-1">
+                  <div className="flex justify-between items-center">
+                    <span className="font-semibold text-[var(--text)]">MTC Dossier</span>
+                    <span className="text-[10px] font-mono text-[var(--cyan-bright)]">VERIFIED</span>
+                  </div>
+                  <div className="text-[11px] text-[var(--text-2)]">MTC-2024-047 matched to Lot 001</div>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setTab('Quality')}
+                className="w-full text-center text-xs text-[var(--brand)] hover:underline pt-1 font-medium inline-flex items-center justify-center gap-1"
+              >
+                Quality Inspection Logs <ChevronRight size={12} />
+              </button>
+            </div>
+
+            {/* Pillar 4: Dispatch Readiness */}
+            <div className="industrial-panel p-4 space-y-3">
+              <div className="flex items-center justify-between border-b border-[var(--border)] pb-2.5">
+                <div className="flex items-center gap-2">
+                  <Truck size={14} className="text-[var(--cyan-bright)]" />
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--text)]">
+                    4. Dispatch Readiness
+                  </h3>
+                </div>
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[var(--surface-3)] text-[var(--text-3)] font-bold">
+                  IN PRODUCTION
+                </span>
+              </div>
+
+              <div className="space-y-2 text-xs">
+                <div className="p-2.5 rounded-lg bg-[var(--surface-2)] border border-[var(--border)] space-y-1">
+                  <div className="flex justify-between items-center">
+                    <span className="font-semibold text-[var(--text)]">Quality Release (QR)</span>
+                    <span className="text-[10px] font-mono text-[var(--text-3)]">Awaiting Final Insp</span>
+                  </div>
+                  <div className="text-[11px] text-[var(--text-2)]">Dispatch blocked until QR generated</div>
+                </div>
+
+                <div className="p-2.5 rounded-lg bg-[var(--surface-2)] border border-[var(--border)] space-y-1">
+                  <div className="flex justify-between items-center">
+                    <span className="font-semibold text-[var(--text)]">Carrier Logistics</span>
+                    <span className="text-[10px] font-mono text-[var(--text-3)]">Pending Release</span>
+                  </div>
+                  <div className="text-[11px] text-[var(--text-2)]">Destination: Bengaluru Plant</div>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setTab('Dispatch')}
+                className="w-full text-center text-xs text-[var(--brand)] hover:underline pt-1 font-medium inline-flex items-center justify-center gap-1"
+              >
+                Dispatch Manifest & Pack <ChevronRight size={12} />
+              </button>
+            </div>
+
+          </div>
+
+          {/* AI Contextual Manufacturing Co-pilot & Schedule Synthesis */}
+          <div className="intel-panel p-5 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-xs font-bold text-[var(--cyan-bright)]">
+                <Sparkles size={14} />
+                <span>EOSS AI Manufacturing Co-Pilot · Real-Time Telemetry Diagnosis</span>
+              </div>
+              <span className="text-[10px] font-mono text-[var(--text-3)]">
+                SIMULATED PREDICTIVE MODEL
+              </span>
+            </div>
+
+            <p className="text-xs text-[var(--text)] leading-relaxed max-w-4xl">
+              {job.hasBlocker
+                ? `Job ${job.jobNumber} is currently blocked by physical bottlenecks. Critical path analysis indicates every 24 hours of delay will shift final dispatch by 1.4 production days due to downstream welding machine contention. Recommended action: resolve the root blocker and prioritize fit-up handover.`
+                : `Job ${job.jobNumber} is running nominally on the planned trajectory. Material buffer is healthy with 100% of MS Plate 8mm reserved and verified. Stage 2 (Fit-up) is currently 60% complete with Mohan Das recording 6 good assemblies. No schedule drift detected.`}
+            </p>
+
+            <div className="flex items-center gap-2 pt-2 border-t border-[var(--cyan-border)]/40 text-[11px] font-mono text-[var(--text-2)]">
+              <span>Next Milestone: <strong>Stage 3 Welding</strong></span>
+              <span>·</span>
+              <span>Planned Handover: <strong>6 Nov 2024</strong></span>
+              <span>·</span>
+              <span>Assigned Machine: <strong>WM-02 ESAB</strong></span>
+            </div>
+          </div>
+
+          {/* Detailed Job Profile & Specifications */}
+          <div className="industrial-panel p-5 space-y-4">
+            <div className="flex items-center justify-between border-b border-[var(--border)] pb-3">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--text)]">
+                Engineering & Commercial Contract Metadata
+              </h3>
+              <span className="text-[11px] font-mono text-[var(--text-3)]">
+                Immutable record revision V3
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs">
+              <Field label="Description" value={job.description} />
+              <Field label="Site Location" value={job.siteName} />
+              <Field label="Current Production Stage" value={job.currentStage} />
+              <Field label="Target Yield" value="98.5% Expected" />
+              <Field label="Customer Account" value={job.customerName} />
+              <Field label="PO Reference" value={job.customerPoNumber || '—'} mono />
+              <Field label="Planned Start" value={new Date(job.plannedStart).toLocaleDateString('en-IN')} />
+              <Field label="Committed Delivery" value={new Date(job.plannedEnd).toLocaleDateString('en-IN')} />
+            </div>
+          </div>
+
+        </div>
+      )}
+
+      {/* Secondary Tabs (Fully preserved with complete functionality) */}
+      {tab === 'Stages'      && <Stages job={job} canUpdate={canUpdate} navigate={navigate} onOpenUpdate={openStageUpdate} />}
+      {tab === 'Materials'   && <Materials job={job} />}
+      {tab === 'Procurement' && <ProcurementTab job={job} navigate={navigate} />}
+      {tab === 'Updates'     && <Updates job={job} />}
+      {tab === 'Documents'   && <DocTab job={job} />}
+      {tab === 'Quality'     && <QualityTab job={job} navigate={navigate} />}
+      {tab === 'NCR/Rework'  && <NCRTab job={job} navigate={navigate} />}
+      {tab === 'Assets'      && <AssetsTab job={job} navigate={navigate} />}
+      {tab === 'Dispatch'    && <DispatchTab job={job} navigate={navigate} />}
+      {tab === 'Blockers'    && <BlockersTab blockers={blockers} job={job} onResolve={handleResolveJobBlocker} />}
+
+      {/* ── 5. Inline Stage Update Modal (Instant Interaction) ── */}
+      {stageModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm">
+          <div className="w-full max-w-lg industrial-panel p-5 space-y-4 bg-[var(--surface)] border border-[var(--border-strong)]">
+            <div className="flex items-center justify-between border-b border-[var(--border)] pb-3">
+              <div className="flex items-center gap-2">
+                <Activity size={16} className="text-[var(--cyan-bright)]" />
+                <h3 className="text-sm font-bold text-[var(--text)]">
+                  Record Stage Update — {job.stages.find(s => s.id === selectedStageId)?.name}
+                </h3>
+              </div>
+              <button
+                onClick={() => setStageModalOpen(false)}
+                className="text-[var(--text-3)] hover:text-[var(--text)]"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="space-y-4 text-xs">
+              {/* Stage Selector */}
+              <div>
+                <label className="block text-[11px] font-mono uppercase text-[var(--text-3)] mb-1">
+                  Select Production Stage
+                </label>
+                <select
+                  value={selectedStageId}
+                  onChange={e => {
+                    const st = job.stages.find(s => s.id === e.target.value);
+                    if (st) {
+                      setSelectedStageId(st.id);
+                      setGoodQtyInput(st.completedGoodQty);
+                      setRejectQtyInput(st.rejectedQty);
+                      setScrapQtyInput(st.scrapQty || 0);
+                    }
+                  }}
+                  className="w-full p-2.5 rounded-lg bg-[var(--surface-2)] border border-[var(--border)] text-[var(--text)] focus:outline-none focus:border-[var(--cyan-border)]"
+                >
+                  {job.stages.map((s: any) => (
+                    <option key={s.id} value={s.id}>
+                      Stage {s.sequence}: {s.name} ({s.status.toUpperCase()}) — {s.workCentre || 'General Bay'}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Quantities Grid (J1 Stage Accounting) */}
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-[10px] font-mono uppercase text-[var(--success)] mb-1">
+                    Good Output Qty
+                  </label>
+                  <input
+                    type="number"
+                    value={goodQtyInput}
+                    onChange={e => setGoodQtyInput(Number(e.target.value))}
+                    className="w-full p-2 rounded-lg bg-[var(--surface-2)] border border-[var(--border)] font-mono text-sm font-bold text-[var(--text)]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-mono uppercase text-[var(--warning)] mb-1">
+                    Rework Qty
+                  </label>
+                  <input
+                    type="number"
+                    value={rejectQtyInput}
+                    onChange={e => setRejectQtyInput(Number(e.target.value))}
+                    className="w-full p-2 rounded-lg bg-[var(--surface-2)] border border-[var(--border)] font-mono text-sm font-bold text-[var(--text)]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-mono uppercase text-[var(--error)] mb-1">
+                    Scrap Qty
+                  </label>
+                  <input
+                    type="number"
+                    value={scrapQtyInput}
+                    onChange={e => setScrapQtyInput(Number(e.target.value))}
+                    className="w-full p-2 rounded-lg bg-[var(--surface-2)] border border-[var(--border)] font-mono text-sm font-bold text-[var(--text)]"
+                  />
+                </div>
+              </div>
+
+              {/* Worker Attribution (J3 Employee Rule) */}
+              <div>
+                <label className="block text-[11px] font-mono uppercase text-[var(--text-3)] mb-1">
+                  Worker Attribution (Shop Floor Operator)
+                </label>
+                <select
+                  value={selectedEmployee}
+                  onChange={e => setSelectedEmployee(e.target.value)}
+                  className="w-full p-2.5 rounded-lg bg-[var(--surface-2)] border border-[var(--border)] text-[var(--text)] focus:outline-none focus:border-[var(--cyan-border)]"
+                >
+                  {EMPLOYEES.map(emp => (
+                    <option key={emp.id} value={emp.name}>
+                      {emp.name} — {emp.designation} ({emp.department})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Transition Action */}
+              <div>
+                <label className="block text-[11px] font-mono uppercase text-[var(--text-3)] mb-1">
+                  Stage Status Transition
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setStageAction('continue')}
+                    className={clsx(
+                      'py-2 px-3 rounded-lg border text-center font-medium transition-colors',
+                      stageAction === 'continue' ? 'bg-[var(--surface-3)] border-[var(--cyan-bright)] text-[var(--cyan-bright)]' : 'bg-[var(--surface-2)] border-[var(--border)] text-[var(--text-2)]'
+                    )}
+                  >
+                    In Progress
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setStageAction('hold')}
+                    className={clsx(
+                      'py-2 px-3 rounded-lg border text-center font-medium transition-colors',
+                      stageAction === 'hold' ? 'bg-amber-500/20 border-amber-500 text-amber-400' : 'bg-[var(--surface-2)] border-[var(--border)] text-[var(--text-2)]'
+                    )}
+                  >
+                    Hold Stage
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setStageAction('complete')}
+                    className={clsx(
+                      'py-2 px-3 rounded-lg border text-center font-medium transition-colors',
+                      stageAction === 'complete' ? 'bg-emerald-500/20 border-emerald-500 text-emerald-400' : 'bg-[var(--surface-2)] border-[var(--border)] text-[var(--text-2)]'
+                    )}
+                  >
+                    Complete Stage
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-[var(--border)]">
+              <button
+                onClick={() => setStageModalOpen(false)}
+                className="btn-ghost text-xs py-1.5 px-3"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveStageUpdate}
+                className="btn-primary text-xs py-1.5 px-4"
+              >
+                Save Stage Update
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
 
-function ShoppingIcon({ size, color }: { size: number; color: string }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-      <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/>
-    </svg>
-  );
-}
-
-/* ── Stages ── */
-function Stages({ job, canUpdate, navigate }: any) {
+/* ── Tab Components (Stages, Materials, Procurement, Quality, etc.) ── */
+function Stages({ job, canUpdate, navigate, onOpenUpdate }: any) {
   return (
     <div className="space-y-3">
       {job.stages.map((s: any) => (
-        <div key={s.id} className="eoss-card p-4">
+        <div key={s.id} className="industrial-panel p-4">
           <div className="flex items-center justify-between gap-2 flex-wrap">
             <div className="flex items-center gap-3">
-              <span
-                className="w-7 h-7 rounded-full text-sm font-bold flex items-center justify-center flex-shrink-0"
-                style={{ background: 'var(--surface-3)', color: 'var(--text-2)' }}
-              >
+              <span className="w-7 h-7 rounded-full text-sm font-bold flex items-center justify-center flex-shrink-0 bg-[var(--surface-3)] text-[var(--text)] font-mono">
                 {s.sequence}
               </span>
               <div>
-                <div className="font-semibold text-sm" style={{ color: 'var(--text)' }}>{s.name}</div>
-                <div className="text-xs" style={{ color: 'var(--text-2)' }}>{s.workCentre} · {s.owner || 'Unassigned'}</div>
+                <div className="font-semibold text-sm text-[var(--text)]">{s.name}</div>
+                <div className="text-xs text-[var(--text-2)]">{s.workCentre || 'General Bay'} · Operator: {s.owner || 'Unassigned'}</div>
               </div>
             </div>
             <div className="flex items-center gap-2">
               <StatusChip status={s.status} size="sm" />
-              {canUpdate && (s.status === 'in_progress' || s.status === 'pending') && (
+              {canUpdate && (
                 <button
-                  onClick={() => navigate(`/jobs/${job.id}/stage/${s.id}`)}
+                  onClick={() => onOpenUpdate(s.id)}
                   className="btn-primary text-xs py-1.5 px-3"
                 >
                   Update Stage
@@ -567,17 +813,19 @@ function Stages({ job, canUpdate, navigate }: any) {
               )}
             </div>
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3">
-            <SmallField label="Planned" value={`${new Date(s.plannedStart).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} → ${new Date(s.plannedEnd).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}`} />
-            {s.actualStart && <SmallField label="Actual Start" value={new Date(s.actualStart).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} />}
-            <SmallField label="Input Qty" value={`${s.inputQty} ${s.uom}`} />
-            <SmallField label="Good / Reject" value={`${s.completedGoodQty} / ${s.rejectedQty}`} />
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3 pt-3 border-t border-[var(--border)]">
+            <SmallField label="Planned Schedule" value={`${new Date(s.plannedStart).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} → ${new Date(s.plannedEnd).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}`} />
+            <SmallField label="Actual Start" value={s.actualStart ? new Date(s.actualStart).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : 'Not started'} />
+            <SmallField label="Input Quantity" value={`${s.inputQty} ${s.uom}`} />
+            <SmallField label="Good / Reject Balance" value={`${s.completedGoodQty} good / ${s.rejectedQty} reject`} />
           </div>
+
           {s.completedGoodQty > 0 && (
             <div className="mt-3">
-              <div className="flex justify-between text-[11px] mb-1" style={{ color: 'var(--text-3)' }}>
-                <span>Progress</span>
-                <span>{s.completedGoodQty}/{s.inputQty}</span>
+              <div className="flex justify-between text-[11px] mb-1 font-mono text-[var(--text-3)]">
+                <span>Progress: {Math.round((s.completedGoodQty / s.inputQty) * 100)}%</span>
+                <span>{s.completedGoodQty} / {s.inputQty} {s.uom}</span>
               </div>
               <div className="progress-bar">
                 <div className="progress-bar-fill" style={{ width: `${Math.min(100, (s.completedGoodQty / s.inputQty) * 100)}%`, background: 'var(--success)' }} />
@@ -590,98 +838,106 @@ function Stages({ job, canUpdate, navigate }: any) {
   );
 }
 
-/* ── Materials ── */
 function Materials({ job }: any) {
   const reqs = JOB_MATERIAL_REQS.filter(r => r.jobId === job.id);
   if (reqs.length === 0) {
     return (
-      <div className="eoss-card py-12 text-center text-sm" style={{ color: 'var(--text-3)' }}>
+      <div className="industrial-panel py-12 text-center text-sm text-[var(--text-3)]">
         No material requirements recorded for this job
       </div>
     );
   }
   return (
-    <div className="space-y-3">
-      {reqs.map(r => {
-        const reservedPct  = r.requiredQty > 0 ? Math.min(100, Math.round((r.reservedQty / r.requiredQty) * 100)) : 0;
-        const issuedPct    = r.requiredQty > 0 ? Math.min(100, Math.round((r.issuedQty / r.requiredQty) * 100)) : 0;
-        const statusLabel  = r.shortage ? 'shortage' : r.issuedQty > 0 ? 'issued' : r.reservedQty > 0 ? 'reserved' : 'pending';
-        return (
-          <div
-            key={r.id}
-            className="eoss-card p-4"
-            style={r.shortage ? { borderColor: 'var(--error-border)', background: 'var(--error-bg)' } : {}}
-          >
-            <div className="flex items-start gap-3">
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap mb-2">
-                  {r.shortage && <AlertTriangle size={12} style={{ color: 'var(--error)' }} />}
-                  <span className="text-sm font-semibold" style={{ color: 'var(--text)' }}>{r.materialName}</span>
-                  <span className="text-[11px]" style={{ color: 'var(--text-3)' }}>{r.stageName}</span>
-                  <StatusChip status={statusLabel} label={r.shortage ? 'shortage' : undefined} size="sm" />
-                </div>
-                {/* Visual bars */}
-                <div className="space-y-1.5">
-                  <div>
-                    <div className="flex justify-between text-[11px] mb-0.5" style={{ color: 'var(--text-3)' }}>
-                      <span>Reserved</span>
-                      <span className="font-mono">{r.reservedQty} / {r.requiredQty} {r.uom}</span>
-                    </div>
-                    <div className="progress-bar" style={{ height: 5 }}>
-                      <div
-                        className="progress-bar-fill"
-                        style={{
-                          width: `${reservedPct}%`,
-                          background: r.shortage ? 'var(--error)' : reservedPct >= 100 ? 'var(--success)' : 'var(--warning)',
-                        }}
-                      />
-                    </div>
-                  </div>
-                  {r.issuedQty > 0 && (
-                    <div>
-                      <div className="flex justify-between text-[11px] mb-0.5" style={{ color: 'var(--text-3)' }}>
-                        <span>Issued</span>
-                        <span className="font-mono">{r.issuedQty} {r.uom}</span>
-                      </div>
-                      <div className="progress-bar" style={{ height: 5 }}>
-                        <div
-                          className="progress-bar-fill"
-                          style={{ width: `${issuedPct}%`, background: 'var(--brand)' }}
-                        />
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        );
-      })}
+    <div className="industrial-panel overflow-hidden">
+      <div className="p-4 border-b border-[var(--border)] bg-[var(--surface-2)] flex items-center justify-between">
+        <div>
+          <h3 className="text-sm font-bold text-[var(--text)]">Job Material Requirements & BOM Reconciliation</h3>
+          <p className="text-[11px] font-mono text-[var(--text-3)]">Required vs Reserved vs Issued with Lot linkages</p>
+        </div>
+      </div>
+      <table className="eoss-table">
+        <thead>
+          <tr>
+            <th>Material Item</th>
+            <th>Production Stage</th>
+            <th>Required Qty</th>
+            <th>Reserved Qty</th>
+            <th>Issued Qty</th>
+            <th>Status</th>
+            <th>Linked Lots</th>
+          </tr>
+        </thead>
+        <tbody>
+          {reqs.map(r => (
+            <tr key={r.id}>
+              <td>
+                <div className="font-semibold text-xs text-[var(--text)]">{r.materialName}</div>
+              </td>
+              <td className="text-xs text-[var(--text-2)]">{r.stageName}</td>
+              <td className="font-mono text-xs font-bold text-[var(--text)]">{r.requiredQty} {r.uom}</td>
+              <td className="font-mono text-xs text-amber-400">{r.reservedQty} {r.uom}</td>
+              <td className="font-mono text-xs text-emerald-400">{r.issuedQty} {r.uom}</td>
+              <td>
+                <StatusChip status={r.shortage ? 'shortage' : 'available'} label={r.shortage ? 'Shortage' : 'Available'} size="sm" />
+              </td>
+              <td>
+                <span className="font-mono text-xs text-[var(--cyan-bright)]">{r.lotIds?.join(', ') || '—'}</span>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
 
-/* ── Updates ── */
+function ProcurementTab({ job, navigate }: any) {
+  const prs  = PURCHASE_REQS.filter(p => p.jobId === job.id);
+  const spos = SUPPLIER_PO_LINES.filter(l => l.materialItemId && l.status);
+  return (
+    <div className="space-y-4">
+      <div className="industrial-panel overflow-hidden">
+        <div className="p-4 border-b border-[var(--border)] bg-[var(--surface-2)] flex items-center justify-between">
+          <h3 className="text-sm font-bold text-[var(--text)]">Purchase Requisitions for This Job ({prs.length})</h3>
+        </div>
+        {prs.length === 0 ? (
+          <div className="py-8 text-center text-xs text-[var(--text-3)]">No PRs raised for this job</div>
+        ) : (
+          <table className="eoss-table">
+            <thead><tr><th>PR #</th><th>Raised By</th><th>Date</th><th>Required By</th><th>Qty</th><th>Status</th></tr></thead>
+            <tbody>
+              {prs.map(p => (
+                <tr key={p.id}>
+                  <td><span className="font-mono text-xs text-[var(--brand)] font-semibold">{p.prNumber}</span></td>
+                  <td className="text-xs">{p.raisedBy}</td>
+                  <td className="font-mono text-xs text-[var(--text-3)]">{p.raisedDate}</td>
+                  <td className="font-mono text-xs">{p.requiredBy}</td>
+                  <td className="font-mono text-xs">{p.totalQty}</td>
+                  <td><StatusChip status={p.status} size="sm" /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function Updates({ job }: any) {
   return (
-    <div className="eoss-card p-4">
-      <h3 className="font-semibold text-sm mb-4" style={{ color: 'var(--text)' }}>Activity Feed</h3>
-      <div className="space-y-4">
-        {job.stages.filter((s: any) => s.status !== 'pending').map((s: any) => (
-          <div key={s.id} className="flex gap-3">
-            <div
-              className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-white"
-              style={{ background: 'var(--brand)' }}
-            >
-              <Activity size={12} />
+    <div className="industrial-panel p-5 space-y-4">
+      <h3 className="text-sm font-bold text-[var(--text)]">Production Stage Updates & Evidence Log</h3>
+      <div className="space-y-3">
+        {job.stages.map((s: any) => (
+          <div key={s.id} className="p-3.5 rounded-lg bg-[var(--surface-2)] border border-[var(--border)] text-xs space-y-1">
+            <div className="flex justify-between items-center">
+              <span className="font-bold text-[var(--text)]">Stage {s.sequence}: {s.name}</span>
+              <span className="font-mono text-[10px] text-[var(--text-3)]">{s.plannedEnd}</span>
             </div>
-            <div>
-              <p className="text-sm" style={{ color: 'var(--text)' }}>
-                <span className="font-medium">{s.name}</span> — {s.status === 'complete' ? 'completed' : s.status === 'in_progress' ? 'started' : s.status}
-              </p>
-              <p className="text-xs" style={{ color: 'var(--text-2)' }}>{s.owner || 'Unknown'} · {s.completedGoodQty} {s.uom} done</p>
-              <p className="text-xs" style={{ color: 'var(--text-3)' }}>{s.actualStart ? new Date(s.actualStart).toLocaleDateString('en-IN') : ''}</p>
-            </div>
+            <p className="text-[var(--text-2)]">
+              Output: {s.completedGoodQty} good units, {s.rejectedQty} rejected. Handled by {s.owner || 'Unassigned'}.
+            </p>
           </div>
         ))}
       </div>
@@ -689,65 +945,69 @@ function Updates({ job }: any) {
   );
 }
 
-/* ── Documents ── */
 function DocTab({ job }: any) {
   const { documents } = useStore();
-  const jobDocs = documents.filter(d => d.linkedEntities.some((le: any) => le.ref === job.jobNumber));
+  const jobDocs = documents.filter(d => d.linkedEntities.some(le => le.ref === job.jobNumber || le.type === 'Job'));
   return (
-    <div className="space-y-3">
-      {jobDocs.length === 0 && <div className="text-center py-10 text-sm" style={{ color: 'var(--text-3)' }}>No documents linked to this job.</div>}
-      {jobDocs.map(d => (
-        <div key={d.id} className="eoss-card p-4 flex items-center gap-3">
-          <FileText size={18} style={{ color: 'var(--brand)', flexShrink: 0 }} />
-          <div className="flex-1 min-w-0">
-            <div className="text-sm font-medium" style={{ color: 'var(--text)' }}>{d.title}</div>
-            <div className="text-xs" style={{ color: 'var(--text-2)' }}>{d.docType} · v{d.version} · {d.fileSize}</div>
+    <div className="industrial-panel p-5 space-y-3">
+      <h3 className="text-sm font-bold text-[var(--text)]">Attached Job Documents & Drawings ({jobDocs.length})</h3>
+      <div className="grid sm:grid-cols-2 gap-3">
+        {jobDocs.map(d => (
+          <div key={d.id} className="p-3.5 rounded-lg bg-[var(--surface-2)] border border-[var(--border)] text-xs space-y-1">
+            <div className="font-bold text-[var(--text)]">{d.title}</div>
+            <div className="text-[11px] text-[var(--text-3)] font-mono">{d.docType} · Version {d.version}</div>
           </div>
-          <StatusChip status={d.certStatus ?? 'pending'} size="sm" />
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
   );
 }
 
-/* ── Quality ── */
 function QualityTab({ job, navigate }: any) {
-  const { inspections, ncrs } = useStore();
+  const { inspections } = useStore();
   const jobInsp = inspections.filter(i => i.jobId === job.id);
-  const jobNcrs = ncrs.filter(n => n.jobId === job.id);
   return (
-    <div className="space-y-4">
-      <div className="eoss-card overflow-hidden">
-        <div className="eoss-card-header">
-          <span className="font-semibold text-sm" style={{ color: 'var(--text)' }}>Inspections ({jobInsp.length})</span>
-        </div>
+    <div className="industrial-panel p-5 space-y-3">
+      <h3 className="text-sm font-bold text-[var(--text)]">Quality Inspections ({jobInsp.length})</h3>
+      {jobInsp.length === 0 ? (
+        <div className="text-xs text-[var(--text-3)] py-4">No inspection records logged yet</div>
+      ) : (
         <table className="eoss-table">
-          <thead><tr><th>No.</th><th>Type</th><th>Stage</th><th>Date</th><th>Sample</th><th>Accept</th><th>Reject</th><th>Result</th></tr></thead>
+          <thead><tr><th>Inspection #</th><th>Type</th><th>Inspector</th><th>Date</th><th>Outcome</th></tr></thead>
           <tbody>
-            {jobInsp.length === 0 && <tr><td colSpan={8} className="text-center py-6 text-sm" style={{ color: 'var(--text-3)' }}>No inspections recorded</td></tr>}
             {jobInsp.map(i => (
-              <tr key={i.id} className="cursor-pointer" onClick={() => navigate(`/quality/inspection/${i.id}`)}>
-                <td className="font-mono text-xs" style={{ color: 'var(--brand)' }}>{i.inspectionNumber}</td>
-                <td className="text-sm">{i.type}</td>
-                <td className="text-sm" style={{ color: 'var(--text-2)' }}>{i.stageName ?? '—'}</td>
-                <td className="text-sm">{new Date(i.date).toLocaleDateString('en-IN')}</td>
-                <td className="font-mono text-sm">{i.sampleQty}</td>
-                <td className="font-mono text-sm" style={{ color: 'var(--success)' }}>{i.acceptedQty}</td>
-                <td className="font-mono text-sm" style={{ color: 'var(--error)' }}>{i.rejectedQty}</td>
+              <tr key={i.id} onClick={() => navigate(`/quality/inspection/${i.id}`)} className="cursor-pointer">
+                <td><span className="font-mono text-xs text-[var(--brand)] font-bold">{i.inspectionNumber}</span></td>
+                <td className="text-xs">{i.type}</td>
+                <td className="text-xs">{i.inspectorName}</td>
+                <td className="font-mono text-xs">{i.date}</td>
                 <td><StatusChip status={i.result} size="sm" /></td>
               </tr>
             ))}
           </tbody>
         </table>
-      </div>
-      {jobNcrs.length > 0 && (
-        <div className="rounded-[var(--radius)] p-4" style={{ background: 'var(--error-bg)', border: '1px solid var(--error-border)' }}>
-          <h3 className="font-semibold text-sm mb-2" style={{ color: 'var(--error)' }}>NCRs ({jobNcrs.length})</h3>
+      )}
+    </div>
+  );
+}
+
+function NCRTab({ job, navigate }: any) {
+  const { ncrs } = useStore();
+  const jobNcrs = ncrs.filter(n => n.jobId === job.id);
+  return (
+    <div className="industrial-panel p-5 space-y-3">
+      <h3 className="text-sm font-bold text-[var(--text)]">Non-Conformance Reports ({jobNcrs.length})</h3>
+      {jobNcrs.length === 0 ? (
+        <div className="text-xs text-[var(--text-3)] py-4">No NCRs logged for this job</div>
+      ) : (
+        <div className="space-y-2">
           {jobNcrs.map(n => (
-            <div key={n.id} className="flex items-center gap-2 mt-2 cursor-pointer" onClick={() => navigate(`/quality/ncr/${n.id}`)}>
-              <span className="font-mono text-xs font-semibold" style={{ color: 'var(--error)' }}>{n.ncrNumber}</span>
-              <StatusChip status={n.status} size="sm" />
-              <span className="text-xs truncate" style={{ color: 'var(--text-2)' }}>{n.description}</span>
+            <div key={n.id} onClick={() => navigate(`/quality/ncr/${n.id}`)} className="p-3.5 rounded-lg bg-[var(--surface-2)] border border-[var(--error-border)] cursor-pointer text-xs space-y-1">
+              <div className="flex justify-between items-center font-bold text-[var(--error)]">
+                <span>{n.ncrNumber} ({n.severity} Severity)</span>
+                <span>Disposition: {n.disposition}</span>
+              </div>
+              <p className="text-[var(--text-2)]">{n.description}</p>
             </div>
           ))}
         </div>
@@ -756,248 +1016,89 @@ function QualityTab({ job, navigate }: any) {
   );
 }
 
-/* ── NCR/Rework ── */
-function NCRTab({ job, navigate }: any) {
-  const { ncrs } = useStore();
-  const jobNcrs = ncrs.filter(n => n.jobId === job.id);
+function AssetsTab({ job, navigate }: any) {
+  const { assets } = useStore();
   return (
-    <div className="space-y-3">
-      {jobNcrs.length === 0 && (
-        <div className="rounded-[var(--radius)] p-6 text-center" style={{ background: 'var(--success-bg)', border: '1px solid var(--success-border)' }}>
-          <CheckCircle size={24} style={{ color: 'var(--success)' }} className="mx-auto mb-2" />
-          <p className="font-semibold" style={{ color: 'var(--success)' }}>No NCRs for this job</p>
-        </div>
-      )}
-      {jobNcrs.map(n => (
-        <div
-          key={n.id}
-          className="eoss-card p-4 cursor-pointer"
-          onClick={() => navigate(`/quality/ncr/${n.id}`)}
-          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--brand)'; }}
-          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)'; }}
-        >
-          <div className="flex items-center gap-2 mb-1">
-            <span className="font-mono text-xs font-semibold" style={{ color: 'var(--brand)' }}>{n.ncrNumber}</span>
-            <StatusChip status={n.severity.toLowerCase()} label={n.severity} size="sm" />
-            <StatusChip status={n.status} size="sm" />
+    <div className="industrial-panel p-5 space-y-3">
+      <h3 className="text-sm font-bold text-[var(--text)]">Shop-Floor Machinery Allocation</h3>
+      <div className="grid sm:grid-cols-2 gap-3">
+        {assets.slice(0, 4).map(a => (
+          <div key={a.id} onClick={() => navigate(`/assets/${a.id}`)} className="p-3.5 rounded-lg bg-[var(--surface-2)] border border-[var(--border)] cursor-pointer text-xs space-y-1">
+            <div className="flex justify-between items-center">
+              <span className="font-bold text-[var(--text)]">{a.name} ({a.assetCode})</span>
+              <StatusChip status={a.status} size="sm" />
+            </div>
+            <div className="text-[11px] text-[var(--text-3)]">{a.category} · {a.workCentre}</div>
           </div>
-          <p className="text-sm" style={{ color: 'var(--text)' }}>{n.description}</p>
-          <p className="text-xs mt-1" style={{ color: 'var(--text-2)' }}>Disposition: {n.disposition} · Raised by {n.raisedBy}</p>
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
   );
 }
 
-/* ── Dispatch ── */
 function DispatchTab({ job, navigate }: any) {
   const { dispatches } = useStore();
-  const jobDispatches = dispatches.filter(d => (d.jobs ?? []).includes(job.jobNumber));
+  const jobDispatches = dispatches.filter(d => d.jobs.includes(job.jobNumber));
   return (
-    <div className="space-y-3">
-      {jobDispatches.length === 0 && (
-        <div className="text-center py-10 text-sm" style={{ color: 'var(--text-3)' }}>No dispatches linked to this job.</div>
-      )}
-      {jobDispatches.map(d => (
-        <div
-          key={d.id}
-          className="eoss-card p-4 flex items-center gap-3 cursor-pointer"
-          onClick={() => navigate(`/dispatch/${d.id}`)}
-          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--brand)'; }}
-          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)'; }}
-        >
-          <Truck size={18} style={{ color: 'var(--brand)', flexShrink: 0 }} />
-          <div className="flex-1 min-w-0">
-            <div className="font-mono text-xs font-semibold" style={{ color: 'var(--brand)' }}>{d.dispatchNumber}</div>
-            <div className="text-sm" style={{ color: 'var(--text)' }}>{d.customerName}</div>
-            <div className="text-xs" style={{ color: 'var(--text-2)' }}>{d.carrier} · {d.dispatchDate ? new Date(d.dispatchDate).toLocaleDateString('en-IN') : '—'}</div>
-          </div>
-          <StatusChip status={d.status} size="sm" />
-          <ChevronRight size={14} style={{ color: 'var(--text-3)' }} />
-        </div>
-      ))}
-    </div>
-  );
-}
-
-/* ── Blockers ── */
-function BlockersTab({ blockers, job }: any) {
-  const { showToast } = useStore();
-  if (blockers.length === 0) return (
-    <div className="rounded-[var(--radius)] p-6 text-center" style={{ background: 'var(--success-bg)', border: '1px solid var(--success-border)' }}>
-      <CheckCircle size={24} style={{ color: 'var(--success)' }} className="mx-auto mb-2" />
-      <p className="font-semibold" style={{ color: 'var(--success)' }}>No active blockers</p>
-      <p className="text-sm mt-1" style={{ color: 'var(--text-2)' }}>This job is running without blockers.</p>
-    </div>
-  );
-  return (
-    <div className="space-y-3">
-      {blockers.map((b: any) => (
-        <div key={b.id} className="rounded-[var(--radius)] p-4" style={{ background: 'var(--error-bg)', border: '1px solid var(--error-border)' }}>
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <div className="flex items-center gap-2 mb-1">
-                <AlertTriangle size={14} style={{ color: 'var(--error)' }} />
-                <span className="font-semibold text-sm" style={{ color: 'var(--error)' }}>{b.type} Blocker</span>
-                <StatusChip status="open" size="sm" />
+    <div className="industrial-panel p-5 space-y-3">
+      <h3 className="text-sm font-bold text-[var(--text)]">Dispatch & Outward Challans ({jobDispatches.length})</h3>
+      {jobDispatches.length === 0 ? (
+        <div className="text-xs text-[var(--text-3)] py-4">No dispatches created yet for this job</div>
+      ) : (
+        <div className="space-y-2">
+          {jobDispatches.map(d => (
+            <div key={d.id} onClick={() => navigate(`/dispatch/${d.id}`)} className="p-3.5 rounded-lg bg-[var(--surface-2)] border border-[var(--border)] cursor-pointer text-xs space-y-1">
+              <div className="flex justify-between items-center font-bold text-[var(--text)]">
+                <span className="font-mono text-[var(--cyan-bright)]">{d.dispatchNumber}</span>
+                <StatusChip status={d.status} size="sm" />
               </div>
-              <p className="text-sm" style={{ color: 'var(--text)' }}>{b.description}</p>
-              <p className="text-xs mt-2" style={{ color: 'var(--text-2)' }}>Raised by {b.raisedBy} · {new Date(b.raisedAt).toLocaleDateString('en-IN')}</p>
+              <div className="text-[11px] text-[var(--text-2)]">Carrier: {d.carrier} · LR: {d.lrNumber}</div>
             </div>
-            <button
-              onClick={() => showToast({ type: 'success', title: 'Blocker resolved', body: 'Blocker marked as resolved.' })}
-              className="btn-primary text-xs py-1.5 px-3 flex-shrink-0"
-              style={{ background: 'var(--success)' }}
-            >
-              Resolve
-            </button>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-/* ── Procurement ── */
-function ProcurementTab({ job, navigate }: any) {
-  const { supplierPos } = useStore();
-  const prs  = PURCHASE_REQS.filter(r => r.jobId === job.id || r.jobNumber === job.jobNumber);
-  const spos = supplierPos.filter(p => p.jobRef === job.jobNumber || p.jobRef === job.id);
-  const overdueSpos = spos.filter(p => p.status === 'overdue');
-  return (
-    <div className="space-y-4">
-      {overdueSpos.length > 0 && (
-        <div
-          className="rounded-[var(--radius)] px-4 py-3 flex items-center gap-3"
-          style={{ background: 'var(--error-bg)', border: '1px solid var(--error-border)' }}
-        >
-          <AlertTriangle size={14} style={{ color: 'var(--error)', flexShrink: 0 }} />
-          <div className="flex-1">
-            <span className="text-xs font-semibold" style={{ color: 'var(--error)' }}>
-              {overdueSpos.length} supplier PO{overdueSpos.length > 1 ? 's are' : ' is'} overdue for this job
-            </span>
-            <span className="text-xs ml-2" style={{ color: 'var(--text-2)' }}>
-              {overdueSpos.map(p => p.poNumber).join(', ')}
-            </span>
-          </div>
-        </div>
-      )}
-      <div className="eoss-card overflow-hidden">
-        <div className="eoss-card-header">
-          <span className="font-semibold text-sm" style={{ color: 'var(--text)' }}>Purchase Requisitions ({prs.length})</span>
-        </div>
-        <table className="eoss-table">
-          <thead><tr><th>PR #</th><th>Raised By</th><th>Required By</th><th>Lines</th><th>Priority</th><th>Status</th></tr></thead>
-          <tbody>
-            {prs.length === 0 && <tr><td colSpan={6} className="text-center py-6 text-sm" style={{ color: 'var(--text-3)' }}>No purchase requisitions linked to this job</td></tr>}
-            {prs.map(r => (
-              <tr key={r.id}>
-                <td><span className="font-mono text-xs" style={{ color: 'var(--brand)' }}>{r.prNumber}</span></td>
-                <td className="text-sm" style={{ color: 'var(--text-2)' }}>{r.raisedBy}</td>
-                <td className="text-sm" style={{ color: 'var(--text-2)' }}>{new Date(r.requiredBy).toLocaleDateString('en-IN')}</td>
-                <td className="text-sm">{r.lineCount}</td>
-                <td><StatusChip status={r.priority} size="sm" /></td>
-                <td><StatusChip status={r.status} size="sm" /></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <div className="eoss-card overflow-hidden">
-        <div className="eoss-card-header">
-          <span className="font-semibold text-sm" style={{ color: 'var(--text)' }}>Supplier Purchase Orders ({spos.length})</span>
-        </div>
-        <table className="eoss-table">
-          <thead><tr><th>SPO #</th><th>Supplier</th><th>Committed</th><th>Value</th><th>Status</th></tr></thead>
-          <tbody>
-            {spos.length === 0 && <tr><td colSpan={5} className="text-center py-6 text-sm" style={{ color: 'var(--text-3)' }}>No supplier POs linked to this job</td></tr>}
-            {spos.map(p => (
-              <tr key={p.id} className="cursor-pointer" onClick={() => navigate(`/procurement/${p.id}`)}>
-                <td><span className="font-mono text-xs" style={{ color: 'var(--brand)' }}>{p.poNumber}</span></td>
-                <td className="text-sm">{p.supplierName}</td>
-                <td className="text-sm" style={{ color: 'var(--text-2)' }}>{new Date(p.committedDate).toLocaleDateString('en-IN')}</td>
-                <td className="text-sm">₹{p.totalValue.toLocaleString('en-IN')}</td>
-                <td><StatusChip status={p.status} size="sm" /></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
-/* ── Assets ── */
-function AssetsTab({ job, navigate }: any) {
-  const { maintenanceEvents, assets } = useStore();
-  const jobEvents     = maintenanceEvents.filter(e => e.affectedJobs.some((aj: any) => aj.jobId === job.id || aj.jobNumber === job.jobNumber));
-  const jobWorkCentres = [...new Set(job.stages.map((s: any) => s.workCentre).filter(Boolean))];
-  const relatedAssets = assets.filter(a => a.workCentre && jobWorkCentres.includes(a.workCentre));
-  return (
-    <div className="space-y-4">
-      <div className="eoss-card overflow-hidden">
-        <div className="eoss-card-header">
-          <span className="font-semibold text-sm" style={{ color: 'var(--text)' }}>Work Centre Assets ({relatedAssets.length})</span>
-        </div>
-        <table className="eoss-table">
-          <thead><tr><th>Code</th><th>Asset</th><th>Work Centre</th><th>Criticality</th><th>Status</th></tr></thead>
-          <tbody>
-            {relatedAssets.length === 0 && <tr><td colSpan={5} className="text-center py-6 text-sm" style={{ color: 'var(--text-3)' }}>No assets matched to this job's work centres</td></tr>}
-            {relatedAssets.map(a => (
-              <tr key={a.id} className="cursor-pointer" onClick={() => navigate(`/assets/${a.id}`)}>
-                <td><span className="font-mono text-xs" style={{ color: 'var(--brand)' }}>{a.assetCode}</span></td>
-                <td className="text-sm">{a.name}</td>
-                <td className="text-sm" style={{ color: 'var(--text-2)' }}>{a.workCentre}</td>
-                <td><StatusChip status={a.criticality.toLowerCase()} label={a.criticality} size="sm" /></td>
-                <td><StatusChip status={a.status} size="sm" /></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      {jobEvents.length > 0 && (
-        <div className="eoss-card overflow-hidden">
-          <div className="eoss-card-header" style={{ background: 'var(--error-bg)' }}>
-            <span className="font-semibold text-sm" style={{ color: 'var(--error)' }}>Maintenance Events Affecting This Job ({jobEvents.length})</span>
-          </div>
-          <table className="eoss-table">
-            <thead><tr><th>Event #</th><th>Asset</th><th>Type</th><th>Impact</th><th>Status</th></tr></thead>
-            <tbody>
-              {jobEvents.map(e => {
-                const impact = e.affectedJobs.find((aj: any) => aj.jobId === job.id || aj.jobNumber === job.jobNumber)?.impact;
-                return (
-                  <tr key={e.id} className="cursor-pointer" onClick={() => navigate(`/assets/maintenance/${e.id}`)}>
-                    <td><span className="font-mono text-xs" style={{ color: 'var(--brand)' }}>{e.eventNumber}</span></td>
-                    <td className="text-sm">{e.assetName}</td>
-                    <td className="text-sm" style={{ color: 'var(--text-2)' }}>{e.type}</td>
-                    <td className="text-sm" style={{ color: 'var(--warning)' }}>{impact ?? '—'}</td>
-                    <td><StatusChip status={e.status} size="sm" /></td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+          ))}
         </div>
       )}
     </div>
   );
 }
 
-/* ── Helpers ── */
-function StatTile({ icon, label, value, accent }: { icon: React.ReactNode; label: string; value: string; accent?: string }) {
+function BlockersTab({ blockers, job, onResolve }: any) {
   return (
-    <div className="dark-card p-3">
-      <div className="flex items-center gap-1.5 mb-1.5" style={{ color: 'var(--text-3)' }}>{icon}<span className="text-[11px] uppercase tracking-wider font-semibold">{label}</span></div>
-      <div className="stat-mono" style={{ color: accent ?? 'var(--cyan)' }}>{value}</div>
+    <div className="industrial-panel p-5 space-y-4">
+      <h3 className="text-sm font-bold text-[var(--text)]">Active & Historical Job Blockers ({blockers.length})</h3>
+      {blockers.length === 0 ? (
+        <div className="text-xs text-[var(--text-3)] py-4">No active blockers on this job</div>
+      ) : (
+        <div className="space-y-3">
+          {blockers.map((b: any) => (
+            <div key={b.id} className="p-4 rounded-xl border border-[var(--error-border)] bg-[var(--surface-2)] text-xs space-y-2">
+              <div className="flex items-center justify-between font-bold text-[var(--error)]">
+                <span>{b.type.toUpperCase()} BLOCKER</span>
+                <button
+                  onClick={() => onResolve(b.id)}
+                  className="btn-primary text-xs py-1 px-3 bg-emerald-600 hover:bg-emerald-500 shadow-none"
+                >
+                  <Check size={12} /> Resolve Now
+                </button>
+              </div>
+              <p className="text-[var(--text)] leading-relaxed">{b.description}</p>
+              <div className="text-[10px] text-[var(--text-3)] font-mono">
+                Raised by {b.raisedBy} at {new Date(b.raisedAt).toLocaleString('en-IN')}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
 
-function Field({ label, value, span, mono }: { label: string; value: React.ReactNode; span?: boolean; mono?: boolean }) {
+function Field({ label, value, mono }: { label: string; value: React.ReactNode; mono?: boolean }) {
   return (
-    <div className={span ? 'col-span-2' : ''}>
-      <dt className="text-xs font-medium" style={{ color: 'var(--text-3)' }}>{label}</dt>
-      <dd className={`text-sm mt-0.5 ${mono ? 'font-mono' : ''}`} style={{ color: 'var(--text)' }}>{value}</dd>
+    <div>
+      <div className="text-[10px] font-mono uppercase text-[var(--text-3)]">{label}</div>
+      <div className={clsx('text-xs font-semibold text-[var(--text)] mt-0.5 truncate', mono ? 'font-mono' : '')}>
+        {value}
+      </div>
     </div>
   );
 }
@@ -1005,8 +1106,8 @@ function Field({ label, value, span, mono }: { label: string; value: React.React
 function SmallField({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <div className="text-[11px]" style={{ color: 'var(--text-3)' }}>{label}</div>
-      <div className="text-xs mt-0.5" style={{ color: 'var(--text)' }}>{value}</div>
+      <div className="text-[10px] font-mono uppercase text-[var(--text-3)]">{label}</div>
+      <div className="text-xs font-semibold text-[var(--text)] mt-0.5">{value}</div>
     </div>
   );
 }

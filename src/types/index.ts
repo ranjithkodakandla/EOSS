@@ -17,6 +17,7 @@ export interface DemoUser {
   email: string;
   avatar: string; // initials
   site: string;
+  employeeId?: string;
 }
 
 // ── Status ──
@@ -160,6 +161,8 @@ export interface POLine {
 export interface SupplierPO {
   id: ID;
   poNumber: string;
+  spoNumber?: string;
+  orderDate?: string;
   supplierId: ID;
   supplierName: string;
   raisedDate: string;
@@ -438,16 +441,21 @@ export interface Asset {
   assetCode: string;
   name: string;
   category: string;
+  subCategory?: string;
   siteId: ID;
+  location?: string;
   workCentre?: string;
   criticality: 'Low' | 'Medium' | 'High' | 'Critical';
   status: AssetStatus;
   lastServiceDate?: string;
   nextServiceDate?: string;
   purchaseDate: string;
+  purchaseYear?: number;
   manufacturer: string;
   model?: string;
+  serialNumber?: string;
   meterType?: 'hours' | 'cycles' | 'none';
+  pmFrequencyHours?: number;
   currentReading?: number;
 }
 
@@ -461,7 +469,9 @@ export interface MaintenanceEvent {
   severity?: 'Low' | 'Medium' | 'High' | 'Critical';
   symptom: string;
   diagnosis?: string;
+  rootCause?: string;
   workDone?: string;
+  correctiveAction?: string;
   technicianId: ID;
   technicianName: string;
   downtimeStart: string;
@@ -469,6 +479,7 @@ export interface MaintenanceEvent {
   status: 'open' | 'in_progress' | 'closed' | 'pending_approval';
   affectedJobs: { jobId: ID; jobNumber: string; impact: string }[];
   sparesUsed: { materialName: string; qty: number; uom: string }[];
+  partsUsed?: { materialName?: string; partName?: string; qty: number; uom?: string }[];
 }
 
 // ── Dispatch ──

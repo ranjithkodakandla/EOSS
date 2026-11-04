@@ -4,631 +4,747 @@ import {
   AlertTriangle, TrendingUp, Package, Wrench, FileText, ChevronRight,
   AlertCircle, CheckCircle, Info, ArrowRight, BarChart2,
   Zap, Clock, Activity, Briefcase, ShoppingBag, Truck, Shield,
-  Cpu, TrendingDown, Calendar, User, Flame, Sparkles,
+  Cpu, TrendingDown, Calendar, User, Flame, Sparkles, Check, X,
+  ArrowUpRight, RefreshCw, Layers, ShieldAlert, Radio
 } from 'lucide-react';
-import { useStore, PURCHASE_REQS } from '../../store';
+import { useStore } from '../../store';
 import { DEMO_NOW } from '../../data/seed';
 import StatusChip from '../../components/layout/StatusChip';
 import clsx from 'clsx';
 
-const CAT_META: Record<string, { icon: React.ReactNode; color: string }> = {
-  material:    { icon: <Package size={13} />,      color: 'var(--info)' },
-  procurement: { icon: <ShoppingBag size={13} />,  color: 'var(--warning)' },
-  production:  { icon: <Activity size={13} />,     color: 'var(--brand)' },
-  quality:     { icon: <Shield size={13} />,       color: 'var(--hold)' },
-  asset:       { icon: <Wrench size={13} />,       color: 'var(--accent)' },
-  document:    { icon: <FileText size={13} />,     color: 'var(--text-3)' },
-  dispatch:    { icon: <Truck size={13} />,        color: 'var(--success)' },
-};
-
-const PRIORITY_CFG = {
-  critical: {
-    dot: 'var(--error)',
-    border: 'var(--error-border)',
-    bg: 'var(--error-bg)',
-    label: 'Critical',
-    icon: <AlertCircle size={13} />,
-  },
-  warning: {
-    dot: 'var(--warning)',
-    border: 'var(--warning-border)',
-    bg: 'var(--warning-bg)',
-    label: 'Warning',
-    icon: <AlertTriangle size={13} />,
-  },
-  info: {
-    dot: 'var(--info)',
-    border: 'var(--info-border)',
-    bg: 'var(--info-bg)',
-    label: 'Info',
-    icon: <Info size={13} />,
-  },
-};
-
-// Simulated AI insights
-const AI_INSIGHTS = [
-  {
-    id: 'ai-1',
-    priority: 'critical' as const,
-    icon: <Package size={15} />,
-    title: 'J-102 at risk — material delivery overdue',
-    body: 'SS Sheet 3mm 304L from Stainless Source (SPO-2024-002) was committed for 2 Nov but has not been received. Job J-102 requires 300 kg to begin Fit-Up stage. At current rate, planned start will be missed by 3–5 days.',
-    refs: ['J-102', 'SPO-2024-002', 'LOT-2024-004'],
-    cta: 'Review SPO',
-    path: '/procurement',
-  },
-  {
-    id: 'ai-2',
-    priority: 'warning' as const,
-    icon: <TrendingDown size={15} />,
-    title: 'MS Plate 8mm approaching reorder threshold',
-    body: '515 kg available across 2 lots (LOT-2024-001, LOT-2024-012R). Reorder point is 500 kg. With J-101 and J-106 in production, current stock will not cover the next 10 days without a new PO.',
-    refs: ['LOT-2024-001', 'J-101', 'J-106'],
-    cta: 'Create PR',
-    path: '/procurement',
-  },
-  {
-    id: 'ai-3',
-    priority: 'warning' as const,
-    icon: <Flame size={15} />,
-    title: 'Argon Gas critically low — 3 cylinders remaining',
-    body: 'Only 3 Argon cylinders are in stock (LOT-2024-008). Based on current production activity, this covers approximately 1.5 weeks. A purchase order should be raised to avoid production stoppage.',
-    refs: ['LOT-2024-008', 'J-101', 'J-105'],
-    cta: 'View Inventory',
-    path: '/inventory',
-  },
-];
-
-function relativeTime(iso: string) {
-  const demoMs = new Date(DEMO_NOW).getTime();
-  const diff = demoMs - new Date(iso).getTime();
-  const h = Math.floor(diff / 3600000);
-  if (h < 1) return `${Math.floor(diff / 60000)}m ago`;
-  if (h < 24) return `${h}h ago`;
-  return `${Math.floor(h / 24)}d ago`;
-}
-
 export default function Home() {
-  const { pulseExceptions, jobs, inventory, assets, inspections, dispatches, currentUser, approvalRequests } = useStore();
+  const {
+    pulseExceptions, jobs, inventory, assets, inspections, dispatches,
+    currentUser, approvalRequests, resolveApproval, showToast
+  } = useStore();
   const navigate = useNavigate();
-  const [categoryFilter, setCategoryFilter] = useState<string>('all');
+
+  const [pillarFilter, setPillarFilter] = useState<string>('all');
+  const [exceptionCategory, setExceptionCategory] = useState<string>('all');
   const [dismissedInsights, setDismissedInsights] = useState<string[]>([]);
+  const [approvingId, setApprovingId] = useState<string | null>(null);
 
-  const critical  = pulseExceptions.filter(e => e.priority === 'critical').length;
-  const warning   = pulseExceptions.filter(e => e.priority === 'warning').length;
-  const info      = pulseExceptions.filter(e => e.priority === 'info').length;
-
-  const filtered = categoryFilter === 'all'
-    ? pulseExceptions
-    : pulseExceptions.filter(e => e.category === categoryFilter);
-
+  // Derived counts
   const activeJobs      = jobs.filter(j => j.status === 'active').length;
   const holdJobs        = jobs.filter(j => j.status === 'hold').length;
   const completedJobs   = jobs.filter(j => j.status === 'complete').length;
-  const shortageItems   = inventory.filter(i => i.shortage).length;
-  const breakdownAssets = assets.filter(a => a.status === 'breakdown').length;
-  const openPRs         = PURCHASE_REQS.filter(pr => pr.status === 'approved' || pr.status === 'open').length;
-  const pendingQC       = inspections.filter(i => i.result === 'pending').length;
-  const inTransit       = dispatches.filter(d => d.status === 'dispatched').length;
-  const pendingApprovals = approvalRequests.filter(a => a.status === 'pending').length;
   const blockedJobs     = jobs.filter(j => j.hasBlocker).length;
+  const shortageItems   = inventory.filter(i => i.shortage).length;
+  const qcHoldItems     = inventory.filter(i => i.qcHoldQty > 0).length;
+  const breakdownAssets = assets.filter(a => a.status === 'breakdown').length;
+  const pmOverdueAssets = assets.filter(a => a.status === 'pm_overdue').length;
+  const pendingApprovals = approvalRequests.filter(a => a.status === 'pending');
+  const inTransit       = dispatches.filter(d => d.status === 'dispatched').length;
 
-  const categories = ['all', ...Array.from(new Set(pulseExceptions.map(e => e.category)))];
+  const totalValue = jobs.reduce((sum, j) => sum + (j.value || 0), 0);
+  const atRiskValue = jobs.filter(j => j.hasBlocker || j.status === 'hold').reduce((sum, j) => sum + (j.value || 0), 0);
+
+  // Health Score calculation (0 - 100)
+  const healthScore = Math.round(
+    ((jobs.length - blockedJobs) / jobs.length * 35) +
+    ((assets.length - breakdownAssets) / assets.length * 25) +
+    ((inventory.length - shortageItems) / inventory.length * 20) +
+    (pendingApprovals.length === 0 ? 20 : 10)
+  );
 
   const firstName = currentUser.name.split(' ')[0];
-  const hour = new Date(DEMO_NOW).getHours() ?? 9;
-  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
 
-  // Compute domain health
-  const domainHealth = [
+  // 6 Pillars of Factory Operations
+  const operationalPillars = [
     {
-      key: 'jobs',
-      label: 'Production',
-      icon: <Activity size={13} />,
-      status: blockedJobs > 0 ? 'critical' : holdJobs > 0 ? 'warning' : 'ok',
-      metric: blockedJobs > 0 ? `${blockedJobs} blocked` : `${activeJobs} active`,
-      path: '/jobs',
+      id: 'commercial',
+      label: 'Commercial Demand',
+      icon: <Briefcase size={14} />,
+      status: 'nominal',
+      metric: `${jobs.length} Orders`,
+      detail: `₹${(totalValue / 100000).toFixed(1)}L Book`,
+      path: '/sales',
     },
     {
-      key: 'materials',
-      label: 'Materials',
-      icon: <Package size={13} />,
-      status: shortageItems >= 3 ? 'critical' : shortageItems > 0 ? 'warning' : 'ok',
-      metric: shortageItems > 0 ? `${shortageItems} short` : 'All ok',
+      id: 'procurement',
+      label: 'Supply & Procurement',
+      icon: <ShoppingBag size={14} />,
+      status: 'warning',
+      metric: '1 PO Overdue',
+      detail: 'SPO-002 Stainless Source',
+      path: '/procurement',
+    },
+    {
+      id: 'materials',
+      label: 'Material Inventory',
+      icon: <Package size={14} />,
+      status: shortageItems > 0 ? 'critical' : 'nominal',
+      metric: `${shortageItems} Shortages`,
+      detail: `${qcHoldItems} Lots in QC Hold`,
       path: '/inventory',
     },
     {
-      key: 'quality',
-      label: 'Quality',
-      icon: <Shield size={13} />,
-      status: pendingQC > 2 ? 'warning' : 'ok',
-      metric: pendingQC > 0 ? `${pendingQC} pending` : 'No issues',
-      path: '/quality',
+      id: 'production',
+      label: 'Shop-Floor Production',
+      icon: <Activity size={14} />,
+      status: blockedJobs > 0 ? 'critical' : 'nominal',
+      metric: `${activeJobs} Active · ${blockedJobs} Blocked`,
+      detail: 'Fit-up & Cutting bays',
+      path: '/jobs',
     },
     {
-      key: 'assets',
-      label: 'Assets',
-      icon: <Wrench size={13} />,
-      status: breakdownAssets > 0 ? 'critical' : 'ok',
-      metric: breakdownAssets > 0 ? `${breakdownAssets} down` : 'All online',
+      id: 'assets',
+      label: 'Machinery & Assets',
+      icon: <Wrench size={14} />,
+      status: breakdownAssets > 0 ? 'critical' : pmOverdueAssets > 0 ? 'warning' : 'nominal',
+      metric: breakdownAssets > 0 ? `${breakdownAssets} Machine Down` : '8 Operational',
+      detail: 'DP-01 Drill Press Seized',
       path: '/assets',
     },
     {
-      key: 'dispatch',
-      label: 'Dispatch',
-      icon: <Truck size={13} />,
-      status: inTransit > 0 ? 'ok' : 'ok',
-      metric: inTransit > 0 ? `${inTransit} in transit` : 'No dispatches',
-      path: '/dispatch',
+      id: 'quality',
+      label: 'Quality & Dispatch',
+      icon: <Shield size={14} />,
+      status: 'warning',
+      metric: '1 Dispatch Ready',
+      detail: 'J-103 Released · 2 NCRs',
+      path: '/quality',
     },
   ];
 
-  const domainStatusColor: Record<string, string> = {
-    critical: 'var(--error)',
-    warning: 'var(--warning)',
-    ok: 'var(--success)',
+  // Filtered exceptions
+  const filteredExceptions = pulseExceptions.filter(e => {
+    if (exceptionCategory === 'all') return true;
+    return e.category === exceptionCategory;
+  });
+
+  const handleResolveApproval = (id: string, decision: 'approved' | 'rejected') => {
+    setApprovingId(id);
+    setTimeout(() => {
+      resolveApproval(id, decision, currentUser.name, decision === 'approved' ? 'Approved from Executive Pulse' : 'Rejected');
+      setApprovingId(null);
+    }, 200);
   };
 
-  const visibleInsights = AI_INSIGHTS.filter(i => !dismissedInsights.includes(i.id));
-  const isOwner = currentUser.role === 'owner';
-
-  // Pending decisions for owner
-  const decisionItems = [
-    ...approvalRequests.filter(a => a.status === 'pending').map(a => ({
-      id: a.id, label: `Approve: ${a.title ?? a.type}`, path: '/procurement', type: 'approval' as const,
-    })),
-    ...jobs.filter(j => j.hasBlocker && j.status === 'active').map(j => ({
-      id: j.id, label: `Blocker on ${j.jobNumber}`, path: `/jobs/${j.id}`, type: 'blocker' as const,
-    })),
-  ].slice(0, 6);
-
   return (
-    <div className="p-4 md:p-6 max-w-[1400px] mx-auto space-y-4">
+    <div className="p-4 md:p-6 lg:p-8 max-w-[1520px] mx-auto space-y-6">
 
-      {/* ── Header row ── */}
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-[22px] font-bold" style={{ color: 'var(--text)', letterSpacing: '-0.02em' }}>
-            Business Pulse
-          </h1>
-          <p className="text-sm mt-0.5" style={{ color: 'var(--text-2)' }}>
-            {greeting}, {firstName}. Here's your operational snapshot for today.
-          </p>
-        </div>
-        <div className="flex items-center gap-2 text-xs flex-shrink-0 mt-1" style={{ color: 'var(--text-3)' }}>
-          <span className="relative inline-flex">
-            <span className="w-2 h-2 rounded-full pulse-dot" style={{ background: 'var(--success)' }} />
-          </span>
-          Live · {new Date(DEMO_NOW).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })}
-        </div>
-      </div>
-
-      {/* ── Operational Health strip ── */}
-      <div
-        className="rounded-[var(--radius)] px-4 py-3 flex flex-wrap gap-2 items-center justify-between"
-        style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-xs)' }}
-      >
-        <span className="text-[11px] font-semibold uppercase tracking-widest flex-shrink-0" style={{ color: 'var(--text-3)' }}>
-          Operational Health
-        </span>
-        <div className="flex flex-wrap gap-2 flex-1 justify-end sm:justify-start">
-          {domainHealth.map(d => (
-            <button
-              key={d.key}
-              onClick={() => navigate(d.path)}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium transition-all flex-shrink-0"
-              style={{ background: 'var(--surface-2)', border: '1px solid var(--border)' }}
-              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = domainStatusColor[d.status]; }}
-              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)'; }}
-            >
-              <span
-                className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-                style={{ background: domainStatusColor[d.status] }}
-              />
-              <span style={{ color: 'var(--text-2)' }}>{d.icon}</span>
-              <span style={{ color: 'var(--text)' }}>{d.label}</span>
-              <span style={{ color: domainStatusColor[d.status] }}>{d.metric}</span>
-            </button>
-          ))}
-        </div>
-        {critical > 0 && (
-          <div className="flex items-center gap-1.5 text-xs font-semibold flex-shrink-0" style={{ color: 'var(--error)' }}>
-            <AlertCircle size={13} />
-            {critical} critical
-          </div>
-        )}
-      </div>
-
-      {/* ── Main two-column layout ── */}
-      <div className="grid lg:grid-cols-[1fr_320px] gap-4">
-
-        {/* ── Left column ── */}
-        <div className="space-y-4">
-
-          {/* EOSS Intelligence Panel */}
-          {visibleInsights.length > 0 && (
-            <div className="intel-panel rounded-[var(--radius)] overflow-hidden panel-accent-top">
-              <div className="flex items-center gap-2.5 px-4 py-3" style={{ borderBottom: '1px solid var(--cyan-border)' }}>
-                <span className="ai-signal">
-                  <Sparkles size={11} /> EOSS Intelligence
-                </span>
-                <span className="text-[11px] ml-1" style={{ color: 'var(--cyan)' }}>
-                  {visibleInsights.length} insight{visibleInsights.length !== 1 ? 's' : ''} detected
-                </span>
-                <span className="ml-auto text-[10px]" style={{ color: 'var(--text-3)' }}>Simulated · AI-generated</span>
-              </div>
-              <div className="divide-y" style={{ borderColor: 'var(--cyan-border)' }}>
-                {visibleInsights.map(ins => {
-                  const pc = PRIORITY_CFG[ins.priority];
-                  return (
-                    <div key={ins.id} className="px-4 py-3.5">
-                      <div className="flex items-start gap-3">
-                        <div
-                          className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5"
-                          style={{
-                            background: ins.priority === 'critical' ? 'var(--error-bg)' : 'var(--warning-bg)',
-                            color: ins.priority === 'critical' ? 'var(--error)' : 'var(--warning)',
-                            border: `1px solid ${ins.priority === 'critical' ? 'var(--error-border)' : 'var(--warning-border)'}`,
-                          }}
-                        >
-                          {ins.icon}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap mb-1">
-                            <span className="text-sm font-semibold" style={{ color: 'var(--text)' }}>{ins.title}</span>
-                            <span className="pill" style={{ background: pc.bg, borderColor: pc.border, color: pc.dot }}>
-                              {pc.label}
-                            </span>
-                          </div>
-                          <p className="text-xs leading-relaxed" style={{ color: 'var(--text-2)' }}>{ins.body}</p>
-                          <div className="flex items-center gap-2 mt-2 flex-wrap">
-                            {ins.refs.map(r => (
-                              <span
-                                key={r}
-                                className="font-mono text-[10px] px-1.5 py-0.5 rounded"
-                                style={{ background: 'var(--cyan-muted)', color: 'var(--cyan-bright)', border: '1px solid var(--cyan-border)' }}
-                              >
-                                {r}
-                              </span>
-                            ))}
-                            <div className="ml-auto flex items-center gap-1.5">
-                              <button
-                                onClick={() => setDismissedInsights(d => [...d, ins.id])}
-                                className="text-[11px] px-2 py-1 rounded"
-                                style={{ color: 'var(--text-3)' }}
-                              >
-                                Dismiss
-                              </button>
-                              <button
-                                onClick={() => navigate(ins.path)}
-                                className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded"
-                                style={{ background: 'var(--brand)', color: 'white' }}
-                              >
-                                {ins.cta} <ArrowRight size={11} />
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+      {/* ── 1. Top Executive Briefing & Command Header ── */}
+      <div className="industrial-panel p-5 md:p-6 overflow-hidden panel-accent-top">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-2">
+              <span className="heat-badge text-[11px]">
+                <Cpu size={12} />
+                EXECUTIVE INTELLIGENCE CENTRE
+              </span>
+              <span className="text-[11px] font-mono text-[var(--text-3)]">
+                STATION ID: HYD-HQ · SHIFT 1 ACTIVE
+              </span>
             </div>
-          )}
+            <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-[var(--text)]">
+              Welcome back, {firstName}
+            </h1>
+            <p className="text-xs md:text-sm text-[var(--text-2)] max-w-3xl leading-relaxed">
+              Overall manufacturing health is at <strong className="text-[var(--text)]">{healthScore}%</strong>.
+              Two customer jobs (<strong className="text-[var(--error)]">J-102</strong> and <strong className="text-[var(--error)]">J-104</strong>) have active operational blockers representing <strong className="text-[var(--warning)] font-mono">₹645,000</strong> in delivery exposure. Drill Press DP-01 breakdown requires maintenance triage.
+            </p>
+          </div>
 
-          {/* Exception feed */}
-          <div className="eoss-card overflow-hidden">
-            <div className="eoss-card-header">
-              <div className="flex items-center gap-2.5">
-                <span style={{ color: 'var(--text-2)' }}><AlertCircle size={15} /></span>
-                <span className="text-sm font-semibold" style={{ color: 'var(--text)' }}>Exceptions</span>
-                <div className="flex items-center gap-1.5 ml-1">
-                  {critical > 0 && (
-                    <span className="pill text-white" style={{ background: 'var(--error)', borderColor: 'var(--error)' }}>
-                      {critical} critical
-                    </span>
-                  )}
-                  {warning > 0 && (
-                    <span className="pill" style={{ background: 'var(--warning-bg)', borderColor: 'var(--warning-border)', color: 'var(--warning)' }}>
-                      {warning} warning
-                    </span>
-                  )}
-                  {info > 0 && (
-                    <span className="pill" style={{ background: 'var(--info-bg)', borderColor: 'var(--info-border)', color: 'var(--info)' }}>
-                      {info} info
-                    </span>
-                  )}
+          {/* Health Gauge & High-Level KPIs */}
+          <div className="flex items-center gap-4 sm:gap-6 flex-wrap lg:flex-nowrap border-t lg:border-t-0 lg:border-l border-[var(--border)] pt-4 lg:pt-0 lg:pl-8">
+            <div className="flex items-center gap-3">
+              <div className="relative flex items-center justify-center w-16 h-16 rounded-full bg-[var(--surface-2)] border-2 border-[var(--border-2)]">
+                <svg className="w-16 h-16 -rotate-90 transform" viewBox="0 0 36 36">
+                  <path
+                    className="text-[var(--surface-3)]"
+                    strokeWidth="3.5"
+                    stroke="currentColor"
+                    fill="none"
+                    d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                  />
+                  <path
+                    strokeWidth="3.5"
+                    strokeDasharray={`${healthScore}, 100`}
+                    stroke={healthScore > 75 ? 'var(--cyan-bright)' : healthScore > 50 ? 'var(--warning)' : 'var(--error)'}
+                    strokeLinecap="round"
+                    fill="none"
+                    d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                  />
+                </svg>
+                <span className="absolute font-mono text-base font-bold text-[var(--text)]">
+                  {healthScore}%
+                </span>
+              </div>
+              <div>
+                <div className="text-[10px] font-mono uppercase tracking-wider text-[var(--text-3)]">Plant Health Index</div>
+                <div className="text-xs font-semibold text-[var(--warning)] flex items-center gap-1 mt-0.5">
+                  <AlertTriangle size={12} /> Elevated Risk
                 </div>
               </div>
-              <span className="text-[11px]" style={{ color: 'var(--text-3)' }}>AI-monitored</span>
             </div>
 
-            {/* Category filters */}
-            <div
-              className="flex gap-1.5 px-4 py-2.5 overflow-x-auto"
-              style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}
-            >
-              {categories.map(c => (
+            <div className="grid grid-cols-2 gap-3 min-w-[190px]">
+              <div className="p-2.5 rounded-lg bg-[var(--surface-2)] border border-[var(--border)]">
+                <div className="text-[10px] font-mono text-[var(--text-3)] uppercase">Active Revenue</div>
+                <div className="stat-metric text-base font-bold text-[var(--text)] mt-0.5">
+                  ₹{(totalValue / 100000).toFixed(2)}L
+                </div>
+              </div>
+              <div className="p-2.5 rounded-lg bg-[var(--surface-2)] border border-[var(--error-border)]">
+                <div className="text-[10px] font-mono text-[var(--error)] uppercase">Exposed At Risk</div>
+                <div className="stat-metric text-base font-bold text-[var(--error)] mt-0.5">
+                  ₹{(atRiskValue / 100000).toFixed(2)}L
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── 2. The 6-Pillar Operational Flow Pipeline ── */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between px-1">
+          <span className="text-[11px] font-mono font-semibold uppercase tracking-wider text-[var(--text-3)]">
+            Continuous Operational Pipeline (6 Core Pillars)
+          </span>
+          <span className="text-[11px] text-[var(--text-3)] font-mono">
+            Click any pillar to inspect live status
+          </span>
+        </div>
+
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+          {operationalPillars.map(p => {
+            const isCritical = p.status === 'critical';
+            const isWarning  = p.status === 'warning';
+            return (
+              <button
+                key={p.id}
+                onClick={() => navigate(p.path)}
+                className={clsx(
+                  'text-left p-3.5 rounded-xl transition-all duration-200 border group relative overflow-hidden',
+                  isCritical
+                    ? 'bg-[var(--surface)] border-[var(--error-border)] hover:border-[var(--error)]'
+                    : isWarning
+                    ? 'bg-[var(--surface)] border-[var(--warning-border)] hover:border-[var(--warning)]'
+                    : 'bg-[var(--surface)] border-[var(--border)] hover:border-[var(--cyan-border)]'
+                )}
+                style={{
+                  boxShadow: isCritical ? 'inset 0 2px 0 var(--error)' : isWarning ? 'inset 0 2px 0 var(--warning)' : 'inset 0 1px 0 rgba(255,255,255,0.05)',
+                }}
+              >
+                <div className="flex items-center justify-between text-xs mb-2">
+                  <span className="text-[var(--text-2)] group-hover:text-[var(--text)] transition-colors">
+                    {p.icon}
+                  </span>
+                  <span className={clsx(
+                    'w-1.5 h-1.5 rounded-full',
+                    isCritical ? 'bg-[var(--error)] animate-pulse' : isWarning ? 'bg-[var(--warning)]' : 'bg-[var(--success)]'
+                  )} />
+                </div>
+                <div className="text-[11px] font-semibold text-[var(--text)] truncate">{p.label}</div>
+                <div className="text-xs font-bold font-mono text-[var(--text)] mt-1">{p.metric}</div>
+                <div className="text-[10px] text-[var(--text-3)] truncate mt-0.5">{p.detail}</div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* ── 3. Main Split: Causal Impact Chains (Left) & Executive Decision Queue (Right) ── */}
+      <div className="grid lg:grid-cols-12 gap-6">
+
+        {/* ── Left Column: Causal Problem-to-Impact Intelligence (8 cols) ── */}
+        <div className="lg:col-span-8 space-y-6">
+
+          {/* Causal Risk Analysis: Root Cause -> Friction -> Commercial Impact */}
+          <div className="industrial-panel p-5 space-y-4">
+            <div className="flex items-center justify-between border-b border-[var(--border)] pb-3">
+              <div className="flex items-center gap-2">
+                <span className="p-1.5 rounded-md bg-[var(--cyan-muted)] text-[var(--cyan-bright)] border border-[var(--cyan-border)]">
+                  <Zap size={14} />
+                </span>
+                <div>
+                  <h2 className="text-sm font-bold text-[var(--text)]">
+                    Active Causal Risk Chains
+                  </h2>
+                  <p className="text-[11px] text-[var(--text-3)] font-mono">
+                    Multi-factor correlation: Supplier delay & Machine downtime mapped to revenue exposure
+                  </p>
+                </div>
+              </div>
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[var(--surface-3)] text-[var(--text-3)]">
+                2 CHAINS IDENTIFIED
+              </span>
+            </div>
+
+            {/* Chain 1: SPO Delivery Delay -> SS Material Shortage -> J-102 Blocker */}
+            <div className="rounded-xl border border-[var(--error-border)] bg-[var(--surface-2)] p-4 space-y-3.5 relative overflow-hidden">
+              <div className="flex items-center justify-between text-xs">
+                <span className="flex items-center gap-1.5 font-bold text-[var(--error)]">
+                  <AlertCircle size={14} />
+                  CRITICAL CHAIN 01: PROCUREMENT DELAY EXPOSING REVENUE
+                </span>
+                <span className="font-mono text-[11px] text-[var(--error)] font-semibold bg-[var(--error-bg)] px-2 py-0.5 rounded border border-[var(--error-border)]">
+                  ₹320,000 EXPOSURE
+                </span>
+              </div>
+
+              {/* 3 Connected Nodes */}
+              <div className="grid md:grid-cols-3 gap-3 relative">
+                {/* Node 1: Root Cause */}
+                <div className="p-3 rounded-lg bg-[var(--surface)] border border-[var(--border)] space-y-1">
+                  <div className="text-[10px] font-mono uppercase text-[var(--text-3)] flex items-center justify-between">
+                    <span>1. Root Trigger</span>
+                    <Clock size={11} className="text-[var(--warning)]" />
+                  </div>
+                  <div className="text-xs font-semibold text-[var(--text)]">Supplier PO Overdue</div>
+                  <div className="font-mono text-[11px] text-[var(--cyan-bright)]">SPO-2024-002</div>
+                  <div className="text-[11px] text-[var(--text-2)]">Stainless Source India committed for 2 Nov (2 days late).</div>
+                </div>
+
+                {/* Node 2: Physical Friction */}
+                <div className="p-3 rounded-lg bg-[var(--surface)] border border-[var(--border)] space-y-1">
+                  <div className="text-[10px] font-mono uppercase text-[var(--text-3)] flex items-center justify-between">
+                    <span>2. Physical Bottleneck</span>
+                    <Package size={11} className="text-[var(--error)]" />
+                  </div>
+                  <div className="text-xs font-semibold text-[var(--text)]">SS Sheet 3mm Shortage</div>
+                  <div className="font-mono text-[11px] text-[var(--error)]">108 kg avail vs 432 kg req</div>
+                  <div className="text-[11px] text-[var(--text-2)]">216 kg held in Quarantine under NCR-007 (surface pitting).</div>
+                </div>
+
+                {/* Node 3: Commercial Consequence */}
+                <div className="p-3 rounded-lg bg-[var(--surface)] border border-[var(--error-border)] space-y-1 bg-[var(--error-bg)]/20">
+                  <div className="text-[10px] font-mono uppercase text-[var(--error)] flex items-center justify-between">
+                    <span>3. Business Impact</span>
+                    <Briefcase size={11} className="text-[var(--error)]" />
+                  </div>
+                  <div className="text-xs font-semibold text-[var(--text)]">Job J-102 Halted</div>
+                  <div className="font-mono text-[11px] text-[var(--text)]">Bharat Power Equipment</div>
+                  <div className="text-[11px] text-[var(--error)] font-medium">Cutting stage blocked. Potential 5-day delivery slippage.</div>
+                </div>
+              </div>
+
+              {/* Action Toolbar */}
+              <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-[var(--border)]">
+                <div className="text-[11px] text-[var(--text-2)] flex items-center gap-1.5">
+                  <Sparkles size={12} className="text-[var(--cyan-bright)]" />
+                  <span>AI Recommended Action: Review SPO revision to expedite remaining 200 kg or release partial Lot 005.</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => navigate('/procurement/spo/spo-002')}
+                    className="btn-ghost text-xs py-1 px-2.5"
+                  >
+                    Inspect SPO-002
+                  </button>
+                  <button
+                    onClick={() => navigate('/jobs/job-102')}
+                    className="btn-primary text-xs py-1 px-3"
+                  >
+                    Open Job J-102 <ArrowRight size={12} />
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Chain 2: DP-01 Machine Breakdown -> Drilling Halted -> J-104 Impact */}
+            <div className="rounded-xl border border-[var(--warning-border)] bg-[var(--surface-2)] p-4 space-y-3.5 relative overflow-hidden">
+              <div className="flex items-center justify-between text-xs">
+                <span className="flex items-center gap-1.5 font-bold text-[var(--warning)]">
+                  <Wrench size={14} />
+                  CRITICAL CHAIN 02: SHOP-FLOOR ASSET DOWNTIME
+                </span>
+                <span className="font-mono text-[11px] text-[var(--warning)] font-semibold bg-[var(--warning-bg)] px-2 py-0.5 rounded border border-[var(--warning-border)]">
+                  ₹325,000 EXPOSURE
+                </span>
+              </div>
+
+              <div className="grid md:grid-cols-3 gap-3">
+                <div className="p-3 rounded-lg bg-[var(--surface)] border border-[var(--border)] space-y-1">
+                  <div className="text-[10px] font-mono uppercase text-[var(--text-3)] flex items-center justify-between">
+                    <span>1. Equipment Failure</span>
+                    <Wrench size={11} className="text-[var(--error)]" />
+                  </div>
+                  <div className="text-xs font-semibold text-[var(--text)]">Drill Press DP-01 Seized</div>
+                  <div className="font-mono text-[11px] text-[var(--error)]">ME-2024-012 raised</div>
+                  <div className="text-[11px] text-[var(--text-2)]">Spindle motor seized at 07:45 today. Technician Venkat Rao on-site.</div>
+                </div>
+
+                <div className="p-3 rounded-lg bg-[var(--surface)] border border-[var(--border)] space-y-1">
+                  <div className="text-[10px] font-mono uppercase text-[var(--text-3)] flex items-center justify-between">
+                    <span>2. Stage Bottleneck</span>
+                    <Activity size={11} className="text-[var(--warning)]" />
+                  </div>
+                  <div className="text-xs font-semibold text-[var(--text)]">Drill Bay Inoperable</div>
+                  <div className="font-mono text-[11px] text-[var(--warning)]">20 Flange Sets Waiting</div>
+                  <div className="text-[11px] text-[var(--text-2)]">Cutting stage stopped at 8/20 completed units.</div>
+                </div>
+
+                <div className="p-3 rounded-lg bg-[var(--surface)] border border-[var(--warning-border)] space-y-1 bg-[var(--warning-bg)]/20">
+                  <div className="text-[10px] font-mono uppercase text-[var(--warning)] flex items-center justify-between">
+                    <span>3. Delivery Risk</span>
+                    <Briefcase size={11} className="text-[var(--warning)]" />
+                  </div>
+                  <div className="text-xs font-semibold text-[var(--text)]">Job J-104 Blocked</div>
+                  <div className="font-mono text-[11px] text-[var(--text)]">NTPC Vendor Division</div>
+                  <div className="text-[11px] text-[var(--warning)] font-medium">Due 20 Nov. Critical path through drilling is blocked.</div>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-[var(--border)]">
+                <div className="text-[11px] text-[var(--text-2)] flex items-center gap-1.5">
+                  <Sparkles size={12} className="text-[var(--cyan-bright)]" />
+                  <span>AI Recommended Action: Reroute flange drilling to Radial Drill RD-02 in Main Bay to maintain schedule.</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => navigate('/assets/ast-dp01')}
+                    className="btn-ghost text-xs py-1 px-2.5"
+                  >
+                    View Maintenance
+                  </button>
+                  <button
+                    onClick={() => navigate('/jobs/job-104')}
+                    className="btn-primary text-xs py-1 px-3"
+                  >
+                    Open Job J-104 <ArrowRight size={12} />
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* ── Active Job Fleet Radar Matrix ── */}
+          <div className="industrial-panel p-5 space-y-3">
+            <div className="flex items-center justify-between border-b border-[var(--border)] pb-3">
+              <div>
+                <h3 className="text-sm font-bold text-[var(--text)]">Live Manufacturing Fleet Status</h3>
+                <p className="text-[11px] text-[var(--text-3)] font-mono">
+                  All 8 production orders · Stage progress, material sufficiency & due dates
+                </p>
+              </div>
+              <button
+                onClick={() => navigate('/jobs')}
+                className="text-xs text-[var(--brand)] hover:underline flex items-center gap-1 font-medium"
+              >
+                Full Job Board <ChevronRight size={13} />
+              </button>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="eoss-table">
+                <thead>
+                  <tr>
+                    <th>Job & Customer</th>
+                    <th>Stage & Work Centre</th>
+                    <th>Progress</th>
+                    <th>Material Status</th>
+                    <th>Target Due</th>
+                    <th>Value</th>
+                    <th className="text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {jobs.map(j => {
+                    const isBlocked = j.hasBlocker;
+                    const isComplete = j.status === 'complete';
+                    const activeStage = j.stages.find(s => s.status === 'in_progress') || j.stages[0];
+                    const progressPct = j.stages.length > 0
+                      ? Math.round((j.stages.filter(s => s.status === 'complete').length / j.stages.length) * 100)
+                      : 0;
+
+                    return (
+                      <tr
+                        key={j.id}
+                        onClick={() => navigate(`/jobs/${j.id}`)}
+                        className="cursor-pointer group hover:bg-[var(--surface-2)] transition-colors"
+                      >
+                        <td>
+                          <div className="flex items-center gap-2">
+                            <span className={clsx(
+                              'font-mono text-xs font-bold px-1.5 py-0.5 rounded border',
+                              isBlocked
+                                ? 'bg-[var(--error-bg)] text-[var(--error)] border-[var(--error-border)]'
+                                : isComplete
+                                ? 'bg-[var(--success-bg)] text-[var(--success)] border-[var(--success-border)]'
+                                : 'bg-[var(--surface-3)] text-[var(--cyan-bright)] border-[var(--border)]'
+                            )}>
+                              {j.jobNumber}
+                            </span>
+                            <div>
+                              <div className="text-xs font-semibold text-[var(--text)]">{j.customerName}</div>
+                              <div className="text-[10px] text-[var(--text-3)] truncate max-w-[180px]">{j.description}</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td>
+                          <div className="text-xs font-medium text-[var(--text)]">{j.currentStage}</div>
+                          <div className="text-[10px] text-[var(--text-3)]">{activeStage?.workCentre || 'General Bay'}</div>
+                        </td>
+                        <td className="w-28">
+                          <div className="flex items-center justify-between text-[10px] font-mono mb-1 text-[var(--text-2)]">
+                            <span>{progressPct}%</span>
+                            <span>{j.stages.filter(s => s.status === 'complete').length}/{j.stages.length}</span>
+                          </div>
+                          <div className="progress-bar h-1.5">
+                            <div
+                              className="progress-bar-fill"
+                              style={{
+                                width: `${progressPct}%`,
+                                background: isBlocked ? 'var(--error)' : isComplete ? 'var(--success)' : 'var(--brand)',
+                              }}
+                            />
+                          </div>
+                        </td>
+                        <td>
+                          <div className="flex items-center gap-1.5 text-xs font-mono">
+                            <span className={clsx(
+                              'w-2 h-2 rounded-full',
+                              j.materialReadiness === 'ready' ? 'bg-[var(--success)]' :
+                              j.materialReadiness === 'shortage' ? 'bg-[var(--error)] animate-ping' :
+                              'bg-[var(--warning)]'
+                            )} />
+                            <span className={clsx(
+                              'capitalize',
+                              j.materialReadiness === 'ready' ? 'text-[var(--success)]' :
+                              j.materialReadiness === 'shortage' ? 'text-[var(--error)] font-bold' :
+                              'text-[var(--warning)]'
+                            )}>
+                              {j.materialReadiness}
+                            </span>
+                          </div>
+                        </td>
+                        <td>
+                          <span className={clsx(
+                            'text-xs font-mono',
+                            isBlocked ? 'text-[var(--error)] font-bold' : 'text-[var(--text-2)]'
+                          )}>
+                            {new Date(j.plannedEnd).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                          </span>
+                        </td>
+                        <td>
+                          <span className="font-mono text-xs font-semibold text-[var(--text)]">
+                            ₹{(((j.value ?? 0) / 1000)).toLocaleString('en-IN')}k
+                          </span>
+                        </td>
+                        <td className="text-right">
+                          <span className="inline-flex items-center text-xs text-[var(--text-3)] group-hover:text-[var(--cyan-bright)] transition-colors">
+                            View <ArrowRight size={12} className="ml-1" />
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Right Column: Executive Decisions & Live Exception Stream (4 cols) ── */}
+        <div className="lg:col-span-4 space-y-6">
+
+          {/* 1. Needs Your Decision — Triage Card (Fixed undefined bug) */}
+          <div className="industrial-panel p-4 space-y-3.5 border-l-2 border-l-[var(--warning)]">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-[var(--warning)] animate-ping" />
+                <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--warning)]">
+                  Needs Your Decision ({pendingApprovals.length})
+                </h3>
+              </div>
+              <span className="text-[10px] font-mono text-[var(--text-3)]">
+                OWNER SIGN-OFF
+              </span>
+            </div>
+
+            {pendingApprovals.length === 0 ? (
+              <div className="p-4 rounded-lg bg-[var(--surface-2)] text-center text-xs text-[var(--text-3)]">
+                <CheckCircle size={20} className="mx-auto mb-1 text-[var(--success)]" />
+                All pending approvals resolved.
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {pendingApprovals.map(apr => (
+                  <div
+                    key={apr.id}
+                    className="p-3.5 rounded-lg bg-[var(--surface-2)] border border-[var(--border)] space-y-2.5 transition-all hover:border-[var(--border-strong)]"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <div className="text-[10px] font-mono uppercase text-[var(--cyan-bright)]">
+                          {apr.requestType}
+                        </div>
+                        <div className="text-xs font-bold text-[var(--text)] mt-0.5">
+                          {apr.entityRef}
+                        </div>
+                      </div>
+                      {apr.currentValue && (
+                        <div className="text-right">
+                          <div className="text-[10px] font-mono text-[var(--text-3)]">Impact</div>
+                          <div className="text-xs font-mono font-bold text-[var(--warning)]">
+                            ₹{(apr.currentValue / 1000).toLocaleString('en-IN')}k
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    <p className="text-[11px] text-[var(--text-2)] leading-relaxed">
+                      {apr.description}
+                    </p>
+
+                    <div className="flex items-center justify-between text-[10px] text-[var(--text-3)] pt-1 border-t border-[var(--border)]">
+                      <span>By {apr.requestedBy}</span>
+                      <span>{new Date(apr.requestedAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</span>
+                    </div>
+
+                    {/* Action buttons with live state update */}
+                    <div className="grid grid-cols-2 gap-2 pt-1">
+                      <button
+                        onClick={() => handleResolveApproval(apr.id, 'rejected')}
+                        disabled={approvingId === apr.id}
+                        className="btn-ghost text-xs py-1.5 justify-center hover:bg-[var(--error-bg)] hover:text-[var(--error)] hover:border-[var(--error-border)]"
+                      >
+                        <X size={12} /> Reject
+                      </button>
+                      <button
+                        onClick={() => handleResolveApproval(apr.id, 'approved')}
+                        disabled={approvingId === apr.id}
+                        className="btn-primary text-xs py-1.5 justify-center bg-[var(--success)] hover:bg-emerald-600 shadow-none"
+                      >
+                        <Check size={12} /> Approve
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* 2. Exception Stream with Filtering */}
+          <div className="industrial-panel p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <ShieldAlert size={14} className="text-[var(--error)]" />
+                <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--text)]">
+                  Live Exception Register
+                </h3>
+              </div>
+              <span className="text-[10px] font-mono text-[var(--text-3)]">
+                {filteredExceptions.length} ALERTS
+              </span>
+            </div>
+
+            {/* Category tabs */}
+            <div className="flex flex-wrap gap-1">
+              {['all', 'material', 'procurement', 'asset', 'quality', 'document'].map(cat => (
                 <button
-                  key={c}
-                  onClick={() => setCategoryFilter(c)}
-                  className="px-2.5 py-1 rounded-md text-[11px] font-medium whitespace-nowrap transition-all capitalize"
-                  style={categoryFilter === c
-                    ? { background: 'var(--brand)', color: 'white' }
-                    : { background: 'var(--surface-2)', color: 'var(--text-2)', border: '1px solid var(--border)' }
-                  }
+                  key={cat}
+                  onClick={() => setExceptionCategory(cat)}
+                  className={clsx(
+                    'px-2 py-0.5 rounded text-[10px] font-mono uppercase transition-colors',
+                    exceptionCategory === cat
+                      ? 'bg-[var(--surface-3)] text-[var(--cyan-bright)] border border-[var(--cyan-border)]'
+                      : 'text-[var(--text-3)] hover:text-[var(--text)]'
+                  )}
                 >
-                  {c === 'all' ? `All (${pulseExceptions.length})` : c}
+                  {cat}
                 </button>
               ))}
             </div>
 
-            {/* Exception list */}
-            <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
-              {filtered.length === 0 && (
-                <div className="px-4 py-10 text-center text-sm" style={{ color: 'var(--text-3)' }}>
-                  No exceptions in this category.
-                </div>
-              )}
-              {filtered.map(exc => {
-                const pc = PRIORITY_CFG[exc.priority];
-                const cm = CAT_META[exc.category] ?? { icon: <Activity size={13} />, color: 'var(--text-3)' };
+            {/* List */}
+            <div className="space-y-2 max-h-[460px] overflow-y-auto pr-1">
+              {filteredExceptions.map(exc => {
+                const isCrit = exc.priority === 'critical';
+                const isWarn = exc.priority === 'warning';
                 return (
                   <div
                     key={exc.id}
-                    className="flex items-start gap-4 px-4 py-4"
-                    style={{ borderBottom: '1px solid var(--border)' }}
+                    className={clsx(
+                      'p-3 rounded-lg border transition-all text-xs space-y-1.5',
+                      isCrit ? 'bg-[var(--error-bg)]/20 border-[var(--error-border)]' :
+                      isWarn ? 'bg-[var(--warning-bg)]/15 border-[var(--warning-border)]' :
+                      'bg-[var(--surface-2)] border-[var(--border)]'
+                    )}
                   >
-                    {/* Priority dot */}
-                    <div className="flex-shrink-0 mt-1">
-                      <div
-                        className="w-2 h-2 rounded-full"
-                        style={{ background: pc.dot, boxShadow: `0 0 0 3px color-mix(in srgb, ${pc.dot} 15%, transparent)` }}
-                      />
+                    <div className="flex items-center justify-between">
+                      <span className={clsx(
+                        'font-bold text-[11px] flex items-center gap-1',
+                        isCrit ? 'text-[var(--error)]' : isWarn ? 'text-[var(--warning)]' : 'text-[var(--text)]'
+                      )}>
+                        <span className={clsx(
+                          'w-1.5 h-1.5 rounded-full',
+                          isCrit ? 'bg-[var(--error)]' : isWarn ? 'bg-[var(--warning)]' : 'bg-[var(--cyan)]'
+                        )} />
+                        {exc.title}
+                      </span>
+                      <span className="text-[10px] font-mono text-[var(--text-3)]">
+                        {exc.affectedRef}
+                      </span>
                     </div>
 
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-start gap-2 flex-wrap">
-                        <span className="text-sm font-semibold leading-snug" style={{ color: 'var(--text)' }}>{exc.title}</span>
-                        <span
-                          className="pill mt-0.5"
-                          style={{ background: pc.bg, borderColor: pc.border, color: pc.dot }}
-                        >
-                          {pc.icon}
-                          {pc.label}
-                        </span>
-                        <span
-                          className="pill mt-0.5"
-                          style={{ color: cm.color, background: 'var(--surface-2)', borderColor: 'var(--border)' }}
-                        >
-                          {cm.icon}
-                          {exc.category}
-                        </span>
+                    <p className="text-[11px] text-[var(--text-2)] leading-relaxed">
+                      {exc.body}
+                    </p>
+
+                    {exc.aiReason && (
+                      <div className="text-[10px] font-mono text-[var(--cyan-bright)] bg-[var(--cyan-muted)] p-1.5 rounded border border-[var(--cyan-border)]">
+                        {exc.aiReason}
                       </div>
+                    )}
 
-                      <p className="text-xs mt-1.5 leading-relaxed line-clamp-2" style={{ color: 'var(--text-2)' }}>
-                        {exc.body}
-                      </p>
-
-                      {exc.aiReason && (
-                        <div className="ai-signal mt-2 w-fit">
-                          <Zap size={10} />
-                          <span>{exc.aiReason}</span>
-                        </div>
-                      )}
-
-                      <div className="flex items-center gap-3 mt-2 flex-wrap">
-                        <span className="text-[11px] font-mono" style={{ color: 'var(--text-3)' }}>{exc.affectedRef}</span>
-                        <span style={{ color: 'var(--border-2)' }}>·</span>
-                        <span className="text-[11px]" style={{ color: 'var(--text-3)' }}>
-                          <Clock size={9} className="inline mr-0.5 opacity-60" />
-                          {relativeTime(exc.since)}
-                        </span>
-                        <button
-                          onClick={() => navigate(exc.workspacePath)}
-                          className="ml-auto flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded"
-                          style={{ background: 'var(--brand-50)', color: 'var(--brand)', border: '1px solid var(--brand-muted)' }}
-                        >
-                          {exc.cta} <ChevronRight size={11} />
-                        </button>
-                      </div>
+                    <div className="flex items-center justify-end pt-1">
+                      <button
+                        onClick={() => navigate(exc.workspacePath)}
+                        className="text-[11px] font-semibold text-[var(--brand)] hover:underline inline-flex items-center gap-1"
+                      >
+                        {exc.cta} <ArrowRight size={11} />
+                      </button>
                     </div>
                   </div>
                 );
               })}
             </div>
           </div>
-        </div>
 
-        {/* ── Right column ── */}
-        <div className="space-y-4">
-
-          {/* Needs Your Decision — owner only */}
-          {isOwner && decisionItems.length > 0 && (
-            <div
-              className="rounded-[var(--radius)] overflow-hidden"
-              style={{ background: 'var(--surface)', border: '1px solid var(--warning-border)' }}
-            >
-              <div
-                className="flex items-center gap-2 px-4 py-3"
-                style={{ borderBottom: '1px solid var(--warning-border)', background: 'var(--warning-bg)' }}
+          {/* 3. Quick Operational Launches */}
+          <div className="industrial-panel p-4 space-y-2.5">
+            <span className="text-[10px] font-mono font-semibold uppercase tracking-wider text-[var(--text-3)]">
+              Operational Actions
+            </span>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => navigate('/jobs')}
+                className="p-2.5 rounded-lg bg-[var(--surface-2)] border border-[var(--border)] hover:border-[var(--border-strong)] text-left transition-colors"
               >
-                <AlertTriangle size={13} style={{ color: 'var(--warning)' }} />
-                <span className="text-xs font-semibold" style={{ color: 'var(--warning)' }}>
-                  Needs Your Decision
-                </span>
-                <span
-                  className="ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded-full"
-                  style={{ background: 'var(--warning)', color: 'white' }}
-                >
-                  {decisionItems.length}
-                </span>
-              </div>
-              <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
-                {decisionItems.map(d => (
-                  <button
-                    key={d.id}
-                    onClick={() => navigate(d.path)}
-                    className="flex items-center gap-3 w-full px-4 py-3 text-left transition-colors"
-                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--surface-2)'; }}
-                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = ''; }}
-                  >
-                    <span
-                      className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-                      style={{ background: d.type === 'approval' ? 'var(--warning)' : 'var(--error)' }}
-                    />
-                    <span className="flex-1 text-xs" style={{ color: 'var(--text)' }}>{d.label}</span>
-                    <ChevronRight size={12} style={{ color: 'var(--text-3)' }} />
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Operations health */}
-          <div className="eoss-card">
-            <div className="px-4 pt-4 pb-1">
-              <h3 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: 'var(--text-3)' }}>
-                Operations Today
-              </h3>
-              <div className="grid grid-cols-2 gap-2">
-                <MetricTile
-                  label="Active Jobs" value={activeJobs}
-                  sub={`${holdJobs} on hold`}
-                  color="var(--brand)"
-                  onClick={() => navigate('/jobs')}
-                />
-                <MetricTile
-                  label="Shortages" value={shortageItems}
-                  sub="below reorder"
-                  color={shortageItems > 0 ? 'var(--error)' : 'var(--success)'}
-                  onClick={() => navigate('/inventory')}
-                />
-                <MetricTile
-                  label="Machine Issues" value={breakdownAssets}
-                  sub="in breakdown"
-                  color={breakdownAssets > 0 ? 'var(--error)' : 'var(--success)'}
-                  onClick={() => navigate('/assets')}
-                />
-                <MetricTile
-                  label="In Transit" value={inTransit}
-                  sub="dispatches"
-                  color="var(--info)"
-                  onClick={() => navigate('/dispatch')}
-                />
-              </div>
-            </div>
-
-            {/* Completion bar */}
-            <div className="px-4 pb-4 mt-3">
-              <div className="flex justify-between text-[11px] mb-1.5" style={{ color: 'var(--text-3)' }}>
-                <span>Job completion</span>
-                <span className="font-mono" style={{ color: 'var(--text-2)' }}>{completedJobs}/{jobs.length}</span>
-              </div>
-              <div className="progress-bar">
-                <div
-                  className="progress-bar-fill"
-                  style={{
-                    width: jobs.length > 0 ? `${(completedJobs / jobs.length) * 100}%` : '0%',
-                    background: 'var(--success)',
-                  }}
-                />
-              </div>
+                <div className="text-xs font-semibold text-[var(--text)]">New Job</div>
+                <div className="text-[10px] text-[var(--text-3)]">From Customer PO</div>
+              </button>
+              <button
+                onClick={() => navigate('/inventory')}
+                className="p-2.5 rounded-lg bg-[var(--surface-2)] border border-[var(--border)] hover:border-[var(--border-strong)] text-left transition-colors"
+              >
+                <div className="text-xs font-semibold text-[var(--text)]">Log Receipt</div>
+                <div className="text-[10px] text-[var(--text-3)]">GRN & MTC Upload</div>
+              </button>
+              <button
+                onClick={() => navigate('/assets')}
+                className="p-2.5 rounded-lg bg-[var(--surface-2)] border border-[var(--border)] hover:border-[var(--border-strong)] text-left transition-colors"
+              >
+                <div className="text-xs font-semibold text-[var(--text)]">Breakdown</div>
+                <div className="text-[10px] text-[var(--text-3)]">Shop-floor Alert</div>
+              </button>
+              <button
+                onClick={() => navigate('/quality')}
+                className="p-2.5 rounded-lg bg-[var(--surface-2)] border border-[var(--border)] hover:border-[var(--border-strong)] text-left transition-colors"
+              >
+                <div className="text-xs font-semibold text-[var(--text)]">QC Release</div>
+                <div className="text-[10px] text-[var(--text-3)]">Final Sign-off</div>
+              </button>
             </div>
           </div>
 
-          {/* Quick actions */}
-          <div className="eoss-card">
-            <div className="eoss-card-header">
-              <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-3)' }}>Quick Access</span>
-            </div>
-            <div className="p-3 space-y-1">
-              {[
-                { label: 'Open Purchase Requests', count: openPRs, path: '/procurement', color: 'var(--warning)', icon: <ShoppingBag size={14} /> },
-                { label: 'Pending QC Inspections', count: pendingQC, path: '/quality', color: 'var(--hold)', icon: <Shield size={14} /> },
-                { label: 'Active Jobs', count: activeJobs, path: '/jobs', color: 'var(--brand)', icon: <Activity size={14} /> },
-              ].map(q => (
-                <button
-                  key={q.path}
-                  onClick={() => navigate(q.path)}
-                  className="flex items-center gap-3 w-full px-3 py-2.5 rounded-[var(--radius-sm)] transition-colors text-left"
-                  style={{ background: 'transparent' }}
-                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--surface-2)'; }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
-                >
-                  <span style={{ color: q.color }}>{q.icon}</span>
-                  <span className="flex-1 text-xs font-medium" style={{ color: 'var(--text)' }}>{q.label}</span>
-                  <span
-                    className="text-xs font-bold font-mono px-2 py-0.5 rounded-md"
-                    style={{ background: 'var(--surface-3)', color: q.color }}
-                  >
-                    {q.count}
-                  </span>
-                  <ChevronRight size={12} style={{ color: 'var(--text-3)' }} />
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Exception summary by priority */}
-          <div className="eoss-card">
-            <div className="eoss-card-header">
-              <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-3)' }}>Exception Summary</span>
-            </div>
-            <div className="p-4 space-y-3">
-              {[
-                { label: 'Critical', value: critical, color: 'var(--error)', bg: 'var(--error-bg)', border: 'var(--error-border)' },
-                { label: 'Warning', value: warning, color: 'var(--warning)', bg: 'var(--warning-bg)', border: 'var(--warning-border)' },
-                { label: 'Informational', value: info, color: 'var(--info)', bg: 'var(--info-bg)', border: 'var(--info-border)' },
-              ].map(row => (
-                <div key={row.label} className="flex items-center gap-3">
-                  <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: row.color }} />
-                  <span className="flex-1 text-xs" style={{ color: 'var(--text-2)' }}>{row.label}</span>
-                  <div className="flex-1 progress-bar">
-                    <div
-                      className="progress-bar-fill"
-                      style={{
-                        width: pulseExceptions.length > 0 ? `${(row.value / pulseExceptions.length) * 100}%` : '0%',
-                        background: row.color,
-                      }}
-                    />
-                  </div>
-                  <span className="text-xs font-mono font-semibold w-5 text-right" style={{ color: row.color }}>{row.value}</span>
-                </div>
-              ))}
-            </div>
-          </div>
         </div>
       </div>
-    </div>
-  );
-}
 
-function MetricTile({ label, value, sub, color, onClick }: {
-  label: string; value: number; sub: string; color: string; onClick: () => void;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className="p-3 rounded-[var(--radius-sm)] text-left transition-all group"
-      style={{ background: 'var(--surface-2)', border: '1px solid var(--border)' }}
-      onMouseEnter={e => {
-        const el = e.currentTarget as HTMLElement;
-        el.style.borderColor = color;
-        el.style.background = 'var(--surface)';
-        el.style.boxShadow = 'var(--shadow-sm)';
-      }}
-      onMouseLeave={e => {
-        const el = e.currentTarget as HTMLElement;
-        el.style.borderColor = 'var(--border)';
-        el.style.background = 'var(--surface-2)';
-        el.style.boxShadow = '';
-      }}
-    >
-      <div className="stat-mono leading-none mb-1.5" style={{ color }}>{value}</div>
-      <div className="text-[11px] font-semibold" style={{ color: 'var(--text)' }}>{label}</div>
-      <div className="text-[10px] mt-0.5" style={{ color: 'var(--text-3)' }}>{sub}</div>
-    </button>
+    </div>
   );
 }

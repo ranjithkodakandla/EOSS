@@ -113,7 +113,7 @@ let toastSeq = 0;
 export const useStore = create<EOSSState>((set, get) => ({
   // ── Initial State ──
   currentUser: DEMO_USERS[0], // owner by default
-  theme: 'dark',
+  theme: (typeof window !== 'undefined' && (localStorage.getItem('eoss-theme') as ThemeMode)) || 'dark',
   sidebarCollapsed: false,
   notifications: [...NOTIFICATIONS],
   unreadCount: NOTIFICATIONS.filter(n => !n.read).length,
@@ -150,8 +150,13 @@ export const useStore = create<EOSSState>((set, get) => ({
   setTheme: (theme) => {
     set({ theme });
     const root = document.documentElement;
-    if (theme === 'system') root.removeAttribute('data-theme');
-    else root.setAttribute('data-theme', theme);
+    if (theme === 'system') {
+      root.removeAttribute('data-theme');
+      try { localStorage.removeItem('eoss-theme'); } catch (_) {}
+    } else {
+      root.setAttribute('data-theme', theme);
+      try { localStorage.setItem('eoss-theme', theme); } catch (_) {}
+    }
   },
 
   toggleSidebar: () => set(s => ({ sidebarCollapsed: !s.sidebarCollapsed })),

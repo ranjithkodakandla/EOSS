@@ -423,3 +423,109 @@ body {
 .stage-node:first-child::before { display: none; }
 .stage-node.done::before { background: var(--success); }
 .stage-node.active::before { background: var(--brand); }
+
+/* ── World-Class Industrial Intelligence Utilities ── */
+.industrial-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.04), 0 2px 8px -2px rgba(0,0,0,0.35);
+  position: relative;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.industrial-panel:hover {
+  border-color: var(--border-2);
+}
+
+.industrial-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border);
+  border-radius: var(--radius) var(--radius) 0 0;
+}
+
+/* Cause -> Impact -> Action Causal Flow */
+.causal-chain {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 12px;
+  align-items: center;
+}
+@media (max-width: 768px) {
+  .causal-chain {
+    grid-template-columns: 1fr;
+  }
+}
+
+.causal-node {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  position: relative;
+}
+
+.dual-uom-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+.dual-uom-pill .sec {
+  color: var(--text-2);
+  opacity: 0.85;
+}
+
+.heat-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: rgba(6,182,212,0.1);
+  border: 1px solid rgba(6,182,212,0.25);
+  color: var(--cyan-bright);
+  letter-spacing: 0.02em;
+}
+
+.hazard-strip {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    rgba(239, 68, 68, 0.08),
+    rgba(239, 68, 68, 0.08) 8px,
+    transparent 8px,
+    transparent 16px
+  );
+}
+
+.hazard-border {
+  border-color: rgba(239, 68, 68, 0.4) !important;
+}
+
+.cyber-glow {
+  box-shadow: 0 0 15px -3px rgba(6, 182, 212, 0.25);
+}
+
+.stat-metric {
+  font-family: 'JetBrains Mono', monospace;
+  font-feature-settings: 'tnum' 1;
+  letter-spacing: -0.03em;
+}
+
+/* Smooth active state transitions */
+.btn-primary:active, .btn-ghost:active {
+  transform: translateY(1px);
+}
+

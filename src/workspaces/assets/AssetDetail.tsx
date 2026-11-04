@@ -136,7 +136,7 @@ export default function AssetDetail() {
   );
 }
 
-function Field({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+function Field({ label, value, mono }: { label: string; value?: string; mono?: boolean }) {
   return (
     <div>
       <dt className="text-xs text-[var(--text-3)]">{label}</dt>
