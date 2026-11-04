@@ -29,7 +29,7 @@ export default function FinancialKpis() {
       icon: <TrendingUp size={15} strokeWidth={2.5} />,
       iconBg: 'linear-gradient(135deg, #DCFCE7 0%, #BBF7D0 100%)',
       iconColor: '#16A34A',
-      iconGlow: 'rgba(22, 163, 74, 0.2)',
+      iconGlow: 'rgba(22, 163, 74, 0.25)',
       path: '/sales',
     },
     {
@@ -40,7 +40,7 @@ export default function FinancialKpis() {
       icon: <ShoppingCart size={15} strokeWidth={2.5} />,
       iconBg: 'linear-gradient(135deg, #F3E8FF 0%, #E9D5FF 100%)',
       iconColor: '#9333EA',
-      iconGlow: 'rgba(147, 51, 234, 0.2)',
+      iconGlow: 'rgba(147, 51, 234, 0.25)',
       path: '/procurement',
     },
     {
@@ -50,7 +50,7 @@ export default function FinancialKpis() {
       icon: <Box size={15} strokeWidth={2.5} />,
       iconBg: 'linear-gradient(135deg, #FFEDD5 0%, #FED7AA 100%)',
       iconColor: '#EA580C',
-      iconGlow: 'rgba(234, 88, 12, 0.2)',
+      iconGlow: 'rgba(234, 88, 12, 0.25)',
       path: '/inventory',
     },
     {
@@ -61,7 +61,7 @@ export default function FinancialKpis() {
       icon: <Users size={15} strokeWidth={2.5} />,
       iconBg: 'linear-gradient(135deg, #DBEAFE 0%, #BFDBFE 100%)',
       iconColor: '#2563EB',
-      iconGlow: 'rgba(37, 99, 235, 0.2)',
+      iconGlow: 'rgba(37, 99, 235, 0.25)',
       path: '/sales',
     },
     {
@@ -72,7 +72,7 @@ export default function FinancialKpis() {
       icon: <FileText size={15} strokeWidth={2.5} />,
       iconBg: 'linear-gradient(135deg, #FEE2E2 0%, #FECACA 100%)',
       iconColor: '#DC2626',
-      iconGlow: 'rgba(220, 38, 38, 0.2)',
+      iconGlow: 'rgba(220, 38, 38, 0.25)',
       path: '/procurement',
     },
     {
@@ -83,18 +83,18 @@ export default function FinancialKpis() {
       icon: <Coins size={15} strokeWidth={2.5} />,
       iconBg: 'linear-gradient(135deg, #FEF3C7 0%, #FDE68A 100%)',
       iconColor: '#D97706',
-      iconGlow: 'rgba(217, 119, 6, 0.2)',
+      iconGlow: 'rgba(217, 119, 6, 0.25)',
       path: '/reports',
     },
   ];
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-2.5">
+    <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-2">
       {kpis.map(kpi => (
         <button
           key={kpi.id}
           onClick={() => navigate(kpi.path)}
-          className="text-left p-3.5 rounded-2xl border transition-all duration-150 hover:-translate-y-0.5 group flex items-start gap-2.5 cursor-pointer"
+          className="text-left px-2.5 py-2 rounded-2xl border transition-all duration-150 hover:-translate-y-0.5 group flex items-start gap-2 cursor-pointer min-w-0"
           style={{
             background: 'var(--card-gradient, linear-gradient(180deg, #FFFFFF 0%, #FAF9FE 100%))',
             borderColor: 'var(--border, #E5E0F5)',
@@ -102,9 +102,9 @@ export default function FinancialKpis() {
           }}
           title={`Click to open ${kpi.label} records`}
         >
-          {/* Left Icon with Glossy Pill */}
+          {/* Left Icon with Glossy Squircle Pill */}
           <div
-            className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform mt-0.5"
+            className="w-7 h-7 rounded-xl flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform mt-0.5"
             style={{
               background: kpi.iconBg,
               color: kpi.iconColor,
@@ -114,17 +114,17 @@ export default function FinancialKpis() {
             {kpi.icon}
           </div>
 
-          {/* Right Text Block */}
+          {/* Right Text Block with Perfect Proportions */}
           <div className="flex-1 min-w-0">
-            <div className="text-[11px] font-semibold text-gray-500 tracking-normal leading-tight">
+            <div className="text-[10.5px] font-semibold text-gray-500 tracking-tight leading-tight whitespace-nowrap">
               {kpi.label}
             </div>
 
-            <div className="text-[17px] font-extrabold text-gray-900 tracking-tight whitespace-nowrap mt-0.5">
+            <div className="text-[15px] xl:text-[16px] font-extrabold text-gray-900 tracking-tight whitespace-nowrap mt-0.5 leading-tight">
               {kpi.value}
             </div>
 
-            <div className="mt-0.5 text-[10px] leading-tight">
+            <div className="mt-0.5 text-[9.5px] leading-tight">
               {kpi.trend ? (
                 <span className="font-bold text-emerald-600 whitespace-nowrap">
                   {kpi.trend}

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Target, CheckCircle2, Circle, ChevronRight } from 'lucide-react';
+import { Target, ChevronRight } from 'lucide-react';
 import { useStore } from '../../store';
 
 interface PriorityItem {
@@ -62,13 +62,10 @@ export default function YourPrioritiesCard() {
         boxShadow: '0 4px 20px -2px rgba(24, 27, 65, 0.06), 0 2px 6px -1px rgba(24, 27, 65, 0.04), inset 0 1px 1px #FFFFFF',
       }}
     >
-      {/* Header */}
+      {/* Header — Distinct Red Bullseye Target directly beside text (No Box) strictly matching reference */}
       <div className="flex items-center gap-2 mb-3.5">
-        <div
-          className="w-7 h-7 rounded-lg flex items-center justify-center shadow-2xs"
-          style={{ background: 'var(--brand-soft, #EEE9FF)', color: 'var(--brand-primary, #7048F5)' }}
-        >
-          <Target size={16} />
+        <div className="text-red-500 flex items-center justify-center">
+          <Target size={19} strokeWidth={2.5} />
         </div>
         <h3 className="text-base font-bold text-[var(--text-primary, #1A1F36)] tracking-tight">
           Your Priorities (3)

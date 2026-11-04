@@ -38,7 +38,7 @@ export default function CopilotPanel({ isDrawer, onClose }: Props) {
     }
   }, [messages, isTyping]);
 
-  // Exact theme styling strictly mapped to reference pack PNGs:
+  // Exact theme styling and official extracted 3D robot assets mapped to reference pack PNGs:
   // Theme A: Aurora Indigo (#7048F5 / #4A1FB8)
   // Theme B: Ocean Teal (#087F8C / #0A5D6B)
   // Theme C: Graphite Amber (#2A2A32 / #E58A36 / #F59E0B)
@@ -62,8 +62,11 @@ export default function CopilotPanel({ isDrawer, onClose }: Props) {
       ? '0 16px 40px -8px rgba(8, 127, 140, 0.45), inset 0 1px 1px rgba(255, 255, 255, 0.30)'
       : '0 16px 40px -8px rgba(112, 72, 245, 0.45), inset 0 1px 1px rgba(255, 255, 255, 0.35)',
     sparkleColor: isGraphite ? '#F59E0B' : isOcean ? '#22D3EE' : '#FCD34D',
-    robotEyeColor: isGraphite ? '#F59E0B' : isOcean ? '#22D3EE' : '#22D3EE',
-    robotAntennaColor: isGraphite ? '#F59E0B' : isOcean ? '#06B6D4' : '#38BDF8',
+    robotImg: isGraphite
+      ? '/assets/copilot/robot_graphite.png'
+      : isOcean
+      ? '/assets/copilot/robot_ocean.png'
+      : '/assets/copilot/robot_aurora.png',
     sendBtnBg: isGraphite
       ? 'linear-gradient(135deg, #E58A36, #F59E0B)'
       : isOcean
@@ -84,28 +87,28 @@ export default function CopilotPanel({ isDrawer, onClose }: Props) {
   const suggestions = [
     {
       id: 'plan-prod',
-      icon: <Zap size={16} style={{ color: themeConfig.iconColorZap }} />,
+      icon: <Zap size={17} style={{ color: themeConfig.iconColorZap }} strokeWidth={2.5} />,
       text: 'Plan production for pending orders',
       response: `Analyzing 4 in-progress orders. SO-1245 (60%) is approaching CNC Lathe NL-2500 turn, while SO-1246 (35%) is waiting on SS 304 round bar inspection. Recommended action: Allocate Machine NL-2500 to SO-1245 finishing passes.`,
       action: { label: 'Open Job J-101', path: '/jobs/J-101' },
     },
     {
       id: 'suggest-po',
-      icon: <Package size={16} style={{ color: themeConfig.iconColorBox }} />,
+      icon: <Package size={17} style={{ color: themeConfig.iconColorBox }} strokeWidth={2.5} />,
       text: 'Suggest material purchase',
       response: `Current stock of SS 304 Rod 25mm is 45 kg (below reorder threshold of 100 kg). Projected stockout in 5 days based on SO-1245 & SO-1246 consumption. Recommended PO: 250 kg from Stainless Source India.`,
       action: { label: 'Create Supplier PO', path: '/procurement' },
     },
     {
       id: 'check-status',
-      icon: <BarChart3 size={16} style={{ color: themeConfig.iconColorChart }} />,
+      icon: <BarChart3 size={17} style={{ color: themeConfig.iconColorChart }} strokeWidth={2.5} />,
       text: 'Check order status',
       response: `Overall shop floor status: 12 open sales orders, 4 jobs active in production, 2 batches in quarantine awaiting QC release, and 6 dispatches staged and ready for pickup.`,
       action: { label: 'View All Jobs', path: '/jobs' },
     },
     {
       id: 'stock-risk',
-      icon: <AlertTriangle size={16} style={{ color: themeConfig.iconColorWarn }} />,
+      icon: <AlertTriangle size={17} style={{ color: themeConfig.iconColorWarn }} strokeWidth={2.5} />,
       text: 'Show stock at risk',
       response: `2 items at risk: 1) SS 304 Rod 25mm (depleting in 5 days), 2) EN8 Round Bar 50mm (reserved for Job J-103, no buffer stock). Suggested reorder initiated for approval.`,
       action: { label: 'View Inventory Alerts', path: '/inventory' },
@@ -193,10 +196,10 @@ export default function CopilotPanel({ isDrawer, onClose }: Props) {
       </div>
 
       {/* Content Area */}
-      <div className="flex-1 overflow-y-auto p-4 md:p-5 space-y-3 scrollbar-none flex flex-col justify-between">
-        {/* Mascot & Speech Bubble Greeting */}
+      <div className="flex-1 overflow-y-auto p-4 md:p-5 space-y-3.5 scrollbar-none flex flex-col justify-between">
+        {/* 3D Mascot & Speech Bubble Greeting strictly matching reference pack */}
         {messages.length === 0 && (
-          <div className="flex items-center justify-between gap-3 pt-0.5">
+          <div className="flex items-center justify-between gap-3 pt-1">
             {/* Speech Bubble with Glossy Sheen */}
             <div
               className="relative p-3.5 rounded-2xl flex-1 text-xs md:text-sm font-bold leading-relaxed"
@@ -208,75 +211,31 @@ export default function CopilotPanel({ isDrawer, onClose }: Props) {
               }}
             >
               <span>How can I help your business today?</span>
-              {/* Bubble Tail */}
+              {/* Bubble Tail pointing to robot */}
               <div
                 className="absolute top-1/2 -right-2 transform -translate-y-1/2 w-0 h-0 border-t-6 border-t-transparent border-b-6 border-b-transparent border-l-8 border-l-white"
               />
             </div>
 
-            {/* Stylized Friendly Floating Robot Mascot with Theme-Matched Glowing Eyes */}
+            {/* Authentic 3D Rendered Mascot from Reference Pack */}
             <div className="w-20 h-20 flex-shrink-0 relative flex items-center justify-center">
-              <svg width="68" height="68" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" className="relative drop-shadow-xl">
-                {/* Antenna */}
-                <path d="M50 20 L50 9" stroke="#FFFFFF" strokeWidth="4" strokeLinecap="round" />
-                <circle cx="50" cy="8" r="5" fill={themeConfig.robotAntennaColor} />
-
-                {/* Head / Body with Glass Highlight */}
-                <rect x="20" y="20" width="60" height="52" rx="24" fill="#FFFFFF" />
-                <path d="M24 35 C24 25, 76 25, 76 35" stroke="rgba(255,255,255,0.8)" strokeWidth="2" strokeLinecap="round" />
-
-                {/* Screen Visor */}
-                <rect x="28" y="30" width="44" height="26" rx="13" fill="#0F172A" />
-
-                {/* Smiling Eyes Matching Theme Accent */}
-                <ellipse cx="40" cy="42" rx="4" ry="5" fill={themeConfig.robotEyeColor} />
-                <ellipse cx="60" cy="42" rx="4" ry="5" fill={themeConfig.robotEyeColor} />
-                <path d="M44 47 Q50 51 56 47" stroke={themeConfig.robotEyeColor} strokeWidth="2.5" strokeLinecap="round" fill="none" />
-
-                {/* Cheeks */}
-                <circle cx="34" cy="45" r="2" fill="#F472B6" opacity="0.6" />
-                <circle cx="66" cy="45" r="2" fill="#F472B6" opacity="0.6" />
-
-                {/* Floating Hands */}
-                <circle cx="14" cy="52" r="6" fill="#FFFFFF" />
-                <circle cx="86" cy="52" r="6" fill="#FFFFFF" />
-              </svg>
+              <img
+                src={themeConfig.robotImg}
+                alt="EOSS Copilot Mascot"
+                className="w-[74px] h-auto object-contain drop-shadow-xl select-none pointer-events-none"
+              />
             </div>
           </div>
         )}
 
-        {/* Proactive Insight Card with Glossy Glass Border */}
+        {/* Suggested Quick Prompt Pill Buttons strictly matching reference design (rounded-full, no gray box around icon) */}
         {messages.length === 0 && (
-          <div
-            onClick={() => navigate('/inventory')}
-            className="p-3 rounded-xl transition-all cursor-pointer flex items-center justify-between text-xs group"
-            style={{
-              background: 'rgba(255, 255, 255, 0.16)',
-              backdropFilter: 'blur(12px)',
-              border: '1px solid rgba(255, 255, 255, 0.25)',
-              boxShadow: 'inset 0 1px 1px rgba(255, 255, 255, 0.25)',
-            }}
-          >
-            <div className="flex items-center gap-2.5">
-              <div className="w-6 h-6 rounded-lg bg-amber-400 text-amber-950 flex items-center justify-center font-bold flex-shrink-0 text-xs shadow-2xs">
-                !
-              </div>
-              <span className="text-white font-medium">
-                2 items are likely to go out of stock in 5 days.
-              </span>
-            </div>
-            <ChevronRight size={14} className="text-white/80 group-hover:translate-x-0.5 group-hover:text-white transition-all flex-shrink-0" />
-          </div>
-        )}
-
-        {/* Suggested Quick Prompt Chips with Glossy Sheen */}
-        {messages.length === 0 && (
-          <div className="space-y-2 pt-0.5">
+          <div className="space-y-2.5 pt-1">
             {suggestions.map(s => (
               <button
                 key={s.id}
                 onClick={() => handleSend(s.text)}
-                className="w-full flex items-center justify-between p-3 rounded-xl transition-all text-left text-xs md:text-[13px] font-semibold group cursor-pointer hover:-translate-y-0.5"
+                className="w-full flex items-center justify-between px-4 py-2.5 rounded-full transition-all text-left text-xs md:text-[13px] font-semibold group cursor-pointer hover:-translate-y-0.5"
                 style={{
                   background: 'linear-gradient(180deg, #FFFFFF 0%, #F9FAFB 100%)',
                   boxShadow: '0 4px 14px -2px rgba(0, 0, 0, 0.08), inset 0 1px 1px #FFFFFF',
@@ -284,8 +243,8 @@ export default function CopilotPanel({ isDrawer, onClose }: Props) {
                   color: '#1A1F36',
                 }}
               >
-                <div className="flex items-center gap-2.5 truncate pr-2">
-                  <div className="w-7 h-7 rounded-lg bg-gray-50 flex items-center justify-center flex-shrink-0 shadow-2xs">
+                <div className="flex items-center gap-3 truncate pr-2">
+                  <div className="flex items-center justify-center flex-shrink-0">
                     {s.icon}
                   </div>
                   <span className="truncate font-bold" style={{ color: '#1A1F36' }}>

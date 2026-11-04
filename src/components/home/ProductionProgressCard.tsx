@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { BarChart2, ArrowRight } from 'lucide-react';
+import { BarChart3, ArrowRight } from 'lucide-react';
 
 interface OrderProgress {
   orderId: string;
@@ -13,9 +13,9 @@ export default function ProductionProgressCard() {
   const navigate = useNavigate();
 
   const orders: OrderProgress[] = [
-    { orderId: 'SO-1245', jobId: 'J-101', progress: 60, barColor: '#16A34A' }, // green
-    { orderId: 'SO-1246', jobId: 'J-102', progress: 35, barColor: '#A855F7' }, // purple
-    { orderId: 'SO-1247', jobId: 'J-103', progress: 90, barColor: '#16A34A' }, // green
+    { orderId: 'SO-1245', jobId: 'J-101', progress: 60, barColor: 'linear-gradient(90deg, #22C55E 0%, #16A34A 100%)' },
+    { orderId: 'SO-1246', jobId: 'J-102', progress: 35, barColor: 'linear-gradient(90deg, #A855F7 0%, #9333EA 100%)' },
+    { orderId: 'SO-1247', jobId: 'J-103', progress: 90, barColor: 'linear-gradient(90deg, #22C55E 0%, #16A34A 100%)' },
   ];
 
   return (
@@ -27,14 +27,11 @@ export default function ProductionProgressCard() {
         boxShadow: '0 4px 20px -2px rgba(24, 27, 65, 0.06), 0 2px 6px -1px rgba(24, 27, 65, 0.04), inset 0 1px 1px #FFFFFF',
       }}
     >
-      {/* Header */}
+      {/* Header — Orange Bar Chart Icon directly beside text (No Box) strictly matching reference */}
       <div className="flex items-center justify-between mb-3.5">
         <div className="flex items-center gap-2">
-          <div
-            className="w-7 h-7 rounded-lg flex items-center justify-center shadow-2xs"
-            style={{ background: 'var(--brand-soft, #EEE9FF)', color: 'var(--brand-primary, #7048F5)' }}
-          >
-            <BarChart2 size={16} />
+          <div className="text-orange-500 flex items-center justify-center">
+            <BarChart3 size={19} strokeWidth={2.5} />
           </div>
           <h3 className="text-base font-bold text-[var(--text-primary, #1A1F36)] tracking-tight">
             Production Progress
@@ -43,7 +40,7 @@ export default function ProductionProgressCard() {
 
         <button
           onClick={() => navigate('/jobs')}
-          className="text-xs font-bold text-[var(--brand-primary, #7048F5)] hover:underline flex items-center gap-1 group cursor-pointer"
+          className="text-xs font-bold text-[#2563EB] hover:underline flex items-center gap-1 group cursor-pointer"
         >
           <span>View All</span>
           <ArrowRight size={13} className="group-hover:translate-x-0.5 transition-transform" />
@@ -59,12 +56,12 @@ export default function ProductionProgressCard() {
             className="flex items-center gap-3 p-1 rounded-lg hover:bg-white/80 hover:shadow-2xs cursor-pointer group transition-all"
             title={`View Job for ${order.orderId}`}
           >
-            <span className="font-mono text-xs md:text-sm font-bold text-gray-800 w-16 flex-shrink-0 group-hover:text-[var(--brand-primary)]">
+            <span className="text-xs sm:text-[13px] font-bold text-gray-800 w-16 flex-shrink-0 group-hover:text-[var(--brand-primary)]">
               {order.orderId}
             </span>
 
-            {/* Progress Track with Inner Shadow */}
-            <div className="flex-1 h-2.5 rounded-full bg-gray-100 overflow-hidden shadow-inner">
+            {/* Smooth Rounded Progress Track */}
+            <div className="flex-1 h-2.5 rounded-full bg-slate-100 overflow-hidden shadow-inner">
               <div
                 className="h-full rounded-full transition-all duration-500 shadow-2xs"
                 style={{
@@ -74,7 +71,7 @@ export default function ProductionProgressCard() {
               />
             </div>
 
-            <span className="font-mono text-xs md:text-sm font-bold text-gray-800 w-9 text-right flex-shrink-0">
+            <span className="text-xs sm:text-[13px] font-bold text-gray-800 w-9 text-right flex-shrink-0">
               {order.progress}%
             </span>
           </div>

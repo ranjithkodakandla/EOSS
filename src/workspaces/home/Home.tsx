@@ -48,7 +48,7 @@ export default function Home() {
         </div>
 
         {/* Right Column: EOSS Copilot (Desktop Persistent) */}
-        <div className="hidden xl:flex flex-col h-full min-h-[580px]">
+        <div className="hidden xl:flex flex-col h-full min-h-[480px]">
           <CopilotPanel />
         </div>
       </div>
