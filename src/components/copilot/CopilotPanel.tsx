@@ -168,17 +168,16 @@ export default function CopilotPanel({ isDrawer, onClose }: Props) {
         boxShadow: themeConfig.panelShadow,
       }}
     >
-      {/* Robot mascot — absolutely pinned to top-right of panel */}
+      {/* Robot mascot — absolutely pinned to top-right of panel, no shadow to avoid rectangular bg artefact */}
       {messages.length === 0 && (
         <div
           className="absolute z-10 pointer-events-none select-none"
-          style={{ top: 2, right: 6, width: 120 }}
+          style={{ top: 0, right: 4, width: 118 }}
         >
           <img
             src={themeConfig.robotImg}
             alt="EOSS Copilot Mascot"
             className="w-full h-auto object-contain"
-            style={{ filter: 'drop-shadow(0 6px 18px rgba(0,0,0,0.4))' }}
           />
         </div>
       )}
@@ -211,26 +210,26 @@ export default function CopilotPanel({ isDrawer, onClose }: Props) {
       </div>
 
       {/* Content Area */}
-      <div className="flex-1 overflow-y-auto p-4 md:p-5 space-y-3.5 scrollbar-none flex flex-col justify-between">
-        {/* Speech Bubble Greeting */}
+      <div className="flex-1 overflow-y-auto p-4 md:p-5 scrollbar-none flex flex-col gap-3">
+        {/* Greeting + buttons grouped — no justify-between so there's no large gap */}
         {messages.length === 0 && (
-          <div
-            className="p-3.5 rounded-2xl text-xs md:text-sm font-bold leading-relaxed"
-            style={{
-              background: 'linear-gradient(180deg, #FFFFFF 0%, #F8FAFC 100%)',
-              color: '#1A1F36',
-              boxShadow: '0 8px 24px -4px rgba(0, 0, 0, 0.15), inset 0 1px 1px #FFFFFF',
-              border: '1px solid rgba(255, 255, 255, 0.9)',
-              maxWidth: '65%',
-            }}
-          >
-            How can I help your business today?
-          </div>
-        )}
+          <div className="flex flex-col gap-3">
+            {/* Speech Bubble */}
+            <div
+              className="p-3.5 rounded-2xl text-xs md:text-sm font-bold leading-relaxed"
+              style={{
+                background: 'linear-gradient(180deg, #FFFFFF 0%, #F8FAFC 100%)',
+                color: '#1A1F36',
+                boxShadow: '0 8px 24px -4px rgba(0, 0, 0, 0.15), inset 0 1px 1px #FFFFFF',
+                border: '1px solid rgba(255, 255, 255, 0.9)',
+                maxWidth: '65%',
+              }}
+            >
+              How can I help your business today?
+            </div>
 
-        {/* Suggested Quick Prompt Pill Buttons strictly matching reference design (rounded-full, no gray box around icon) */}
-        {messages.length === 0 && (
-          <div className="space-y-2.5 pt-1">
+            {/* Suggestion pills */}
+            <div className="space-y-2.5">
             {suggestions.map(s => (
               <button
                 key={s.id}
@@ -259,6 +258,7 @@ export default function CopilotPanel({ isDrawer, onClose }: Props) {
               </button>
             ))}
           </div>
+        </div>
         )}
 
         {/* Conversation Transcript */}
