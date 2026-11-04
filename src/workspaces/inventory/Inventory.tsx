@@ -1,460 +1,296 @@
 import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import {
-  Search, ArrowRightLeft, Package, ChevronDown, ChevronUp,
-  FileCheck, ArrowRight, ShieldAlert, X
-} from 'lucide-react';
+import { Search, ArrowRightLeft, ArrowUpDown, ArrowUp, ArrowDown, ShieldAlert } from 'lucide-react';
 import { useStore } from '../../store';
-import { MATERIALS } from '../../data/seed';
+import { STORE_LOCATIONS } from '../../data/seed';
 import StatusChip from '../../components/layout/StatusChip';
 import clsx from 'clsx';
 
+type SortKey = 'materialCode' | 'materialName' | 'locationName' | 'onHandQty' | 'reservedQty' | 'qcHoldQty' | 'inTransitQty' | 'availableQty' | 'reorderPoint';
+type SortDir = 'asc' | 'desc';
+
 export default function Inventory() {
-  const { inventory, lots, currentUser, transferLot, showToast } = useStore();
+  const { inventory, currentUser } = useStore();
   const navigate = useNavigate();
 
   const [search, setSearch] = useState('');
   const [selectedLocation, setSelectedLocation] = useState('all');
-  const [viewMode, setViewMode] = useState<'list' | 'table' | 'lots'>('list');
-  const [expandedMaterial, setExpandedMaterial] = useState<string | null>(null);
+  const [sortKey, setSortKey] = useState<SortKey>('materialCode');
+  const [sortDir, setSortDir] = useState<SortDir>('asc');
 
-  // Transfer Modal State
-  const [transferModalOpen, setTransferModalOpen] = useState(false);
-  const [transferLotId, setTransferLotId] = useState<string>(lots[0]?.id || '');
-  const [targetLocation, setTargetLocation] = useState('WIP Store');
+  const shortageCount = inventory.filter(i => i.shortage).length;
+  const shortageValue = inventory.filter(i => i.shortage).length;
 
-  // Multi-UOM Safe Aggregations (Never aggregate incompatible units)
-  const structuralTotalKg = inventory.filter(i => i.materialCode.startsWith('MS-')).reduce((sum, i) => sum + i.onHandQty, 0);
-  const stainlessTotalKg  = inventory.filter(i => i.materialCode.startsWith('SS-')).reduce((sum, i) => sum + i.onHandQty, 0);
-  const hardwareTotalPcs  = inventory.filter(i => i.primaryUom === 'pcs').reduce((sum, i) => sum + i.onHandQty, 0);
-  const shortageCount     = inventory.filter(i => i.shortage).length;
-  const qcHoldCount       = inventory.filter(i => i.qcHoldQty > 0).length;
-
-  // Filtered Inventory
-  const filteredItems = useMemo(() => {
-    return inventory.filter(item => {
-      const matchSearch = !search ||
-        item.materialName.toLowerCase().includes(search.toLowerCase()) ||
-        item.materialCode.toLowerCase().includes(search.toLowerCase());
-      const matchLocation = selectedLocation === 'all' || item.locationName === selectedLocation;
-      return matchSearch && matchLocation;
-    });
-  }, [inventory, search, selectedLocation]);
-
-  const handleOpenTransferForMaterial = (itemCode: string) => {
-    const matchingLot = lots.find(l =>
-      l.materialItemId === itemCode ||
-      l.materialName.toLowerCase().includes(itemCode.toLowerCase().split('-')[0])
-    ) || lots[0];
-
-    if (matchingLot) setTransferLotId(matchingLot.id);
-    setTransferModalOpen(true);
+  const handleSort = (key: SortKey) => {
+    if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setSortKey(key); setSortDir('asc'); }
   };
 
-  const handleExecuteTransfer = () => {
-    const lotToTransfer = lots.find(l => l.id === transferLotId);
-    if (!lotToTransfer) return;
-    transferLot(transferLotId, targetLocation, currentUser.name);
-    setTransferModalOpen(false);
-    showToast({
-      type: 'success',
-      title: 'Stock Transferred',
-      body: `Lot ${lotToTransfer.lotNumber} (${lotToTransfer.primaryQty} ${lotToTransfer.primaryUom}) moved to ${targetLocation}.`,
-    });
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase();
+    return inventory
+      .filter(i => {
+        const matchLoc = selectedLocation === 'all' || i.locationName === selectedLocation;
+        const matchSearch = !q || i.materialCode.toLowerCase().includes(q) || i.materialName.toLowerCase().includes(q) || i.categoryName.toLowerCase().includes(q) || i.locationName.toLowerCase().includes(q);
+        return matchLoc && matchSearch;
+      })
+      .sort((a, b) => {
+        let av: string | number = a[sortKey] ?? '';
+        let bv: string | number = b[sortKey] ?? '';
+        if (typeof av === 'string') av = av.toLowerCase();
+        if (typeof bv === 'string') bv = bv.toLowerCase();
+        const cmp = av < bv ? -1 : av > bv ? 1 : 0;
+        return sortDir === 'asc' ? cmp : -cmp;
+      });
+  }, [inventory, search, selectedLocation, sortKey, sortDir]);
+
+  const SortIcon = ({ k }: { k: SortKey }) => {
+    if (sortKey !== k) return <ArrowUpDown size={12} className="opacity-40" />;
+    return sortDir === 'asc' ? <ArrowUp size={12} /> : <ArrowDown size={12} />;
   };
 
   return (
-    <div className="p-4 md:p-8 max-w-6xl mx-auto space-y-6">
-
-      {/* ── 1. Clean Header with Immediate Actions ── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-[var(--text)]">
-            Inventory & Material Stocks
-          </h1>
-          <p className="text-sm text-[var(--text-2)] mt-1">
-            Real-time stock availability, allocation buffers, and metallurgical certificates.
-          </p>
+    <div className="flex flex-col h-full">
+      {/* Toolbar */}
+      <div
+        className="flex-shrink-0 flex items-center gap-3 px-5 py-3 border-b flex-wrap"
+        style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
+      >
+        {/* Search */}
+        <div className="relative flex-1 min-w-[200px] max-w-xs">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-3)' }} />
+          <input
+            type="text"
+            placeholder="Search material, code, location…"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="w-full pl-8 pr-3 py-1.5 text-sm rounded-lg border outline-none"
+            style={{ borderColor: 'var(--border)', background: 'var(--surface)', color: 'var(--text)' }}
+          />
         </div>
 
-        <div className="flex items-center gap-2">
+        {/* Location filter chips */}
+        <div className="flex items-center gap-1.5 flex-wrap">
           <button
-            onClick={() => navigate('/inventory/cycle')}
-            className="btn-ghost text-xs py-2 px-3.5 flex items-center gap-1.5"
+            onClick={() => setSelectedLocation('all')}
+            className="px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors"
+            style={{
+              background: selectedLocation === 'all' ? 'var(--brand)' : 'var(--surface)',
+              color: selectedLocation === 'all' ? '#fff' : 'var(--text-2)',
+              borderColor: selectedLocation === 'all' ? 'var(--brand)' : 'var(--border)',
+            }}
           >
-            Cycle Count
+            All Stores
           </button>
-          <button
-            onClick={() => navigate('/inventory/remnants')}
-            className="btn-ghost text-xs py-2 px-3.5 flex items-center gap-1.5"
-          >
-            Remnants
-          </button>
-          <button
-            onClick={() => navigate('/inventory/transfer')}
-            className="btn-ghost text-xs py-2 px-3.5 flex items-center gap-1.5"
-          >
-            <ArrowRightLeft size={13} />
-            Transfer Stock
-          </button>
-          <button
-            onClick={() => navigate('/procurement')}
-            className="btn-primary text-xs py-2 px-3.5 flex items-center gap-1.5"
-          >
-            <Package size={13} />
-            Log GRN Receipt
-          </button>
-        </div>
-      </div>
-
-      {/* ── 2. Glance: Multi-UOM Safe Telemetry Strip (Calm & Scannable) ── */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-        <div className="p-3.5 rounded-xl bg-[var(--surface)] border border-[var(--border)]">
-          <div className="text-xs text-[var(--text-3)] font-medium">MS Heavy Steel</div>
-          <div className="text-xl font-bold font-mono text-[var(--text)] mt-1">
-            {structuralTotalKg.toLocaleString('en-IN')} <span className="text-xs font-normal text-[var(--text-3)]">kg</span>
-          </div>
-        </div>
-
-        <div className="p-3.5 rounded-xl bg-[var(--surface)] border border-[var(--border)]">
-          <div className="text-xs text-[var(--text-3)] font-medium">Stainless 304L</div>
-          <div className="text-xl font-bold font-mono text-[var(--text)] mt-1">
-            {stainlessTotalKg} <span className="text-xs font-normal text-[var(--text-3)]">kg</span>
-          </div>
-        </div>
-
-        <div className="p-3.5 rounded-xl bg-[var(--surface)] border border-[var(--border)]">
-          <div className="text-xs text-[var(--text-3)] font-medium">Fasteners & Rods</div>
-          <div className="text-xl font-bold font-mono text-[var(--text)] mt-1">
-            {hardwareTotalPcs.toLocaleString('en-IN')} <span className="text-xs font-normal text-[var(--text-3)]">pcs</span>
-          </div>
-        </div>
-
-        <div className="p-3.5 rounded-xl bg-[var(--surface)] border border-[var(--error-border)]/60">
-          <div className="text-xs text-[var(--error)] font-medium">Shortage Risks</div>
-          <div className="text-xl font-bold font-mono text-[var(--error)] mt-1">
-            {shortageCount} <span className="text-xs font-normal">items</span>
-          </div>
-        </div>
-
-        <div className="p-3.5 rounded-xl bg-[var(--surface)] border border-[var(--hold-border)]/60">
-          <div className="text-xs text-[var(--hold)] font-medium">QC Quarantine</div>
-          <div className="text-xl font-bold font-mono text-[var(--hold)] mt-1">
-            {qcHoldCount} <span className="text-xs font-normal">lots</span>
-          </div>
-        </div>
-      </div>
-
-      {/* ── 3. Simple Filters & Search ── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">
-        <div className="flex items-center gap-1 overflow-x-auto pb-1 sm:pb-0">
-          {[
-            { id: 'all', label: 'All Stores' },
-            { id: 'Raw Material Store', label: 'Raw Materials' },
-            { id: 'Quarantine Store', label: 'Quarantine Bay' },
-            { id: 'WIP Store', label: 'WIP Shop Floor' },
-            { id: 'Spare Parts Store', label: 'Spares' },
-          ].map(loc => (
+          {STORE_LOCATIONS.map(loc => (
             <button
               key={loc.id}
-              onClick={() => setSelectedLocation(loc.id)}
-              className={clsx(
-                'px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors',
-                selectedLocation === loc.id
-                  ? 'bg-[var(--surface-3)] text-[var(--text)] font-semibold'
-                  : 'text-[var(--text-3)] hover:text-[var(--text)]'
-              )}
+              onClick={() => setSelectedLocation(loc.name)}
+              className="px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors whitespace-nowrap"
+              style={{
+                background: selectedLocation === loc.name ? 'var(--brand)' : 'var(--surface)',
+                color: selectedLocation === loc.name ? '#fff' : 'var(--text-2)',
+                borderColor: selectedLocation === loc.name ? 'var(--brand)' : 'var(--border)',
+              }}
             >
-              {loc.label}
+              {loc.code}
             </button>
           ))}
         </div>
 
-        <div className="flex items-center gap-2">
-          <div className="relative w-full sm:w-64">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-3)]" />
-            <input
-              type="text"
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder="Search material or code..."
-              className="w-full pl-9 pr-3 py-1.5 bg-[var(--surface)] border border-[var(--border)] rounded-lg text-xs text-[var(--text)] placeholder-[var(--text-3)] focus:outline-none focus:border-[var(--cyan-border)]"
-            />
-          </div>
+        <div className="flex-1" />
 
-          <div className="flex items-center rounded-lg bg-[var(--surface)] p-0.5 border border-[var(--border)]">
-            <button
-              onClick={() => setViewMode('list')}
-              className={clsx('px-2.5 py-1 rounded text-xs font-medium', viewMode === 'list' ? 'bg-[var(--surface-2)] text-[var(--text)] font-bold' : 'text-[var(--text-3)]')}
-            >
-              Cards
-            </button>
-            <button
-              onClick={() => setViewMode('table')}
-              className={clsx('px-2.5 py-1 rounded text-xs font-medium', viewMode === 'table' ? 'bg-[var(--surface-2)] text-[var(--text)] font-bold' : 'text-[var(--text-3)]')}
-            >
-              Table
-            </button>
+        {/* Summary badges */}
+        {shortageCount > 0 && (
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ background: 'var(--error-bg,#FEF2F2)', color: 'var(--error,#DC2626)' }}>
+            <ShieldAlert size={13} />
+            {shortageCount} shortage{shortageCount !== 1 ? 's' : ''}
           </div>
-        </div>
+        )}
+
+        {currentUser.role !== 'operator' && (
+          <button
+            onClick={() => navigate('/inventory/transfer')}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white"
+            style={{ background: 'var(--brand)' }}
+          >
+            <ArrowRightLeft size={13} /> Transfer
+          </button>
+        )}
       </div>
 
-      {/* ── 4. Clean Material List (Progressive Disclosure) ── */}
-      {viewMode === 'list' && (
-        <div className="space-y-3">
-          {filteredItems.map(item => {
-            const seedMaterial = MATERIALS.find(m => m.itemCode === item.materialCode);
-            const itemLots = lots.filter(l =>
-              l.materialItemId === item.materialItemId ||
-              l.materialName.toLowerCase().includes(item.materialName.toLowerCase().split(' ')[0])
-            );
-            const isExpanded = expandedMaterial === item.materialCode;
-            const isShortage = item.shortage;
-            const isQcHold = item.qcHoldQty > 0;
-
-            const totalStock = item.onHandQty + (item.inTransitQty || 0);
-            const availPct = totalStock > 0 ? (item.availableQty / totalStock) * 100 : 0;
-            const resPct   = totalStock > 0 ? (item.reservedQty / totalStock) * 100 : 0;
-
-            return (
-              <div
-                key={item.id}
-                className={clsx(
-                  'rounded-xl border bg-[var(--surface)] transition-all overflow-hidden',
-                  isShortage ? 'border-[var(--error-border)]/70' :
-                  isQcHold ? 'border-[var(--hold-border)]/70' :
-                  'border-[var(--border)] hover:border-[var(--border-strong)]'
-                )}
-              >
-                {/* Clean, readable top row */}
-                <div className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono text-xs font-bold text-[var(--cyan-bright)]">
-                        {item.materialCode}
-                      </span>
-                      <span className="text-xs text-[var(--text-3)]">·</span>
-                      <span className="text-xs text-[var(--text-2)]">{item.locationName}</span>
-                      {seedMaterial?.standardGrade && (
-                        <span className="text-[11px] font-mono px-1.5 py-0.2 rounded bg-[var(--surface-2)] text-[var(--text-3)]">
-                          {seedMaterial.standardGrade}
-                        </span>
-                      )}
-                    </div>
-                    <div className="text-base font-bold text-[var(--text)]">
-                      {item.materialName}
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-4 sm:gap-6 flex-wrap sm:flex-nowrap">
-                    {/* Available Stock */}
-                    <div className="text-left sm:text-right">
-                      <div className="text-xs text-[var(--text-3)] font-medium">Available</div>
-                      <div className="text-lg font-bold font-mono text-[var(--text)]">
-                        {item.availableQty.toLocaleString('en-IN')}{' '}
-                        <span className="text-xs font-normal text-[var(--text-3)]">{item.primaryUom}</span>
-                      </div>
-                      {item.secondaryUom && item.secondaryQty && (
-                        <div className="text-xs font-mono text-[var(--cyan-bright)]">
-                          {item.secondaryQty} {item.secondaryUom}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Status Pill */}
-                    <div>
-                      {isShortage ? (
-                        <span className="px-2.5 py-1 rounded-md text-xs font-bold bg-[var(--error-bg)] text-[var(--error)] border border-[var(--error-border)]">
-                          Shortage Risk
-                        </span>
-                      ) : isQcHold ? (
-                        <span className="px-2.5 py-1 rounded-md text-xs font-bold bg-[var(--hold-bg)] text-[var(--hold)] border border-[var(--hold-border)]">
-                          QC Hold
-                        </span>
-                      ) : (
-                        <span className="px-2.5 py-1 rounded-md text-xs font-bold bg-[var(--success-bg)] text-[var(--success)]">
-                          Available
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Actions */}
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => handleOpenTransferForMaterial(item.materialCode)}
-                        className="btn-ghost text-xs py-1.5 px-3"
-                      >
-                        Transfer
-                      </button>
-                      <button
-                        onClick={() => setExpandedMaterial(isExpanded ? null : item.materialCode)}
-                        className="btn-ghost text-xs py-1.5 px-3 inline-flex items-center gap-1 text-[var(--text-2)] hover:text-[var(--text)]"
-                      >
-                        <span>{isExpanded ? 'Hide' : 'Details'}</span>
-                        {isExpanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Sleek, simple stock allocation bar */}
-                <div className="px-4 sm:px-5 pb-3">
-                  <div className="w-full bg-[var(--surface-3)] h-1.5 rounded-full overflow-hidden flex">
-                    <div className="bg-emerald-500 h-full" style={{ width: `${availPct}%` }} />
-                    <div className="bg-amber-500 h-full" style={{ width: `${resPct}%` }} />
-                  </div>
-                  <div className="flex justify-between text-[11px] font-mono text-[var(--text-3)] mt-1.5">
-                    <span>Avail: {item.availableQty} {item.primaryUom} · Reserved: {item.reservedQty} {item.primaryUom}</span>
-                    <span>Reorder point: {item.reorderPoint} {item.primaryUom}</span>
-                  </div>
-                </div>
-
-                {/* Level 2 Investigate: Expanded lot details & certificates */}
-                {isExpanded && (
-                  <div className="border-t border-[var(--border)] bg-[var(--surface-2)] p-4 sm:p-5 space-y-3">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="font-bold text-[var(--text)]">Traceable Lots ({itemLots.length})</span>
-                      {seedMaterial?.conversionFactor && (
-                        <span className="font-mono text-[var(--cyan-bright)]">
-                          Formula: 1 {seedMaterial.secondaryUom} = {seedMaterial.conversionFactor} {seedMaterial.primaryUom}
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="grid sm:grid-cols-2 gap-3">
-                      {itemLots.map(lot => (
-                        <div key={lot.id} className="p-3 rounded-lg bg-[var(--surface)] border border-[var(--border)] text-xs space-y-1">
-                          <div className="flex justify-between items-center font-bold">
-                            <span className="font-mono text-[var(--text)]">{lot.lotNumber}</span>
-                            <span className="font-mono text-emerald-400">{lot.primaryQty} {lot.primaryUom}</span>
-                          </div>
-                          <div className="text-[var(--text-3)]">
-                            Supplier: {lot.supplierName} · Heat: {lot.heatNumber || '—'}
-                          </div>
-                          <div className="text-[var(--text-3)]">
-                            Bin: {lot.storeLocationName}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
+      {/* Store tiles summary row */}
+      <div
+        className="flex-shrink-0 flex items-center gap-2 px-5 py-2.5 overflow-x-auto scrollbar-none border-b"
+        style={{ borderColor: 'var(--border)', background: 'var(--surface-muted,#F8F9FC)' }}
+      >
+        {STORE_LOCATIONS.map(loc => {
+          const items = inventory.filter(i => i.locationName === loc.name);
+          const hasShortage = items.some(i => i.shortage);
+          const isSelected = selectedLocation === loc.name;
+          return (
+            <button
+              key={loc.id}
+              onClick={() => setSelectedLocation(isSelected ? 'all' : loc.name)}
+              className="flex-shrink-0 flex flex-col items-start px-3 py-2 rounded-xl border text-left transition-all hover:opacity-90"
+              style={{
+                minWidth: 110,
+                borderColor: isSelected ? 'var(--brand)' : 'var(--border)',
+                background: isSelected ? 'rgba(var(--brand-rgb,112,72,245),0.07)' : 'var(--surface)',
+                boxShadow: isSelected ? '0 0 0 1.5px var(--brand)' : undefined,
+              }}
+            >
+              <div className="flex items-center justify-between w-full gap-1">
+                <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: isSelected ? 'var(--brand)' : 'var(--text-3)' }}>
+                  {loc.code}
+                </span>
+                {hasShortage && <span className="w-1.5 h-1.5 rounded-full bg-red-500 flex-shrink-0" />}
               </div>
-            );
-          })}
-        </div>
-      )}
+              <span className="text-xs font-semibold mt-0.5 leading-tight" style={{ color: 'var(--text)' }}>
+                {items.length} items
+              </span>
+              <span className="text-[10px] mt-0.5 leading-tight truncate w-full" style={{ color: 'var(--text-3)', maxWidth: 100 }}>
+                {loc.name}
+              </span>
+            </button>
+          );
+        })}
+      </div>
 
-      {/* ── 5. Alternative Table View (Clean & Compact) ── */}
-      {viewMode === 'table' && (
-        <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] overflow-hidden">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-[var(--surface-2)] text-xs text-[var(--text-3)] font-mono border-b border-[var(--border)]">
-              <tr>
-                <th className="py-3 px-4">Code & Material</th>
-                <th className="py-3 px-4">Location</th>
-                <th className="py-3 px-4">Available</th>
-                <th className="py-3 px-4">Reserved</th>
-                <th className="py-3 px-4">Dual UOM</th>
-                <th className="py-3 px-4">Status</th>
-                <th className="py-3 px-4 text-right">Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[var(--border)]">
-              {filteredItems.map(i => (
-                <tr key={i.id} className="hover:bg-[var(--surface-2)] transition-colors">
-                  <td className="py-3 px-4">
-                    <div className="font-mono text-xs font-bold text-[var(--cyan-bright)]">{i.materialCode}</div>
-                    <div className="font-medium text-[var(--text)]">{i.materialName}</div>
-                  </td>
-                  <td className="py-3 px-4 text-xs text-[var(--text-2)]">{i.locationName}</td>
-                  <td className="py-3 px-4 font-mono font-bold text-emerald-400">{i.availableQty} {i.primaryUom}</td>
-                  <td className="py-3 px-4 font-mono text-amber-400">{i.reservedQty} {i.primaryUom}</td>
-                  <td className="py-3 px-4 font-mono text-xs text-[var(--text-3)]">
-                    {i.secondaryUom ? `${i.secondaryQty} ${i.secondaryUom}` : '—'}
-                  </td>
-                  <td className="py-3 px-4">
-                    {i.shortage ? (
-                      <span className="px-2 py-0.5 rounded text-xs font-bold bg-[var(--error-bg)] text-[var(--error)]">Shortage</span>
-                    ) : i.qcHoldQty > 0 ? (
-                      <span className="px-2 py-0.5 rounded text-xs font-bold bg-[var(--hold-bg)] text-[var(--hold)]">QC Hold</span>
-                    ) : (
-                      <span className="px-2 py-0.5 rounded text-xs font-bold bg-[var(--success-bg)] text-[var(--success)]">Nominal</span>
-                    )}
-                  </td>
-                  <td className="py-3 px-4 text-right">
-                    <button
-                      onClick={() => handleOpenTransferForMaterial(i.materialCode)}
-                      className="text-xs text-[var(--brand)] hover:underline font-medium"
-                    >
-                      Transfer
-                    </button>
-                  </td>
-                </tr>
+      {/* Table */}
+      <div className="flex-1 overflow-auto">
+        <table className="w-full text-sm border-separate border-spacing-0" style={{ minWidth: 900 }}>
+          <thead style={{ position: 'sticky', top: 0, zIndex: 10 }}>
+            <tr style={{ background: 'var(--surface-muted,#F8F9FC)', borderBottom: '2px solid var(--border)' }}>
+              {([
+                ['materialCode', 'Code'],
+                ['materialName', 'Material / Specification'],
+                ['locationName', 'Location'],
+                ['onHandQty', 'On Hand'],
+                ['reservedQty', 'Reserved'],
+                ['qcHoldQty', 'QC Hold'],
+                ['inTransitQty', 'In Transit'],
+                ['availableQty', 'Available'],
+                ['reorderPoint', 'Reorder Pt'],
+                [null, 'Status'],
+              ] as [SortKey | null, string][]).map(([key, label]) => (
+                <th
+                  key={label}
+                  onClick={key ? () => handleSort(key) : undefined}
+                  className={clsx('px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider', key ? 'cursor-pointer select-none hover:opacity-70' : '')}
+                  style={{ color: 'var(--text-3)', borderBottom: '1px solid var(--border)' }}
+                >
+                  <span className="flex items-center gap-1">
+                    {label}
+                    {key && <SortIcon k={key} />}
+                  </span>
+                </th>
               ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+              <th className="px-4 py-3" style={{ borderBottom: '1px solid var(--border)' }} />
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.length === 0 ? (
+              <tr>
+                <td colSpan={11} className="px-4 py-10 text-center text-sm" style={{ color: 'var(--text-3)' }}>
+                  No inventory items match your filter.
+                </td>
+              </tr>
+            ) : (
+              filtered.map((item, idx) => {
+                const isLow = item.shortage || item.availableQty <= item.reorderPoint * 0.5;
+                return (
+                  <tr
+                    key={item.id}
+                    className="cursor-pointer"
+                    style={{
+                      background: idx % 2 === 0 ? 'var(--surface)' : 'var(--surface-muted,#F8F9FC)',
+                      borderBottom: '1px solid var(--border)',
+                    }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(var(--brand-rgb,112,72,245),0.04)'; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = idx % 2 === 0 ? 'var(--surface)' : 'var(--surface-muted,#F8F9FC)'; }}
+                    onClick={() => navigate(`/inventory/lot/${item.id}`)}
+                  >
+                    <td className="px-4 py-3 font-mono text-xs font-bold whitespace-nowrap" style={{ color: 'var(--brand)' }}>
+                      {item.materialCode}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="text-sm font-medium" style={{ color: 'var(--text)' }}>{item.materialName}</div>
+                      <div className="text-xs mt-0.5" style={{ color: 'var(--text-3)' }}>{item.categoryName}</div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="text-xs px-2 py-0.5 rounded-md border" style={{ borderColor: 'var(--border)', color: 'var(--text-2)', background: 'var(--surface)' }}>
+                        {item.locationName}
+                      </span>
+                    </td>
+                    <QtyCell qty={item.onHandQty} uom={item.primaryUom} />
+                    <QtyCell qty={item.reservedQty} uom={item.primaryUom} dim />
+                    <QtyCell qty={item.qcHoldQty} uom={item.primaryUom} warn={item.qcHoldQty > 0} dim />
+                    <QtyCell qty={item.inTransitQty} uom={item.primaryUom} dim />
+                    <QtyCell qty={item.availableQty} uom={item.primaryUom} emphasis low={item.shortage} />
+                    <QtyCell qty={item.reorderPoint} uom={item.primaryUom} dim />
+                    <td className="px-4 py-3">
+                      {item.shortage ? (
+                        <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ background: 'var(--error-bg,#FEF2F2)', color: 'var(--error,#DC2626)' }}>Shortage</span>
+                      ) : isLow ? (
+                        <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ background: 'var(--warning-bg,#FFFBEB)', color: 'var(--warning,#D97706)' }}>Low</span>
+                      ) : (
+                        <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ background: 'var(--success-bg,#F0FDF4)', color: 'var(--success,#16A34A)' }}>OK</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <div className="flex items-center justify-end gap-1.5">
+                        {item.lotCount > 0 && (
+                          <span className="text-xs" style={{ color: 'var(--text-3)' }}>{item.lotCount} lot{item.lotCount !== 1 ? 's' : ''}</span>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
 
-      {/* ── 6. Streamlined Transfer Modal (2 Clicks) ── */}
-      {transferModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-xl p-5 space-y-4 bg-[var(--surface)] border border-[var(--border)]">
-            <div className="flex items-center justify-between border-b border-[var(--border)] pb-3">
-              <h3 className="text-sm font-bold text-[var(--text)]">Transfer Material Stock</h3>
-              <button onClick={() => setTransferModalOpen(false)} className="text-[var(--text-3)] hover:text-[var(--text)]">
-                <X size={16} />
-              </button>
-            </div>
-
-            <div className="space-y-3 text-xs">
-              <div>
-                <label className="block text-[11px] font-mono uppercase text-[var(--text-3)] mb-1">
-                  Material Lot to Move
-                </label>
-                <select
-                  value={transferLotId}
-                  onChange={e => setTransferLotId(e.target.value)}
-                  className="w-full p-2 rounded-lg bg-[var(--surface-2)] border border-[var(--border)] text-[var(--text)] font-mono text-xs"
-                >
-                  {lots.map(l => (
-                    <option key={l.id} value={l.id}>
-                      {l.lotNumber} · {l.materialName} ({l.primaryQty} {l.primaryUom} in {l.storeLocationName})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-mono uppercase text-[var(--text-3)] mb-1">
-                  Target Store
-                </label>
-                <select
-                  value={targetLocation}
-                  onChange={e => setTargetLocation(e.target.value)}
-                  className="w-full p-2 rounded-lg bg-[var(--surface-2)] border border-[var(--border)] text-[var(--text)]"
-                >
-                  <option value="Raw Material Store">Raw Material Store</option>
-                  <option value="Quarantine Store">Quarantine Store</option>
-                  <option value="WIP Store">WIP Shop Floor</option>
-                  <option value="Spare Parts Store">Spare Parts Store</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-[var(--border)]">
-              <button onClick={() => setTransferModalOpen(false)} className="btn-ghost text-xs py-1.5 px-3">
-                Cancel
-              </button>
-              <button onClick={handleExecuteTransfer} className="btn-primary text-xs py-1.5 px-4">
-                Confirm Move
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
+      {/* Footer summary */}
+      <div
+        className="flex-shrink-0 flex items-center gap-6 px-5 py-2 border-t text-xs"
+        style={{ borderColor: 'var(--border)', background: 'var(--surface)', color: 'var(--text-3)' }}
+      >
+        <span>{filtered.length} of {inventory.length} items</span>
+        <span>·</span>
+        <span>{STORE_LOCATIONS.length} store locations</span>
+        {shortageCount > 0 && (
+          <>
+            <span>·</span>
+            <span style={{ color: 'var(--error,#DC2626)', fontWeight: 600 }}>{shortageCount} shortage{shortageCount !== 1 ? 's' : ''}</span>
+          </>
+        )}
+      </div>
     </div>
+  );
+}
+
+function QtyCell({ qty, uom, emphasis, dim, low, warn }: {
+  qty: number;
+  uom: string;
+  emphasis?: boolean;
+  dim?: boolean;
+  low?: boolean;
+  warn?: boolean;
+}) {
+  const color = low ? 'var(--error,#DC2626)' : warn ? 'var(--warning,#D97706)' : emphasis ? 'var(--text)' : 'var(--text-2)';
+  return (
+    <td className="px-4 py-3 font-mono text-sm tabular-nums" style={{ color }}>
+      {qty > 0 ? (
+        <span className={clsx(emphasis ? 'font-bold' : '', low ? 'font-bold' : '')}>
+          {qty.toLocaleString('en-IN')}
+          <span className="text-[10px] ml-1" style={{ color: 'var(--text-3)' }}>{uom}</span>
+        </span>
+      ) : (
+        <span style={{ color: 'var(--text-4,#C1C4CC)' }}>—</span>
+      )}
+    </td>
   );
 }
