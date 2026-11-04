@@ -259,7 +259,7 @@ function Overview({ job, pct, completedStages, blockers, navigate }: any) {
       <div className="md:col-span-2 space-y-4">
 
         {/* Job Situation panel */}
-        <div className="eoss-card overflow-hidden">
+        <div className="eoss-card overflow-hidden panel-accent-top" style={{ position: 'relative' }}>
           <div
             className="flex items-center gap-2 px-4 py-3"
             style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface-2)' }}
@@ -501,17 +501,11 @@ function Overview({ job, pct, completedStages, blockers, navigate }: any) {
 
         {/* AI intelligence */}
         {(job.hasBlocker || job.status === 'hold' || job.materialReadiness === 'shortage') && (
-          <div
-            className="rounded-[var(--radius)] p-4"
-            style={{
-              background: 'linear-gradient(135deg, #EEF4FF 0%, #F0F9FF 100%)',
-              border: '1px solid #BAE6FD',
-            }}
-          >
+          <div className="intel-panel rounded-[var(--radius)] p-4">
             <div className="ai-signal mb-2">
               <Zap size={10} /> EOSS Intelligence
             </div>
-            <p className="text-xs mt-2 leading-relaxed" style={{ color: '#2A4D6E' }}>
+            <p className="text-xs mt-2 leading-relaxed" style={{ color: 'var(--text-2)' }}>
               {job.materialReadiness === 'shortage'
                 ? `Material shortage is the primary risk for ${job.jobNumber}. Check procurement commitments and consider expediting or sourcing from alternative lots.`
                 : job.status === 'hold'
@@ -992,9 +986,9 @@ function AssetsTab({ job, navigate }: any) {
 /* ── Helpers ── */
 function StatTile({ icon, label, value, accent }: { icon: React.ReactNode; label: string; value: string; accent?: string }) {
   return (
-    <div className="eoss-card p-3">
-      <div className="flex items-center gap-1.5 mb-1" style={{ color: 'var(--text-3)' }}>{icon}<span className="text-[11px]">{label}</span></div>
-      <div className="text-sm font-bold" style={{ color: accent ?? 'var(--text)' }}>{value}</div>
+    <div className="dark-card p-3">
+      <div className="flex items-center gap-1.5 mb-1.5" style={{ color: 'var(--text-3)' }}>{icon}<span className="text-[11px] uppercase tracking-wider font-semibold">{label}</span></div>
+      <div className="stat-mono" style={{ color: accent ?? 'var(--cyan)' }}>{value}</div>
     </div>
   );
 }

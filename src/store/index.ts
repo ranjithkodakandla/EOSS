@@ -113,7 +113,7 @@ let toastSeq = 0;
 export const useStore = create<EOSSState>((set, get) => ({
   // ── Initial State ──
   currentUser: DEMO_USERS[0], // owner by default
-  theme: 'system',
+  theme: 'dark',
   sidebarCollapsed: false,
   notifications: [...NOTIFICATIONS],
   unreadCount: NOTIFICATIONS.filter(n => !n.read).length,

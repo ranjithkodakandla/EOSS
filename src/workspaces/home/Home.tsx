@@ -247,23 +247,17 @@ export default function Home() {
 
           {/* EOSS Intelligence Panel */}
           {visibleInsights.length > 0 && (
-            <div
-              className="rounded-[var(--radius)] overflow-hidden"
-              style={{
-                background: 'linear-gradient(135deg, #EEF4FF 0%, #F0F9FF 100%)',
-                border: '1px solid #BAE6FD',
-              }}
-            >
-              <div className="flex items-center gap-2.5 px-4 py-3" style={{ borderBottom: '1px solid #BAE6FD' }}>
+            <div className="intel-panel rounded-[var(--radius)] overflow-hidden panel-accent-top">
+              <div className="flex items-center gap-2.5 px-4 py-3" style={{ borderBottom: '1px solid var(--cyan-border)' }}>
                 <span className="ai-signal">
                   <Sparkles size={11} /> EOSS Intelligence
                 </span>
-                <span className="text-[11px] ml-1" style={{ color: 'var(--info)' }}>
+                <span className="text-[11px] ml-1" style={{ color: 'var(--cyan)' }}>
                   {visibleInsights.length} insight{visibleInsights.length !== 1 ? 's' : ''} detected
                 </span>
-                <span className="ml-auto text-[10px]" style={{ color: '#7DD3FC' }}>Simulated · AI-generated</span>
+                <span className="ml-auto text-[10px]" style={{ color: 'var(--text-3)' }}>Simulated · AI-generated</span>
               </div>
-              <div className="divide-y" style={{ borderColor: '#BAE6FD20' }}>
+              <div className="divide-y" style={{ borderColor: 'var(--cyan-border)' }}>
                 {visibleInsights.map(ins => {
                   const pc = PRIORITY_CFG[ins.priority];
                   return (
@@ -281,18 +275,18 @@ export default function Home() {
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap mb-1">
-                            <span className="text-sm font-semibold" style={{ color: '#0C1A2E' }}>{ins.title}</span>
+                            <span className="text-sm font-semibold" style={{ color: 'var(--text)' }}>{ins.title}</span>
                             <span className="pill" style={{ background: pc.bg, borderColor: pc.border, color: pc.dot }}>
                               {pc.label}
                             </span>
                           </div>
-                          <p className="text-xs leading-relaxed" style={{ color: '#2A4D6E' }}>{ins.body}</p>
+                          <p className="text-xs leading-relaxed" style={{ color: 'var(--text-2)' }}>{ins.body}</p>
                           <div className="flex items-center gap-2 mt-2 flex-wrap">
                             {ins.refs.map(r => (
                               <span
                                 key={r}
                                 className="font-mono text-[10px] px-1.5 py-0.5 rounded"
-                                style={{ background: 'rgba(24,73,169,0.08)', color: '#1849A9' }}
+                                style={{ background: 'var(--cyan-muted)', color: 'var(--cyan-bright)', border: '1px solid var(--cyan-border)' }}
                               >
                                 {r}
                               </span>
@@ -301,7 +295,7 @@ export default function Home() {
                               <button
                                 onClick={() => setDismissedInsights(d => [...d, ins.id])}
                                 className="text-[11px] px-2 py-1 rounded"
-                                style={{ color: '#7DA5C5' }}
+                                style={{ color: 'var(--text-3)' }}
                               >
                                 Dismiss
                               </button>
@@ -632,7 +626,7 @@ function MetricTile({ label, value, sub, color, onClick }: {
         el.style.boxShadow = '';
       }}
     >
-      <div className="text-xl font-bold font-mono leading-none mb-1" style={{ color }}>{value}</div>
+      <div className="stat-mono leading-none mb-1.5" style={{ color }}>{value}</div>
       <div className="text-[11px] font-semibold" style={{ color: 'var(--text)' }}>{label}</div>
       <div className="text-[10px] mt-0.5" style={{ color: 'var(--text-3)' }}>{sub}</div>
     </button>

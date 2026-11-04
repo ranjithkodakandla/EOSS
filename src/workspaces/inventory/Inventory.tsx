@@ -9,17 +9,17 @@ import StatusChip from '../../components/layout/StatusChip';
 import clsx from 'clsx';
 
 const LOC_COLOR: Record<string, { dot: string; track: string; bg: string }> = {
-  'Raw Material Store':    { dot: '#1849A9', track: '#DBEAFE', bg: '#EFF6FF' },
-  'WIP Store':             { dot: '#B45309', track: '#FDE68A', bg: '#FFFBEB' },
-  'Finished Goods Store':  { dot: '#15803D', track: '#BBF7D0', bg: '#F0FDF4' },
-  'Quarantine Store':      { dot: '#B91C1C', track: '#FECACA', bg: '#FEF2F2' },
-  'Spare Parts Store':     { dot: '#6D28D9', track: '#DDD6FE', bg: '#F5F3FF' },
-  'Scrap Yard':            { dot: '#6B7280', track: '#E5E7EB', bg: '#F9FAFB' },
-  'Bonded Store':          { dot: '#0369A1', track: '#BAE6FD', bg: '#F0F9FF' },
-  'Tool Crib':             { dot: '#C2410C', track: '#FED7AA', bg: '#FFF7ED' },
-  'Dispatch Bay':          { dot: '#0369A1', track: '#BAE6FD', bg: '#F0F9FF' },
-  'Warehouse Bay A':       { dot: '#0D9488', track: '#99F6E4', bg: '#F0FDFA' },
-  'Warehouse Bay B':       { dot: '#0D9488', track: '#99F6E4', bg: '#F0FDFA' },
+  'Raw Material Store':    { dot: '#3B82F6', track: 'rgba(59,130,246,0.2)',  bg: 'rgba(59,130,246,0.08)' },
+  'WIP Store':             { dot: '#F59E0B', track: 'rgba(245,158,11,0.2)',  bg: 'rgba(245,158,11,0.08)' },
+  'Finished Goods Store':  { dot: '#10B981', track: 'rgba(16,185,129,0.2)',  bg: 'rgba(16,185,129,0.08)' },
+  'Quarantine Store':      { dot: '#EF4444', track: 'rgba(239,68,68,0.2)',   bg: 'rgba(239,68,68,0.08)' },
+  'Spare Parts Store':     { dot: '#8B5CF6', track: 'rgba(139,92,246,0.2)',  bg: 'rgba(139,92,246,0.08)' },
+  'Scrap Yard':            { dot: '#6B7280', track: 'rgba(107,114,128,0.2)', bg: 'rgba(107,114,128,0.08)' },
+  'Bonded Store':          { dot: '#06B6D4', track: 'rgba(6,182,212,0.2)',   bg: 'rgba(6,182,212,0.08)' },
+  'Tool Crib':             { dot: '#F97316', track: 'rgba(249,115,22,0.2)',  bg: 'rgba(249,115,22,0.08)' },
+  'Dispatch Bay':          { dot: '#06B6D4', track: 'rgba(6,182,212,0.2)',   bg: 'rgba(6,182,212,0.08)' },
+  'Warehouse Bay A':       { dot: '#14B8A6', track: 'rgba(20,184,166,0.2)',  bg: 'rgba(20,184,166,0.08)' },
+  'Warehouse Bay B':       { dot: '#14B8A6', track: 'rgba(20,184,166,0.2)',  bg: 'rgba(20,184,166,0.08)' },
 };
 
 function getDotColor(name: string)  { return LOC_COLOR[name]?.dot   ?? '#94A3B8'; }
