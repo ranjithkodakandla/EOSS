@@ -30,9 +30,52 @@ const NAV_ITEMS: NavItem[] = [
   { path: '/reports', label: 'Reports', icon: <BarChart3 size={17} /> },
 ];
 
+function AuroraWave({ theme }: { theme: string }) {
+  const isOcean = theme === 'ocean';
+  const isGraphite = theme === 'graphite';
+
+  const c1 = isGraphite ? 'rgba(229,138,54,0.55)' : isOcean ? 'rgba(8,127,140,0.60)' : 'rgba(168,85,247,0.60)';
+  const c2 = isGraphite ? 'rgba(245,158,11,0.30)' : isOcean ? 'rgba(14,165,165,0.35)' : 'rgba(112,72,245,0.35)';
+  const c3 = isGraphite ? 'rgba(229,138,54,0.15)' : isOcean ? 'rgba(8,127,140,0.18)' : 'rgba(168,85,247,0.18)';
+  const stopA = isGraphite ? '#E58A36' : isOcean ? '#087F8C' : '#7048F5';
+  const stopB = isGraphite ? '#F59E0B' : isOcean ? '#0EA5A5' : '#A855F7';
+
+  return (
+    <svg
+      viewBox="0 0 216 90"
+      preserveAspectRatio="none"
+      className="absolute bottom-0 left-0 right-0 w-full pointer-events-none"
+      style={{ height: 90 }}
+      aria-hidden="true"
+    >
+      <defs>
+        <radialGradient id={`wg-${theme}`} cx="50%" cy="110%" r="75%" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor={stopA} stopOpacity="0.5" />
+          <stop offset="55%" stopColor={stopB} stopOpacity="0.2" />
+          <stop offset="100%" stopColor={stopA} stopOpacity="0" />
+        </radialGradient>
+      </defs>
+      {/* filled glow pool */}
+      <path d="M-10 90 Q108 10 226 90 Z" fill={`url(#wg-${theme})`} />
+      {/* arc 1 — brightest */}
+      <path d="M-10 90 Q108 12 226 90" stroke={c1} strokeWidth="2.5" fill="none" />
+      {/* arc 2 */}
+      <path d="M-10 90 Q108 28 226 90" stroke={c2} strokeWidth="1.8" fill="none" />
+      {/* arc 3 */}
+      <path d="M-10 90 Q108 44 226 90" stroke={c3} strokeWidth="1.2" fill="none" />
+    </svg>
+  );
+}
+
 export default function Sidebar() {
-  const { sidebarCollapsed, toggleSidebar } = useStore();
+  const { sidebarCollapsed, toggleSidebar, eossTheme } = useStore();
   const collapsed = sidebarCollapsed;
+
+  const sidebarBg = eossTheme === 'graphite'
+    ? 'linear-gradient(185deg, #232630 0%, #1F222B 40%, #13151C 100%)'
+    : eossTheme === 'ocean'
+    ? 'linear-gradient(185deg, #123240 0%, #102D3A 40%, #071D27 100%)'
+    : 'linear-gradient(185deg, #1E1B4B 0%, #191A4A 40%, #110C3A 100%)';
 
   return (
     <aside
@@ -41,7 +84,7 @@ export default function Sidebar() {
         collapsed ? 'w-[var(--sidebar-w-collapsed,64px)]' : 'w-[var(--sidebar-width,216px)]'
       )}
       style={{
-        background: 'var(--brand-primary-dark, var(--sidebar-bg))',
+        background: sidebarBg,
         borderRight: '1px solid var(--sidebar-border, rgba(255,255,255,0.08))',
       }}
     >
@@ -112,6 +155,11 @@ export default function Sidebar() {
           </NavLink>
         ))}
       </nav>
+
+      {/* Aurora wave ornament */}
+      <div className="relative flex-shrink-0 h-[90px] overflow-hidden pointer-events-none" aria-hidden="true">
+        <AuroraWave theme={eossTheme} />
+      </div>
 
       {/* Collapse toggle */}
       <div
