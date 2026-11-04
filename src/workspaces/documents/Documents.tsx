@@ -4,15 +4,15 @@ import { useStore } from '../../store';
 import StatusChip from '../../components/layout/StatusChip';
 import clsx from 'clsx';
 
-const CATEGORIES = ['All', 'Job', 'Quality', 'Procurement', 'Dispatch', 'Compliance'];
+const CATEGORIES = ['All', 'Job Documents', 'Quality Documents', 'Material Certificates', 'Supplier Documents', 'Company Certificates', 'Asset Documents'];
 
 export default function Documents() {
-  const { vaultDocuments, currentUser } = useStore();
+  const { documents: vaultDocuments, currentUser } = useStore();
   const [search, setSearch] = useState('');
   const [cat, setCat] = useState('All');
 
   const filtered = vaultDocuments.filter(d => {
-    const matchSearch = !search || d.title.toLowerCase().includes(search.toLowerCase()) || d.docNumber.toLowerCase().includes(search.toLowerCase());
+    const matchSearch = !search || d.title.toLowerCase().includes(search.toLowerCase()) || d.docType.toLowerCase().includes(search.toLowerCase());
     const matchCat = cat === 'All' || d.category === cat;
     return matchSearch && matchCat;
   });
@@ -52,12 +52,12 @@ export default function Documents() {
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-sm font-medium text-[var(--text)] truncate">{doc.title}</span>
                 <span className="text-[10px] font-semibold bg-[var(--surface-2)] text-[var(--text-3)] px-1.5 py-0.5 rounded">{doc.category}</span>
-                {doc.isControlled && <span className="text-[9px] font-bold bg-[var(--warning-bg)] text-[var(--warning)] px-1.5 py-0.5 rounded">CONTROLLED</span>}
+                {doc.obligation && <span className="text-[9px] font-bold bg-[var(--warning-bg)] text-[var(--warning)] px-1.5 py-0.5 rounded">RENEWAL DUE</span>}
               </div>
               <div className="flex items-center gap-3 mt-0.5 text-xs text-[var(--text-3)]">
-                <span className="font-mono">{doc.docNumber}</span>
+                <span>{doc.docType}</span>
                 <span>·</span>
-                <span>{doc.fileType.toUpperCase()}</span>
+                <span>v{doc.version}</span>
                 <span>·</span>
                 <span>{new Date(doc.uploadedAt).toLocaleDateString('en-IN')}</span>
                 <span>·</span>
@@ -65,7 +65,12 @@ export default function Documents() {
               </div>
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
-              <StatusChip status={doc.status} size="sm" />
+              {doc.certStatus && <StatusChip status={doc.certStatus} size="sm" />}
+              {doc.expiryDate && (
+                <span className="text-[10px] text-[var(--text-3)]">
+                  exp {new Date(doc.expiryDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' })}
+                </span>
+              )}
               <Download size={14} className="text-[var(--text-3)] hover:text-[var(--brand)]" />
             </div>
           </div>
