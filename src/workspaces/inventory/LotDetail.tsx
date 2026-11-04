@@ -1,0 +1,176 @@
+import React, { useState } from 'react';
+import { useParams, useNavigate, Link } from 'react-router-dom';
+import { ArrowLeft, FileText, ArrowRightLeft, CheckCircle } from 'lucide-react';
+import { useStore } from '../../store';
+import StatusChip from '../../components/layout/StatusChip';
+import ConfirmModal from '../../components/feedback/ConfirmModal';
+
+export default function LotDetail() {
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const { lots, movements, certificates, documents, setLotStatus, transferLot, currentUser, showToast } = useStore();
+  const [confirm, setConfirm] = useState<null | { action: string; body: string }>(null);
+
+  const lot = lots.find(l => l.id === id);
+  if (!lot) return <div className="p-6 text-[var(--text-2)]">Lot not found</div>;
+
+  const lotMovements = movements.filter(m => m.lotId === id);
+  const lotCerts = certificates.filter(c => c.linkedLots.includes(id!));
+  const lotDocs = documents.filter(d => d.linkedEntities.some(le => le.ref === lot.lotNumber));
+
+  const canEdit = ['owner', 'storekeeper', 'qc'].includes(currentUser.role);
+
+  const handleRelease = () => {
+    setLotStatus(id!, 'available');
+    setConfirm(null);
+    showToast({ type: 'success', title: 'QC Hold released', body: `${lot.lotNumber} is now available.` });
+  };
+
+  const handleReturn = () => {
+    setLotStatus(id!, 'scrapped');
+    setConfirm(null);
+    showToast({ type: 'info', title: 'Lot marked for return', body: `${lot.lotNumber} returned to supplier.` });
+  };
+
+  return (
+    <div className="max-w-4xl mx-auto p-4 md:p-6">
+      {/* Header */}
+      <div className="flex items-center gap-3 mb-5">
+        <button onClick={() => navigate('/inventory')} className="text-[var(--text-3)] hover:text-[var(--text)]"><ArrowLeft size={16} /></button>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <h1 className="font-bold text-[var(--text)] font-mono">{lot.lotNumber}</h1>
+            <StatusChip status={lot.status} />
+            {lot.parentLotId && <span className="text-xs text-[var(--text-3)] bg-[var(--surface-2)] px-2 py-0.5 rounded-full border border-[var(--border)]">Remnant lot</span>}
+          </div>
+          <p className="text-sm text-[var(--text-2)] mt-0.5">{lot.materialName} · {lot.supplierName}</p>
+        </div>
+        {canEdit && lot.status === 'qc_hold' && (
+          <div className="flex gap-2">
+            <button onClick={() => setConfirm({ action: 'release', body: 'Release this lot from QC hold and make it available?' })} className="px-3 py-1.5 bg-[var(--success)] text-white rounded-lg text-sm font-medium">Release</button>
+            <button onClick={() => setConfirm({ action: 'return', body: 'Mark this lot for return to supplier? This will change its status to Scrapped.' })} className="px-3 py-1.5 bg-[var(--error)] text-white rounded-lg text-sm font-medium">Return</button>
+          </div>
+        )}
+      </div>
+
+      <div className="grid md:grid-cols-3 gap-4">
+        {/* Main info */}
+        <div className="md:col-span-2 space-y-4">
+          <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
+            <h3 className="font-semibold text-sm text-[var(--text)] mb-3">Lot Details</h3>
+            <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
+              <Field label="Lot Number" value={lot.lotNumber} mono />
+              <Field label="Heat Number" value={lot.heatNumber ?? '—'} mono />
+              <Field label="Material" value={lot.materialName} />
+              <Field label="Grade" value={lot.grade ?? '—'} />
+              <Field label="Supplier" value={lot.supplierName} />
+              <Field label="GRN" value={lot.grnId ?? '—'} />
+              <Field label="Received Date" value={lot.receivedDate ? new Date(lot.receivedDate).toLocaleDateString('en-IN') : '—'} />
+              <Field label="Location" value={lot.storeLocationName} />
+              <Field label="Certificate" value={<StatusChip status={lot.certStatus} size="sm" />} />
+              {lot.parentLotId && <Field label="Parent Lot" value={lot.parentLotId} mono />}
+            </dl>
+          </div>
+
+          {/* Quantity */}
+          <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
+            <h3 className="font-semibold text-sm text-[var(--text)] mb-3">Quantity</h3>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+              <div className="bg-[var(--surface-2)] rounded-lg p-3">
+                <div className="text-2xl font-bold text-[var(--text)]">{lot.primaryQty.toLocaleString()}</div>
+                <div className="text-xs text-[var(--text-3)] mt-0.5">{lot.primaryUom} (primary)</div>
+              </div>
+              {lot.secondaryQty !== undefined && (
+                <div className="bg-[var(--surface-2)] rounded-lg p-3">
+                  <div className="text-2xl font-bold text-[var(--text)]">{lot.secondaryQty}</div>
+                  <div className="text-xs text-[var(--text-3)] mt-0.5">{lot.secondaryUom} (secondary)</div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Movement ledger */}
+          <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl overflow-hidden">
+            <div className="px-4 py-3 border-b border-[var(--border)] bg-[var(--surface-2)]">
+              <h3 className="font-semibold text-sm text-[var(--text)]">Stock Movement Ledger</h3>
+            </div>
+            <table className="eoss-table">
+              <thead>
+                <tr><th>Timestamp</th><th>Movement</th><th>Qty</th><th>From</th><th>To</th><th>Reference</th><th>By</th></tr>
+              </thead>
+              <tbody>
+                {lotMovements.length === 0 && <tr><td colSpan={7} className="text-center py-6 text-sm text-[var(--text-3)]">No movements recorded</td></tr>}
+                {lotMovements.map(m => (
+                  <tr key={m.id}>
+                    <td className="text-xs text-[var(--text-2)] whitespace-nowrap">{new Date(m.timestamp).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</td>
+                    <td><StatusChip status={m.movementType.toLowerCase().replace(/\s|-/g, '_')} label={m.movementType} size="sm" /></td>
+                    <td className="font-mono text-sm font-semibold">{m.primaryQty} {m.uom}</td>
+                    <td className="text-xs text-[var(--text-2)]">{m.fromLocation ?? '—'}</td>
+                    <td className="text-xs text-[var(--text-2)]">{m.toLocation ?? '—'}</td>
+                    <td className="text-xs text-[var(--text-2)]">{m.referenceType}: {m.referenceNumber}</td>
+                    <td className="text-xs text-[var(--text-2)]">{m.performedBy}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Right column */}
+        <div className="space-y-4">
+          {/* Certificates */}
+          <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
+            <h3 className="font-semibold text-sm text-[var(--text)] mb-3">Material Certificates</h3>
+            {lotCerts.length === 0 && <p className="text-xs text-[var(--text-3)]">No certificates linked</p>}
+            {lotCerts.map(c => (
+              <Link key={c.id} to={`/inventory/cert/${c.id}`} className="block mt-2 p-3 bg-[var(--surface-2)] rounded-lg hover:bg-[var(--surface-3)] transition-colors">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-[var(--text)]">{c.certNumber}</span>
+                  <StatusChip status={c.verificationStatus} size="sm" />
+                </div>
+                <div className="text-[11px] text-[var(--text-2)] mt-1">{c.certType} · {c.grade}</div>
+                {c.yieldStrength && (
+                  <div className="text-[11px] text-[var(--text-3)] mt-0.5">YS: {c.yieldStrength} MPa · TS: {c.tensileStrength} MPa</div>
+                )}
+              </Link>
+            ))}
+          </div>
+
+          {/* Linked documents */}
+          <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
+            <h3 className="font-semibold text-sm text-[var(--text)] mb-3">Linked Documents</h3>
+            {lotDocs.length === 0 && <p className="text-xs text-[var(--text-3)]">No documents linked</p>}
+            {lotDocs.map(d => (
+              <div key={d.id} className="flex items-center gap-2 mt-2 p-2 bg-[var(--surface-2)] rounded-lg">
+                <FileText size={14} className="text-[var(--brand)] flex-shrink-0" />
+                <div className="min-w-0">
+                  <div className="text-xs font-medium text-[var(--text)] truncate">{d.title}</div>
+                  <div className="text-[11px] text-[var(--text-3)]">{d.fileSize}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <ConfirmModal
+        open={!!confirm}
+        title={confirm?.action === 'release' ? 'Release from QC Hold' : 'Return to Supplier'}
+        body={confirm?.body ?? ''}
+        confirmLabel={confirm?.action === 'release' ? 'Release' : 'Mark Return'}
+        variant={confirm?.action === 'return' ? 'danger' : 'primary'}
+        onConfirm={confirm?.action === 'release' ? handleRelease : handleReturn}
+        onCancel={() => setConfirm(null)}
+      />
+    </div>
+  );
+}
+
+function Field({ label, value, mono }: { label: string; value: React.ReactNode; mono?: boolean }) {
+  return (
+    <div>
+      <dt className="text-xs text-[var(--text-3)]">{label}</dt>
+      <dd className={`text-sm text-[var(--text)] mt-0.5 ${mono ? 'font-mono' : ''}`}>{value}</dd>
+    </div>
+  );
+}
