@@ -7,7 +7,7 @@ import StatusChip from '../../components/layout/StatusChip';
 export default function NCRDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { ncrs, lots, jobs, currentUser, showToast } = useStore();
+  const { ncrs, lots, jobs, currentUser, closeNCR } = useStore();
   const [disposition, setDisposition] = useState('');
 
   const ncr = ncrs.find(n => n.id === id);
@@ -19,7 +19,7 @@ export default function NCRDetail() {
 
   const handleDispose = () => {
     if (!disposition) return;
-    showToast({ type: 'success', title: 'Disposition recorded', body: `NCR ${ncr.ncrNumber} disposition: ${disposition}` });
+    closeNCR(ncr.id, disposition);
   };
 
   return (

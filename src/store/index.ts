@@ -4,14 +4,15 @@ import type {
   InventoryItem, StockMovement, Asset, MaintenanceEvent,
   Dispatch, VaultDocument, ApprovalRequest, AppNotification,
   PulseException, CustomerPO, SupplierPO, CustomerRFQ, GoodsReceipt,
-  Inspection, NCR, MaterialCertificate, Party
+  Inspection, NCR, MaterialCertificate, Employee, StoreLocation
 } from '../types';
 import {
   DEMO_USERS, JOBS, MATERIAL_LOTS, INVENTORY, STOCK_MOVEMENTS,
   ASSETS, MAINTENANCE_EVENTS, DISPATCHES, VAULT_DOCUMENTS,
   APPROVAL_REQUESTS, NOTIFICATIONS, PULSE_EXCEPTIONS, CUSTOMER_POS,
   SUPPLIER_POS, RFQS, GRNS, INSPECTIONS, NCRS, CERTIFICATES,
-  CUSTOMERS, SUPPLIERS, SUPPLIER_PO_LINES, JOB_BLOCKERS, PURCHASE_REQS
+  CUSTOMERS, SUPPLIERS, SUPPLIER_PO_LINES, JOB_BLOCKERS, PURCHASE_REQS,
+  EMPLOYEES, STORE_LOCATIONS
 } from '../data/seed';
 
 // ── App State ──
@@ -44,6 +45,8 @@ interface EOSSState {
   inspections: Inspection[];
   ncrs: NCR[];
   certificates: MaterialCertificate[];
+  employees: Employee[];
+  storeLocations: StoreLocation[];
 
   // Toast
   toasts: Toast[];
@@ -84,6 +87,13 @@ interface EOSSState {
 
   // Dispatch actions
   setDispatchStatus: (dspId: string, status: Dispatch['status']) => void;
+  addDispatch: (dispatch: Dispatch) => void;
+  recordPoD: (dspId: string) => void;
+
+  // NCR actions
+  addNCR: (ncr: NCR) => void;
+  closeNCR: (ncrId: string, resolution: string) => void;
+  linkNCRToInspection: (inspectionId: string, ncrId: string, ncrNumber: string) => void;
 
   // Toast actions
   showToast: (toast: Omit<Toast, 'id'>) => void;
@@ -125,6 +135,8 @@ export const useStore = create<EOSSState>((set, get) => ({
   inspections: [...INSPECTIONS],
   ncrs: [...NCRS],
   certificates: [...CERTIFICATES],
+  employees: [...EMPLOYEES],
+  storeLocations: [...STORE_LOCATIONS],
   toasts: [],
 
   // ── Session Actions ──
@@ -271,8 +283,28 @@ export const useStore = create<EOSSState>((set, get) => ({
   })),
 
   // ── Dispatch Actions ──
-  setDispatchStatus: (dspId, status) => set(s => ({
-    dispatches: s.dispatches.map(d => d.id !== dspId ? d : { ...d, status }),
+  setDispatchStatus: (dspId, status) => {
+    set(s => ({ dispatches: s.dispatches.map(d => d.id !== dspId ? d : { ...d, status }) }));
+    get().showToast({ type: 'success', title: 'Dispatch updated', body: `Status changed to ${status.replace('_', ' ')}` });
+  },
+
+  addDispatch: (dispatch) => set(s => ({ dispatches: [dispatch, ...s.dispatches] })),
+
+  recordPoD: (dspId) => {
+    set(s => ({ dispatches: s.dispatches.map(d => d.id !== dspId ? d : { ...d, hasPoD: true }) }));
+    get().showToast({ type: 'success', title: 'Proof of Delivery recorded' });
+  },
+
+  // ── NCR Actions ──
+  addNCR: (ncr) => set(s => ({ ncrs: [ncr, ...s.ncrs] })),
+
+  closeNCR: (ncrId, resolution) => {
+    set(s => ({ ncrs: s.ncrs.map(n => n.id !== ncrId ? n : { ...n, status: 'closed' as const, disposition: resolution as NCR['disposition'] }) }));
+    get().showToast({ type: 'success', title: 'NCR closed', body: `Disposition: ${resolution}` });
+  },
+
+  linkNCRToInspection: (inspectionId, ncrId, ncrNumber) => set(s => ({
+    inspections: s.inspections.map(i => i.id !== inspectionId ? i : { ...i, ncrId, ncrNumber }),
   })),
 
   // ── Toast Actions ──
@@ -295,4 +327,4 @@ export const selectLotMovements = (lotId: string) => (s: EOSSState) =>
   s.movements.filter(m => m.lotId === lotId);
 
 // Re-export seed data needed by components
-export { DEMO_USERS, CUSTOMERS, SUPPLIERS, SUPPLIER_PO_LINES, JOB_BLOCKERS, PURCHASE_REQS };
+export { DEMO_USERS, CUSTOMERS, SUPPLIERS, SUPPLIER_PO_LINES, JOB_BLOCKERS, PURCHASE_REQS, EMPLOYEES, STORE_LOCATIONS };

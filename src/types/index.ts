@@ -552,6 +552,19 @@ export interface PulseException {
   aiReason?: string;
 }
 
+// ── Employees ──
+export interface Employee {
+  id: ID;
+  userId: ID;
+  employeeCode: string;
+  name: string;
+  role: RoleKey;
+  department: string;
+  designation: string;
+  joiningDate: string;
+  siteId: ID;
+}
+
 // ── Reports ──
 export interface ReportDataPoint {
   label: string;

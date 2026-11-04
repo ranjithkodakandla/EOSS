@@ -7,7 +7,8 @@ import type {
   PurchaseRequisition, Job, JobStage, JobUpdate, JobMaterialReq, JobBlocker,
   GoodsReceipt, StockMovement, InventoryItem, MaterialCertificate,
   Inspection, NCR, QualityRelease, Asset, MaintenanceEvent,
-  Dispatch, VaultDocument, ApprovalRequest, AppNotification, PulseException
+  Dispatch, VaultDocument, ApprovalRequest, AppNotification, PulseException,
+  Employee
 } from '../types';
 
 // ── Users ──
@@ -22,6 +23,20 @@ export const DEMO_USERS: DemoUser[] = [
   { id: 'u-maint', name: 'Venkat Rao', role: 'maintenance', email: 'venkat@shankarmfg.com', avatar: 'VR', site: 'site-hyd' },
   { id: 'u-disp', name: 'Deepa Singh', role: 'dispatch', email: 'deepa@shankarmfg.com', avatar: 'DS', site: 'site-hyd' },
   { id: 'u-audit', name: 'External Auditor', role: 'auditor', email: 'audit@external.com', avatar: 'EA', site: 'site-hyd' },
+];
+
+// ── Employees ──
+export const EMPLOYEES: Employee[] = [
+  { id: 'emp-001', userId: 'u-owner', employeeCode: 'EMP-001', name: 'Ravi Shankar', role: 'owner', department: 'Management', designation: 'Managing Director', joiningDate: '2010-04-01', siteId: 'site-hyd' },
+  { id: 'emp-002', userId: 'u-sales', employeeCode: 'EMP-002', name: 'Anita Mehta', role: 'sales', department: 'Sales', designation: 'Sales Manager', joiningDate: '2016-07-01', siteId: 'site-hyd' },
+  { id: 'emp-003', userId: 'u-buyer', employeeCode: 'EMP-003', name: 'Karthik Raju', role: 'buyer', department: 'Purchase', designation: 'Purchase Manager', joiningDate: '2018-03-15', siteId: 'site-hyd' },
+  { id: 'emp-004', userId: 'u-store', employeeCode: 'EMP-004', name: 'Asha Nair', role: 'storekeeper', department: 'Store', designation: 'Storekeeper', joiningDate: '2019-06-01', siteId: 'site-hyd' },
+  { id: 'emp-005', userId: 'u-super', employeeCode: 'EMP-005', name: 'Suresh Kumar', role: 'supervisor', department: 'Production', designation: 'Production Supervisor', joiningDate: '2015-09-01', siteId: 'site-hyd' },
+  { id: 'emp-006', userId: 'u-oper', employeeCode: 'EMP-006', name: 'Mohan Das', role: 'operator', department: 'Production', designation: 'Welding Operator', joiningDate: '2017-02-01', siteId: 'site-hyd' },
+  { id: 'emp-007', userId: 'u-qc', employeeCode: 'EMP-007', name: 'Priya Patel', role: 'qc', department: 'Quality', designation: 'QC Inspector', joiningDate: '2020-01-15', siteId: 'site-hyd' },
+  { id: 'emp-008', userId: 'u-maint', employeeCode: 'EMP-008', name: 'Venkat Rao', role: 'maintenance', department: 'Maintenance', designation: 'Maintenance Technician', joiningDate: '2016-11-01', siteId: 'site-hyd' },
+  { id: 'emp-009', userId: 'u-disp', employeeCode: 'EMP-009', name: 'Deepa Singh', role: 'dispatch', department: 'Dispatch', designation: 'Dispatch Coordinator', joiningDate: '2021-04-01', siteId: 'site-hyd' },
+  { id: 'emp-010', userId: 'u-audit', employeeCode: 'EMP-010', name: 'External Auditor', role: 'auditor', department: 'External', designation: 'Quality Auditor', joiningDate: '2024-01-01', siteId: 'site-hyd' },
 ];
 
 // ── Sites ──

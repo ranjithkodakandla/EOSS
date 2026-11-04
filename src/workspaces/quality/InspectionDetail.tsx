@@ -1,14 +1,16 @@
 import React from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, CheckCircle, XCircle } from 'lucide-react';
+import { ArrowLeft, CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
 import { useStore } from '../../store';
-import { AlertTriangle } from 'lucide-react';
+import type { NCR } from '../../types';
 import StatusChip from '../../components/layout/StatusChip';
+
+let ncrSeq = 50;
 
 export default function InspectionDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { inspections, lots, jobs, currentUser, showToast } = useStore();
+  const { inspections, lots, jobs, ncrs, currentUser, addNCR, linkNCRToInspection } = useStore();
   const canRaiseNCR = ['owner', 'qc'].includes(currentUser.role);
 
   const ins = inspections.find(i => i.id === id);
@@ -102,7 +104,27 @@ export default function InspectionDetail() {
               </div>
               <p className="text-xs text-[var(--text-2)] mb-3">This inspection failed but no NCR has been raised yet.</p>
               <button
-                onClick={() => showToast({ type: 'info', title: 'NCR Raised', body: `NCR created for ${ins.inspectionNumber}` })}
+                onClick={() => {
+                  const ncrId = `ncr-new-${++ncrSeq}`;
+                  const ncrNumber = `NCR-2024-${String(ncrSeq).padStart(3, '0')}`;
+                  const newNCR: NCR = {
+                    id: ncrId,
+                    ncrNumber,
+                    inspectionId: ins.id,
+                    sourceType: ins.type === 'Incoming' ? 'Incoming' : 'In-Process',
+                    severity: 'Major',
+                    description: `Non-conformance raised from failed inspection ${ins.inspectionNumber}`,
+                    affectedQty: ins.rejectedQty,
+                    disposition: 'Pending',
+                    raisedBy: currentUser.name,
+                    raisedAt: new Date().toISOString(),
+                    status: 'open',
+                    lotId: ins.lotId,
+                    jobId: ins.jobId,
+                  };
+                  addNCR(newNCR);
+                  linkNCRToInspection(ins.id, ncrId, ncrNumber);
+                }}
                 className="w-full py-2 bg-[var(--warning)] text-white rounded-lg text-sm font-medium"
               >
                 Raise NCR

@@ -1,25 +1,53 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, ChevronRight, Search, X } from 'lucide-react';
-import { useStore } from '../../store';
-import { CUSTOMERS } from '../../store';
+import { useStore, CUSTOMERS } from '../../store';
+import type { Dispatch } from '../../types';
 import StatusChip from '../../components/layout/StatusChip';
 
-export default function Dispatch() {
-  const { dispatches, currentUser, showToast } = useStore();
+let dspSeq = 100;
+
+export default function DispatchWorkspace() {
+  const { dispatches, currentUser, addDispatch } = useStore();
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
   const [showModal, setShowModal] = useState(false);
-  const [form, setForm] = useState({ customerName: '', carrier: '', vehicleNumber: '', lrNumber: '', dispatchDate: '', jobs: '' });
+  const [form, setForm] = useState({
+    customerId: '', customerName: '', carrier: '',
+    vehicleNumber: '', lrNumber: '', dispatchDate: '', jobs: '',
+  });
 
-  const readyToDispatch = dispatches.filter(d => d.status === 'ready').length;
-  const inTransit = dispatches.filter(d => d.status === 'in_transit').length;
+  const pendingDocs = dispatches.filter(d => d.status === 'pending_docs').length;
+  const dispatched  = dispatches.filter(d => d.status === 'dispatched').length;
+  const delivered   = dispatches.filter(d => d.status === 'delivered').length;
 
   const filtered = dispatches.filter(d =>
     !search ||
     d.dispatchNumber.toLowerCase().includes(search.toLowerCase()) ||
     d.customerName.toLowerCase().includes(search.toLowerCase())
   );
+
+  function handleCreate() {
+    const customer = CUSTOMERS.find(c => c.id === form.customerId);
+    const newDispatch: Dispatch = {
+      id: `dsp-new-${++dspSeq}`,
+      dispatchNumber: `DSP-2024-${String(100 + dspSeq).slice(-3)}`,
+      customerId: form.customerId,
+      customerName: customer?.tradingName ?? form.customerName,
+      dispatchDate: form.dispatchDate,
+      carrier: form.carrier || undefined,
+      vehicleNumber: form.vehicleNumber || undefined,
+      lrNumber: form.lrNumber || undefined,
+      status: 'pending_docs',
+      lineCount: 0,
+      totalQty: 0,
+      hasPoD: false,
+      jobs: form.jobs ? form.jobs.split(',').map(s => s.trim()).filter(Boolean) : [],
+    };
+    addDispatch(newDispatch);
+    setShowModal(false);
+    setForm({ customerId: '', customerName: '', carrier: '', vehicleNumber: '', lrNumber: '', dispatchDate: '', jobs: '' });
+  }
 
   return (
     <div className="p-4 md:p-6">
@@ -28,20 +56,22 @@ export default function Dispatch() {
           <h1 className="text-xl font-bold text-[var(--text)]">Dispatch</h1>
           <div className="flex items-center gap-3 mt-0.5">
             <p className="text-sm text-[var(--text-2)]">{dispatches.length} shipments</p>
-            {readyToDispatch > 0 && <span className="text-xs text-[var(--warning)] font-semibold">{readyToDispatch} ready</span>}
-            {inTransit > 0 && <span className="text-xs text-[var(--info)] font-semibold">{inTransit} in transit</span>}
+            {pendingDocs > 0 && <span className="text-xs text-[var(--warning)] font-semibold">{pendingDocs} pending docs</span>}
+            {dispatched > 0 && <span className="text-xs text-[var(--info)] font-semibold">{dispatched} in transit</span>}
           </div>
         </div>
         {['owner', 'dispatch'].includes(currentUser.role) && (
-          <button onClick={() => setShowModal(true)} className="flex items-center gap-2 px-4 py-2 bg-[var(--brand)] text-white rounded-lg text-sm font-medium"><Plus size={16} /> New Dispatch</button>
+          <button onClick={() => setShowModal(true)} className="flex items-center gap-2 px-4 py-2 bg-[var(--brand)] text-white rounded-lg text-sm font-medium">
+            <Plus size={16} /> New Dispatch
+          </button>
         )}
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
         <KpiTile label="Total" value={dispatches.length} />
-        <KpiTile label="Ready" value={readyToDispatch} accent={readyToDispatch > 0 ? 'warning' : 'neutral'} />
-        <KpiTile label="In Transit" value={inTransit} accent={inTransit > 0 ? 'info' : 'neutral'} />
-        <KpiTile label="Delivered" value={dispatches.filter(d => d.status === 'delivered').length} accent="success" />
+        <KpiTile label="Pending Docs" value={pendingDocs} accent={pendingDocs > 0 ? 'warning' : 'neutral'} />
+        <KpiTile label="In Transit" value={dispatched} accent={dispatched > 0 ? 'info' : 'neutral'} />
+        <KpiTile label="Delivered" value={delivered} accent="success" />
       </div>
 
       <div className="relative mb-4">
@@ -52,7 +82,13 @@ export default function Dispatch() {
       <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl overflow-hidden">
         <div className="overflow-x-auto">
           <table className="eoss-table">
-            <thead><tr><th>Dispatch #</th><th>Customer</th><th>Jobs</th><th>Carrier / Vehicle</th><th>Dispatch Date</th><th>Expected Delivery</th><th>Qty</th><th>Status</th><th></th></tr></thead>
+            <thead>
+              <tr>
+                <th>Dispatch #</th><th>Customer</th><th>Jobs</th>
+                <th>Carrier / Vehicle</th><th>Dispatch Date</th>
+                <th>Expected Delivery</th><th>Qty</th><th>Status</th><th></th>
+              </tr>
+            </thead>
             <tbody>
               {filtered.map(d => (
                 <tr key={d.id} className="cursor-pointer" onClick={() => navigate(`/dispatch/${d.id}`)}>
@@ -67,6 +103,9 @@ export default function Dispatch() {
                   <td><ChevronRight size={14} className="text-[var(--text-3)]" /></td>
                 </tr>
               ))}
+              {filtered.length === 0 && (
+                <tr><td colSpan={9} className="text-center py-8 text-sm text-[var(--text-3)]">No dispatches found</td></tr>
+              )}
             </tbody>
           </table>
         </div>
@@ -82,13 +121,20 @@ export default function Dispatch() {
             <div className="space-y-3">
               <div>
                 <label className="text-xs text-[var(--text-3)] block mb-1">Customer *</label>
-                <select value={form.customerName} onChange={e => setForm(f => ({ ...f, customerName: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--surface)] text-sm text-[var(--text)] focus:outline-none focus:border-[var(--brand)]">
+                <select
+                  value={form.customerId}
+                  onChange={e => {
+                    const c = CUSTOMERS.find(c => c.id === e.target.value);
+                    setForm(f => ({ ...f, customerId: e.target.value, customerName: c?.tradingName ?? '' }));
+                  }}
+                  className="w-full px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--surface)] text-sm text-[var(--text)] focus:outline-none focus:border-[var(--brand)]"
+                >
                   <option value="">Select customer…</option>
-                  {CUSTOMERS.map(c => <option key={c.id} value={c.tradingName}>{c.tradingName}</option>)}
+                  {CUSTOMERS.map(c => <option key={c.id} value={c.id}>{c.tradingName}</option>)}
                 </select>
               </div>
               <div>
-                <label className="text-xs text-[var(--text-3)] block mb-1">Jobs (comma separated)</label>
+                <label className="text-xs text-[var(--text-3)] block mb-1">Jobs (comma separated job numbers)</label>
                 <input value={form.jobs} onChange={e => setForm(f => ({ ...f, jobs: e.target.value }))} placeholder="J-101, J-105" className="w-full px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--surface)] text-sm text-[var(--text)] focus:outline-none focus:border-[var(--brand)]" />
               </div>
               <div>
@@ -113,12 +159,8 @@ export default function Dispatch() {
             <div className="flex gap-2 mt-5">
               <button onClick={() => setShowModal(false)} className="flex-1 py-2 border border-[var(--border)] text-[var(--text)] rounded-lg text-sm">Cancel</button>
               <button
-                disabled={!form.customerName || !form.dispatchDate}
-                onClick={() => {
-                  showToast({ type: 'success', title: 'Dispatch Created', body: `New dispatch created for ${form.customerName}` });
-                  setShowModal(false);
-                  setForm({ customerName: '', carrier: '', vehicleNumber: '', lrNumber: '', dispatchDate: '', jobs: '' });
-                }}
+                disabled={!form.customerId || !form.dispatchDate}
+                onClick={handleCreate}
                 className="flex-1 py-2 bg-[var(--brand)] text-white rounded-lg text-sm font-medium disabled:opacity-50"
               >
                 Create Dispatch

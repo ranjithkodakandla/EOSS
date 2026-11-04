@@ -6,7 +6,7 @@ import { MATERIALS, SUPPLIER_PO_LINES, JOB_MATERIAL_REQS } from '../../data/seed
 import StatusChip from '../../components/layout/StatusChip';
 import clsx from 'clsx';
 
-const TABS = ['Overview', 'Stages', 'Materials', 'Updates', 'Documents', 'Quality', 'NCR/Rework', 'Dispatch', 'Blockers'];
+const TABS = ['Overview', 'Stages', 'Materials', 'Procurement', 'Quality', 'NCR/Rework', 'Assets', 'Documents', 'Dispatch', 'Updates', 'Blockers'];
 
 export default function JobWorkspace() {
   const { id } = useParams<{ id: string }>();
@@ -81,10 +81,12 @@ export default function JobWorkspace() {
         {tab === 'Overview' && <Overview job={job} pct={pct} completedStages={completedStages} blockers={blockers} navigate={navigate} />}
         {tab === 'Stages' && <Stages job={job} canUpdate={canUpdate} navigate={navigate} />}
         {tab === 'Materials' && <Materials job={job} />}
+        {tab === 'Procurement' && <ProcurementTab job={job} navigate={navigate} />}
         {tab === 'Updates' && <Updates job={job} />}
         {tab === 'Documents' && <DocTab job={job} />}
         {tab === 'Quality' && <QualityTab job={job} navigate={navigate} />}
         {tab === 'NCR/Rework' && <NCRTab job={job} navigate={navigate} />}
+        {tab === 'Assets' && <AssetsTab job={job} navigate={navigate} />}
         {tab === 'Dispatch' && <DispatchTab job={job} navigate={navigate} />}
         {tab === 'Blockers' && <BlockersTab blockers={blockers} job={job} />}
       </div>
@@ -426,6 +428,114 @@ function BlockersTab({ blockers, job }: any) {
           </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+function ProcurementTab({ job, navigate }: any) {
+  const { supplierPos } = useStore();
+  const prs = PURCHASE_REQS.filter(r => r.jobId === job.id || r.jobNumber === job.jobNumber);
+  const spos = supplierPos.filter(p => p.jobRef === job.jobNumber || p.jobRef === job.id);
+  return (
+    <div className="space-y-4">
+      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl overflow-hidden">
+        <div className="px-4 py-3 border-b border-[var(--border)] bg-[var(--surface-2)]">
+          <h3 className="font-semibold text-sm text-[var(--text)]">Purchase Requisitions ({prs.length})</h3>
+        </div>
+        <table className="eoss-table">
+          <thead><tr><th>PR #</th><th>Raised By</th><th>Required By</th><th>Lines</th><th>Priority</th><th>Status</th></tr></thead>
+          <tbody>
+            {prs.length === 0 && <tr><td colSpan={6} className="text-center py-6 text-sm text-[var(--text-3)]">No purchase requisitions linked to this job</td></tr>}
+            {prs.map(r => (
+              <tr key={r.id}>
+                <td><span className="font-mono text-xs text-[var(--brand)]">{r.prNumber}</span></td>
+                <td className="text-sm text-[var(--text-2)]">{r.raisedBy}</td>
+                <td className="text-sm text-[var(--text-2)]">{new Date(r.requiredBy).toLocaleDateString('en-IN')}</td>
+                <td className="text-sm">{r.lineCount}</td>
+                <td><StatusChip status={r.priority} size="sm" /></td>
+                <td><StatusChip status={r.status} size="sm" /></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl overflow-hidden">
+        <div className="px-4 py-3 border-b border-[var(--border)] bg-[var(--surface-2)]">
+          <h3 className="font-semibold text-sm text-[var(--text)]">Supplier Purchase Orders ({spos.length})</h3>
+        </div>
+        <table className="eoss-table">
+          <thead><tr><th>SPO #</th><th>Supplier</th><th>Committed</th><th>Value</th><th>Status</th></tr></thead>
+          <tbody>
+            {spos.length === 0 && <tr><td colSpan={5} className="text-center py-6 text-sm text-[var(--text-3)]">No supplier POs linked to this job</td></tr>}
+            {spos.map(p => (
+              <tr key={p.id} className="cursor-pointer" onClick={() => navigate(`/procurement/${p.id}`)}>
+                <td><span className="font-mono text-xs text-[var(--brand)]">{p.poNumber}</span></td>
+                <td className="text-sm">{p.supplierName}</td>
+                <td className="text-sm text-[var(--text-2)]">{new Date(p.committedDate).toLocaleDateString('en-IN')}</td>
+                <td className="text-sm">₹{p.totalValue.toLocaleString('en-IN')}</td>
+                <td><StatusChip status={p.status} size="sm" /></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function AssetsTab({ job, navigate }: any) {
+  const { maintenanceEvents, assets } = useStore();
+  const jobEvents = maintenanceEvents.filter(e =>
+    e.affectedJobs.some(aj => aj.jobId === job.id || aj.jobNumber === job.jobNumber)
+  );
+  const jobWorkCentres = [...new Set(job.stages.map((s: any) => s.workCentre).filter(Boolean))];
+  const relatedAssets = assets.filter(a => a.workCentre && jobWorkCentres.includes(a.workCentre));
+  return (
+    <div className="space-y-4">
+      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl overflow-hidden">
+        <div className="px-4 py-3 border-b border-[var(--border)] bg-[var(--surface-2)]">
+          <h3 className="font-semibold text-sm text-[var(--text)]">Work Centre Assets ({relatedAssets.length})</h3>
+        </div>
+        <table className="eoss-table">
+          <thead><tr><th>Code</th><th>Asset</th><th>Work Centre</th><th>Criticality</th><th>Status</th></tr></thead>
+          <tbody>
+            {relatedAssets.length === 0 && <tr><td colSpan={5} className="text-center py-6 text-sm text-[var(--text-3)]">No assets matched to this job's work centres</td></tr>}
+            {relatedAssets.map(a => (
+              <tr key={a.id} className="cursor-pointer" onClick={() => navigate(`/assets/${a.id}`)}>
+                <td><span className="font-mono text-xs text-[var(--brand)]">{a.assetCode}</span></td>
+                <td className="text-sm">{a.name}</td>
+                <td className="text-sm text-[var(--text-2)]">{a.workCentre}</td>
+                <td><StatusChip status={a.criticality.toLowerCase()} label={a.criticality} size="sm" /></td>
+                <td><StatusChip status={a.status} size="sm" /></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {jobEvents.length > 0 && (
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl overflow-hidden">
+          <div className="px-4 py-3 border-b border-[var(--border)] bg-[var(--error-bg)]">
+            <h3 className="font-semibold text-sm text-[var(--error)]">Maintenance Events Affecting This Job ({jobEvents.length})</h3>
+          </div>
+          <table className="eoss-table">
+            <thead><tr><th>Event #</th><th>Asset</th><th>Type</th><th>Impact</th><th>Status</th></tr></thead>
+            <tbody>
+              {jobEvents.map(e => {
+                const impact = e.affectedJobs.find(aj => aj.jobId === job.id || aj.jobNumber === job.jobNumber)?.impact;
+                return (
+                  <tr key={e.id} className="cursor-pointer" onClick={() => navigate(`/assets/maintenance/${e.id}`)}>
+                    <td><span className="font-mono text-xs text-[var(--brand)]">{e.eventNumber}</span></td>
+                    <td className="text-sm">{e.assetName}</td>
+                    <td className="text-sm text-[var(--text-2)]">{e.type}</td>
+                    <td className="text-sm text-[var(--warning)]">{impact ?? '—'}</td>
+                    <td><StatusChip status={e.status} size="sm" /></td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
