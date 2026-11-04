@@ -3,7 +3,8 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   ArrowLeft, AlertTriangle, ChevronRight, Clock, Package, FileText,
   Activity, Layers, Users, CheckCircle, Play, Pause, Truck,
-  Calendar, User, MapPin, DollarSign, Zap,
+  Calendar, User, MapPin, DollarSign, Zap, Shield, Wrench,
+  TrendingUp, AlertCircle, ArrowRight,
 } from 'lucide-react';
 import { useStore, JOB_BLOCKERS, PURCHASE_REQS } from '../../store';
 import { MATERIALS, SUPPLIER_PO_LINES, JOB_MATERIAL_REQS } from '../../data/seed';
@@ -86,6 +87,33 @@ export default function JobWorkspace() {
             {job.customerName}
           </div>
 
+          {/* Job health indicator */}
+          {job.hasBlocker ? (
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold"
+              style={{ background: 'var(--error-bg)', color: 'var(--error)', border: '1px solid var(--error-border)' }}>
+              <span className="w-1.5 h-1.5 rounded-full" style={{ background: 'var(--error)' }} />
+              At Risk
+            </div>
+          ) : job.status === 'hold' ? (
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold"
+              style={{ background: 'var(--warning-bg)', color: 'var(--warning)', border: '1px solid var(--warning-border)' }}>
+              <span className="w-1.5 h-1.5 rounded-full" style={{ background: 'var(--warning)' }} />
+              On Hold
+            </div>
+          ) : job.status === 'active' ? (
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold"
+              style={{ background: 'var(--success-bg)', color: 'var(--success)', border: '1px solid var(--success-border)' }}>
+              <span className="w-1.5 h-1.5 rounded-full pulse-dot" style={{ background: 'var(--success)' }} />
+              On Track
+            </div>
+          ) : null}
+
+          {/* Planned dates */}
+          <div className="hidden lg:flex items-center gap-1 text-xs" style={{ color: 'var(--text-3)' }}>
+            <Calendar size={11} />
+            Due: {new Date(job.plannedEnd).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+          </div>
+
           {/* Actions */}
           <div className="ml-auto flex gap-2">
             {canUpdate && job.status === 'active' && (
@@ -107,39 +135,50 @@ export default function JobWorkspace() {
           </div>
         </div>
 
-        {/* Stage progress rail */}
-        <div className="hidden md:flex items-center gap-0 overflow-x-auto pb-2 mt-1">
+        {/* Stage progress timeline */}
+        <div className="hidden md:flex items-stretch gap-0 overflow-x-auto pb-2 mt-1" style={{ scrollbarWidth: 'none' }}>
           {job.stages.map((s: any, i: number) => {
             const isDone   = s.status === 'complete';
             const isActive = s.status === 'in_progress';
             const isHold   = s.status === 'hold';
-            const dotColor = isDone ? 'var(--success)' : isActive ? 'var(--brand)' : isHold ? 'var(--error)' : 'var(--border-2)';
-            const lineColor = isDone ? 'var(--success)' : isActive ? 'var(--brand)' : 'var(--border-2)';
+            const stagePct = s.inputQty > 0 ? Math.min(100, Math.round((s.completedGoodQty / s.inputQty) * 100)) : 0;
+            const dotBg    = isDone ? 'var(--success)' : isActive ? 'var(--brand)' : 'var(--surface)';
+            const dotBorder= isDone ? 'var(--success)' : isActive ? 'var(--brand)' : isHold ? 'var(--error)' : 'var(--border-2)';
+            const lineBg   = isDone ? 'var(--success)' : 'var(--border-2)';
             return (
               <React.Fragment key={s.id}>
                 {i > 0 && (
-                  <div
-                    className="h-px flex-1 min-w-[16px] max-w-[48px]"
-                    style={{ background: lineColor, opacity: isDone ? 1 : 0.4 }}
-                  />
+                  <div className="flex items-center flex-shrink-0" style={{ width: 20 }}>
+                    <div className="w-full h-px" style={{ background: lineBg, opacity: isDone ? 1 : 0.5 }} />
+                  </div>
                 )}
-                <div className="flex flex-col items-center gap-1 flex-shrink-0" style={{ maxWidth: 80 }}>
+                <div
+                  className="flex flex-col items-center gap-1 flex-shrink-0 px-2 py-1 rounded-md"
+                  style={{
+                    minWidth: 68, maxWidth: 88,
+                    background: isActive ? 'var(--brand-50)' : isDone ? 'var(--success-bg)' : isHold ? 'var(--error-bg)' : 'transparent',
+                  }}
+                >
                   <div
-                    className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold border-2"
-                    style={{
-                      background: isDone ? 'var(--success)' : isActive ? 'var(--brand)' : 'var(--surface)',
-                      borderColor: dotColor,
-                      color: isDone || isActive ? 'white' : 'var(--text-3)',
-                    }}
+                    className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold border-2"
+                    style={{ background: dotBg, borderColor: dotBorder, color: isDone || isActive ? 'white' : 'var(--text-3)' }}
                   >
-                    {isDone ? '✓' : i + 1}
+                    {isDone ? '✓' : isHold ? '!' : i + 1}
                   </div>
                   <span
-                    className="text-[10px] text-center leading-tight truncate w-full px-1"
-                    style={{ color: isDone || isActive ? 'var(--text-2)' : 'var(--text-3)' }}
+                    className="text-[10px] text-center leading-tight font-medium"
+                    style={{ color: isDone ? 'var(--success)' : isActive ? 'var(--brand)' : isHold ? 'var(--error)' : 'var(--text-3)', maxWidth: 80 }}
                   >
                     {s.name}
                   </span>
+                  {isActive && stagePct > 0 && (
+                    <div className="w-full progress-bar" style={{ height: 2 }}>
+                      <div className="progress-bar-fill" style={{ width: `${stagePct}%`, background: 'var(--brand)' }} />
+                    </div>
+                  )}
+                  {isActive && (
+                    <span className="text-[9px] font-mono" style={{ color: 'var(--brand)' }}>{stagePct}%</span>
+                  )}
                 </div>
               </React.Fragment>
             );
@@ -196,33 +235,184 @@ export default function JobWorkspace() {
 
 /* ── Overview ── */
 function Overview({ job, pct, completedStages, blockers, navigate }: any) {
+  const { inspections, ncrs, supplierPos } = useStore();
+  const jobInsp  = inspections.filter((i: any) => i.jobId === job.id);
+  const jobNcrs  = ncrs.filter((n: any) => n.jobId === job.id);
+  const jobSpos  = supplierPos.filter((p: any) => p.jobRef === job.jobNumber || p.jobRef === job.id);
+  const overdueSpos = jobSpos.filter((p: any) => p.status === 'overdue');
+  const matReqs  = JOB_MATERIAL_REQS.filter((r: any) => r.jobId === job.id);
+  const passedInsp = jobInsp.filter((i: any) => i.result === 'pass').length;
+  const openNcrs   = jobNcrs.filter((n: any) => n.status === 'open').length;
+  const passRate   = jobInsp.length > 0 ? Math.round((passedInsp / jobInsp.length) * 100) : null;
+
+  // Active / in-progress stage
+  const activeStage = job.stages.find((s: any) => s.status === 'in_progress') ?? job.stages.find((s: any) => s.status === 'pending');
+  const activeStagePct = activeStage && activeStage.inputQty > 0
+    ? Math.min(100, Math.round((activeStage.completedGoodQty / activeStage.inputQty) * 100))
+    : 0;
+
+  // Attention count
+  const attentionCount = blockers.length + overdueSpos.length + (job.materialReadiness === 'shortage' ? 1 : 0) + openNcrs;
+
   return (
     <div className="grid md:grid-cols-3 gap-4">
       <div className="md:col-span-2 space-y-4">
 
-        {/* Stat strip */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <StatTile
-            icon={<Calendar size={13} />}
-            label="Due"
-            value={new Date(job.plannedEnd).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
-          />
-          <StatTile
-            icon={<Layers size={13} />}
-            label="Stages"
-            value={`${completedStages}/${job.stages.length} done`}
-          />
-          <StatTile
-            icon={<Activity size={13} />}
-            label="Yield"
-            value={`${pct}%`}
-            accent={pct >= 90 ? 'var(--success)' : pct >= 70 ? 'var(--warning)' : 'var(--error)'}
-          />
-          <StatTile
-            icon={<DollarSign size={13} />}
-            label="Value"
-            value={job.value ? `₹${(job.value / 1000).toFixed(0)}k` : '—'}
-          />
+        {/* Job Situation panel */}
+        <div className="eoss-card overflow-hidden">
+          <div
+            className="flex items-center gap-2 px-4 py-3"
+            style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface-2)' }}
+          >
+            <TrendingUp size={14} style={{ color: 'var(--brand)' }} />
+            <span className="text-sm font-semibold" style={{ color: 'var(--text)' }}>Job Situation</span>
+            {attentionCount > 0 && (
+              <span className="pill ml-1" style={{ background: 'var(--error-bg)', borderColor: 'var(--error-border)', color: 'var(--error)' }}>
+                <AlertCircle size={10} /> {attentionCount} area{attentionCount !== 1 ? 's' : ''} need attention
+              </span>
+            )}
+          </div>
+
+          <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
+
+            {/* Current stage */}
+            {activeStage && (
+              <div className="px-4 py-3">
+                <div className="flex items-center gap-2 mb-2">
+                  <Activity size={13} style={{ color: 'var(--brand)' }} />
+                  <span className="text-xs font-semibold" style={{ color: 'var(--text)' }}>
+                    Current Stage: {activeStage.name}
+                  </span>
+                  <StatusChip status={activeStage.status} size="sm" />
+                  {activeStage.workCentre && (
+                    <span className="text-[11px]" style={{ color: 'var(--text-3)' }}>{activeStage.workCentre}</span>
+                  )}
+                </div>
+                {activeStage.inputQty > 0 && (
+                  <div>
+                    <div className="flex justify-between text-[11px] mb-1" style={{ color: 'var(--text-3)' }}>
+                      <span>Progress</span>
+                      <span className="font-mono">{activeStage.completedGoodQty} / {activeStage.inputQty} {activeStage.uom}</span>
+                    </div>
+                    <div className="progress-bar" style={{ height: 6 }}>
+                      <div className="progress-bar-fill" style={{ width: `${activeStagePct}%`, background: 'var(--brand)' }} />
+                    </div>
+                    {activeStage.rejectedQty > 0 && (
+                      <div className="text-[11px] mt-1" style={{ color: 'var(--error)' }}>
+                        {activeStage.rejectedQty} {activeStage.uom} rejected
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Material readiness */}
+            <div className="px-4 py-3">
+              <div className="flex items-center gap-2 mb-2">
+                <Package size={13} style={{ color: job.materialReadiness === 'shortage' ? 'var(--error)' : job.materialReadiness === 'partial' ? 'var(--warning)' : 'var(--success)' }} />
+                <span className="text-xs font-semibold" style={{ color: 'var(--text)' }}>Material Readiness</span>
+                <StatusChip
+                  status={job.materialReadiness === 'ready' ? 'available' : job.materialReadiness === 'shortage' ? 'shortage' : job.materialReadiness === 'partial' ? 'partial' : 'pending'}
+                  label={job.materialReadiness}
+                  size="sm"
+                />
+              </div>
+              {matReqs.length > 0 ? (
+                <div className="space-y-2">
+                  {matReqs.map((r: any) => {
+                    const avail = r.reservedQty > 0 ? r.reservedQty : 0;
+                    const pctAvail = r.requiredQty > 0 ? Math.min(100, Math.round((avail / r.requiredQty) * 100)) : 100;
+                    return (
+                      <div key={r.id}>
+                        <div className="flex justify-between text-[11px] mb-1">
+                          <span style={{ color: 'var(--text-2)' }}>{r.materialName}</span>
+                          <span className="font-mono" style={{ color: r.shortage ? 'var(--error)' : 'var(--text-2)' }}>
+                            {r.reservedQty} / {r.requiredQty} {r.uom}
+                          </span>
+                        </div>
+                        <div className="progress-bar" style={{ height: 4 }}>
+                          <div
+                            className="progress-bar-fill"
+                            style={{
+                              width: `${pctAvail}%`,
+                              background: r.shortage ? 'var(--error)' : pctAvail >= 100 ? 'var(--success)' : 'var(--warning)',
+                            }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="text-xs" style={{ color: 'var(--text-2)' }}>
+                  {job.materialReadiness === 'shortage' ? 'Critical shortage — job blocked on material.' :
+                   job.materialReadiness === 'partial'  ? 'Some materials not yet fully received.' :
+                   job.materialReadiness === 'ready'    ? 'All materials reserved and available.' :
+                   'Materials not yet assessed.'}
+                </p>
+              )}
+            </div>
+
+            {/* Procurement risk */}
+            <div className="px-4 py-3">
+              <div className="flex items-center gap-2 mb-2">
+                <ShoppingIcon size={13} color={overdueSpos.length > 0 ? 'var(--error)' : 'var(--text-2)'} />
+                <span className="text-xs font-semibold" style={{ color: 'var(--text)' }}>Procurement</span>
+                {overdueSpos.length > 0 ? (
+                  <span className="pill" style={{ background: 'var(--error-bg)', borderColor: 'var(--error-border)', color: 'var(--error)' }}>
+                    {overdueSpos.length} overdue PO{overdueSpos.length > 1 ? 's' : ''}
+                  </span>
+                ) : jobSpos.length > 0 ? (
+                  <span className="pill" style={{ background: 'var(--success-bg)', borderColor: 'var(--success-border)', color: 'var(--success)' }}>
+                    On schedule
+                  </span>
+                ) : null}
+              </div>
+              {overdueSpos.length > 0 ? (
+                <div className="space-y-1.5">
+                  {overdueSpos.map((p: any) => (
+                    <button
+                      key={p.id}
+                      onClick={() => navigate(`/procurement/${p.id}`)}
+                      className="flex items-center gap-2 w-full text-left text-xs px-3 py-2 rounded-md"
+                      style={{ background: 'var(--error-bg)', border: '1px solid var(--error-border)' }}
+                    >
+                      <span className="font-mono font-semibold" style={{ color: 'var(--error)' }}>{p.poNumber}</span>
+                      <span style={{ color: 'var(--text-2)' }}>{p.supplierName}</span>
+                      <span className="ml-auto font-semibold" style={{ color: 'var(--error)' }}>Overdue</span>
+                      <ChevronRight size={12} style={{ color: 'var(--error)' }} />
+                    </button>
+                  ))}
+                </div>
+              ) : jobSpos.length === 0 ? (
+                <p className="text-xs" style={{ color: 'var(--text-3)' }}>No supplier POs linked to this job</p>
+              ) : (
+                <p className="text-xs" style={{ color: 'var(--text-2)' }}>
+                  {jobSpos.length} PO{jobSpos.length !== 1 ? 's' : ''} — all within committed dates
+                </p>
+              )}
+            </div>
+
+            {/* Quality */}
+            <div className="px-4 py-3">
+              <div className="flex items-center gap-2 mb-1">
+                <Shield size={13} style={{ color: openNcrs > 0 ? 'var(--error)' : 'var(--success)' }} />
+                <span className="text-xs font-semibold" style={{ color: 'var(--text)' }}>Quality</span>
+                {openNcrs > 0 && (
+                  <span className="pill" style={{ background: 'var(--error-bg)', borderColor: 'var(--error-border)', color: 'var(--error)' }}>
+                    {openNcrs} open NCR{openNcrs > 1 ? 's' : ''}
+                  </span>
+                )}
+              </div>
+              <p className="text-xs" style={{ color: 'var(--text-2)' }}>
+                {jobInsp.length === 0
+                  ? 'No inspections recorded yet'
+                  : `${jobInsp.length} inspection${jobInsp.length !== 1 ? 's' : ''} · ${passedInsp} passed${passRate !== null ? ` (${passRate}% pass rate)` : ''} · ${jobNcrs.length} NCR${jobNcrs.length !== 1 ? 's' : ''}`
+                }
+              </p>
+            </div>
+          </div>
         </div>
 
         {/* Job details */}
@@ -245,71 +435,42 @@ function Overview({ job, pct, completedStages, blockers, navigate }: any) {
             </dl>
           </div>
         </div>
+      </div>
 
-        {/* Stage progress */}
+      {/* Right column */}
+      <div className="space-y-4">
+        {/* Stage completion summary */}
         <div className="eoss-card">
           <div className="eoss-card-header">
-            <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-3)' }}>Stage Progress</span>
-            <span className="text-xs" style={{ color: 'var(--text-2)' }}>{completedStages}/{job.stages.length} complete</span>
+            <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-3)' }}>Stages</span>
+            <span className="text-xs" style={{ color: 'var(--text-2)' }}>{completedStages}/{job.stages.length}</span>
           </div>
-          <div className="p-4">
-            <div className="progress-bar mb-4">
+          <div className="p-3">
+            <div className="progress-bar mb-3" style={{ height: 6 }}>
               <div
                 className="progress-bar-fill"
-                style={{
-                  width: `${(completedStages / job.stages.length) * 100}%`,
-                  background: 'var(--brand)',
-                }}
+                style={{ width: `${(completedStages / job.stages.length) * 100}%`, background: 'var(--brand)' }}
               />
             </div>
-            <div className="grid gap-2">
+            <div className="space-y-1.5">
               {job.stages.map((s: any, i: number) => {
-                const isDone   = s.status === 'complete';
+                const isDone = s.status === 'complete';
                 const isActive = s.status === 'in_progress';
-                const isHold   = s.status === 'hold';
+                const isHold = s.status === 'hold';
                 return (
-                  <div
-                    key={s.id}
-                    className="flex items-center gap-3 px-3 py-2 rounded-[var(--radius-sm)]"
-                    style={{
-                      background: isDone ? 'var(--success-bg)' : isActive ? 'var(--info-bg)' : isHold ? 'var(--error-bg)' : 'var(--surface-2)',
-                      border: `1px solid ${isDone ? 'var(--success-border)' : isActive ? 'var(--info-border)' : isHold ? 'var(--error-border)' : 'var(--border)'}`,
-                    }}
-                  >
+                  <div key={s.id} className="flex items-center gap-2">
                     <div
-                      className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0"
+                      className="w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold flex-shrink-0"
                       style={{
-                        background: isDone ? 'var(--success)' : isActive ? 'var(--brand)' : 'var(--surface)',
+                        background: isDone ? 'var(--success)' : isActive ? 'var(--brand)' : 'var(--surface-3)',
                         color: isDone || isActive ? 'white' : 'var(--text-3)',
-                        border: `1px solid ${isDone ? 'var(--success)' : isActive ? 'var(--brand)' : 'var(--border-2)'}`,
                       }}
                     >
                       {isDone ? '✓' : i + 1}
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-semibold" style={{ color: isDone ? 'var(--success)' : isActive ? 'var(--brand)' : 'var(--text)' }}>
-                          {s.name}
-                        </span>
-                        <span className="text-[10px]" style={{ color: 'var(--text-3)' }}>{s.workCentre}</span>
-                      </div>
-                      {s.inputQty > 0 && (
-                        <div className="flex items-center gap-2 mt-1">
-                          <div className="progress-bar flex-1" style={{ height: 3 }}>
-                            <div
-                              className="progress-bar-fill"
-                              style={{
-                                width: `${Math.min(100, (s.completedGoodQty / s.inputQty) * 100)}%`,
-                                background: isDone ? 'var(--success)' : 'var(--brand)',
-                              }}
-                            />
-                          </div>
-                          <span className="text-[10px] font-mono flex-shrink-0" style={{ color: 'var(--text-3)' }}>
-                            {s.completedGoodQty}/{s.inputQty} {s.uom}
-                          </span>
-                        </div>
-                      )}
-                    </div>
+                    <span className="text-xs flex-1" style={{ color: isDone ? 'var(--success)' : isActive ? 'var(--brand)' : 'var(--text-2)' }}>
+                      {s.name}
+                    </span>
                     <StatusChip status={s.status} size="sm" />
                   </div>
                 );
@@ -317,66 +478,67 @@ function Overview({ job, pct, completedStages, blockers, navigate }: any) {
             </div>
           </div>
         </div>
-      </div>
 
-      {/* Right column */}
-      <div className="space-y-4">
         {blockers.length > 0 && (
-          <div
-            className="rounded-[var(--radius)] p-4"
-            style={{ background: 'var(--error-bg)', border: '1px solid var(--error-border)' }}
-          >
-            <h3 className="font-semibold text-sm flex items-center gap-1.5 mb-3" style={{ color: 'var(--error)' }}>
-              <AlertTriangle size={14} /> Active Blockers
-            </h3>
+          <div className="rounded-[var(--radius)] overflow-hidden" style={{ border: '1px solid var(--error-border)' }}>
+            <div className="px-4 py-2.5 flex items-center gap-2" style={{ background: 'var(--error-bg)' }}>
+              <AlertTriangle size={13} style={{ color: 'var(--error)' }} />
+              <span className="font-semibold text-xs" style={{ color: 'var(--error)' }}>
+                {blockers.length} Active Blocker{blockers.length > 1 ? 's' : ''}
+              </span>
+            </div>
             {blockers.map((b: any) => (
-              <div key={b.id} className="mt-2 first:mt-0">
+              <div key={b.id} className="px-4 py-3" style={{ borderTop: '1px solid var(--error-border)', background: 'var(--surface)' }}>
                 <div className="text-xs font-semibold" style={{ color: 'var(--error)' }}>{b.type}</div>
                 <div className="text-xs mt-0.5" style={{ color: 'var(--text-2)' }}>{b.description}</div>
+                <div className="text-[10px] mt-1" style={{ color: 'var(--text-3)' }}>
+                  Raised by {b.raisedBy} · {new Date(b.raisedAt).toLocaleDateString('en-IN')}
+                </div>
               </div>
             ))}
           </div>
         )}
 
-        {/* Material status */}
-        <div className="eoss-card">
-          <div className="eoss-card-header">
-            <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-3)' }}>Materials</span>
-          </div>
-          <div className="p-4">
-            <StatusChip
-              status={
-                job.materialReadiness === 'ready' ? 'available' :
-                job.materialReadiness === 'shortage' ? 'shortage' :
-                job.materialReadiness === 'partial' ? 'partial' : 'pending'
-              }
-              label={job.materialReadiness}
-            />
-            <p className="text-xs mt-2" style={{ color: 'var(--text-2)' }}>
-              {job.materialReadiness === 'shortage' ? 'Critical shortage — job blocked on material.' :
-               job.materialReadiness === 'partial'  ? 'Some materials not yet fully received.' :
-               job.materialReadiness === 'ready'    ? 'All materials reserved and available.' :
-               'Materials not yet assessed.'}
-            </p>
-          </div>
-        </div>
-
-        {/* AI signal if job has blockers or is on hold */}
-        {(job.hasBlocker || job.status === 'hold') && (
-          <div className="eoss-card p-4">
+        {/* AI intelligence */}
+        {(job.hasBlocker || job.status === 'hold' || job.materialReadiness === 'shortage') && (
+          <div
+            className="rounded-[var(--radius)] p-4"
+            style={{
+              background: 'linear-gradient(135deg, #EEF4FF 0%, #F0F9FF 100%)',
+              border: '1px solid #BAE6FD',
+            }}
+          >
             <div className="ai-signal mb-2">
-              <Zap size={10} /> AI Signal
+              <Zap size={10} /> EOSS Intelligence
             </div>
-            <p className="text-xs mt-2" style={{ color: 'var(--text-2)' }}>
-              {job.status === 'hold'
-                ? `This job has been on hold. Consider reviewing blocker resolution and rescheduling downstream stages.`
-                : `Job has active blockers. Downstream stages may need replanning based on resolution timeline.`
+            <p className="text-xs mt-2 leading-relaxed" style={{ color: '#2A4D6E' }}>
+              {job.materialReadiness === 'shortage'
+                ? `Material shortage is the primary risk for ${job.jobNumber}. Check procurement commitments and consider expediting or sourcing from alternative lots.`
+                : job.status === 'hold'
+                ? `${job.jobNumber} has been placed on hold. Review blocker resolution timeline and assess impact on committed delivery date.`
+                : `${job.jobNumber} has active blockers that may affect production schedule. Early resolution will reduce delivery risk.`
               }
             </p>
           </div>
         )}
+
+        {/* Quick stats */}
+        <div className="grid grid-cols-2 gap-2">
+          <StatTile icon={<Activity size={13} />} label="Yield" value={`${pct}%`}
+            accent={pct >= 90 ? 'var(--success)' : pct >= 70 ? 'var(--warning)' : 'var(--error)'} />
+          <StatTile icon={<DollarSign size={13} />} label="Value"
+            value={job.value ? `₹${(job.value / 1000).toFixed(0)}k` : '—'} />
+        </div>
       </div>
     </div>
+  );
+}
+
+function ShoppingIcon({ size, color }: { size: number; color: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/>
+    </svg>
   );
 }
 
@@ -437,32 +599,70 @@ function Stages({ job, canUpdate, navigate }: any) {
 /* ── Materials ── */
 function Materials({ job }: any) {
   const reqs = JOB_MATERIAL_REQS.filter(r => r.jobId === job.id);
-  return (
-    <div className="eoss-card overflow-hidden">
-      <div className="eoss-card-header">
-        <span className="text-sm font-semibold" style={{ color: 'var(--text)' }}>Material Requirements & Allocations</span>
+  if (reqs.length === 0) {
+    return (
+      <div className="eoss-card py-12 text-center text-sm" style={{ color: 'var(--text-3)' }}>
+        No material requirements recorded for this job
       </div>
-      <table className="eoss-table">
-        <thead>
-          <tr><th>Material</th><th>Stage</th><th>Required</th><th>Reserved</th><th>Issued</th><th>UOM</th><th>Status</th></tr>
-        </thead>
-        <tbody>
-          {reqs.length === 0 && (
-            <tr><td colSpan={7} className="text-center py-6 text-sm" style={{ color: 'var(--text-3)' }}>No material requirements recorded for this job</td></tr>
-          )}
-          {reqs.map(r => (
-            <tr key={r.id}>
-              <td className="text-sm">{r.materialName}</td>
-              <td className="text-xs" style={{ color: 'var(--text-2)' }}>{r.stageName}</td>
-              <td className="font-mono text-sm">{r.requiredQty}</td>
-              <td className="font-mono text-sm">{r.reservedQty}</td>
-              <td className="font-mono text-sm">{r.issuedQty}</td>
-              <td className="text-xs" style={{ color: 'var(--text-2)' }}>{r.uom}</td>
-              <td><StatusChip status={r.shortage ? 'shortage' : r.issuedQty > 0 ? 'issued' : r.reservedQty > 0 ? 'reserved' : 'pending'} label={r.shortage ? 'shortage' : undefined} size="sm" /></td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    );
+  }
+  return (
+    <div className="space-y-3">
+      {reqs.map(r => {
+        const reservedPct  = r.requiredQty > 0 ? Math.min(100, Math.round((r.reservedQty / r.requiredQty) * 100)) : 0;
+        const issuedPct    = r.requiredQty > 0 ? Math.min(100, Math.round((r.issuedQty / r.requiredQty) * 100)) : 0;
+        const statusLabel  = r.shortage ? 'shortage' : r.issuedQty > 0 ? 'issued' : r.reservedQty > 0 ? 'reserved' : 'pending';
+        return (
+          <div
+            key={r.id}
+            className="eoss-card p-4"
+            style={r.shortage ? { borderColor: 'var(--error-border)', background: 'var(--error-bg)' } : {}}
+          >
+            <div className="flex items-start gap-3">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap mb-2">
+                  {r.shortage && <AlertTriangle size={12} style={{ color: 'var(--error)' }} />}
+                  <span className="text-sm font-semibold" style={{ color: 'var(--text)' }}>{r.materialName}</span>
+                  <span className="text-[11px]" style={{ color: 'var(--text-3)' }}>{r.stageName}</span>
+                  <StatusChip status={statusLabel} label={r.shortage ? 'shortage' : undefined} size="sm" />
+                </div>
+                {/* Visual bars */}
+                <div className="space-y-1.5">
+                  <div>
+                    <div className="flex justify-between text-[11px] mb-0.5" style={{ color: 'var(--text-3)' }}>
+                      <span>Reserved</span>
+                      <span className="font-mono">{r.reservedQty} / {r.requiredQty} {r.uom}</span>
+                    </div>
+                    <div className="progress-bar" style={{ height: 5 }}>
+                      <div
+                        className="progress-bar-fill"
+                        style={{
+                          width: `${reservedPct}%`,
+                          background: r.shortage ? 'var(--error)' : reservedPct >= 100 ? 'var(--success)' : 'var(--warning)',
+                        }}
+                      />
+                    </div>
+                  </div>
+                  {r.issuedQty > 0 && (
+                    <div>
+                      <div className="flex justify-between text-[11px] mb-0.5" style={{ color: 'var(--text-3)' }}>
+                        <span>Issued</span>
+                        <span className="font-mono">{r.issuedQty} {r.uom}</span>
+                      </div>
+                      <div className="progress-bar" style={{ height: 5 }}>
+                        <div
+                          className="progress-bar-fill"
+                          style={{ width: `${issuedPct}%`, background: 'var(--brand)' }}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -669,8 +869,25 @@ function ProcurementTab({ job, navigate }: any) {
   const { supplierPos } = useStore();
   const prs  = PURCHASE_REQS.filter(r => r.jobId === job.id || r.jobNumber === job.jobNumber);
   const spos = supplierPos.filter(p => p.jobRef === job.jobNumber || p.jobRef === job.id);
+  const overdueSpos = spos.filter(p => p.status === 'overdue');
   return (
     <div className="space-y-4">
+      {overdueSpos.length > 0 && (
+        <div
+          className="rounded-[var(--radius)] px-4 py-3 flex items-center gap-3"
+          style={{ background: 'var(--error-bg)', border: '1px solid var(--error-border)' }}
+        >
+          <AlertTriangle size={14} style={{ color: 'var(--error)', flexShrink: 0 }} />
+          <div className="flex-1">
+            <span className="text-xs font-semibold" style={{ color: 'var(--error)' }}>
+              {overdueSpos.length} supplier PO{overdueSpos.length > 1 ? 's are' : ' is'} overdue for this job
+            </span>
+            <span className="text-xs ml-2" style={{ color: 'var(--text-2)' }}>
+              {overdueSpos.map(p => p.poNumber).join(', ')}
+            </span>
+          </div>
+        </div>
+      )}
       <div className="eoss-card overflow-hidden">
         <div className="eoss-card-header">
           <span className="font-semibold text-sm" style={{ color: 'var(--text)' }}>Purchase Requisitions ({prs.length})</span>
