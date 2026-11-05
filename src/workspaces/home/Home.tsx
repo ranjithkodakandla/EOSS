@@ -19,7 +19,7 @@ const QUICK_ACTIONS = [
 ];
 
 export default function Home() {
-  const { currentUser, eossTheme } = useStore();
+  const { currentUser, eossTheme, customerPos, jobs, dispatches, invoices, payments } = useStore();
   const navigate = useNavigate();
   const [copilotDrawerOpen, setCopilotDrawerOpen] = useState(false);
 
@@ -60,6 +60,28 @@ export default function Home() {
           Here's how your business is doing this month.
         </p>
       </div>
+
+      {/* RheinWerk Business Pulse */}
+      {(() => {
+        const rwPO = customerPos.find(po => po.id === 'cpo-rw-001');
+        if (!rwPO) return null;
+        const rwJobs = jobs.filter(j => j.customerPoId === 'cpo-rw-001');
+        const doneJobs = rwJobs.filter(j => j.status === 'complete').length;
+        const rwJobIds = new Set(rwJobs.map(j => j.id));
+        const rwDispatches = dispatches.filter(d => Array.isArray(d.jobs) && d.jobs.some(jid => rwJobIds.has(jid)));
+        const collected = payments.reduce((s, p) => s + p.amount, 0);
+        return (
+          <div className="mb-4 px-4 py-3 rounded-2xl border flex flex-wrap gap-4 items-center text-xs"
+            style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}>
+            <span className="font-semibold text-[var(--text)]">🇩🇪 RheinWerk — CPO-0001</span>
+            <span className="text-[var(--text-2)]">PO Value: <strong className="text-[var(--text)]">₹60,00,000</strong></span>
+            <span className="text-[var(--text-2)]">Jobs: <strong className="text-emerald-600">{doneJobs}/{rwJobs.length} complete</strong></span>
+            <span className="text-[var(--text-2)]">Dispatches: <strong className="text-[var(--text)]">{rwDispatches.length} delivered</strong></span>
+            <span className="text-[var(--text-2)]">Collected: <strong className="text-emerald-600">₹{(collected / 100000).toFixed(0)}L / ₹60L</strong></span>
+            <span className="text-emerald-600 font-semibold">✓ Fully Invoiced & Paid</span>
+          </div>
+        );
+      })()}
 
       {/* Main Two-Zone Responsive Split */}
       <div className="grid grid-cols-1 xl:grid-cols-[1fr_360px] 2xl:grid-cols-[1fr_380px] gap-5 items-stretch">

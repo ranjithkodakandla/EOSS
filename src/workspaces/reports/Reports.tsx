@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { BarChart2, Download, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { useStore } from '../../store';
+import { SITES } from '../../store';
 
 const REPORT_TYPES = [
   { id: 'production', label: 'Production Summary', desc: 'Job completion rates, stage cycle times, OEE', icon: '🏭' },
@@ -10,10 +11,11 @@ const REPORT_TYPES = [
   { id: 'asset', label: 'Asset Utilization', desc: 'Uptime, downtime, maintenance costs, PM compliance', icon: '⚙️' },
   { id: 'dispatch', label: 'Dispatch Report', desc: 'On-time delivery, transit times, customer-wise', icon: '🚚' },
   { id: 'finance', label: 'Financial Summary', desc: 'Revenue, collections, payables, cash position', icon: '💰' },
+  { id: 'multisite', label: 'Multi-Site Overview', desc: 'Per-site headcount, job load and production status', icon: '🏗️' },
 ];
 
 export default function Reports() {
-  const { jobs, inventory, inspections, assets, dispatches, maintenanceEvents, supplierPos, customerInvoices, supplierInvoices, showToast } = useStore();
+  const { jobs, inventory, inspections, assets, dispatches, maintenanceEvents, supplierPos, customerInvoices, supplierInvoices, employees, showToast } = useStore();
   const [activeReport, setActiveReport] = useState<string | null>(null);
   const [dateFrom, setDateFrom] = useState('2026-10-01');
   const [dateTo, setDateTo] = useState('2026-11-05');
@@ -189,6 +191,50 @@ export default function Reports() {
             <Stat label="Total Assets" value={assets.length} />
             <Stat label="Uptime" value={`${assetUptime}%`} color={assetUptime >= 95 ? 'success' : 'warning'} />
             <Stat label="Maintenance Events" value={maintenanceEvents.length} />
+          </div>
+        </div>
+      )}
+
+      {activeReport === 'multisite' && (
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-5">
+          <h3 className="font-semibold text-[var(--text)] mb-4">Multi-Site Overview — Apex Precision Engineering Pvt Ltd</h3>
+          <div className="overflow-x-auto">
+            <table className="eoss-table">
+              <thead>
+                <tr>
+                  <th>Site</th>
+                  <th>Code</th>
+                  <th>City</th>
+                  <th>Type</th>
+                  <th>Employees</th>
+                  <th>Total Jobs</th>
+                  <th>Active Jobs</th>
+                  <th>Completed Jobs</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {SITES.map(site => {
+                  const siteEmps = employees.filter(e => e.siteId === site.id).length;
+                  const siteJobs = jobs.filter(j => j.siteId === site.id);
+                  const activeJobs = siteJobs.filter(j => j.status === 'active').length;
+                  const completedJobs = siteJobs.filter(j => j.status === 'complete').length;
+                  return (
+                    <tr key={site.id}>
+                      <td className="font-medium text-[var(--text)]">{site.name}</td>
+                      <td className="font-mono text-xs text-[var(--brand)]">{site.code}</td>
+                      <td className="text-xs text-[var(--text-2)]">{site.city}</td>
+                      <td className="text-xs text-[var(--text-2)]">{site.siteType ?? '—'}</td>
+                      <td className="text-sm font-semibold text-[var(--text)]">{siteEmps}</td>
+                      <td className="text-sm text-[var(--text)]">{siteJobs.length}</td>
+                      <td className="text-sm text-blue-600">{activeJobs}</td>
+                      <td className="text-sm text-emerald-600">{completedJobs}</td>
+                      <td><span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${site.status === 'active' ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500'}`}>{site.status ?? 'active'}</span></td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         </div>
       )}
