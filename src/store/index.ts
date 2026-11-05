@@ -8,7 +8,7 @@ import type {
   SupplierQuotation, AuditEvent, ApprovalPolicy,
   CustomerInvoice, SupplierInvoice, PaymentRecord, OnboardingState,
   Invoice, InvoiceLine, Payment, PaymentAllocation, CollectionActivity,
-  FinishedProduct, SiteAllocation
+  FinishedProduct, SiteAllocation, CustomerQuotation, CustomerQuotationLine, POLine
 } from '../types';
 import {
   DEMO_USERS, JOBS, MATERIAL_LOTS, INVENTORY, STOCK_MOVEMENTS,
@@ -22,7 +22,7 @@ import {
   FLAGSHIP_INVOICES, FLAGSHIP_INVOICE_LINES, FLAGSHIP_PAYMENTS, FLAGSHIP_PAYMENT_ALLOCATIONS,
   COLLECTION_ACTIVITIES, FINISHED_PRODUCTS, FLAGSHIP_SITE_ALLOCATIONS,
   FLAGSHIP_INSPECTIONS, FLAGSHIP_NCRS,
-  SITES, FLAGSHIP_QUOTATION,
+  SITES, FLAGSHIP_QUOTATION, FLAGSHIP_QUOTATION_LINES, FLAGSHIP_PO_LINES,
   FLAGSHIP_GRNS, FLAGSHIP_SUPPLIER_RFQS, FLAGSHIP_PURCHASE_REQS,
 } from '../data/seed';
 
@@ -54,6 +54,9 @@ interface EOSSState {
   customerPos: CustomerPO[];
   supplierPos: SupplierPO[];
   rfqs: CustomerRFQ[];
+  quotations: CustomerQuotation[];
+  quotationLines: CustomerQuotationLine[];
+  poLines: POLine[];
   grns: GoodsReceipt[];
   inspections: Inspection[];
   ncrs: NCR[];
@@ -118,6 +121,9 @@ interface EOSSState {
 
   // Sales actions
   addRfq: (rfq: CustomerRFQ) => void;
+  addQuotation: (q: CustomerQuotation, lines: CustomerQuotationLine[]) => void;
+  updateQuotation: (id: string, partial: Partial<CustomerQuotation>) => void;
+  convertQuotationToPO: (quotationId: string, po: CustomerPO, poLines: POLine[]) => void;
   addCustomerPO: (po: CustomerPO) => void;
   addSupplierPO: (po: SupplierPO) => void;
   addGRN: (grn: GoodsReceipt) => void;
@@ -212,6 +218,9 @@ export const useStore = create<EOSSState>((set, get) => ({
   customerPos: [...CUSTOMER_POS, FLAGSHIP_PO],
   supplierPos: [...SUPPLIER_POS],
   rfqs: [...RFQS, FLAGSHIP_RFQ, ADDITIONAL_RFQ],
+  quotations: [FLAGSHIP_QUOTATION],
+  quotationLines: [...FLAGSHIP_QUOTATION_LINES],
+  poLines: [...FLAGSHIP_PO_LINES],
   grns: [...GRNS, ...FLAGSHIP_GRNS],
   inspections: [...INSPECTIONS, ...FLAGSHIP_INSPECTIONS],
   ncrs: [...NCRS, ...FLAGSHIP_NCRS],
@@ -431,6 +440,14 @@ export const useStore = create<EOSSState>((set, get) => ({
 
   // ── Sales / Cross-entity Actions ──
   addRfq: (rfq) => set(s => ({ rfqs: [rfq, ...s.rfqs] })),
+  addQuotation: (q, lines) => set(s => ({ quotations: [q, ...s.quotations], quotationLines: [...s.quotationLines, ...lines] })),
+  updateQuotation: (id, partial) => set(s => ({ quotations: s.quotations.map(q => q.id === id ? { ...q, ...partial } : q) })),
+  convertQuotationToPO: (quotationId, po, lines) => set(s => ({
+    quotations: s.quotations.map(q => q.id === quotationId ? { ...q, status: 'accepted' as const } : q),
+    rfqs: s.rfqs.map(r => r.id === s.quotations.find(q => q.id === quotationId)?.rfqId ? { ...r, status: 'converted' as const } : r),
+    customerPos: [po, ...s.customerPos],
+    poLines: [...s.poLines, ...lines],
+  })),
   addCustomerPO: (po) => set(s => ({ customerPos: [po, ...s.customerPos] })),
   addSupplierPO: (spo) => set(s => ({ supplierPos: [spo, ...s.supplierPos] })),
   addGRN: (grn) => set(s => ({ grns: [grn, ...s.grns] })),

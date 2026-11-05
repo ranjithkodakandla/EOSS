@@ -13,6 +13,10 @@ const Loading = () => (
 const Home = lazy(() => import('./workspaces/home/Home'));
 const Sales = lazy(() => import('./workspaces/sales/Sales'));
 const SalesPODetail = lazy(() => import('./workspaces/sales/PODetail'));
+const RFQCreate = lazy(() => import('./workspaces/sales/RFQCreate'));
+const RFQDetail = lazy(() => import('./workspaces/sales/RFQDetail'));
+const QuotationCreate = lazy(() => import('./workspaces/sales/QuotationCreate'));
+const QuotationDetail = lazy(() => import('./workspaces/sales/QuotationDetail'));
 const CustomerDirectory = lazy(() => import('./workspaces/sales/CustomerDirectory'));
 const CustomerDetail = lazy(() => import('./workspaces/sales/CustomerDetail'));
 const POAmend = lazy(() => import('./workspaces/sales/POAmend'));
@@ -57,6 +61,10 @@ export default function App() {
         <Route element={<OnboardingGuard><AppShell /></OnboardingGuard>}>
           <Route index element={<Home />} />
           <Route path="sales" element={<Sales />} />
+          <Route path="sales/rfq/new" element={<RFQCreate />} />
+          <Route path="sales/rfq/:id" element={<RFQDetail />} />
+          <Route path="sales/rfq/:rfqId/quotation/new" element={<QuotationCreate />} />
+          <Route path="sales/quotation/:id" element={<QuotationDetail />} />
           <Route path="sales/po/:id" element={<SalesPODetail />} />
           <Route path="sales/po/:id/amend" element={<POAmend />} />
           <Route path="sales/customers" element={<CustomerDirectory />} />

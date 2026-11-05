@@ -74,7 +74,7 @@ export default function Sales() {
         </div>
         {canCreate && (
           <button
-            onClick={() => setShowNewRFQ(true)}
+            onClick={() => navigate('/sales/rfq/new')}
             className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white transition-opacity hover:opacity-90"
             style={{ background: 'var(--brand)' }}
           >
@@ -258,7 +258,7 @@ export default function Sales() {
                     style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}
                     onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--surface-2)'; }}
                     onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'var(--surface)'; }}
-                    onClick={() => setSelectedRfq(r)}
+                    onClick={() => navigate(`/sales/rfq/${r.id}`)}
                   >
                     <td className="px-4 py-3 font-mono text-xs font-bold" style={{ color: 'var(--brand)' }}>{r.rfqNumber}</td>
                     <td className="px-4 py-3 font-medium" style={{ color: 'var(--text)' }}>{r.customerName}</td>
@@ -270,13 +270,15 @@ export default function Sales() {
                     <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-2)' }}>{r.owner}</td>
                     <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                       <div className="flex items-center gap-1">
-                        <button onClick={e => { e.stopPropagation(); showToast({ type: 'success', title: 'PO Created', body: `Purchase Order raised from ${r.rfqNumber} for ${r.customerName}.` }); }}
-                          className="text-xs px-2 py-1 rounded-lg border font-medium transition-colors"
-                          style={{ borderColor: 'var(--brand)', color: 'var(--brand)', background: 'transparent' }}>
-                          → PO
-                        </button>
+                        {canCreate && r.status !== 'cancelled' && r.status !== 'converted' && (
+                          <button onClick={e => { e.stopPropagation(); navigate(`/sales/rfq/${r.id}`); }}
+                            className="text-xs px-2 py-1 rounded-lg border font-medium transition-colors"
+                            style={{ borderColor: 'var(--brand)', color: 'var(--brand)', background: 'transparent' }}>
+                            View
+                          </button>
+                        )}
                         {canCreate && r.status !== 'cancelled' && (
-                          <button onClick={() => handleDeleteRfq(r.id)} className="p-1 rounded hover:bg-[var(--surface-2)]" title="Cancel RFQ"><Trash2 size={12} style={{ color: 'var(--error,#DC2626)' }} /></button>
+                          <button onClick={e => { e.stopPropagation(); handleDeleteRfq(r.id); }} className="p-1 rounded hover:bg-[var(--surface-2)]" title="Cancel RFQ"><Trash2 size={12} style={{ color: 'var(--error,#DC2626)' }} /></button>
                         )}
                       </div>
                     </td>
