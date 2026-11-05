@@ -93,7 +93,12 @@ export default function DispatchWorkspace() {
                 <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-2)' }}>{d.dispatchDate ? new Date(d.dispatchDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '—'}</td>
                 <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-2)' }}>{d.expectedDelivery ? new Date(d.expectedDelivery).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '—'}</td>
                 <td className="px-4 py-3 text-xs text-center" style={{ color: 'var(--text-2)' }}>{d.totalQty ?? '—'}</td>
-                <td className="px-4 py-3"><StatusChip status={d.status} size="sm" /></td>
+                <td className="px-4 py-3">
+                  <div className="flex items-center gap-1 flex-wrap">
+                    <StatusChip status={d.status} size="sm" />
+                    {d.status === 'pending_docs' && d.totalQty === 0 && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-green-100 text-green-700">Ready Stock</span>}
+                  </div>
+                </td>
                 <td className="px-4 py-3">
                   {d.status === 'dispatched' && !d.hasPoD ? (
                     <button onClick={e => { e.stopPropagation(); setPodDispatchId(d.id); }}

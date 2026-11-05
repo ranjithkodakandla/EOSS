@@ -257,8 +257,14 @@ export default function AdminSecurity() {
             </table>
           </div>
 
+          {/* Global Admin Roadmap */}
+          <div className="mt-4 p-3 rounded-xl border border-dashed border-[var(--border)] bg-[var(--surface-2)] flex items-start gap-2">
+            <span className="text-[10px] font-bold bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full whitespace-nowrap mt-0.5">v2.0 Roadmap</span>
+            <div className="text-xs text-[var(--text-3)]"><strong className="text-[var(--text-2)]">Global Admin (Multi-tenant):</strong> Manage multiple company instances, global config templates, and cross-company reporting from a single super-admin console.</div>
+          </div>
+
           {/* Demo Role Switcher */}
-          <div className="mt-6 p-4 border border-dashed border-[var(--border)] rounded-2xl bg-[var(--surface-2)]">
+          <div className="mt-4 p-4 border border-dashed border-[var(--border)] rounded-2xl bg-[var(--surface-2)]">
             <div className="flex items-center gap-2 mb-3">
               <Shield size={14} style={{ color: 'var(--brand)' }} />
               <span className="text-xs font-semibold text-[var(--text)]">Demo Role Switcher</span>
@@ -285,8 +291,49 @@ export default function AdminSecurity() {
         <div>
           <div className="mb-4">
             <h2 className="text-base font-semibold text-[var(--text)]">Roles & Permissions</h2>
-            <p className="text-xs text-[var(--text-3)] mt-0.5">10 pre-configured demo roles. Use the role switcher in the top bar to test role-specific access.</p>
+            <p className="text-xs text-[var(--text-3)] mt-0.5">12 pre-configured roles. Users may hold multiple roles — access is the union of all assigned roles.</p>
           </div>
+
+          {/* Role-Module Access Matrix */}
+          <div className="mb-6 overflow-x-auto">
+            <h3 className="text-sm font-semibold text-[var(--text)] mb-2">Module Access Matrix</h3>
+            <table className="text-xs border-separate border-spacing-0 min-w-[700px]">
+              <thead>
+                <tr>
+                  <th className="text-left px-3 py-2 bg-[var(--surface-2)] border border-[var(--border)] rounded-tl-lg sticky left-0 z-10">Module</th>
+                  {['Owner','Sales','Buyer','Supervisor','Operator','QC','Storekeeper','Dispatch','Maintenance','Auditor'].map(r => (
+                    <th key={r} className="px-2 py-2 bg-[var(--surface-2)] border border-[var(--border)] text-center whitespace-nowrap font-medium text-[var(--text-2)]">{r}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {[
+                  { mod: 'Home', access: ['Admin','View','View','View','View','View','View','View','View','View'] },
+                  { mod: 'Sales', access: ['Admin','Edit','View','View','—','—','—','View','—','View'] },
+                  { mod: 'Suppliers', access: ['Admin','View','Edit','—','—','—','View','—','—','View'] },
+                  { mod: 'Procurement', access: ['Admin','—','Edit','View','—','—','Edit','—','—','View'] },
+                  { mod: 'Inventory', access: ['Admin','—','View','View','—','View','Edit','—','—','View'] },
+                  { mod: 'Jobs', access: ['Admin','View','—','Edit','Edit','View','—','—','—','View'] },
+                  { mod: 'Quality', access: ['Admin','—','—','View','—','Edit','—','—','—','View'] },
+                  { mod: 'Assets', access: ['Admin','—','—','View','—','—','—','—','Edit','View'] },
+                  { mod: 'Dispatch', access: ['Admin','View','—','—','—','—','—','Edit','—','View'] },
+                  { mod: 'Documents', access: ['Admin','Edit','Edit','Edit','View','Edit','Edit','View','View','View'] },
+                  { mod: 'Reports', access: ['Admin','View','View','View','—','View','View','View','View','View'] },
+                  { mod: 'Admin', access: ['Admin','—','—','—','—','—','—','—','—','View'] },
+                ].map(row => (
+                  <tr key={row.mod}>
+                    <td className="px-3 py-1.5 border border-[var(--border)] bg-[var(--surface)] font-medium text-[var(--text)] sticky left-0 z-10">{row.mod}</td>
+                    {row.access.map((a, i) => {
+                      const bg = a === 'Admin' ? 'bg-purple-100 text-purple-700' : a === 'Edit' ? 'bg-blue-100 text-blue-700' : a === 'View' ? 'bg-[var(--surface-2)] text-[var(--text-3)]' : 'text-[var(--text-3)] opacity-30';
+                      return <td key={i} className="px-2 py-1.5 border border-[var(--border)] bg-[var(--surface)] text-center"><span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${bg}`}>{a}</span></td>;
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <p className="text-xs text-[var(--text-3)] mt-2">Multi-role users get the union of all their roles' access levels.</p>
+          </div>
+
           <div className="grid md:grid-cols-2 gap-3">
             {Object.entries(ROLE_LABELS).map(([key, label]) => (
               <div key={key} className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-4">
@@ -405,9 +452,15 @@ export default function AdminSecurity() {
         <div>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-base font-semibold text-[var(--text)]">Audit & Activity</h2>
-            <button onClick={() => navigate('/admin/audit')} className="flex items-center gap-2 px-3.5 py-2 border border-[var(--border)] rounded-xl text-sm text-[var(--text-2)] hover:border-[var(--brand)] transition-colors">
-              Full Timeline <ChevronRight size={14} />
-            </button>
+            <div className="flex items-center gap-2">
+              <button onClick={() => showToast({ type: 'info', title: 'Export queued', body: 'Audit log CSV will download shortly.' })}
+                className="flex items-center gap-2 px-3.5 py-2 border border-[var(--border)] rounded-xl text-sm text-[var(--text-2)] hover:border-[var(--brand)] transition-colors">
+                Export CSV
+              </button>
+              <button onClick={() => navigate('/admin/audit')} className="flex items-center gap-2 px-3.5 py-2 border border-[var(--border)] rounded-xl text-sm text-[var(--text-2)] hover:border-[var(--brand)] transition-colors">
+                Full Timeline <ChevronRight size={14} />
+              </button>
+            </div>
           </div>
           <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl overflow-hidden">
             <table className="eoss-table">

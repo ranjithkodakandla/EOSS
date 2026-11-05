@@ -82,8 +82,20 @@ export default function Assets() {
                 <td className="px-4 py-3 text-xs font-semibold" style={{ color: a.criticality === 'Critical' ? 'var(--error,#DC2626)' : a.criticality === 'High' ? 'var(--warning,#D97706)' : 'var(--text-3)' }}>{a.criticality}</td>
                 <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-2)' }}>{a.meterType !== 'none' && a.currentReading ? `${a.currentReading.toLocaleString()} ${a.meterType}` : '—'}</td>
                 <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-2)' }}>{a.lastServiceDate ? new Date(a.lastServiceDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '—'}</td>
-                <td className="px-4 py-3 text-xs" style={{ color: a.status === 'pm_overdue' ? 'var(--error,#DC2626)' : 'var(--text-2)', fontWeight: a.status === 'pm_overdue' ? 600 : undefined }}>
-                  {a.nextServiceDate ? new Date(a.nextServiceDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '—'}
+                <td className="px-4 py-3">
+                  {a.nextServiceDate ? (() => {
+                    const days = Math.round((new Date(a.nextServiceDate).getTime() - new Date('2026-11-05').getTime()) / 86400000);
+                    return (
+                      <div>
+                        <div className="text-xs" style={{ color: a.status === 'pm_overdue' ? 'var(--error,#DC2626)' : 'var(--text-2)', fontWeight: a.status === 'pm_overdue' ? 600 : undefined }}>
+                          {new Date(a.nextServiceDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                        </div>
+                        <div className="text-[10px] mt-0.5" style={{ color: days < 0 ? 'var(--error,#DC2626)' : days <= 7 ? 'var(--warning,#D97706)' : 'var(--text-3)' }}>
+                          {days < 0 ? `Overdue by ${-days}d` : days === 0 ? 'Due today' : `Due in ${days}d`}
+                        </div>
+                      </div>
+                    );
+                  })() : <span className="text-xs" style={{ color: 'var(--text-3)' }}>—</span>}
                 </td>
                 <td className="px-4 py-3"><StatusChip status={a.status} size="sm" /></td>
                 <td className="px-4 py-3"><ChevronRight size={14} style={{ color: 'var(--text-3)' }} /></td>
@@ -141,7 +153,13 @@ export default function Assets() {
 
 function LogEventModal({ assets, onClose, onSave }: { assets: { id: string; name: string; assetCode: string }[]; onClose: () => void; onSave: (e: MaintenanceEvent) => void }) {
   const [form, setForm] = useState({ assetId: assets[0]?.id ?? '', type: 'Breakdown' as MaintenanceEvent['type'], symptom: '', technicianName: '', severity: 'Medium' as NonNullable<MaintenanceEvent['severity']> });
+  const [barcodeInput, setBarcodeInput] = useState('');
   const [err, setErr] = useState('');
+  const handleBarcodeScan = (code: string) => {
+    const found = assets.find(a => a.assetCode === code.trim() || a.id === code.trim());
+    if (found) { setForm(f => ({ ...f, assetId: found.id })); setBarcodeInput(''); }
+    else setBarcodeInput(code + ' — not found');
+  };
   const save = () => {
     if (!form.assetId || !form.symptom || !form.technicianName) { setErr('Asset, symptom and technician are required'); return; }
     const asset = assets.find(a => a.id === form.assetId);
@@ -158,6 +176,13 @@ function LogEventModal({ assets, onClose, onSave }: { assets: { id: string; name
           <button onClick={onClose}><X size={16} className="text-[var(--text-3)]" /></button>
         </div>
         <div className="space-y-3">
+          <div>
+            <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Scan / Enter Asset Tag</label>
+            <div className="flex gap-2">
+              <input className="eoss-input flex-1" placeholder="EOSS-ASSET-HYD-0042 or asset code" value={barcodeInput} onChange={e => setBarcodeInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleBarcodeScan(barcodeInput)} />
+              <button onClick={() => handleBarcodeScan(barcodeInput)} className="px-3 py-1.5 bg-[var(--surface-2)] border border-[var(--border)] rounded-lg text-xs text-[var(--text-2)] hover:border-[var(--brand)]">Scan</button>
+            </div>
+          </div>
           <div>
             <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Asset *</label>
             <select className="eoss-input w-full" value={form.assetId} onChange={e => setForm(f => ({ ...f, assetId: e.target.value }))}>

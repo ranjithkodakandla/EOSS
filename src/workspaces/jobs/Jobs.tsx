@@ -140,22 +140,26 @@ export default function Jobs() {
 }
 
 function NewJobModal({ onClose, onSave }: { onClose: () => void; onSave: (j: Job) => void }) {
-  const [form, setForm] = useState({ customerId: '', customerName: '', description: '', plannedEnd: '', priority: 'normal' as Job['priority'] });
+  const { customerPos } = useStore();
+  const [form, setForm] = useState({ customerId: '', customerName: '', description: '', plannedEnd: '', priority: 'normal' as Job['priority'], linkedPoRef: '', orderedQty: '', bufferPct: '5' });
   const [err, setErr] = useState('');
+  const orderedQtyNum = Number(form.orderedQty) || 0;
+  const bufferPctNum = Number(form.bufferPct) || 5;
+  const plannedQty = orderedQtyNum > 0 ? Math.ceil(orderedQtyNum * (1 + bufferPctNum / 100)) : 0;
   const save = () => {
     if (!form.customerId || !form.description || !form.plannedEnd) { setErr('Customer, description and planned end date required'); return; }
     const id = `job-${Date.now()}`;
     const num = `J-${String(Math.floor(Math.random() * 900 + 110))}`;
     const defaultStages: JobStage[] = [
-      { id: `${id}-s1`, jobId: id, name: 'Material Preparation', sequence: 1, status: 'pending', plannedStart: '2026-11-05', plannedEnd: form.plannedEnd, inputQty: 0, completedGoodQty: 0, rejectedQty: 0, reworkQty: 0, scrapQty: 0, uom: 'pcs' },
-      { id: `${id}-s2`, jobId: id, name: 'Fabrication', sequence: 2, status: 'pending', plannedStart: '2026-11-05', plannedEnd: form.plannedEnd, inputQty: 0, completedGoodQty: 0, rejectedQty: 0, reworkQty: 0, scrapQty: 0, uom: 'pcs' },
-      { id: `${id}-s3`, jobId: id, name: 'QC Inspection', sequence: 3, status: 'pending', plannedStart: '2026-11-05', plannedEnd: form.plannedEnd, inputQty: 0, completedGoodQty: 0, rejectedQty: 0, reworkQty: 0, scrapQty: 0, uom: 'pcs' },
+      { id: `${id}-s1`, jobId: id, name: 'Material Preparation', sequence: 1, status: 'pending', plannedStart: '2026-11-05', plannedEnd: form.plannedEnd, inputQty: plannedQty || 0, completedGoodQty: 0, rejectedQty: 0, reworkQty: 0, scrapQty: 0, uom: 'pcs' },
+      { id: `${id}-s2`, jobId: id, name: 'Fabrication', sequence: 2, status: 'pending', plannedStart: '2026-11-05', plannedEnd: form.plannedEnd, inputQty: plannedQty || 0, completedGoodQty: 0, rejectedQty: 0, reworkQty: 0, scrapQty: 0, uom: 'pcs' },
+      { id: `${id}-s3`, jobId: id, name: 'QC Inspection', sequence: 3, status: 'pending', plannedStart: '2026-11-05', plannedEnd: form.plannedEnd, inputQty: plannedQty || 0, completedGoodQty: 0, rejectedQty: 0, reworkQty: 0, scrapQty: 0, uom: 'pcs' },
     ];
     onSave({ id, jobNumber: num, customerId: form.customerId, customerName: form.customerName, description: form.description, status: 'active', priority: form.priority, plannedStart: '2026-11-05', plannedEnd: form.plannedEnd, siteId: 'site-1', siteName: 'Main Plant', owner: 'Owner', stages: defaultStages, currentStage: 'Material Preparation', materialReadiness: 'pending', hasBlocker: false });
   };
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl w-full max-w-sm p-6 shadow-2xl">
+      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl w-full max-w-sm p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
         <div className="flex justify-between items-center mb-4">
           <h3 className="font-bold text-[var(--text)]">New Job</h3>
           <button onClick={onClose}><X size={16} className="text-[var(--text-3)]" /></button>
@@ -172,9 +176,31 @@ function NewJobModal({ onClose, onSave }: { onClose: () => void; onSave: (j: Job
             </select>
           </div>
           <div>
+            <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Linked Customer PO</label>
+            <select className="eoss-input w-full" value={form.linkedPoRef} onChange={e => setForm(f => ({ ...f, linkedPoRef: e.target.value }))}>
+              <option value="">None / New PO</option>
+              {customerPos.map(po => <option key={po.id} value={po.poNumber}>{po.poNumber} — {po.customerName}</option>)}
+            </select>
+          </div>
+          <div>
             <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Job Description *</label>
             <input className="eoss-input w-full" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="e.g. Fabrication of 10 MS Frames" />
           </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Ordered Qty</label>
+              <input type="number" className="eoss-input w-full" value={form.orderedQty} onChange={e => setForm(f => ({ ...f, orderedQty: e.target.value }))} placeholder="e.g. 100" min="0" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Buffer %</label>
+              <input type="number" className="eoss-input w-full" value={form.bufferPct} onChange={e => setForm(f => ({ ...f, bufferPct: e.target.value }))} min="0" max="50" />
+            </div>
+          </div>
+          {orderedQtyNum > 0 && (
+            <div className="text-xs rounded-lg px-3 py-2 bg-[var(--surface-2)] text-[var(--text-2)]">
+              Planned production qty: <strong className="text-[var(--text)]">{plannedQty}</strong> ({form.orderedQty} ordered × {(1 + bufferPctNum/100).toFixed(2)})
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Planned End *</label>

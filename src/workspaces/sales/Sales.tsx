@@ -163,7 +163,7 @@ export default function Sales() {
             <table className="w-full text-sm border-collapse">
               <thead className="sticky top-0 z-10" style={{ background: 'var(--surface-2)' }}>
                 <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                  {['PO Number', 'Customer', 'Date', 'Value', 'Lines', 'Terms', 'Status'].map(h => (
+                  {['PO Number', 'Customer', 'Date', 'Value', 'Lines', 'Terms', 'Status', ''].map(h => (
                     <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold font-medium" style={{ color: 'var(--text-3)' }}>
                       {h}
                     </th>
@@ -202,11 +202,18 @@ export default function Sales() {
                       <td className="px-4 py-3">
                         <StatusChip status={p.status} size="sm" />
                       </td>
+                      <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
+                        <button
+                          onClick={() => showToast({ type: 'info', title: 'Attach Customer PO', body: `Upload scan/photo of customer PO for ${p.poNumber}. File picker coming in v1.1.` })}
+                          className="text-xs px-2 py-1 rounded-lg border border-[var(--border)] text-[var(--text-2)] hover:border-[var(--brand)] hover:text-[var(--brand)] transition-colors whitespace-nowrap">
+                          Attach PO
+                        </button>
+                      </td>
                     </tr>
                   );
                 })}
                 {filteredPos.length === 0 && (
-                  <tr><td colSpan={7} className="text-center py-12 text-sm" style={{ color: 'var(--text-3)' }}>No POs match the current filters</td></tr>
+                  <tr><td colSpan={8} className="text-center py-12 text-sm" style={{ color: 'var(--text-3)' }}>No POs match the current filters</td></tr>
                 )}
               </tbody>
             </table>

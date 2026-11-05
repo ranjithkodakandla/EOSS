@@ -222,6 +222,9 @@ export default function Procurement() {
 
         {tab === 'approvals' && (
           <div className="p-5">
+            <div className="mb-4 p-3 rounded-xl bg-[var(--surface-2)] border border-[var(--border)] text-xs text-[var(--text-2)]">
+              <strong className="text-[var(--text)]">Auto-Approval Rules:</strong> PRs &lt; ₹10,000 and repeat purchases from approved vendors are auto-approved <span className="font-bold text-green-600 bg-green-100 px-1.5 py-0.5 rounded ml-1">Auto</span>. Items above threshold or new vendors require manual approval <span className="font-bold text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded ml-1">Manual</span>.
+            </div>
             {approvalRequests.filter(a => a.status === 'pending').length === 0 ? (
               <div className="rounded-xl border p-10 text-center" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
                 <p className="text-sm" style={{ color: 'var(--text-3)' }}>No pending approvals.</p>

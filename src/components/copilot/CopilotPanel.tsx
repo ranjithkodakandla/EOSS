@@ -335,6 +335,12 @@ sendBtnBg: isGraphite
         <div ref={chatBottomRef} />
       </div>
 
+      {/* ── Guardrails disclaimer ── */}
+      <div className="px-4 py-1.5 flex items-center gap-1.5 border-t border-white/10 bg-black/10 flex-shrink-0">
+        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-white/10 text-white/60">⚠ Guardrails active</span>
+        <span className="text-[9px] text-white/40 truncate">AI suggestions are advisory — verify before acting · Simulated, no data sent externally</span>
+      </div>
+
       {/* ── Bottom composer ── */}
       <div className="p-3.5 md:p-4 bg-black/15 backdrop-blur-md border-t border-white/10 flex-shrink-0">
         <div className="relative flex items-center">
