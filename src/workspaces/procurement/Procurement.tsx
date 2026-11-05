@@ -1,14 +1,15 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Plus, AlertTriangle, Search, ChevronRight, X, Pencil, Trash2 } from 'lucide-react';
-import { useStore, PURCHASE_REQS, CUSTOMERS } from '../../store';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Plus, AlertTriangle, Search, ChevronRight, X, Pencil, Trash2, Send } from 'lucide-react';
+import { useStore } from '../../store';
 import StatusChip from '../../components/layout/StatusChip';
 import type { SupplierPO, SupplierQuotation } from '../../types';
 
 type ProcTab = 'spo' | 'pr' | 'grn' | 'approvals' | 'quotes';
 
 export default function Procurement() {
-  const { supplierPos, grns, approvalRequests, supplierQuotations, currentUser, showToast, addSupplierPO, resolveApproval, updateSupplierPo } = useStore();
+  const { supplierPos, grns, approvalRequests, supplierQuotations, purchaseReqs, currentUser, showToast, addSupplierPO, resolveApproval, updateSupplierPo } = useStore();
+  const [searchParams] = useSearchParams();
   const [editSpo, setEditSpo] = useState<SupplierPO | null>(null);
 
   const handleDeleteSpo = (id: string) => {
@@ -18,7 +19,7 @@ export default function Procurement() {
     showToast({ type: 'success', title: 'Supplier PO cancelled' });
   };
   const navigate = useNavigate();
-  const [tab, setTab] = useState<ProcTab>('spo');
+  const [tab, setTab] = useState<ProcTab>((searchParams.get('tab') as ProcTab) ?? 'spo');
   const [search, setSearch] = useState('');
   const [showNewPO, setShowNewPO] = useState(false);
 
@@ -33,7 +34,7 @@ export default function Procurement() {
 
   const TABS = [
     { id: 'spo' as ProcTab, label: `Supplier POs (${supplierPos.length})` },
-    { id: 'pr' as ProcTab, label: `PRs (${PURCHASE_REQS.length})` },
+    { id: 'pr' as ProcTab, label: `PRs (${purchaseReqs.length})` },
     { id: 'grn' as ProcTab, label: `GRNs (${grns.length})` },
     { id: 'quotes' as ProcTab, label: `Quotations (${supplierQuotations.length})` },
     { id: 'approvals' as ProcTab, label: `Approvals${pendingApprovals > 0 ? ` · ${pendingApprovals}` : ''}` },
@@ -70,6 +71,11 @@ export default function Procurement() {
               className="px-3 py-1.5 rounded-lg border text-xs font-medium hover:opacity-80"
               style={{ borderColor: 'var(--border)', color: 'var(--text-2)' }}>
               Supplier Return
+            </button>
+            <button onClick={() => navigate('/procurement/pr/new')}
+              className="px-3 py-1.5 rounded-lg border text-xs font-medium hover:opacity-80"
+              style={{ borderColor: 'var(--border)', color: 'var(--text-2)' }}>
+              New PR
             </button>
             <button onClick={() => setShowNewPO(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white"
               style={{ background: 'var(--brand)' }}>
@@ -146,17 +152,20 @@ export default function Procurement() {
           <table className="w-full text-sm border-separate border-spacing-0">
             <thead style={{ position: 'sticky', top: 0, zIndex: 5 }}>
               <tr style={{ background: 'var(--surface-2)' }}>
-                {['PR Number', 'Raised By', 'Raised Date', 'Required By', 'Job Ref', 'Lines', 'Priority', 'Status'].map(h => (
+                {['PR Number', 'Raised By', 'Raised Date', 'Required By', 'Job Ref', 'Lines', 'Priority', 'Status', ''].map(h => (
                   <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold font-medium" style={{ color: 'var(--text-3)', borderBottom: '1px solid var(--border)' }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {PURCHASE_REQS.map(pr => (
+              {purchaseReqs.length === 0 && (
+                <tr><td colSpan={9} className="px-4 py-10 text-center text-sm" style={{ color: 'var(--text-3)' }}>No PRs found</td></tr>
+              )}
+              {purchaseReqs.map(pr => (
                 <tr key={pr.id} className="cursor-pointer" style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}
                   onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--surface-2)'; }}
                   onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'var(--surface)'; }}
-                  onClick={() => showToast({ type: 'info', title: pr.prNumber, body: `${pr.raisedBy} · ${pr.lineCount} lines · Priority: ${pr.priority} · ${pr.status}` })}>
+                  onClick={() => navigate(`/procurement/pr/${pr.id}`)}>
                   <td className="px-4 py-3 font-mono text-xs font-bold" style={{ color: 'var(--brand)' }}>{pr.prNumber}</td>
                   <td className="px-4 py-3 text-sm" style={{ color: 'var(--text)' }}>{pr.raisedBy}</td>
                   <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-2)' }}>{new Date(pr.raisedDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</td>
@@ -165,6 +174,16 @@ export default function Procurement() {
                   <td className="px-4 py-3 text-sm text-center" style={{ color: 'var(--text-2)' }}>{pr.lineCount}</td>
                   <td className="px-4 py-3"><StatusChip status={pr.priority} size="sm" /></td>
                   <td className="px-4 py-3"><StatusChip status={pr.status} size="sm" /></td>
+                  <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
+                    {pr.status === 'approved' && (
+                      <button onClick={() => navigate(`/procurement/supplier-rfq/new?prId=${pr.id}`)}
+                        className="flex items-center gap-1 px-2 py-1 rounded-lg border text-xs font-medium"
+                        style={{ borderColor: 'var(--brand)', color: 'var(--brand)' }}>
+                        <Send size={11} /> RFQ
+                      </button>
+                    )}
+                    {pr.status !== 'approved' && <ChevronRight size={14} style={{ color: 'var(--text-3)' }} />}
+                  </td>
                 </tr>
               ))}
             </tbody>

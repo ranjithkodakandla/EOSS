@@ -26,6 +26,9 @@ const Procurement = lazy(() => import('./workspaces/procurement/Procurement'));
 const SupplierPODetail = lazy(() => import('./workspaces/procurement/SupplierPODetail'));
 const GRNDetail = lazy(() => import('./workspaces/procurement/GRNDetail'));
 const SupplierReturn = lazy(() => import('./workspaces/procurement/SupplierReturn'));
+const PRCreate = lazy(() => import('./workspaces/procurement/PRCreate'));
+const PRDetail = lazy(() => import('./workspaces/procurement/PRDetail'));
+const SupplierRFQCreate = lazy(() => import('./workspaces/procurement/SupplierRFQCreate'));
 const Inventory = lazy(() => import('./workspaces/inventory/Inventory'));
 const LotDetail = lazy(() => import('./workspaces/inventory/LotDetail'));
 const CertificateDetail = lazy(() => import('./workspaces/inventory/CertificateDetail'));
@@ -74,6 +77,9 @@ export default function App() {
           <Route path="suppliers" element={<Suppliers />} />
           <Route path="suppliers/:id" element={<SupplierDetail />} />
           <Route path="procurement" element={<Procurement />} />
+          <Route path="procurement/pr/new" element={<PRCreate />} />
+          <Route path="procurement/pr/:id" element={<PRDetail />} />
+          <Route path="procurement/supplier-rfq/new" element={<SupplierRFQCreate />} />
           <Route path="procurement/spo/:id" element={<SupplierPODetail />} />
           <Route path="procurement/grn/:id" element={<GRNDetail />} />
           <Route path="procurement/supplier-return" element={<SupplierReturn />} />

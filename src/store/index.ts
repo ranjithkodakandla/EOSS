@@ -8,7 +8,8 @@ import type {
   SupplierQuotation, AuditEvent, ApprovalPolicy,
   CustomerInvoice, SupplierInvoice, PaymentRecord, OnboardingState,
   Invoice, InvoiceLine, Payment, PaymentAllocation, CollectionActivity,
-  FinishedProduct, SiteAllocation, CustomerQuotation, CustomerQuotationLine, POLine
+  FinishedProduct, SiteAllocation, CustomerQuotation, CustomerQuotationLine, POLine,
+  PurchaseRequisition
 } from '../types';
 import {
   DEMO_USERS, JOBS, MATERIAL_LOTS, INVENTORY, STOCK_MOVEMENTS,
@@ -34,6 +35,7 @@ export type EOSSTheme = 'aurora' | 'ocean' | 'graphite';
 interface EOSSState {
   // Session
   currentUser: DemoUser;
+  purchaseReqs: PurchaseRequisition[];
   theme: ThemeMode;
   eossTheme: EOSSTheme;
   sidebarCollapsed: boolean;
@@ -96,6 +98,8 @@ interface EOSSState {
   closeMaintenanceEvent: (eventId: string, diagnosis: string, workDone: string) => void;
 
   // Procurement actions
+  addPurchaseReq: (pr: PurchaseRequisition) => void;
+  updatePurchaseReq: (id: string, partial: Partial<PurchaseRequisition>) => void;
   setSupplierPoStatus: (spoId: string, status: SupplierPO['status']) => void;
 
   // Approval actions
@@ -217,6 +221,7 @@ export const useStore = create<EOSSState>((set, get) => ({
   pulseExceptions: [...PULSE_EXCEPTIONS],
   customerPos: [...CUSTOMER_POS, FLAGSHIP_PO],
   supplierPos: [...SUPPLIER_POS],
+  purchaseReqs: [...PURCHASE_REQS, ...FLAGSHIP_PURCHASE_REQS],
   rfqs: [...RFQS, FLAGSHIP_RFQ, ADDITIONAL_RFQ],
   quotations: [FLAGSHIP_QUOTATION],
   quotationLines: [...FLAGSHIP_QUOTATION_LINES],
@@ -448,6 +453,8 @@ export const useStore = create<EOSSState>((set, get) => ({
     customerPos: [po, ...s.customerPos],
     poLines: [...s.poLines, ...lines],
   })),
+  addPurchaseReq: (pr) => set(s => ({ purchaseReqs: [pr, ...s.purchaseReqs] })),
+  updatePurchaseReq: (id, partial) => set(s => ({ purchaseReqs: s.purchaseReqs.map(p => p.id === id ? { ...p, ...partial } : p) })),
   addCustomerPO: (po) => set(s => ({ customerPos: [po, ...s.customerPos] })),
   addSupplierPO: (spo) => set(s => ({ supplierPos: [spo, ...s.supplierPos] })),
   addGRN: (grn) => set(s => ({ grns: [grn, ...s.grns] })),
