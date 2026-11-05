@@ -41,13 +41,6 @@ export interface Site {
   name: string;
   code: string;
   city: string;
-  siteType?: 'Manufacturing' | 'Warehouse' | 'Office' | 'Fabrication' | 'Precision Machining';
-  address?: string;
-  state?: string;
-  pinCode?: string;
-  siteManager?: string;
-  phone?: string;
-  status?: 'active' | 'inactive';
 }
 
 export interface StoreLocation {
@@ -368,7 +361,6 @@ export interface InventoryItem {
   reorderPoint: number;
   shortage: boolean;
   lotCount: number;
-  unitCost?: number;
 }
 
 // ── Quality ──
@@ -671,8 +663,8 @@ export interface AuditEvent {
 // ── Approval Policy ──
 export interface ApprovalPolicy {
   id: ID;
-  scope: string;          // entity type this policy applies to
-  condition: string;      // human-readable condition description
+  scope: string;
+  condition: string;
   thresholdType: 'value' | 'quantity' | 'always' | 'never';
   thresholdValue?: number;
   requiredRole: string;
@@ -680,238 +672,267 @@ export interface ApprovalPolicy {
   active: boolean;
 }
 
-// ── Finished Product ──
-export interface FinishedProduct {
+// ── Extended Site ──
+export interface SiteFull extends Site {
+  type: 'Manufacturing' | 'Warehouse' | 'Fabrication' | 'Assembly' | 'Office';
+  address: string;
+  buildingPlot?: string;
+  industrialArea?: string;
+  district: string;
+  state: string;
+  country: string;
+  pincode: string;
+  siteManager: string;
+  contactPhone: string;
+  contactEmail: string;
+  operationalStatus: 'active' | 'inactive' | 'under_construction';
+  lat?: number;
+  lng?: number;
+}
+
+// ── RFQ Extended ──
+export type RFQStatus =
+  | 'draft' | 'open' | 'under_review' | 'quotation_in_progress'
+  | 'quoted' | 'accepted' | 'rejected' | 'expired' | 'converted';
+
+export interface RFQLine {
   id: ID;
-  productCode: string;
-  name: string;
+  rfqId: ID;
+  lineNumber: number;
+  customerItemRef?: string;
+  productId?: ID;
+  productName: string;
   description: string;
-  categoryId: string;
-  categoryName: string;
-  primaryUom: string;
-  drawingNumber: string;
-  drawingRevision: string;
-  materialSpec: string;
-  netWeightKg: number;
-  grossWeightKg: number;
-  primaryDimension: string;
-  manufacturingRoute: string;
-  status: 'active' | 'inactive';
-  unitPriceInr: number;
+  drawingNumber?: string;
+  drawingRevision?: string;
+  material?: string;
+  grade?: string;
+  dimensions?: string;
+  tolerances?: string;
+  qty: number;
+  uom: string;
+  requiredDate: string;
+  targetPrice?: number;
+  manufacturingReqs?: string;
+  inspectionReqs?: string;
+  certificationReqs?: string;
+  packagingReqs?: string;
+  technicalNotes?: string;
+}
+
+export interface RFQDocument {
+  id: ID;
+  rfqId: ID;
+  rfqLineId?: ID;
+  filename: string;
+  docType: 'RFQ Document' | 'Drawing' | 'Specification' | 'BOM' | 'Image' | 'Quality Spec' | 'Other';
+  version?: string;
+  uploadedBy: string;
+  uploadedAt: string;
+  fileSize?: string;
+  notes?: string;
+}
+
+export interface RFQClarification {
+  id: ID;
+  rfqId: ID;
+  rfqLineId?: ID;
+  reference: string;
+  date: string;
+  question: string;
+  raisedBy: string;
+  customerResponse?: string;
+  responseDate?: string;
+  status: 'open' | 'answered' | 'closed';
+  notes?: string;
+  relatedDoc?: string;
+}
+
+export interface CustomerRFQFull {
+  id: ID;
+  rfqNumber: string;
+  title: string;
+  customerId: ID;
+  customerName: string;
+  customerContactPerson?: string;
+  customerEmail?: string;
+  customerPhone?: string;
+  customerEnquiryRef?: string;
+  customerProjectRef?: string;
+  receivedDate: string;
+  quotationDueDate?: string;
+  requiredBy: string;
+  channel: 'Email' | 'Portal' | 'Phone' | 'Meeting' | 'Other';
+  priority: 'Low' | 'Normal' | 'High' | 'Urgent';
+  owner: string;
+  currency: string;
+  deliveryLocation?: string;
+  status: RFQStatus;
+  requirementsSummary?: string;
+  customerInstructions?: string;
+  internalNotes?: string;
+  // Technical & Quality
+  applicableStandards?: string;
+  materialStandards?: string;
+  mtcRequired?: boolean;
+  dimensionalInspection?: boolean;
+  ndtRequired?: boolean;
+  heatTreatment?: boolean;
+  surfaceTreatment?: string;
+  traceabilityRequired?: boolean;
+  customerWitnessRequired?: boolean;
+  requiredQualityDocs?: string;
+  packagingPreservation?: string;
+  specialQualityReqs?: string;
+  // Commercial
+  deliveryTerms?: string;
+  freightResponsibility?: string;
+  paymentExpectation?: string;
+  quoteValidityExpected?: string;
+  priceExpectation?: string;
+  specialCommercialConditions?: string;
+  // References
+  lines: RFQLine[];
+  documents: RFQDocument[];
+  clarifications: RFQClarification[];
+  // Lifecycle
+  revisionNumber: number;
+  quotationIds: ID[];
+  convertedPoId?: ID;
+  createdAt: string;
+  updatedAt: string;
+  createdBy: string;
 }
 
 // ── Customer Quotation ──
+export type QuotationStatus =
+  | 'draft' | 'review' | 'issued' | 'accepted' | 'rejected' | 'expired' | 'superseded';
+
+export interface QuotationLine {
+  id: ID;
+  quotationId: ID;
+  rfqLineId?: ID;
+  lineNumber: number;
+  productName: string;
+  description: string;
+  drawingNumber?: string;
+  drawingRevision?: string;
+  qty: number;
+  uom: string;
+  unitPrice: number;
+  discountPct?: number;
+  taxPct: number;
+  lineTotal: number;
+  requiredDate: string;
+  deliveryDays?: number;
+  notes?: string;
+}
+
 export interface CustomerQuotation {
   id: ID;
   quotationNumber: string;
-  rfqId: ID;
-  rfqNumber: string;
+  rfqId?: ID;
+  rfqNumber?: string;
   customerId: ID;
   customerName: string;
   quotationDate: string;
   validUntil: string;
+  status: QuotationStatus;
   currency: string;
-  status: 'draft' | 'submitted' | 'accepted' | 'rejected' | 'expired' | 'revised';
-  totalValue: number;
-  revision: number;
+  deliveryTerms?: string;
+  paymentTerms: string;
+  taxMode?: string;
+  subtotal: number;
+  taxAmount: number;
+  totalAmount: number;
   owner: string;
-  notes?: string;
-}
-
-export interface CustomerQuotationLine {
-  id: ID;
-  quotationId: ID;
-  productId: ID;
-  productName: string;
-  drawingNumber: string;
-  drawingRevision: string;
-  orderedQty: number;
-  uom: string;
-  unitPrice: number;
-  value: number;
-  requiredDate: string;
-}
-
-// ── Site Allocation ──
-export interface SiteAllocation {
-  id: ID;
-  poId: ID;
-  poNumber: string;
-  poLineId: ID;
-  productId: ID;
-  productName: string;
-  siteId: ID;
-  siteName: string;
-  allocatedQty: number;
-  uom: string;
-  jobId?: ID;
-  jobNumber?: string;
-  status: 'pending' | 'in_progress' | 'complete' | 'cancelled';
-  allocatedDate: string;
-  allocatedBy: string;
+  version: number;
+  lines: QuotationLine[];
+  internalNotes?: string;
+  customerNotes?: string;
+  acceptedDate?: string;
+  acceptedBy?: string;
+  rejectedReason?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 // ── Finance ──
+export type InvoiceStatus =
+  | 'draft' | 'validated' | 'issued' | 'partially_paid' | 'paid' | 'overdue' | 'disputed' | 'cancelled';
+
+export interface InvoiceLine {
+  id: ID;
+  invoiceId: ID;
+  poLineId?: ID;
+  poLineDesc?: string;
+  dispatchRef?: string;
+  productName: string;
+  description?: string;
+  qty: number;
+  uom: string;
+  unitPrice: number;
+  taxPct: number;
+  lineTotal: number;
+}
+
 export interface CustomerInvoice {
   id: ID;
   invoiceNumber: string;
   customerId: ID;
   customerName: string;
-  customerPoRef?: string;
-  customerPoId?: ID;
-  invoiceDate: string;
-  dueDate: string;
-  amount: number;
-  amountPaid: number;
-  currency: string;
-  status: 'draft' | 'sent' | 'partial' | 'paid' | 'overdue' | 'disputed';
-}
-
-export interface SupplierInvoice {
-  id: ID;
-  invoiceNumber: string;
-  supplierId: ID;
-  supplierName: string;
-  supplierPoRef?: string;
-  supplierPoId?: ID;
-  invoiceDate: string;
-  dueDate: string;
-  amount: number;
-  amountPaid: number;
-  currency: string;
-  status: 'pending' | 'partial' | 'paid' | 'overdue' | 'disputed';
-}
-
-export interface PaymentRecord {
-  id: ID;
-  direction: 'inbound' | 'outbound';
-  partyId: ID;
-  partyName: string;
-  date: string;
-  amount: number;
-  currency: string;
-  mode: 'NEFT' | 'RTGS' | 'IMPS' | 'Cheque' | 'UPI' | 'Cash' | 'Other';
-  reference: string;
-  linkedInvoiceId?: ID;
-  notes?: string;
-}
-
-// ── Onboarding ──
-export type OnboardingStatus = 'not_started' | 'in_progress' | 'complete';
-
-export interface OnboardingState {
-  status: OnboardingStatus;
-  completedSteps: number[];
-  companyProfile?: {
-    companyName: string;
-    tradingName: string;
-    businessType: 'manufacturing' | 'fabrication' | 'trading' | 'mixed';
-    legalName: string;
-    entityType: string;
-    pan: string;
-    registeredAddress: string;
-    city: string;
-    state: string;
-    pincode: string;
-    phone: string;
-    email: string;
-    financialYear: string;
-    currency: string;
-  };
-  gstRegistrations?: Array<{
-    gstin: string;
-    state: string;
-    type: string;
-    notApplicable?: boolean;
-  }>;
-  sites?: Array<{
-    id: string;
-    name: string;
-    type: 'factory' | 'warehouse' | 'office' | 'branch';
-    address: string;
-    city: string;
-    state: string;
-    isPrimary: boolean;
-  }>;
-  storeLocations?: Array<{
-    siteId: string;
-    name: string;
-    code: string;
-  }>;
-}
-
-// ── Invoice (AR) ──
-export interface Invoice {
-  id: ID;
-  invoiceNumber: string;
-  customerId: ID;
-  customerName: string;
   poId: ID;
   poNumber: string;
-  dispatchIds: ID[];
+  dispatchId?: ID;
+  dispatchNumber?: string;
   invoiceDate: string;
   dueDate: string;
   currency: string;
-  status: 'draft' | 'issued' | 'partially_paid' | 'paid' | 'overdue' | 'disputed' | 'cancelled';
   subtotal: number;
   taxAmount: number;
   totalAmount: number;
   paidAmount: number;
   outstandingAmount: number;
-  overdueDays?: number;
-  createdBy: string;
-  notes?: string;
-}
-
-export interface InvoiceLine {
-  id: ID;
-  invoiceId: ID;
-  productId: ID;
-  productName: string;
-  drawingNumber: string;
-  quantity: number;
-  uom: string;
-  unitPrice: number;
-  taxPct: number;
-  taxAmount: number;
-  lineTotal: number;
-  dispatchId?: ID;
-  dispatchNumber?: string;
-}
-
-// ── Payment ──
-export interface Payment {
-  id: ID;
-  paymentNumber: string;
-  customerId: ID;
-  customerName: string;
-  receiptDate: string;
-  currency: string;
-  amount: number;
-  paymentMethod: 'bank_transfer' | 'upi' | 'cheque' | 'other';
-  transactionRef: string;
-  receivingAccount: string;
-  status: 'received' | 'allocated' | 'partially_allocated' | 'reversed';
-  allocatedAmount: number;
-  unallocatedAmount: number;
+  status: InvoiceStatus;
+  lines: InvoiceLine[];
   notes?: string;
   createdBy: string;
+  createdAt: string;
 }
+
+export type PaymentStatus = 'pending' | 'cleared' | 'bounced' | 'cancelled';
+export type PaymentMethod = 'NEFT' | 'RTGS' | 'IMPS' | 'Cheque' | 'Cash' | 'UPI' | 'Other';
 
 export interface PaymentAllocation {
   id: ID;
   paymentId: ID;
-  paymentNumber: string;
   invoiceId: ID;
   invoiceNumber: string;
-  customerId: ID;
   allocatedAmount: number;
-  allocatedDate: string;
-  allocatedBy: string;
-  notes?: string;
+  allocationDate: string;
 }
 
-// ── Collection Activity ──
+export interface CustomerPayment {
+  id: ID;
+  paymentNumber: string;
+  customerId: ID;
+  customerName: string;
+  paymentDate: string;
+  amount: number;
+  currency: string;
+  method: PaymentMethod;
+  transactionRef: string;
+  receivingAccount?: string;
+  status: PaymentStatus;
+  allocations: PaymentAllocation[];
+  unallocatedAmount: number;
+  notes?: string;
+  createdBy: string;
+  createdAt: string;
+}
+
+export type CollectionStatus = 'pending' | 'contacted' | 'promise_to_pay' | 'disputed' | 'escalated' | 'resolved';
+
 export interface CollectionActivity {
   id: ID;
   collectionNumber: string;
@@ -919,13 +940,46 @@ export interface CollectionActivity {
   customerName: string;
   invoiceId: ID;
   invoiceNumber: string;
-  assignedTo: string;
+  outstandingAmount: number;
+  owner: string;
+  dueDate: string;
   followUpDate: string;
-  channel: 'email' | 'phone' | 'meeting' | 'whatsapp';
-  notes: string;
-  promiseToPayDate?: string;
-  nextFollowUpDate?: string;
+  channel: 'Email' | 'Phone' | 'Meeting' | 'WhatsApp' | 'Other';
+  notes?: string;
+  promiseToPay?: string;
+  nextFollowUp?: string;
   outcome?: string;
-  status: 'pending' | 'contacted' | 'promise_to_pay' | 'disputed' | 'escalated' | 'resolved';
+  status: CollectionStatus;
+  history: { date: string; action: string; by: string; notes?: string }[];
   createdAt: string;
+}
+
+// ── Delivery Confirmation ──
+export interface DeliveryConfirmation {
+  id: ID;
+  dispatchId: ID;
+  dispatchNumber: string;
+  customerId: ID;
+  deliveredDate: string;
+  receivedBy?: string;
+  podRef?: string;
+  notes?: string;
+  confirmedAt: string;
+}
+
+// ── Purchase Requisition Line ──
+export interface PRLine {
+  id: ID;
+  prId: ID;
+  materialItemId: ID;
+  materialName: string;
+  requiredQty: number;
+  uom: string;
+  requiredDate: string;
+  jobId?: ID;
+  jobNumber?: string;
+  stageId?: ID;
+  stageName?: string;
+  estimatedPrice?: number;
+  justification?: string;
 }

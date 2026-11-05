@@ -1,0 +1,21 @@
+// Shared company identity — single source of truth for all workspaces
+export const COMPANY = {
+  id: 'apex-precision',
+  legalName: 'Apex Precision Engineering Pvt Ltd',
+  tradingName: 'Apex Precision',
+  shortName: 'APE',
+  gstin: '36AABCA1234P1ZX',
+  pan: 'AABCA1234P',
+  cin: 'U28910TG2010PTC068421',
+  state: 'Telangana',
+  stateCode: '36',
+  address: 'Plot No. 42, Phase II, IDA Jeedimetla',
+  city: 'Hyderabad',
+  pincode: '500055',
+  phone: '040-23094567',
+  email: 'info@apexprecision.in',
+  website: 'www.apexprecision.in',
+  financialYear: '2024–2025',
+  currency: 'INR',
+  logoInitials: 'AP',
+} as const;
