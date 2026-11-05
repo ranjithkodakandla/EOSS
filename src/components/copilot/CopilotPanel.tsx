@@ -63,6 +63,11 @@ export default function CopilotPanel({ isDrawer, onClose }: Props) {
       ? '0 16px 40px -8px rgba(8,127,140,0.45)'
       : '0 16px 40px -8px rgba(112,72,245,0.45)',
     sparkleColor: isGraphite ? '#F59E0B' : isOcean ? '#22D3EE' : '#FCD34D',
+    // Graphite robot sits far right in its image → shift image left so robot is close to bubble
+    // Ocean robot is wide/centered → push mask further right so it doesn't bleed into content
+    // Aurora confirmed good at right:0 / mask:38%
+    heroRight: isGraphite ? 14 : isOcean ? 0 : 0,
+    heroMask: isGraphite ? '28%' : isOcean ? '46%' : '38%',
     sendBtnBg: isGraphite
       ? 'linear-gradient(135deg, #E58A36, #F59E0B)'
       : isOcean
@@ -164,31 +169,43 @@ export default function CopilotPanel({ isDrawer, onClose }: Props) {
         boxShadow: themeConfig.panelShadow,
       }}
     >
-      {/* ── Hero: artwork fills top, left column holds header + speech bubble ── */}
-      <div className="relative flex-shrink-0" style={{ height: 200 }}>
-        {/* Full-bleed artwork — robot sits in right portion of image */}
+      {/* ── Hero ── */}
+      {/* Robot images are 570×467 with robot centered. We right-align at natural
+          aspect ratio (height=100%) so the robot sits in the right half, then
+          mask-fade the left edge so it blends into the panel gradient.
+          Content column is capped at 54% so it never reaches the robot body. */}
+      <div
+        className="relative flex-shrink-0 overflow-hidden"
+        style={{ height: 192, background: themeConfig.panelBg }}
+      >
+        {/* Robot artwork — right-aligned, natural ratio, left-edge faded */}
         <img
           src={themeConfig.heroImg}
           alt=""
           aria-hidden
           style={{
             position: 'absolute',
-            inset: 0,
-            width: '100%',
-            height: '100%',
-            objectFit: 'cover',
-            objectPosition: 'center top',
+            right: themeConfig.heroRight,
+            top: 0,
+            height: '108%',
+            width: 'auto',
+            WebkitMaskImage: `linear-gradient(to right, transparent 0%, black ${themeConfig.heroMask})`,
+            maskImage: `linear-gradient(to right, transparent 0%, black ${themeConfig.heroMask})`,
           }}
         />
-        {/* Soft fade at bottom into panel bg */}
+
+        {/* Bottom fade into panel bg */}
         <div style={{
-          position: 'absolute', bottom: 0, left: 0, right: 0, height: 50,
+          position: 'absolute', bottom: 0, left: 0, right: 0, height: 48,
           background: `linear-gradient(to bottom, transparent, ${themeConfig.panelBg})`,
+          zIndex: 2,
         }} />
 
-        {/* Left column overlay — stays in left 58% so it never touches robot */}
-        <div className="relative z-10 h-full flex flex-col justify-between p-4" style={{ width: '58%' }}>
-          {/* Header */}
+        {/* Left content column — header top, speech bubble bottom */}
+        <div
+          className="relative flex flex-col justify-between p-4"
+          style={{ width: '54%', height: '100%', zIndex: 3 }}
+        >
           <div className="flex items-center gap-2">
             <div className="w-7 h-7 rounded-lg bg-white/20 backdrop-blur-md flex items-center justify-center flex-shrink-0">
               <Sparkles size={15} style={{ color: themeConfig.sparkleColor }} />
@@ -204,14 +221,13 @@ export default function CopilotPanel({ isDrawer, onClose }: Props) {
             </div>
           </div>
 
-          {/* Speech bubble — bottom of left column, never reaches the robot */}
           {messages.length === 0 && (
             <div
               className="px-3 py-2.5 rounded-2xl text-[13px] font-bold leading-snug"
               style={{
                 background: 'linear-gradient(180deg, #FFFFFF 0%, #F8FAFC 100%)',
                 color: '#1A1F36',
-                boxShadow: '0 6px 20px -4px rgba(0,0,0,0.18), inset 0 1px 1px #FFFFFF',
+                boxShadow: '0 6px 20px -4px rgba(0,0,0,0.20), inset 0 1px 1px #FFFFFF',
                 border: '1px solid rgba(255,255,255,0.9)',
               }}
             >
@@ -220,7 +236,7 @@ export default function CopilotPanel({ isDrawer, onClose }: Props) {
           )}
         </div>
 
-        {/* Close button — top-right corner of panel */}
+        {/* Close button */}
         {isDrawer && onClose && (
           <button
             onClick={onClose}
