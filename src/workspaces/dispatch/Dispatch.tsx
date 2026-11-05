@@ -50,65 +50,57 @@ export default function DispatchWorkspace() {
   }
 
   return (
-    <div className="p-4 md:p-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
-        <div>
-          <h1 className="text-xl font-bold text-[var(--text)]">Dispatch</h1>
-          <div className="flex items-center gap-3 mt-0.5">
-            <p className="text-sm text-[var(--text-2)]">{dispatches.length} shipments</p>
-            {pendingDocs > 0 && <span className="text-xs text-[var(--warning)] font-semibold">{pendingDocs} pending docs</span>}
-            {dispatched > 0 && <span className="text-xs text-[var(--info)] font-semibold">{dispatched} in transit</span>}
-          </div>
+    <div className="flex flex-col h-full">
+      {/* Toolbar */}
+      <div className="flex-shrink-0 flex items-center gap-3 px-5 py-3 border-b flex-wrap" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
+        <div className="relative flex-1 min-w-[180px] max-w-xs">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-3)' }} />
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search dispatches…"
+            className="w-full pl-8 pr-3 py-1.5 text-sm rounded-lg border outline-none"
+            style={{ borderColor: 'var(--border)', background: 'var(--surface)', color: 'var(--text)' }} />
         </div>
+        <div className="flex-1" />
+        {pendingDocs > 0 && <span className="px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ background: 'var(--warning-bg,#FFFBEB)', color: 'var(--warning,#D97706)' }}>{pendingDocs} pending docs</span>}
+        {dispatched > 0 && <span className="px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ background: 'var(--info-bg,#EFF6FF)', color: 'var(--info,#2563EB)' }}>{dispatched} in transit</span>}
         {['owner', 'dispatch'].includes(currentUser.role) && (
-          <button onClick={() => setShowModal(true)} className="flex items-center gap-2 px-4 py-2 bg-[var(--brand)] text-white rounded-lg text-sm font-medium">
-            <Plus size={16} /> New Dispatch
+          <button onClick={() => setShowModal(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white" style={{ background: 'var(--brand)' }}>
+            <Plus size={13} /> New Dispatch
           </button>
         )}
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
-        <KpiTile label="Total" value={dispatches.length} />
-        <KpiTile label="Pending Docs" value={pendingDocs} accent={pendingDocs > 0 ? 'warning' : 'neutral'} />
-        <KpiTile label="In Transit" value={dispatched} accent={dispatched > 0 ? 'info' : 'neutral'} />
-        <KpiTile label="Delivered" value={delivered} accent="success" />
-      </div>
-
-      <div className="relative mb-4">
-        <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-3)]" />
-        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search dispatches…" className="w-full pl-9 pr-4 py-2 rounded-lg border border-[var(--border)] bg-[var(--surface)] text-sm text-[var(--text)] placeholder:text-[var(--text-3)] focus:outline-none focus:border-[var(--brand)]" />
-      </div>
-
-      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="eoss-table">
-            <thead>
-              <tr>
-                <th>Dispatch #</th><th>Customer</th><th>Jobs</th>
-                <th>Carrier / Vehicle</th><th>Dispatch Date</th>
-                <th>Expected Delivery</th><th>Qty</th><th>Status</th><th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map(d => (
-                <tr key={d.id} className="cursor-pointer" onClick={() => navigate(`/dispatch/${d.id}`)}>
-                  <td><span className="font-mono text-xs font-semibold text-[var(--brand)]">{d.dispatchNumber}</span></td>
-                  <td className="text-sm text-[var(--text)]">{d.customerName}</td>
-                  <td><span className="font-mono text-xs text-[var(--text-2)]">{(d.jobs ?? []).join(', ') || '—'}</span></td>
-                  <td className="text-sm text-[var(--text-2)]">{d.carrier ?? d.vehicleNumber ?? '—'}</td>
-                  <td className="text-sm text-[var(--text-2)]">{d.dispatchDate ? new Date(d.dispatchDate).toLocaleDateString('en-IN') : '—'}</td>
-                  <td className="text-sm text-[var(--text-2)]">{d.expectedDelivery ? new Date(d.expectedDelivery).toLocaleDateString('en-IN') : '—'}</td>
-                  <td className="text-sm text-[var(--text-2)]">{d.totalQty ?? '—'}</td>
-                  <td><StatusChip status={d.status} size="sm" /></td>
-                  <td><ChevronRight size={14} className="text-[var(--text-3)]" /></td>
-                </tr>
+      {/* Table */}
+      <div className="flex-1 overflow-auto">
+        <table className="w-full text-sm border-separate border-spacing-0" style={{ minWidth: 800 }}>
+          <thead style={{ position: 'sticky', top: 0, zIndex: 5 }}>
+            <tr style={{ background: 'var(--surface-muted,#F8F9FC)' }}>
+              {['Dispatch #', 'Customer', 'Jobs', 'Carrier / Vehicle', 'Dispatch Date', 'Expected Delivery', 'Qty', 'Status', ''].map(h => (
+                <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-3)', borderBottom: '1px solid var(--border)' }}>{h}</th>
               ))}
-              {filtered.length === 0 && (
-                <tr><td colSpan={9} className="text-center py-8 text-sm text-[var(--text-3)]">No dispatches found</td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.map(d => (
+              <tr key={d.id} className="cursor-pointer" style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--surface-muted,#F8F9FC)'; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'var(--surface)'; }}
+                onClick={() => navigate(`/dispatch/${d.id}`)}>
+                <td className="px-4 py-3 font-mono text-xs font-bold" style={{ color: 'var(--brand)' }}>{d.dispatchNumber}</td>
+                <td className="px-4 py-3 text-sm font-medium" style={{ color: 'var(--text)' }}>{d.customerName}</td>
+                <td className="px-4 py-3 font-mono text-xs" style={{ color: 'var(--text-2)' }}>{(d.jobs ?? []).join(', ') || '—'}</td>
+                <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-2)' }}>{d.carrier ?? d.vehicleNumber ?? '—'}</td>
+                <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-2)' }}>{d.dispatchDate ? new Date(d.dispatchDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '—'}</td>
+                <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-2)' }}>{d.expectedDelivery ? new Date(d.expectedDelivery).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '—'}</td>
+                <td className="px-4 py-3 text-xs text-center" style={{ color: 'var(--text-2)' }}>{d.totalQty ?? '—'}</td>
+                <td className="px-4 py-3"><StatusChip status={d.status} size="sm" /></td>
+                <td className="px-4 py-3"><ChevronRight size={14} style={{ color: 'var(--text-3)' }} /></td>
+              </tr>
+            ))}
+            {filtered.length === 0 && (
+              <tr><td colSpan={9} className="px-4 py-10 text-center text-sm" style={{ color: 'var(--text-3)' }}>No dispatches found</td></tr>
+            )}
+          </tbody>
+        </table>
       </div>
 
       {showModal && (

@@ -22,115 +22,104 @@ export default function Assets() {
   const canCreate = ['owner', 'maintenance', 'supervisor'].includes(currentUser.role);
 
   return (
-    <div className="p-4 md:p-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
-        <div>
-          <h1 className="text-xl font-bold text-[var(--text)]">Assets & Maintenance</h1>
-          <div className="flex items-center gap-3 mt-0.5">
-            <p className="text-sm text-[var(--text-2)]">{assets.length} assets</p>
-            {breakdowns > 0 && <span className="flex items-center gap-1 text-xs text-[var(--error)] font-semibold"><AlertTriangle size={12} /> {breakdowns} breakdown</span>}
-            {pmOverdue > 0 && <span className="text-xs text-[var(--warning)] font-semibold">{pmOverdue} PM overdue</span>}
-          </div>
+    <div className="flex flex-col h-full">
+      {/* Toolbar */}
+      <div className="flex-shrink-0 flex items-center gap-3 px-5 py-3 border-b flex-wrap" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
+        <div className="relative flex-1 min-w-[180px] max-w-xs">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-3)' }} />
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search assets, events…"
+            className="w-full pl-8 pr-3 py-1.5 text-sm rounded-lg border outline-none"
+            style={{ borderColor: 'var(--border)', background: 'var(--surface)', color: 'var(--text)' }} />
         </div>
+        <div className="flex-1" />
+        {breakdowns > 0 && <span className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ background: 'var(--error-bg,#FEF2F2)', color: 'var(--error,#DC2626)' }}><AlertTriangle size={12} /> {breakdowns} breakdown</span>}
+        {pmOverdue > 0 && <span className="px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ background: 'var(--warning-bg,#FFFBEB)', color: 'var(--warning,#D97706)' }}>{pmOverdue} PM overdue</span>}
         {canCreate && (
-          <button className="flex items-center gap-2 px-4 py-2 bg-[var(--brand)] text-white rounded-lg text-sm font-medium">
-            <Plus size={16} /> Log Event
+          <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white" style={{ background: 'var(--brand)' }}>
+            <Plus size={13} /> Log Event
           </button>
         )}
       </div>
 
-      {/* KPIs */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
-        <KpiTile label="Total Assets" value={assets.length} />
-        <KpiTile label="Breakdown" value={breakdowns} accent={breakdowns > 0 ? 'error' : 'neutral'} />
-        <KpiTile label="PM Overdue" value={pmOverdue} accent={pmOverdue > 0 ? 'warning' : 'neutral'} />
-        <KpiTile label="Open Events" value={openEvents} accent={openEvents > 0 ? 'warning' : 'neutral'} />
-      </div>
-
       {/* Tabs */}
-      <div className="flex gap-2 mb-4">
-        <button onClick={() => setTab('assets')} className={clsx('px-4 py-2 rounded-lg text-sm transition-colors', tab === 'assets' ? 'bg-[var(--brand)] text-white' : 'border border-[var(--border)] text-[var(--text-2)]')}>
-          Assets ({assets.length})
-        </button>
-        <button onClick={() => setTab('maintenance')} className={clsx('px-4 py-2 rounded-lg text-sm transition-colors', tab === 'maintenance' ? 'bg-[var(--brand)] text-white' : 'border border-[var(--border)] text-[var(--text-2)]')}>
-          Maintenance Events ({maintenanceEvents.length})
-        </button>
+      <div className="flex-shrink-0 flex items-center border-b px-5" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
+        {([['assets', `Assets (${assets.length})`], ['maintenance', `Maintenance Events (${maintenanceEvents.length})`]] as [string, string][]).map(([id, label]) => (
+          <button key={id} onClick={() => setTab(id as any)}
+            className="relative px-4 py-3 text-sm font-medium transition-colors whitespace-nowrap"
+            style={{ color: tab === id ? 'var(--brand)' : 'var(--text-2)' }}>
+            {label}
+            {tab === id && <span className="absolute bottom-0 left-0 right-0 h-0.5 rounded-t-full" style={{ background: 'var(--brand)' }} />}
+          </button>
+        ))}
       </div>
 
-      {/* Search */}
-      <div className="relative mb-4">
-        <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-3)]" />
-        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search assets, events…" className="w-full pl-9 pr-4 py-2 rounded-lg border border-[var(--border)] bg-[var(--surface)] text-sm text-[var(--text)] placeholder:text-[var(--text-3)] focus:outline-none focus:border-[var(--brand)]" />
-      </div>
-
+      <div className="flex-1 overflow-auto">
       {tab === 'assets' && (
-        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="eoss-table">
-              <thead>
-                <tr><th>Code</th><th>Asset</th><th>Category</th><th>Work Centre</th><th>Criticality</th><th>Meter</th><th>Last Service</th><th>Next Service</th><th>Status</th><th></th></tr>
-              </thead>
-              <tbody>
-                {filteredAssets.map(a => (
-                  <tr key={a.id} className={clsx('cursor-pointer', a.status === 'breakdown' ? 'bg-[var(--error-bg)]' : a.status === 'pm_overdue' ? 'bg-[var(--warning-bg)]' : '')} onClick={() => navigate(`/assets/${a.id}`)}>
-                    <td><span className="font-mono text-xs font-semibold text-[var(--brand)]">{a.assetCode}</span></td>
-                    <td>
-                      <div className="text-sm font-medium text-[var(--text)]">{a.name}</div>
-                      <div className="text-[11px] text-[var(--text-3)]">{a.manufacturer} {a.model}</div>
-                    </td>
-                    <td className="text-sm text-[var(--text-2)]">{a.category}</td>
-                    <td className="text-sm text-[var(--text-2)]">{a.workCentre ?? '—'}</td>
-                    <td>
-                      <span className={clsx('text-xs font-semibold', {
-                        'text-[var(--error)]': a.criticality === 'Critical',
-                        'text-[var(--warning)]': a.criticality === 'High',
-                        'text-[var(--info)]': a.criticality === 'Medium',
-                        'text-[var(--text-3)]': a.criticality === 'Low',
-                      })}>{a.criticality}</span>
-                    </td>
-                    <td className="text-sm text-[var(--text-2)]">{a.meterType !== 'none' && a.currentReading ? `${a.currentReading.toLocaleString()} ${a.meterType}` : '—'}</td>
-                    <td className="text-sm text-[var(--text-2)]">{a.lastServiceDate ? new Date(a.lastServiceDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '—'}</td>
-                    <td className={clsx('text-sm', a.status === 'pm_overdue' ? 'text-[var(--error)] font-semibold' : 'text-[var(--text-2)]')}>
-                      {a.nextServiceDate ? new Date(a.nextServiceDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '—'}
-                    </td>
-                    <td><StatusChip status={a.status} size="sm" /></td>
-                    <td><ChevronRight size={14} className="text-[var(--text-3)]" /></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <table className="w-full text-sm border-separate border-spacing-0" style={{ minWidth: 900 }}>
+          <thead style={{ position: 'sticky', top: 0, zIndex: 5 }}>
+            <tr style={{ background: 'var(--surface-muted,#F8F9FC)' }}>
+              {['Code', 'Asset', 'Category', 'Work Centre', 'Criticality', 'Meter', 'Last Service', 'Next Service', 'Status', ''].map(h => (
+                <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-3)', borderBottom: '1px solid var(--border)' }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {filteredAssets.map(a => (
+              <tr key={a.id} className="cursor-pointer"
+                style={{ borderBottom: '1px solid var(--border)', background: a.status === 'breakdown' ? 'var(--error-bg,#FEF2F2)' : a.status === 'pm_overdue' ? 'var(--warning-bg,#FFFBEB)' : 'var(--surface)' }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--surface-muted,#F8F9FC)'; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = a.status === 'breakdown' ? 'var(--error-bg,#FEF2F2)' : a.status === 'pm_overdue' ? 'var(--warning-bg,#FFFBEB)' : 'var(--surface)'; }}
+                onClick={() => navigate(`/assets/${a.id}`)}>
+                <td className="px-4 py-3 font-mono text-xs font-bold" style={{ color: 'var(--brand)' }}>{a.assetCode}</td>
+                <td className="px-4 py-3">
+                  <div className="text-sm font-medium" style={{ color: 'var(--text)' }}>{a.name}</div>
+                  <div className="text-[11px]" style={{ color: 'var(--text-3)' }}>{a.manufacturer} {a.model}</div>
+                </td>
+                <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-2)' }}>{a.category}</td>
+                <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-2)' }}>{a.workCentre ?? '—'}</td>
+                <td className="px-4 py-3 text-xs font-semibold" style={{ color: a.criticality === 'Critical' ? 'var(--error,#DC2626)' : a.criticality === 'High' ? 'var(--warning,#D97706)' : 'var(--text-3)' }}>{a.criticality}</td>
+                <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-2)' }}>{a.meterType !== 'none' && a.currentReading ? `${a.currentReading.toLocaleString()} ${a.meterType}` : '—'}</td>
+                <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-2)' }}>{a.lastServiceDate ? new Date(a.lastServiceDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '—'}</td>
+                <td className="px-4 py-3 text-xs" style={{ color: a.status === 'pm_overdue' ? 'var(--error,#DC2626)' : 'var(--text-2)', fontWeight: a.status === 'pm_overdue' ? 600 : undefined }}>
+                  {a.nextServiceDate ? new Date(a.nextServiceDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '—'}
+                </td>
+                <td className="px-4 py-3"><StatusChip status={a.status} size="sm" /></td>
+                <td className="px-4 py-3"><ChevronRight size={14} style={{ color: 'var(--text-3)' }} /></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       )}
 
       {tab === 'maintenance' && (
-        <div className="space-y-3">
+        <div className="p-5 space-y-3 max-w-4xl">
           {filteredME.map(m => (
-            <div key={m.id} className={clsx('bg-[var(--surface)] border rounded-xl p-4 cursor-pointer hover:border-[var(--brand)] transition-colors', m.type === 'Breakdown' && m.status !== 'closed' ? 'border-[var(--error)]' : 'border-[var(--border)]')} onClick={() => navigate(`/assets/me/${m.id}`)}>
+            <div key={m.id} className="rounded-xl border p-4 cursor-pointer hover:opacity-90 transition-opacity"
+              style={{ borderColor: (m.type === 'Breakdown' && m.status !== 'closed') ? 'var(--error,#DC2626)' : 'var(--border)', background: 'var(--surface)' }}
+              onClick={() => navigate(`/assets/me/${m.id}`)}>
               <div className="flex items-start justify-between gap-3">
                 <div className="flex-1">
                   <div className="flex items-center gap-2 flex-wrap mb-1">
-                    <span className="font-mono text-xs font-semibold text-[var(--brand)]">{m.eventNumber}</span>
+                    <span className="font-mono text-xs font-bold" style={{ color: 'var(--brand)' }}>{m.eventNumber}</span>
                     <StatusChip status={m.type.toLowerCase()} label={m.type} size="sm" />
                     <StatusChip status={m.status} size="sm" />
-                    {m.severity && <span className={clsx('text-xs font-semibold', m.severity === 'High' || m.severity === 'Critical' ? 'text-[var(--error)]' : 'text-[var(--warning)]')}>{m.severity}</span>}
                   </div>
-                  <div className="text-sm font-medium text-[var(--text)]">{m.assetName} <span className="text-[var(--text-3)] font-mono text-xs">({m.assetCode})</span></div>
-                  <p className="text-xs text-[var(--text-2)] mt-1 line-clamp-2">{m.symptom}</p>
-                  <div className="flex items-center gap-3 mt-1 text-xs text-[var(--text-3)]">
-                    <span>{m.technicianName}</span>
-                    <span>·</span>
-                    <span>{new Date(m.downtimeStart).toLocaleDateString('en-IN')}</span>
-                    {m.affectedJobs.length > 0 && <><span>·</span><span className="text-[var(--error)]">{m.affectedJobs.length} jobs affected</span></>}
+                  <div className="text-sm font-medium" style={{ color: 'var(--text)' }}>{m.assetName} <span className="font-mono text-xs" style={{ color: 'var(--text-3)' }}>({m.assetCode})</span></div>
+                  <p className="text-xs mt-1 line-clamp-2" style={{ color: 'var(--text-2)' }}>{m.symptom}</p>
+                  <div className="flex items-center gap-3 mt-1 text-xs" style={{ color: 'var(--text-3)' }}>
+                    <span>{m.technicianName}</span><span>·</span>
+                    <span>{new Date(m.downtimeStart).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</span>
+                    {m.affectedJobs.length > 0 && <><span>·</span><span style={{ color: 'var(--error,#DC2626)' }}>{m.affectedJobs.length} jobs affected</span></>}
                   </div>
                 </div>
-                <ChevronRight size={14} className="text-[var(--text-3)] flex-shrink-0 mt-1" />
+                <ChevronRight size={14} style={{ color: 'var(--text-3)', flexShrink: 0 }} />
               </div>
             </div>
           ))}
-          {filteredME.length === 0 && <div className="text-center py-10 text-sm text-[var(--text-3)]">No maintenance events found</div>}
+          {filteredME.length === 0 && <div className="text-center py-10 text-sm" style={{ color: 'var(--text-3)' }}>No maintenance events found</div>}
         </div>
       )}
+      </div>
     </div>
   );
 }
