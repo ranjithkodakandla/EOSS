@@ -38,45 +38,41 @@ export default function CopilotPanel({ isDrawer, onClose }: Props) {
     }
   }, [messages, isTyping]);
 
-  // Exact theme styling and official extracted 3D robot assets mapped to reference pack PNGs:
-  // Theme A: Aurora Indigo (#7048F5 / #4A1FB8)
-  // Theme B: Ocean Teal (#087F8C / #0A5D6B)
-  // Theme C: Graphite Amber (#2A2A32 / #E58A36 / #F59E0B)
   const isGraphite = eossTheme === 'graphite';
   const isOcean = eossTheme === 'ocean';
 
   const themeConfig = {
-    panelBg: isGraphite
-      ? 'radial-gradient(circle 280px at 15% 12%, rgba(245, 158, 11, 0.38) 0%, transparent 70%), radial-gradient(ellipse 70% 50% at 85% 0%, rgba(255, 255, 255, 0.12) 0%, transparent 60%), linear-gradient(155deg, #2A2A32 0%, #1C1D24 60%, #121318 100%)'
+    heroImg: isGraphite
+      ? '/assets/copilot/hero_graphite.png'
       : isOcean
-      ? 'radial-gradient(circle 280px at 15% 12%, rgba(20, 184, 166, 0.45) 0%, transparent 70%), radial-gradient(ellipse 70% 50% at 85% 0%, rgba(255, 255, 255, 0.22) 0%, transparent 60%), linear-gradient(155deg, #0A5D6B 0%, #06404A 60%, #03282E 100%)'
-      : 'radial-gradient(circle 280px at 15% 12%, rgba(168, 85, 247, 0.45) 0%, transparent 70%), radial-gradient(ellipse 70% 50% at 85% 0%, rgba(255, 255, 255, 0.22) 0%, transparent 60%), linear-gradient(155deg, #4A1FB8 0%, #311378 60%, #1E0A4C 100%)',
+      ? '/assets/copilot/hero_ocean.png'
+      : '/assets/copilot/hero_aurora.png',
+    panelBg: isGraphite
+      ? '#1C1D24'
+      : isOcean
+      ? '#06404A'
+      : '#1E0A4C',
     panelBorder: isGraphite
       ? '1px solid rgba(245, 158, 11, 0.35)'
       : isOcean
-      ? '1px solid rgba(255, 255, 255, 0.22)'
-      : '1px solid rgba(255, 255, 255, 0.22)',
+      ? '1px solid rgba(255, 255, 255, 0.18)'
+      : '1px solid rgba(255, 255, 255, 0.18)',
     panelShadow: isGraphite
-      ? '0 16px 40px -8px rgba(0, 0, 0, 0.6), 0 0 24px -2px rgba(245, 158, 11, 0.25), inset 0 1px 1px rgba(255, 255, 255, 0.15)'
+      ? '0 16px 40px -8px rgba(0,0,0,0.6), 0 0 24px -2px rgba(245,158,11,0.25)'
       : isOcean
-      ? '0 16px 40px -8px rgba(8, 127, 140, 0.45), inset 0 1px 1px rgba(255, 255, 255, 0.30)'
-      : '0 16px 40px -8px rgba(112, 72, 245, 0.45), inset 0 1px 1px rgba(255, 255, 255, 0.35)',
+      ? '0 16px 40px -8px rgba(8,127,140,0.45)'
+      : '0 16px 40px -8px rgba(112,72,245,0.45)',
     sparkleColor: isGraphite ? '#F59E0B' : isOcean ? '#22D3EE' : '#FCD34D',
-    robotImg: isGraphite
-      ? '/assets/copilot/robot_graphite.png'
-      : isOcean
-      ? '/assets/copilot/robot_ocean.png'
-      : '/assets/copilot/robot_aurora.png',
     sendBtnBg: isGraphite
       ? 'linear-gradient(135deg, #E58A36, #F59E0B)'
       : isOcean
       ? 'linear-gradient(135deg, #087F8C, #0EA5A5)'
       : 'linear-gradient(135deg, #7048F5, #A855F7)',
     sendBtnShadow: isGraphite
-      ? '0 4px 14px rgba(229, 138, 54, 0.4), inset 0 1px 1px rgba(255, 255, 255, 0.5)'
+      ? '0 4px 14px rgba(229,138,54,0.4)'
       : isOcean
-      ? '0 4px 14px rgba(8, 127, 140, 0.4), inset 0 1px 1px rgba(255, 255, 255, 0.5)'
-      : '0 4px 14px rgba(112, 72, 245, 0.4), inset 0 1px 1px rgba(255, 255, 255, 0.5)',
+      ? '0 4px 14px rgba(8,127,140,0.4)'
+      : '0 4px 14px rgba(112,72,245,0.4)',
     chevronColor: isGraphite ? '#E58A36' : isOcean ? '#087F8C' : '#7048F5',
     iconColorZap: isGraphite ? '#E58A36' : isOcean ? '#087F8C' : '#7048F5',
     iconColorBox: isGraphite ? '#E58A36' : isOcean ? '#087F8C' : '#7048F5',
@@ -168,71 +164,84 @@ export default function CopilotPanel({ isDrawer, onClose }: Props) {
         boxShadow: themeConfig.panelShadow,
       }}
     >
-      {/* Top Header */}
-      <div className="p-4 md:p-5 flex items-start justify-between flex-shrink-0 border-b border-white/10">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center text-white shadow-inner">
-            <Sparkles size={18} style={{ color: themeConfig.sparkleColor }} />
-          </div>
-          <div>
-            <div className="flex items-center gap-1.5 font-extrabold text-white text-base md:text-lg tracking-tight">
-              <span>EOSS Copilot</span>
-              <span style={{ color: themeConfig.sparkleColor }} className="text-sm">✦</span>
+      {/* ── Hero region: theme artwork fills top ~200px ── */}
+      <div className="relative flex-shrink-0" style={{ height: 210 }}>
+        <img
+          src={themeConfig.heroImg}
+          alt=""
+          aria-hidden
+          style={{
+            position: 'absolute',
+            inset: 0,
+            width: '100%',
+            height: '100%',
+            objectFit: 'cover',
+            objectPosition: 'center top',
+          }}
+        />
+
+        {/* Gradient fade to panel bg at the bottom of hero */}
+        <div
+          style={{
+            position: 'absolute',
+            bottom: 0,
+            left: 0,
+            right: 0,
+            height: 56,
+            background: `linear-gradient(to bottom, transparent, ${themeConfig.panelBg})`,
+          }}
+        />
+
+        {/* Header row overlaid on hero */}
+        <div className="relative z-10 p-4 md:p-5 flex items-start justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center shadow-inner">
+              <Sparkles size={18} style={{ color: themeConfig.sparkleColor }} />
             </div>
-            <div className="text-[11px] text-white/80 font-medium tracking-normal">
-              Your intelligent business partner
+            <div>
+              <div className="flex items-center gap-1.5 font-extrabold text-white text-base md:text-lg tracking-tight">
+                <span>EOSS Copilot</span>
+                <span style={{ color: themeConfig.sparkleColor }} className="text-sm">✦</span>
+              </div>
+              <div className="text-[11px] text-white/80 font-medium">
+                Your intelligent business partner
+              </div>
             </div>
           </div>
+
+          {isDrawer && onClose && (
+            <button
+              onClick={onClose}
+              className="p-1.5 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer"
+            >
+              <X size={16} />
+            </button>
+          )}
         </div>
 
-        {isDrawer && onClose && (
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer"
+        {/* Speech bubble anchored at bottom-left of hero */}
+        {messages.length === 0 && (
+          <div
+            className="absolute bottom-3 left-4 right-4 z-10 px-4 py-2.5 rounded-2xl text-sm font-bold"
+            style={{
+              background: 'linear-gradient(180deg, #FFFFFF 0%, #F8FAFC 100%)',
+              color: '#1A1F36',
+              boxShadow: '0 8px 24px -4px rgba(0,0,0,0.18), inset 0 1px 1px #FFFFFF',
+              border: '1px solid rgba(255,255,255,0.9)',
+              maxWidth: '62%',
+            }}
           >
-            <X size={16} />
-          </button>
+            How can I help your business today?
+          </div>
         )}
       </div>
 
-      {/* Content Area */}
-      <div className="flex-1 overflow-y-auto p-4 md:p-5 scrollbar-none flex flex-col">
-        {/* Greeting + buttons grouped — pushed to lower portion of chat area */}
-        {messages.length === 0 && (
-          <div className="mt-auto flex flex-col gap-3">
-            {/* Robot + Speech Bubble side by side */}
-            <div className="flex items-center gap-2">
-              {/* Speech Bubble */}
-              <div
-                className="flex-1 p-3 rounded-2xl text-xs md:text-sm font-bold leading-relaxed"
-                style={{
-                  background: 'linear-gradient(180deg, #FFFFFF 0%, #F8FAFC 100%)',
-                  color: '#1A1F36',
-                  boxShadow: '0 8px 24px -4px rgba(0, 0, 0, 0.15), inset 0 1px 1px #FFFFFF',
-                  border: '1px solid rgba(255, 255, 255, 0.9)',
-                }}
-              >
-                How can I help your business today?
-              </div>
-              {/* Robot mascot — inline, full head visible */}
-              <div className="flex-shrink-0" style={{ width: 115, height: 115 }}>
-                <img
-                  src={themeConfig.robotImg}
-                  alt="EOSS Copilot Mascot"
-                  style={{
-                    width: '100%',
-                    height: '100%',
-                    objectFit: 'cover',
-                    objectPosition: 'center 38%',
-                    WebkitMaskImage: 'radial-gradient(ellipse 88% 90% at 50% 44%, black 35%, transparent 72%)',
-                    maskImage: 'radial-gradient(ellipse 88% 90% at 50% 44%, black 35%, transparent 72%)',
-                  }}
-                />
-              </div>
-            </div>
+      {/* ── Content area below hero ── */}
+      <div className="flex-1 overflow-y-auto scrollbar-none flex flex-col">
 
-            {/* Suggestion pills */}
-            <div className="space-y-2">
+        {/* Welcome state: suggestion pills */}
+        {messages.length === 0 && (
+          <div className="p-3.5 md:p-4 space-y-2">
             {suggestions.map(s => (
               <button
                 key={s.id}
@@ -240,8 +249,8 @@ export default function CopilotPanel({ isDrawer, onClose }: Props) {
                 className="w-full flex items-center justify-between px-4 py-2.5 rounded-full transition-all text-left text-xs md:text-[13px] font-semibold group cursor-pointer hover:-translate-y-0.5"
                 style={{
                   background: 'linear-gradient(180deg, #FFFFFF 0%, #F9FAFB 100%)',
-                  boxShadow: '0 4px 14px -2px rgba(0, 0, 0, 0.08), inset 0 1px 1px #FFFFFF',
-                  border: '1px solid rgba(255, 255, 255, 0.85)',
+                  boxShadow: '0 4px 14px -2px rgba(0,0,0,0.08), inset 0 1px 1px #FFFFFF',
+                  border: '1px solid rgba(255,255,255,0.85)',
                   color: '#1A1F36',
                 }}
               >
@@ -260,72 +269,70 @@ export default function CopilotPanel({ isDrawer, onClose }: Props) {
                 />
               </button>
             ))}
-            </div>
           </div>
         )}
 
         {/* Conversation Transcript */}
-        {messages.map(msg => (
-          <div
-            key={msg.id}
-            className={clsx(
-              'flex flex-col space-y-1 text-xs md:text-sm animate-in fade-in',
-              msg.sender === 'user' ? 'items-end' : 'items-start'
-            )}
-          >
-            <div
-              className={clsx(
-                'p-3.5 rounded-2xl max-w-[90%] shadow-md leading-relaxed',
-                msg.sender === 'user'
-                  ? 'bg-white rounded-br-xs font-semibold'
-                  : 'bg-white/20 backdrop-blur-md text-white border border-white/20 rounded-bl-xs'
-              )}
-              style={msg.sender === 'user' ? { color: '#1A1F36' } : {}}
-            >
-              {msg.text}
-
-              {/* Action Button if provided */}
-              {msg.action && (
-                <div className="mt-2.5 pt-2 border-t border-white/20 flex justify-end">
-                  <button
-                    onClick={() => {
-                      if (onClose) onClose();
-                      navigate(msg.action!.path);
-                    }}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white font-bold text-xs hover:bg-gray-50 transition-colors shadow-sm cursor-pointer"
-                    style={{ color: themeConfig.chevronColor }}
-                  >
-                    <span>{msg.action.label}</span>
-                    <ArrowRight size={12} />
-                  </button>
-                </div>
-              )}
-            </div>
-
-            <span className="text-[10px] text-white/60 px-1">{msg.timestamp}</span>
-          </div>
-        ))}
-
-        {/* Typing indicator */}
-        {isTyping && (
-          <div className="flex items-center gap-2 text-xs text-white/80 p-2">
-            <Bot size={14} className="animate-bounce" />
-            <span className="italic">EOSS Copilot is analyzing telemetry...</span>
-          </div>
-        )}
-
-        {/* Simulated disclaimer note */}
         {messages.length > 0 && (
-          <div className="p-2 rounded-lg bg-white/10 text-[10px] text-white/70 text-center flex items-center justify-center gap-1.5">
-            <RefreshCw size={10} className="text-amber-300" />
-            <span>Simulated AI telemetry · Human sign-off required for PO release</span>
+          <div className="p-4 md:p-5 space-y-3">
+            {messages.map(msg => (
+              <div
+                key={msg.id}
+                className={clsx(
+                  'flex flex-col space-y-1 text-xs md:text-sm animate-in fade-in',
+                  msg.sender === 'user' ? 'items-end' : 'items-start'
+                )}
+              >
+                <div
+                  className={clsx(
+                    'p-3.5 rounded-2xl max-w-[90%] shadow-md leading-relaxed',
+                    msg.sender === 'user'
+                      ? 'bg-white rounded-br-xs font-semibold'
+                      : 'bg-white/20 backdrop-blur-md text-white border border-white/20 rounded-bl-xs'
+                  )}
+                  style={msg.sender === 'user' ? { color: '#1A1F36' } : {}}
+                >
+                  {msg.text}
+
+                  {msg.action && (
+                    <div className="mt-2.5 pt-2 border-t border-white/20 flex justify-end">
+                      <button
+                        onClick={() => {
+                          if (onClose) onClose();
+                          navigate(msg.action!.path);
+                        }}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white font-bold text-xs hover:bg-gray-50 transition-colors shadow-sm cursor-pointer"
+                        style={{ color: themeConfig.chevronColor }}
+                      >
+                        <span>{msg.action.label}</span>
+                        <ArrowRight size={12} />
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                <span className="text-[10px] text-white/60 px-1">{msg.timestamp}</span>
+              </div>
+            ))}
+
+            {isTyping && (
+              <div className="flex items-center gap-2 text-xs text-white/80 p-2">
+                <Bot size={14} className="animate-bounce" />
+                <span className="italic">EOSS Copilot is analyzing telemetry...</span>
+              </div>
+            )}
+
+            <div className="p-2 rounded-lg bg-white/10 text-[10px] text-white/70 text-center flex items-center justify-center gap-1.5">
+              <RefreshCw size={10} className="text-amber-300" />
+              <span>Simulated AI telemetry · Human sign-off required for PO release</span>
+            </div>
           </div>
         )}
 
         <div ref={chatBottomRef} />
       </div>
 
-      {/* Bottom Composer Input with Glossy Pill & Send Button */}
+      {/* ── Bottom composer ── */}
       <div className="p-3.5 md:p-4 bg-black/15 backdrop-blur-md border-t border-white/10 flex-shrink-0">
         <div className="relative flex items-center">
           <input
@@ -337,7 +344,7 @@ export default function CopilotPanel({ isDrawer, onClose }: Props) {
             className="w-full bg-white text-gray-900 placeholder-gray-400 text-xs md:text-sm rounded-full py-2.5 pl-4 pr-11 focus:outline-none focus:ring-2 focus:ring-white/80"
             style={{
               color: '#1A1F36',
-              boxShadow: 'inset 0 1px 2px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(255, 255, 255, 0.3)',
+              boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.08)',
             }}
           />
           <button
