@@ -178,7 +178,7 @@ sendBtnBg: isGraphite
             style={{
               position: 'absolute',
               right,
-              top: 0,
+              top: 20,
               height: '108%',
               width: 'auto',
               WebkitMaskImage: `linear-gradient(to right, transparent 0%, black ${mask})`,
@@ -197,9 +197,9 @@ sendBtnBg: isGraphite
           zIndex: 2,
         }} />
 
-        {/* Left content column — header + bubble stacked at bottom */}
+        {/* Left content column — header at top, bubble at bottom */}
         <div
-          className="relative flex flex-col justify-end gap-3 p-4"
+          className="relative flex flex-col justify-between p-4"
           style={{ width: '54%', height: '100%', zIndex: 3 }}
         >
           <div className="flex items-center gap-2">
