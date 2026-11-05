@@ -417,7 +417,7 @@ export interface Inspection {
 export interface NCR {
   id: ID;
   ncrNumber: string;
-  inspectionId: ID;
+  inspectionId?: ID;
   sourceType: 'Incoming' | 'In-Process' | 'Customer-Return';
   severity: 'Minor' | 'Major' | 'Critical';
   description: string;
@@ -428,6 +428,7 @@ export interface NCR {
   status: 'open' | 'in_progress' | 'closed';
   lotId?: ID;
   jobId?: ID;
+  jobNumber?: string;
 }
 
 export interface QualityRelease {
@@ -611,8 +612,8 @@ export interface SupplierQuotation {
   prNumber?: string;
   quoteDate: string;
   validUntil: string;
-  currency: string;
-  status: 'received' | 'selected' | 'rejected' | 'expired';
+  currency?: string;
+  status: 'received' | 'selected' | 'rejected' | 'expired' | 'pending';
   attachmentRef?: string;
   paymentTerms: string;
   deliveryDays: number;
@@ -625,14 +626,17 @@ export interface SupplierQuotationLine {
   quoteId: ID;
   materialItemId: ID;
   materialName: string;
-  quotedQty: number;
+  quotedQty?: number;
+  orderedQty?: number;
   uom: string;
-  unitPrice: number;
-  taxPct: number;
-  freightIncluded: boolean;
-  discountPct: number;
+  unitPrice?: number;
+  unitRate?: number;
+  taxPct?: number;
+  freightIncluded?: boolean;
+  discountPct?: number;
   moq?: number;
   lineTotal: number;
+  leadTimeDays?: number;
 }
 
 // ── Customer Account ──
