@@ -164,34 +164,9 @@ export default function CopilotPanel({ isDrawer, onClose }: Props) {
         boxShadow: themeConfig.panelShadow,
       }}
     >
-      {/* ── Header: sits above the hero, never overlaps robot ── */}
-      <div className="flex-shrink-0 flex items-center justify-between px-4 py-3 border-b border-white/10">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center shadow-inner">
-            <Sparkles size={18} style={{ color: themeConfig.sparkleColor }} />
-          </div>
-          <div>
-            <div className="flex items-center gap-1.5 font-extrabold text-white text-base tracking-tight">
-              <span>EOSS Copilot</span>
-              <span style={{ color: themeConfig.sparkleColor }} className="text-sm">✦</span>
-            </div>
-            <div className="text-[11px] text-white/70 font-medium">
-              Your intelligent business partner
-            </div>
-          </div>
-        </div>
-        {isDrawer && onClose && (
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer"
-          >
-            <X size={16} />
-          </button>
-        )}
-      </div>
-
-      {/* ── Hero region: artwork below header ── */}
-      <div className="relative flex-shrink-0" style={{ height: 180 }}>
+      {/* ── Hero: artwork fills top, left column holds header + speech bubble ── */}
+      <div className="relative flex-shrink-0" style={{ height: 200 }}>
+        {/* Full-bleed artwork — robot sits in right portion of image */}
         <img
           src={themeConfig.heroImg}
           alt=""
@@ -205,31 +180,54 @@ export default function CopilotPanel({ isDrawer, onClose }: Props) {
             objectPosition: 'center top',
           }}
         />
-        {/* Fade into panel bg */}
-        <div
-          style={{
-            position: 'absolute',
-            bottom: 0,
-            left: 0,
-            right: 0,
-            height: 60,
-            background: `linear-gradient(to bottom, transparent, ${themeConfig.panelBg})`,
-          }}
-        />
-        {/* Speech bubble at bottom-left of hero */}
-        {messages.length === 0 && (
-          <div
-            className="absolute bottom-3 left-4 z-10 px-3 py-2 rounded-2xl text-sm font-bold"
-            style={{
-              background: 'linear-gradient(180deg, #FFFFFF 0%, #F8FAFC 100%)',
-              color: '#1A1F36',
-              boxShadow: '0 8px 24px -4px rgba(0,0,0,0.18), inset 0 1px 1px #FFFFFF',
-              border: '1px solid rgba(255,255,255,0.9)',
-              maxWidth: '58%',
-            }}
-          >
-            How can I help your business today?
+        {/* Soft fade at bottom into panel bg */}
+        <div style={{
+          position: 'absolute', bottom: 0, left: 0, right: 0, height: 50,
+          background: `linear-gradient(to bottom, transparent, ${themeConfig.panelBg})`,
+        }} />
+
+        {/* Left column overlay — stays in left 58% so it never touches robot */}
+        <div className="relative z-10 h-full flex flex-col justify-between p-4" style={{ width: '58%' }}>
+          {/* Header */}
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-lg bg-white/20 backdrop-blur-md flex items-center justify-center flex-shrink-0">
+              <Sparkles size={15} style={{ color: themeConfig.sparkleColor }} />
+            </div>
+            <div>
+              <div className="flex items-center gap-1 font-extrabold text-white text-[13px] leading-tight">
+                EOSS Copilot
+                <span style={{ color: themeConfig.sparkleColor }} className="text-xs ml-0.5">✦</span>
+              </div>
+              <div className="text-[10px] text-white/70 leading-tight mt-0.5">
+                Your intelligent business partner
+              </div>
+            </div>
           </div>
+
+          {/* Speech bubble — bottom of left column, never reaches the robot */}
+          {messages.length === 0 && (
+            <div
+              className="px-3 py-2.5 rounded-2xl text-[13px] font-bold leading-snug"
+              style={{
+                background: 'linear-gradient(180deg, #FFFFFF 0%, #F8FAFC 100%)',
+                color: '#1A1F36',
+                boxShadow: '0 6px 20px -4px rgba(0,0,0,0.18), inset 0 1px 1px #FFFFFF',
+                border: '1px solid rgba(255,255,255,0.9)',
+              }}
+            >
+              How can I help your<br />business today?
+            </div>
+          )}
+        </div>
+
+        {/* Close button — top-right corner of panel */}
+        {isDrawer && onClose && (
+          <button
+            onClick={onClose}
+            className="absolute top-3 right-3 z-10 p-1.5 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer"
+          >
+            <X size={16} />
+          </button>
         )}
       </div>
 
