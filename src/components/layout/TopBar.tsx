@@ -38,12 +38,12 @@ export default function TopBar() {
           >
             <div className="flex items-center gap-1">
               <span className="text-sm sm:text-base font-extrabold text-[var(--text)] tracking-tight whitespace-nowrap">
-                Sri Lakshmi Traders
+                Apex Precision Engineering
               </span>
               <ChevronDown size={13} className="text-[var(--text-2)] hidden sm:inline" />
             </div>
             <span className="text-[10px] sm:text-[11px] text-[var(--text-2)] font-medium -mt-0.5 truncate hidden md:inline">
-              Manufacturing & Trading · Hyderabad
+              Precision Engineering & Manufacturing · Hyderabad
             </span>
           </button>
         </div>
@@ -169,7 +169,7 @@ export default function TopBar() {
                     Autonomous manufacturing & trading business operating system for growing Indian SMEs.
                   </div>
                   <div className="pt-2 border-t border-[var(--border)] font-mono text-[11px] text-[var(--brand)]">
-                    Hyderabad Hub · Tenant: Sri Lakshmi Traders
+                    Hyderabad Hub · Tenant: Apex Precision Engineering Pvt Ltd
                   </div>
                 </div>
               </>

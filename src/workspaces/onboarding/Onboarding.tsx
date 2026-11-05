@@ -214,7 +214,7 @@ export default function Onboarding() {
                 <div>
                   <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Currency</label>
                   <select className="eoss-input w-full" value={step2.currency} onChange={e => setStep2(s => ({ ...s, currency: e.target.value }))}>
-                    {['INR', 'USD', 'EUR'].map(c => <option key={c}>{c}</option>)}
+                    {['INR (₹)'].map(c => <option key={c} value="INR">{c}</option>)}
                   </select>
                 </div>
               </div>
