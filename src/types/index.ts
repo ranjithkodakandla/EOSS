@@ -41,6 +41,13 @@ export interface Site {
   name: string;
   code: string;
   city: string;
+  siteType?: 'Manufacturing' | 'Warehouse' | 'Office' | 'Fabrication' | 'Precision Machining';
+  address?: string;
+  state?: string;
+  pinCode?: string;
+  siteManager?: string;
+  phone?: string;
+  status?: 'active' | 'inactive';
 }
 
 export interface StoreLocation {
@@ -673,6 +680,77 @@ export interface ApprovalPolicy {
   active: boolean;
 }
 
+// ── Finished Product ──
+export interface FinishedProduct {
+  id: ID;
+  productCode: string;
+  name: string;
+  description: string;
+  categoryId: string;
+  categoryName: string;
+  primaryUom: string;
+  drawingNumber: string;
+  drawingRevision: string;
+  materialSpec: string;
+  netWeightKg: number;
+  grossWeightKg: number;
+  primaryDimension: string;
+  manufacturingRoute: string;
+  status: 'active' | 'inactive';
+  unitPriceInr: number;
+}
+
+// ── Customer Quotation ──
+export interface CustomerQuotation {
+  id: ID;
+  quotationNumber: string;
+  rfqId: ID;
+  rfqNumber: string;
+  customerId: ID;
+  customerName: string;
+  quotationDate: string;
+  validUntil: string;
+  currency: string;
+  status: 'draft' | 'submitted' | 'accepted' | 'rejected' | 'expired' | 'revised';
+  totalValue: number;
+  revision: number;
+  owner: string;
+  notes?: string;
+}
+
+export interface CustomerQuotationLine {
+  id: ID;
+  quotationId: ID;
+  productId: ID;
+  productName: string;
+  drawingNumber: string;
+  drawingRevision: string;
+  orderedQty: number;
+  uom: string;
+  unitPrice: number;
+  value: number;
+  requiredDate: string;
+}
+
+// ── Site Allocation ──
+export interface SiteAllocation {
+  id: ID;
+  poId: ID;
+  poNumber: string;
+  poLineId: ID;
+  productId: ID;
+  productName: string;
+  siteId: ID;
+  siteName: string;
+  allocatedQty: number;
+  uom: string;
+  jobId?: ID;
+  jobNumber?: string;
+  status: 'pending' | 'in_progress' | 'complete' | 'cancelled';
+  allocatedDate: string;
+  allocatedBy: string;
+}
+
 // ── Finance ──
 export interface CustomerInvoice {
   id: ID;
@@ -760,4 +838,94 @@ export interface OnboardingState {
     name: string;
     code: string;
   }>;
+}
+
+// ── Invoice (AR) ──
+export interface Invoice {
+  id: ID;
+  invoiceNumber: string;
+  customerId: ID;
+  customerName: string;
+  poId: ID;
+  poNumber: string;
+  dispatchIds: ID[];
+  invoiceDate: string;
+  dueDate: string;
+  currency: string;
+  status: 'draft' | 'issued' | 'partially_paid' | 'paid' | 'overdue' | 'disputed' | 'cancelled';
+  subtotal: number;
+  taxAmount: number;
+  totalAmount: number;
+  paidAmount: number;
+  outstandingAmount: number;
+  overdueDays?: number;
+  createdBy: string;
+  notes?: string;
+}
+
+export interface InvoiceLine {
+  id: ID;
+  invoiceId: ID;
+  productId: ID;
+  productName: string;
+  drawingNumber: string;
+  quantity: number;
+  uom: string;
+  unitPrice: number;
+  taxPct: number;
+  taxAmount: number;
+  lineTotal: number;
+  dispatchId?: ID;
+  dispatchNumber?: string;
+}
+
+// ── Payment ──
+export interface Payment {
+  id: ID;
+  paymentNumber: string;
+  customerId: ID;
+  customerName: string;
+  receiptDate: string;
+  currency: string;
+  amount: number;
+  paymentMethod: 'bank_transfer' | 'upi' | 'cheque' | 'other';
+  transactionRef: string;
+  receivingAccount: string;
+  status: 'received' | 'allocated' | 'partially_allocated' | 'reversed';
+  allocatedAmount: number;
+  unallocatedAmount: number;
+  notes?: string;
+  createdBy: string;
+}
+
+export interface PaymentAllocation {
+  id: ID;
+  paymentId: ID;
+  paymentNumber: string;
+  invoiceId: ID;
+  invoiceNumber: string;
+  customerId: ID;
+  allocatedAmount: number;
+  allocatedDate: string;
+  allocatedBy: string;
+  notes?: string;
+}
+
+// ── Collection Activity ──
+export interface CollectionActivity {
+  id: ID;
+  collectionNumber: string;
+  customerId: ID;
+  customerName: string;
+  invoiceId: ID;
+  invoiceNumber: string;
+  assignedTo: string;
+  followUpDate: string;
+  channel: 'email' | 'phone' | 'meeting' | 'whatsapp';
+  notes: string;
+  promiseToPayDate?: string;
+  nextFollowUpDate?: string;
+  outcome?: string;
+  status: 'pending' | 'contacted' | 'promise_to_pay' | 'disputed' | 'escalated' | 'resolved';
+  createdAt: string;
 }

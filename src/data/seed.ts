@@ -8,7 +8,9 @@ import type {
   GoodsReceipt, StockMovement, InventoryItem, MaterialCertificate,
   Inspection, NCR, QualityRelease, Asset, MaintenanceEvent,
   Dispatch, VaultDocument, ApprovalRequest, AppNotification, PulseException,
-  Employee, SupplierQuotation, AuditEvent, ApprovalPolicy
+  Employee, SupplierQuotation, AuditEvent, ApprovalPolicy,
+  FinishedProduct, CustomerQuotation, CustomerQuotationLine, SiteAllocation,
+  Invoice, InvoiceLine, Payment, PaymentAllocation, CollectionActivity
 } from '../types';
 
 // ── Users ──
@@ -41,8 +43,11 @@ export const EMPLOYEES: Employee[] = [
 
 // ── Sites ──
 export const SITES: Site[] = [
-  { id: 'site-hyd', name: 'Hyderabad Factory', code: 'HYD', city: 'Hyderabad' },
-  { id: 'site-wh', name: 'Hyderabad Warehouse', code: 'WHY', city: 'Hyderabad' },
+  { id: 'site-hyd', name: 'Hyderabad Plant 1', code: 'HYD1', city: 'Hyderabad', siteType: 'Precision Machining', address: 'Plot 42, IDA Nacharam, Hyderabad', state: 'Telangana', pinCode: '500076', siteManager: 'Suresh Kumar', phone: '+91-40-27172100', status: 'active' },
+  { id: 'site-wh', name: 'Hyderabad Central Warehouse', code: 'HYDWH', city: 'Hyderabad', siteType: 'Warehouse', address: 'Survey No 112, Medchal Road, Hyderabad', state: 'Telangana', pinCode: '500055', siteManager: 'Asha Nair', phone: '+91-40-27172200', status: 'active' },
+  { id: 'site-hyd2', name: 'Hyderabad Plant 2', code: 'HYD2', city: 'Hyderabad', siteType: 'Manufacturing', address: 'Plot 88, IDA Jeedimetla, Hyderabad', state: 'Telangana', pinCode: '500055', siteManager: 'Ravi Shankar', phone: '+91-40-27172300', status: 'active' },
+  { id: 'site-pun', name: 'Pune Manufacturing Plant', code: 'PUN1', city: 'Pune', siteType: 'Manufacturing', address: 'D-14, MIDC Bhosari, Pune', state: 'Maharashtra', pinCode: '411026', siteManager: 'Ajay Kulkarni', phone: '+91-20-27485100', status: 'active' },
+  { id: 'site-che', name: 'Chennai Fabrication Unit', code: 'CHE1', city: 'Chennai', siteType: 'Fabrication', address: 'Plot 23, SIPCOT Ambattur, Chennai', state: 'Tamil Nadu', pinCode: '600058', siteManager: 'Selvam Murugan', phone: '+91-44-26583100', status: 'active' },
 ];
 
 export const STORE_LOCATIONS: StoreLocation[] = [
@@ -54,6 +59,18 @@ export const STORE_LOCATIONS: StoreLocation[] = [
   { id: 'loc-dsp', siteId: 'site-hyd', name: 'Dispatch Bay', code: 'DSP', locationType: 'Dispatch' },
   { id: 'loc-wba', siteId: 'site-wh', name: 'Warehouse Bay A', code: 'WBA', locationType: 'Warehouse' },
   { id: 'loc-wbb', siteId: 'site-wh', name: 'Warehouse Bay B', code: 'WBB', locationType: 'Warehouse' },
+  // Hyderabad Plant 2
+  { id: 'loc-hyd2-rm', siteId: 'site-hyd2', name: 'Raw Material Store', code: 'RM', locationType: 'RM' },
+  { id: 'loc-hyd2-wip', siteId: 'site-hyd2', name: 'WIP Store', code: 'WIP', locationType: 'WIP' },
+  { id: 'loc-hyd2-fg', siteId: 'site-hyd2', name: 'Finished Goods Store', code: 'FG', locationType: 'FG' },
+  // Pune Manufacturing Plant
+  { id: 'loc-pun-rm', siteId: 'site-pun', name: 'Raw Material Store', code: 'RM', locationType: 'RM' },
+  { id: 'loc-pun-wip', siteId: 'site-pun', name: 'WIP Store', code: 'WIP', locationType: 'WIP' },
+  { id: 'loc-pun-fg', siteId: 'site-pun', name: 'Finished Goods Store', code: 'FG', locationType: 'FG' },
+  // Chennai Fabrication Unit
+  { id: 'loc-che-rm', siteId: 'site-che', name: 'Raw Material Store', code: 'RM', locationType: 'RM' },
+  { id: 'loc-che-wip', siteId: 'site-che', name: 'Fabrication Floor', code: 'FAB', locationType: 'WIP' },
+  { id: 'loc-che-fg', siteId: 'site-che', name: 'Finished Goods Store', code: 'FG', locationType: 'FG' },
 ];
 
 // ── Parties ──
