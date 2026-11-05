@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, ChevronRight, Search, X, PackageCheck } from 'lucide-react';
+import { Plus, ChevronRight, Search, X, PackageCheck, Trash2 } from 'lucide-react';
 import { useStore, CUSTOMERS } from '../../store';
 import type { Dispatch } from '../../types';
 import StatusChip from '../../components/layout/StatusChip';
@@ -8,11 +8,21 @@ import StatusChip from '../../components/layout/StatusChip';
 let dspSeq = 100;
 
 export default function DispatchWorkspace() {
-  const { dispatches, currentUser, addDispatch, recordPoD, showToast } = useStore();
+  const { dispatches, invoices, currentUser, addDispatch, recordPoD, showToast } = useStore();
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [podDispatchId, setPodDispatchId] = useState<string | null>(null);
+  const [deletedDispatchIds, setDeletedDispatchIds] = useState<Set<string>>(new Set());
+  const canManage = ['owner', 'dispatch'].includes(currentUser.role);
+
+  const handleDeleteDispatch = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const hasInvoice = invoices.some(inv => Array.isArray((inv as any).dispatchIds) && (inv as any).dispatchIds.includes(id));
+    if (hasInvoice) { showToast({ type: 'error', title: 'Cannot delete', body: 'Dispatch is linked to an invoice.' }); return; }
+    setDeletedDispatchIds(prev => new Set([...prev, id]));
+    showToast({ type: 'success', title: 'Dispatch removed' });
+  };
   const [form, setForm] = useState({
     customerId: '', customerName: '', carrier: '',
     vehicleNumber: '', lrNumber: '', dispatchDate: '', jobs: '',
@@ -23,9 +33,10 @@ export default function DispatchWorkspace() {
   const delivered   = dispatches.filter(d => d.status === 'delivered').length;
 
   const filtered = dispatches.filter(d =>
-    !search ||
+    !deletedDispatchIds.has(d.id) &&
+    (!search ||
     d.dispatchNumber.toLowerCase().includes(search.toLowerCase()) ||
-    d.customerName.toLowerCase().includes(search.toLowerCase())
+    d.customerName.toLowerCase().includes(search.toLowerCase()))
   );
 
   function handleCreate() {
@@ -99,16 +110,21 @@ export default function DispatchWorkspace() {
                     {d.status === 'pending_docs' && d.totalQty === 0 && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-green-100 text-green-700">Ready Stock</span>}
                   </div>
                 </td>
-                <td className="px-4 py-3">
-                  {d.status === 'dispatched' && !d.hasPoD ? (
-                    <button onClick={e => { e.stopPropagation(); setPodDispatchId(d.id); }}
-                      className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg border font-medium transition-colors"
-                      style={{ borderColor: 'var(--brand)', color: 'var(--brand)' }} title="Record Proof of Delivery">
-                      <PackageCheck size={11} /> PoD
-                    </button>
-                  ) : (
-                    <ChevronRight size={14} style={{ color: 'var(--text-3)' }} />
-                  )}
+                <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
+                  <div className="flex items-center gap-1">
+                    {d.status === 'dispatched' && !d.hasPoD ? (
+                      <button onClick={e => { e.stopPropagation(); setPodDispatchId(d.id); }}
+                        className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg border font-medium transition-colors"
+                        style={{ borderColor: 'var(--brand)', color: 'var(--brand)' }} title="Record Proof of Delivery">
+                        <PackageCheck size={11} /> PoD
+                      </button>
+                    ) : (
+                      <ChevronRight size={14} style={{ color: 'var(--text-3)' }} />
+                    )}
+                    {canManage && d.status !== 'delivered' && (
+                      <button onClick={e => handleDeleteDispatch(d.id, e)} className="p-1 rounded hover:bg-[var(--surface-2)]" title="Remove dispatch"><Trash2 size={12} style={{ color: 'var(--error,#DC2626)' }} /></button>
+                    )}
+                  </div>
                 </td>
               </tr>
             ))}

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, AlertTriangle, Search, Filter, ChevronRight, X } from 'lucide-react';
+import { Plus, AlertTriangle, Search, Filter, ChevronRight, X, Trash2 } from 'lucide-react';
 import { useStore, CUSTOMERS } from '../../store';
 import StatusChip from '../../components/layout/StatusChip';
 import clsx from 'clsx';
@@ -11,14 +11,28 @@ const PRIORITY_COLOR: Record<string, string> = {
 };
 
 export default function Jobs() {
-  const { jobs, currentUser, addJob, showToast } = useStore();
+  const { jobs, dispatches, currentUser, addJob, showToast } = useStore();
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [view, setView] = useState<'board' | 'list'>('list');
   const [showNewJob, setShowNewJob] = useState(false);
+  const [deletedJobIds, setDeletedJobIds] = useState<Set<string>>(new Set());
+  const canManage = ['owner', 'supervisor'].includes(currentUser.role);
+
+  const handleDeleteJob = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const job = jobs.find(j => j.id === id);
+    if (!job) return;
+    if (job.status === 'complete') { showToast({ type: 'error', title: 'Cannot delete completed job' }); return; }
+    const hasDispatch = dispatches.some(d => Array.isArray(d.jobs) && d.jobs.includes(id));
+    if (hasDispatch) { showToast({ type: 'error', title: 'Cannot delete job', body: 'Job has dispatch records.' }); return; }
+    setDeletedJobIds(prev => new Set([...prev, id]));
+    showToast({ type: 'success', title: 'Job removed' });
+  };
 
   const filtered = jobs.filter(j => {
+    if (deletedJobIds.has(j.id)) return false;
     const matchSearch = !search || j.jobNumber.toLowerCase().includes(search.toLowerCase()) ||
       j.customerName.toLowerCase().includes(search.toLowerCase()) ||
       j.description.toLowerCase().includes(search.toLowerCase());
@@ -113,7 +127,14 @@ export default function Jobs() {
                     <td className="px-4 py-3">
                       <StatusChip status={j.materialReadiness === 'ready' ? 'available' : j.materialReadiness === 'shortage' ? 'shortage' : j.materialReadiness === 'partial' ? 'partial' : 'pending'} label={j.materialReadiness} size="sm" />
                     </td>
-                    <td className="px-4 py-3"><ChevronRight size={14} style={{ color: 'var(--text-3)' }} /></td>
+                    <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
+                      <div className="flex items-center gap-1">
+                        {canManage && j.status !== 'complete' && (
+                          <button onClick={e => handleDeleteJob(j.id, e)} className="p-1 rounded hover:bg-[var(--surface-2)]" title="Remove job"><Trash2 size={12} style={{ color: 'var(--error,#DC2626)' }} /></button>
+                        )}
+                        <ChevronRight size={14} style={{ color: 'var(--text-3)' }} />
+                      </div>
+                    </td>
                   </tr>
                 );
               })}

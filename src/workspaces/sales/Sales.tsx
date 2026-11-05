@@ -2,17 +2,17 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Plus, Search, ChevronRight, ArrowUpRight, Calendar,
-  FileText, Briefcase, DollarSign, Clock, User, X
+  FileText, Briefcase, DollarSign, Clock, User, X, Pencil, Trash2
 } from 'lucide-react';
 import { useStore, CUSTOMERS } from '../../store';
 import StatusChip from '../../components/layout/StatusChip';
 import clsx from 'clsx';
-import type { CustomerRFQ } from '../../types';
+import type { CustomerRFQ, CustomerPO } from '../../types';
 
 type POTab = 'pos' | 'rfqs' | 'customers';
 
 export default function Sales() {
-  const { rfqs, customerPos, jobs, currentUser, showToast } = useStore();
+  const { rfqs, customerPos, jobs, currentUser, showToast, updateCustomerPo, updateRfq } = useStore();
   const navigate = useNavigate();
   const [tab, setTab] = useState<POTab>('pos');
   const [search, setSearch] = useState('');
@@ -20,6 +20,21 @@ export default function Sales() {
   const [selectedPoId, setSelectedPoId] = useState<string | null>(null);
   const [showNewRFQ, setShowNewRFQ] = useState(false);
   const [selectedRfq, setSelectedRfq] = useState<CustomerRFQ | null>(null);
+  const [editPo, setEditPo] = useState<CustomerPO | null>(null);
+
+  const handleDeletePo = (id: string) => {
+    const hasActiveJobs = jobs.some(j => j.customerPoId === id && j.status !== 'cancelled');
+    if (hasActiveJobs) { showToast({ type: 'error', title: 'Cannot cancel PO', body: 'PO has active jobs. Cancel jobs first.' }); return; }
+    updateCustomerPo(id, { status: 'cancelled' });
+    showToast({ type: 'success', title: 'PO cancelled' });
+  };
+
+  const handleDeleteRfq = (id: string) => {
+    const linked = customerPos.some(p => (p as any).rfqId === id);
+    if (linked) { showToast({ type: 'error', title: 'Cannot cancel RFQ', body: 'RFQ has an associated PO.' }); return; }
+    updateRfq(id, { status: 'cancelled' });
+    showToast({ type: 'success', title: 'RFQ cancelled' });
+  };
 
   const canCreate = ['owner', 'sales'].includes(currentUser.role);
 
@@ -202,11 +217,19 @@ export default function Sales() {
                         <StatusChip status={p.status} size="sm" />
                       </td>
                       <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
-                        <button
-                          onClick={() => showToast({ type: 'info', title: 'Attach Customer PO', body: `Upload scan/photo of customer PO for ${p.poNumber}. File picker coming in v1.1.` })}
-                          className="text-xs px-2 py-1 rounded-lg border border-[var(--border)] text-[var(--text-2)] hover:border-[var(--brand)] hover:text-[var(--brand)] transition-colors whitespace-nowrap">
-                          Attach PO
-                        </button>
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => showToast({ type: 'info', title: 'Attach Customer PO', body: `Upload scan/photo of customer PO for ${p.poNumber}. File picker coming in v1.1.` })}
+                            className="text-xs px-2 py-1 rounded-lg border border-[var(--border)] text-[var(--text-2)] hover:border-[var(--brand)] hover:text-[var(--brand)] transition-colors whitespace-nowrap">
+                            Attach PO
+                          </button>
+                          {canCreate && p.status !== 'cancelled' && (
+                            <button onClick={() => setEditPo(p)} className="p-1 rounded hover:bg-[var(--surface-2)]" title="Edit PO"><Pencil size={12} style={{ color: 'var(--text-3)' }} /></button>
+                          )}
+                          {canCreate && p.status !== 'cancelled' && (
+                            <button onClick={() => handleDeletePo(p.id)} className="p-1 rounded hover:bg-[var(--surface-2)]" title="Cancel PO"><Trash2 size={12} style={{ color: 'var(--error,#DC2626)' }} /></button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );
@@ -245,12 +268,17 @@ export default function Sales() {
                     <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-2)' }}>{r.channel}</td>
                     <td className="px-4 py-3"><StatusChip status={r.status} size="sm" /></td>
                     <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-2)' }}>{r.owner}</td>
-                    <td className="px-4 py-3">
-                      <button onClick={e => { e.stopPropagation(); showToast({ type: 'success', title: 'PO Created', body: `Purchase Order raised from ${r.rfqNumber} for ${r.customerName}.` }); }}
-                        className="text-xs px-2 py-1 rounded-lg border font-medium transition-colors"
-                        style={{ borderColor: 'var(--brand)', color: 'var(--brand)', background: 'transparent' }}>
-                        → PO
-                      </button>
+                    <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
+                      <div className="flex items-center gap-1">
+                        <button onClick={e => { e.stopPropagation(); showToast({ type: 'success', title: 'PO Created', body: `Purchase Order raised from ${r.rfqNumber} for ${r.customerName}.` }); }}
+                          className="text-xs px-2 py-1 rounded-lg border font-medium transition-colors"
+                          style={{ borderColor: 'var(--brand)', color: 'var(--brand)', background: 'transparent' }}>
+                          → PO
+                        </button>
+                        {canCreate && r.status !== 'cancelled' && (
+                          <button onClick={() => handleDeleteRfq(r.id)} className="p-1 rounded hover:bg-[var(--surface-2)]" title="Cancel RFQ"><Trash2 size={12} style={{ color: 'var(--error,#DC2626)' }} /></button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -351,6 +379,19 @@ export default function Sales() {
         )}
       </div>
 
+      {/* Edit PO Modal */}
+      {editPo && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-6 w-full max-w-md shadow-xl">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-bold text-[var(--text)]">Edit PO — {editPo.poNumber}</h2>
+              <button onClick={() => setEditPo(null)} className="text-[var(--text-3)]"><X size={18} /></button>
+            </div>
+            <EditPOForm po={editPo} onSave={(partial) => { updateCustomerPo(editPo.id, partial); setEditPo(null); showToast({ type: 'success', title: 'PO updated' }); }} onCancel={() => setEditPo(null)} />
+          </div>
+        </div>
+      )}
+
       {/* New RFQ Modal */}
       {showNewRFQ && (
         <NewRFQModal
@@ -410,6 +451,18 @@ export default function Sales() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function EditPOForm({ po, onSave, onCancel }: { po: CustomerPO; onSave: (p: Partial<CustomerPO>) => void; onCancel: () => void }) {
+  const [form, setForm] = useState({ poNumber: po.poNumber, totalValue: po.totalValue, paymentTerms: po.paymentTerms });
+  return (
+    <div className="space-y-3">
+      <div><label className="text-xs text-[var(--text-3)] block mb-1">PO Number</label><input value={form.poNumber} onChange={e => setForm(f => ({ ...f, poNumber: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--surface)] text-sm text-[var(--text)]" /></div>
+      <div><label className="text-xs text-[var(--text-3)] block mb-1">Total Value (₹)</label><input type="number" value={form.totalValue} onChange={e => setForm(f => ({ ...f, totalValue: Number(e.target.value) }))} className="w-full px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--surface)] text-sm text-[var(--text)]" /></div>
+      <div><label className="text-xs text-[var(--text-3)] block mb-1">Payment Terms</label><input value={form.paymentTerms} onChange={e => setForm(f => ({ ...f, paymentTerms: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--surface)] text-sm text-[var(--text)]" /></div>
+      <div className="flex gap-2 mt-4"><button onClick={onCancel} className="flex-1 py-2 border border-[var(--border)] text-[var(--text)] rounded-lg text-sm">Cancel</button><button onClick={() => onSave(form)} className="flex-1 py-2 bg-[var(--brand)] text-white rounded-lg text-sm font-medium">Save</button></div>
     </div>
   );
 }

@@ -635,6 +635,46 @@ export const PAYMENT_RECORDS: PaymentRecord[] = [
   { id: 'pay-005', direction: 'outbound', partyId: 'supp-bgs', partyName: 'Bharat Gas Supply', date: '2026-10-28', amount: 4500, currency: 'INR', mode: 'UPI', reference: 'UPI26102867890', linkedInvoiceId: 'sinv-004', notes: 'Partial payment gas cylinders' },
 ];
 
+export const FLAGSHIP_GRNS: GoodsReceipt[] = [
+  {
+    id: 'grn-rw-001', grnNumber: 'GRN-0001',
+    supplierId: 'supp-msk', supplierName: 'MSK Steel Pvt Ltd',
+    spoId: 'spo-rw-001', spoNumber: 'SPO-0001',
+    receivedDate: '2024-10-28', receivedBy: 'Karthik Raju',
+    deliveryChallan: 'DC-MSK-2024-1041',
+    vehicleNumber: 'TS09EF1234',
+    status: 'accepted', lineCount: 3, hasOfflineDraft: false,
+  },
+  {
+    id: 'grn-rw-002', grnNumber: 'GRN-0002',
+    supplierId: 'supp-ssi', supplierName: 'Stainless Source India',
+    spoId: 'spo-rw-002', spoNumber: 'SPO-0002',
+    receivedDate: '2024-10-30', receivedBy: 'Karthik Raju',
+    deliveryChallan: 'DC-SSI-2024-0892',
+    vehicleNumber: 'MH12PQ5678',
+    status: 'accepted', lineCount: 2, hasOfflineDraft: false,
+  },
+];
+
+export const FLAGSHIP_SUPPLIER_RFQS: SupplierQuotation[] = [
+  {
+    id: 'srfq-rw-001', quoteNumber: 'SRFQ-0001',
+    supplierId: 'supp-msk', supplierName: 'MSK Steel Pvt Ltd',
+    quoteDate: '2024-10-17', validUntil: '2024-10-31',
+    currency: 'INR', status: 'selected',
+    paymentTerms: 'Net 30', deliveryDays: 10,
+    lines: [],
+  },
+  {
+    id: 'srfq-rw-002', quoteNumber: 'SRFQ-0002',
+    supplierId: 'supp-ssi', supplierName: 'Stainless Source India',
+    quoteDate: '2024-10-17', validUntil: '2024-10-31',
+    currency: 'INR', status: 'selected',
+    paymentTerms: 'Net 30', deliveryDays: 12,
+    lines: [],
+  },
+];
+
 // ── Company/Onboarding Config ──
 export const COMPANY_CONFIG = {
   companyName: 'Shankar Metalworks Pvt. Ltd.',

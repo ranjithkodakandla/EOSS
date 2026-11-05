@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, ChevronRight, AlertTriangle, X } from 'lucide-react';
+import { Plus, ChevronRight, AlertTriangle, X, Trash2 } from 'lucide-react';
 import { useStore } from '../../store';
 import StatusChip from '../../components/layout/StatusChip';
 import type { Inspection } from '../../types';
@@ -10,6 +10,27 @@ export default function Quality() {
   const navigate = useNavigate();
   const [tab, setTab] = useState<'inspections' | 'ncrs'>('inspections');
   const [showNew, setShowNew] = useState(false);
+  const [deletedInspectionIds, setDeletedInspectionIds] = useState<Set<string>>(new Set());
+  const [deletedNcrIds, setDeletedNcrIds] = useState<Set<string>>(new Set());
+
+  const canManage = ['owner', 'qc'].includes(currentUser.role);
+
+  const handleDeleteInspection = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const hasLinkedNcr = ncrs.some(n => (n as any).inspectionId === id);
+    if (hasLinkedNcr) { showToast({ type: 'error', title: 'Cannot delete', body: 'Inspection has linked NCRs.' }); return; }
+    setDeletedInspectionIds(prev => new Set([...prev, id]));
+    showToast({ type: 'success', title: 'Inspection removed' });
+  };
+
+  const handleDeleteNcr = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setDeletedNcrIds(prev => new Set([...prev, id]));
+    showToast({ type: 'success', title: 'NCR removed' });
+  };
+
+  const visibleInspections = inspections.filter(i => !deletedInspectionIds.has(i.id));
+  const visibleNcrs = ncrs.filter(n => !deletedNcrIds.has(n.id));
 
   const openNcrs = ncrs.filter(n => n.status === 'open' || n.status === 'in_progress').length;
   const pendingInspections = inspections.filter(i => i.result === 'pending').length;
@@ -32,7 +53,7 @@ export default function Quality() {
 
       {/* Tabs */}
       <div className="flex-shrink-0 flex items-center border-b px-5" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
-        {([['inspections', `Inspections (${inspections.length})`], ['ncrs', `NCRs (${ncrs.length})`]] as [string, string][]).map(([id, label]) => (
+        {([['inspections', `Inspections (${visibleInspections.length})`], ['ncrs', `NCRs (${visibleNcrs.length})`]] as [string, string][]).map(([id, label]) => (
           <button key={id} onClick={() => setTab(id as any)}
             className="relative px-4 py-3 text-sm font-medium transition-colors whitespace-nowrap"
             style={{ color: tab === id ? 'var(--brand)' : 'var(--text-2)' }}>
@@ -53,7 +74,7 @@ export default function Quality() {
               </tr>
             </thead>
             <tbody>
-              {inspections.map(i => (
+              {visibleInspections.map(i => (
                 <tr key={i.id} className="cursor-pointer" style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}
                   onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--surface-2)'; }}
                   onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'var(--surface)'; }}
@@ -71,10 +92,17 @@ export default function Quality() {
                   <td className="px-4 py-3 text-xs text-center font-semibold" style={{ color: i.acceptedQty > 0 ? 'var(--success,#16A34A)' : 'var(--text-3)' }}>{i.acceptedQty > 0 ? i.acceptedQty : '—'}</td>
                   <td className="px-4 py-3 text-xs text-center font-semibold" style={{ color: i.rejectedQty > 0 ? 'var(--error,#DC2626)' : 'var(--text-3)' }}>{i.rejectedQty > 0 ? i.rejectedQty : '—'}</td>
                   <td className="px-4 py-3"><StatusChip status={i.result} size="sm" /></td>
-                  <td className="px-4 py-3"><ChevronRight size={14} style={{ color: 'var(--text-3)' }} /></td>
+                  <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
+                    <div className="flex items-center gap-1">
+                      {canManage && (
+                        <button onClick={e => handleDeleteInspection(i.id, e)} className="p-1 rounded hover:bg-[var(--surface-2)]" title="Remove"><Trash2 size={12} style={{ color: 'var(--error,#DC2626)' }} /></button>
+                      )}
+                      <ChevronRight size={14} style={{ color: 'var(--text-3)' }} />
+                    </div>
+                  </td>
                 </tr>
               ))}
-              {inspections.length === 0 && (
+              {visibleInspections.length === 0 && (
                 <tr><td colSpan={10} className="px-4 py-10 text-center text-sm" style={{ color: 'var(--text-3)' }}>No inspections found</td></tr>
               )}
             </tbody>
@@ -83,7 +111,7 @@ export default function Quality() {
 
         {tab === 'ncrs' && (
           <div className="p-5 space-y-3 max-w-4xl">
-            {ncrs.map(n => (
+            {visibleNcrs.map(n => (
               <div key={n.id} className="rounded-xl border p-4 cursor-pointer hover:opacity-90 transition-opacity"
                 style={{ borderColor: (n.severity === 'Major' || n.severity === 'Critical') ? 'var(--error,#DC2626)' : 'var(--border)', background: 'var(--surface)' }}
                 onClick={() => navigate(`/quality/ncr/${n.id}`)}>
@@ -101,11 +129,16 @@ export default function Quality() {
                       <span>{n.affectedQty} units affected</span>
                     </div>
                   </div>
-                  <ChevronRight size={14} style={{ color: 'var(--text-3)', flexShrink: 0 }} />
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    {canManage && (
+                      <button onClick={e => handleDeleteNcr(n.id, e)} className="p-1 rounded hover:bg-[var(--surface-2)]" title="Remove"><Trash2 size={12} style={{ color: 'var(--error,#DC2626)' }} /></button>
+                    )}
+                    <ChevronRight size={14} style={{ color: 'var(--text-3)' }} />
+                  </div>
                 </div>
               </div>
             ))}
-            {ncrs.length === 0 && <div className="text-center py-10 text-sm" style={{ color: 'var(--text-3)' }}>No NCRs raised</div>}
+            {visibleNcrs.length === 0 && <div className="text-center py-10 text-sm" style={{ color: 'var(--text-3)' }}>No NCRs raised</div>}
           </div>
         )}
       </div>

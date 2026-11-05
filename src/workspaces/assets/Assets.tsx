@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, AlertTriangle, ChevronRight, Wrench, Search, X } from 'lucide-react';
+import { Plus, AlertTriangle, ChevronRight, Wrench, Search, X, Trash2 } from 'lucide-react';
 import { useStore } from '../../store';
 import StatusChip from '../../components/layout/StatusChip';
 import clsx from 'clsx';
@@ -12,13 +12,23 @@ export default function Assets() {
   const [tab, setTab] = useState<'assets' | 'maintenance'>('assets');
   const [search, setSearch] = useState('');
   const [showLogEvent, setShowLogEvent] = useState(false);
+  const [deletedAssetIds, setDeletedAssetIds] = useState<Set<string>>(new Set());
+  const canManage = ['owner', 'maintenance', 'supervisor'].includes(currentUser.role);
+
+  const handleDeleteAsset = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const hasOpenEvents = maintenanceEvents.some(m => m.assetId === id && m.status !== 'closed');
+    if (hasOpenEvents) { showToast({ type: 'error', title: 'Cannot remove asset', body: 'Asset has open maintenance events.' }); return; }
+    setDeletedAssetIds(prev => new Set([...prev, id]));
+    showToast({ type: 'success', title: 'Asset removed' });
+  };
 
   const breakdowns = assets.filter(a => a.status === 'breakdown').length;
   const pmOverdue = assets.filter(a => a.status === 'pm_overdue').length;
   const inMaint = assets.filter(a => a.status === 'in_maintenance').length;
   const openEvents = maintenanceEvents.filter(m => m.status !== 'closed').length;
 
-  const filteredAssets = assets.filter(a => !search || a.name.toLowerCase().includes(search.toLowerCase()) || a.assetCode.toLowerCase().includes(search.toLowerCase()));
+  const filteredAssets = assets.filter(a => !deletedAssetIds.has(a.id) && (!search || a.name.toLowerCase().includes(search.toLowerCase()) || a.assetCode.toLowerCase().includes(search.toLowerCase())));
   const filteredME = maintenanceEvents.filter(m => !search || m.eventNumber.toLowerCase().includes(search.toLowerCase()) || m.assetName.toLowerCase().includes(search.toLowerCase()));
 
   const canCreate = ['owner', 'maintenance', 'supervisor'].includes(currentUser.role);
@@ -98,7 +108,14 @@ export default function Assets() {
                   })() : <span className="text-xs" style={{ color: 'var(--text-3)' }}>—</span>}
                 </td>
                 <td className="px-4 py-3"><StatusChip status={a.status} size="sm" /></td>
-                <td className="px-4 py-3"><ChevronRight size={14} style={{ color: 'var(--text-3)' }} /></td>
+                <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
+                  <div className="flex items-center gap-1">
+                    {canManage && (
+                      <button onClick={e => handleDeleteAsset(a.id, e)} className="p-1 rounded hover:bg-[var(--surface-2)]" title="Remove asset"><Trash2 size={12} style={{ color: 'var(--error,#DC2626)' }} /></button>
+                    )}
+                    <ChevronRight size={14} style={{ color: 'var(--text-3)' }} />
+                  </div>
+                </td>
               </tr>
             ))}
           </tbody>

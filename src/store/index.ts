@@ -23,6 +23,7 @@ import {
   COLLECTION_ACTIVITIES, FINISHED_PRODUCTS, FLAGSHIP_SITE_ALLOCATIONS,
   FLAGSHIP_INSPECTIONS, FLAGSHIP_NCRS,
   SITES, FLAGSHIP_QUOTATION,
+  FLAGSHIP_GRNS, FLAGSHIP_SUPPLIER_RFQS, FLAGSHIP_PURCHASE_REQS,
 } from '../data/seed';
 
 // ── App State ──
@@ -149,6 +150,18 @@ interface EOSSState {
   addPaymentAllocation: (pa: PaymentAllocation) => void;
   addCollectionActivity: (ca: CollectionActivity) => void;
 
+  // Update / soft-delete actions
+  updateCustomerPo: (id: string, partial: Partial<CustomerPO>) => void;
+  updateRfq: (id: string, partial: Partial<CustomerRFQ>) => void;
+  updateSupplierPo: (id: string, partial: Partial<SupplierPO>) => void;
+  updateJob: (id: string, partial: Partial<Job>) => void;
+  updateInspection: (id: string, partial: Partial<Inspection>) => void;
+  setInspectionStatus: (id: string, result: Inspection['result']) => void;
+  updateNCR: (id: string, partial: Partial<NCR>) => void;
+  setNCRStatus: (id: string, status: NCR['status']) => void;
+  updateAsset: (id: string, partial: Partial<Asset>) => void;
+  updateEmployee: (id: string, partial: Partial<Employee>) => void;
+
   // Onboarding state
   onboarding: OnboardingState;
   companyConfig: typeof COMPANY_CONFIG;
@@ -199,13 +212,13 @@ export const useStore = create<EOSSState>((set, get) => ({
   customerPos: [...CUSTOMER_POS, FLAGSHIP_PO],
   supplierPos: [...SUPPLIER_POS],
   rfqs: [...RFQS, FLAGSHIP_RFQ, ADDITIONAL_RFQ],
-  grns: [...GRNS],
+  grns: [...GRNS, ...FLAGSHIP_GRNS],
   inspections: [...INSPECTIONS, ...FLAGSHIP_INSPECTIONS],
   ncrs: [...NCRS, ...FLAGSHIP_NCRS],
   certificates: [...CERTIFICATES],
   employees: [...EMPLOYEES],
   storeLocations: [...STORE_LOCATIONS],
-  supplierQuotations: [...SUPPLIER_QUOTATIONS],
+  supplierQuotations: [...SUPPLIER_QUOTATIONS, ...FLAGSHIP_SUPPLIER_RFQS],
   auditEvents: [...AUDIT_EVENTS],
   approvalPolicies: [...APPROVAL_POLICIES],
   customerInvoices: [...CUSTOMER_INVOICES],
@@ -457,6 +470,18 @@ export const useStore = create<EOSSState>((set, get) => ({
   addPaymentAllocation: (pa) => set(s => ({ paymentAllocations: [pa, ...s.paymentAllocations] })),
   addCollectionActivity: (ca) => set(s => ({ collectionActivities: [ca, ...s.collectionActivities] })),
 
+  // ── Update / Soft-delete Actions ──
+  updateCustomerPo: (id, partial) => set(s => ({ customerPos: s.customerPos.map(p => p.id === id ? { ...p, ...partial } : p) })),
+  updateRfq: (id, partial) => set(s => ({ rfqs: s.rfqs.map(r => r.id === id ? { ...r, ...partial } : r) })),
+  updateSupplierPo: (id, partial) => set(s => ({ supplierPos: s.supplierPos.map(p => p.id === id ? { ...p, ...partial } : p) })),
+  updateJob: (id, partial) => set(s => ({ jobs: s.jobs.map(j => j.id === id ? { ...j, ...partial } : j) })),
+  updateInspection: (id, partial) => set(s => ({ inspections: s.inspections.map(i => i.id === id ? { ...i, ...partial } : i) })),
+  setInspectionStatus: (id, result) => set(s => ({ inspections: s.inspections.map(i => i.id === id ? { ...i, result } : i) })),
+  updateNCR: (id, partial) => set(s => ({ ncrs: s.ncrs.map(n => n.id === id ? { ...n, ...partial } : n) })),
+  setNCRStatus: (id, status) => set(s => ({ ncrs: s.ncrs.map(n => n.id === id ? { ...n, status } : n) })),
+  updateAsset: (id, partial) => set(s => ({ assets: s.assets.map(a => a.id === id ? { ...a, ...partial } : a) })),
+  updateEmployee: (id, partial) => set(s => ({ employees: s.employees.map(e => e.id === id ? { ...e, ...partial } : e) })),
+
   // ── Onboarding Actions ──
   updateOnboarding: (partial) => set(s => ({ onboarding: { ...s.onboarding, ...partial } })),
   completeOnboarding: () => set({ onboarding: { status: 'complete', completedSteps: [1, 2, 3, 4, 5, 6, 7] } }),
@@ -494,6 +519,7 @@ export {
   SUPPLIER_QUOTATIONS, AUDIT_EVENTS, APPROVAL_POLICIES,
   FINISHED_PRODUCTS, FLAGSHIP_SITE_ALLOCATIONS, FLAGSHIP_INVOICES, FLAGSHIP_PAYMENTS,
   FLAGSHIP_PAYMENT_ALLOCATIONS, COLLECTION_ACTIVITIES, SITES, FLAGSHIP_QUOTATION, FLAGSHIP_RFQ,
+  FLAGSHIP_GRNS, FLAGSHIP_PURCHASE_REQS,
 };
 export const CUSTOMERS = [...CUSTOMERS_BASE, GERMAN_CUSTOMER];
 export { FLAGSHIP_PO_LINES, FLAGSHIP_QUOTATION_LINES } from '../data/seed';

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, AlertTriangle, Search, ChevronRight, X } from 'lucide-react';
+import { Plus, AlertTriangle, Search, ChevronRight, X, Pencil, Trash2 } from 'lucide-react';
 import { useStore, PURCHASE_REQS, CUSTOMERS } from '../../store';
 import StatusChip from '../../components/layout/StatusChip';
 import type { SupplierPO, SupplierQuotation } from '../../types';
@@ -8,7 +8,15 @@ import type { SupplierPO, SupplierQuotation } from '../../types';
 type ProcTab = 'spo' | 'pr' | 'grn' | 'approvals' | 'quotes';
 
 export default function Procurement() {
-  const { supplierPos, grns, approvalRequests, supplierQuotations, currentUser, showToast, addSupplierPO, resolveApproval } = useStore();
+  const { supplierPos, grns, approvalRequests, supplierQuotations, currentUser, showToast, addSupplierPO, resolveApproval, updateSupplierPo } = useStore();
+  const [editSpo, setEditSpo] = useState<SupplierPO | null>(null);
+
+  const handleDeleteSpo = (id: string) => {
+    const hasGRN = grns.some(g => g.spoId === id);
+    if (hasGRN) { showToast({ type: 'error', title: 'Cannot cancel PO', body: 'This PO has GRN records against it.' }); return; }
+    updateSupplierPo(id, { status: 'cancelled' });
+    showToast({ type: 'success', title: 'Supplier PO cancelled' });
+  };
   const navigate = useNavigate();
   const [tab, setTab] = useState<ProcTab>('spo');
   const [search, setSearch] = useState('');
@@ -117,7 +125,17 @@ export default function Procurement() {
                   <td className="px-4 py-3 font-mono text-sm font-semibold" style={{ color: 'var(--text)' }}>₹{(p.totalValue / 1000).toFixed(1)}k</td>
                   <td className="px-4 py-3 text-xs font-mono" style={{ color: 'var(--text-2)' }}>{p.jobRef ?? '—'}</td>
                   <td className="px-4 py-3"><StatusChip status={p.status} size="sm" /></td>
-                  <td className="px-4 py-3"><ChevronRight size={14} style={{ color: 'var(--text-3)' }} /></td>
+                  <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
+                    <div className="flex items-center gap-1">
+                      {canCreate && p.status !== 'cancelled' && (
+                        <button onClick={() => setEditSpo(p)} className="p-1 rounded hover:bg-[var(--surface-2)]" title="Edit"><Pencil size={12} style={{ color: 'var(--text-3)' }} /></button>
+                      )}
+                      {canCreate && p.status !== 'cancelled' && (
+                        <button onClick={() => handleDeleteSpo(p.id)} className="p-1 rounded hover:bg-[var(--surface-2)]" title="Cancel"><Trash2 size={12} style={{ color: 'var(--error,#DC2626)' }} /></button>
+                      )}
+                      <ChevronRight size={14} style={{ color: 'var(--text-3)' }} />
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -275,6 +293,30 @@ export default function Procurement() {
         <QuoteCompareModal quotes={compareQuotes} onClose={() => setCompareQuotes(null)}
           onSelect={(q) => { showToast({ type: 'success', title: 'Quote selected', body: `Quote from ${q.supplierName} has been selected.` }); setCompareQuotes(null); }} />
       )}
+
+      {editSpo && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-6 w-full max-w-md shadow-xl">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-bold text-[var(--text)]">Edit SPO — {editSpo.poNumber}</h2>
+              <button onClick={() => setEditSpo(null)} className="text-[var(--text-3)]"><X size={18} /></button>
+            </div>
+            <EditSPOForm spo={editSpo} onSave={(partial) => { updateSupplierPo(editSpo.id, partial); setEditSpo(null); showToast({ type: 'success', title: 'Supplier PO updated' }); }} onCancel={() => setEditSpo(null)} />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function EditSPOForm({ spo, onSave, onCancel }: { spo: SupplierPO; onSave: (p: Partial<SupplierPO>) => void; onCancel: () => void }) {
+  const [form, setForm] = useState({ poNumber: spo.poNumber, paymentTerms: spo.paymentTerms, totalValue: spo.totalValue });
+  return (
+    <div className="space-y-3">
+      <div><label className="text-xs text-[var(--text-3)] block mb-1">PO Number</label><input value={form.poNumber} onChange={e => setForm(f => ({ ...f, poNumber: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--surface)] text-sm text-[var(--text)]" /></div>
+      <div><label className="text-xs text-[var(--text-3)] block mb-1">Payment Terms</label><input value={form.paymentTerms} onChange={e => setForm(f => ({ ...f, paymentTerms: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--surface)] text-sm text-[var(--text)]" /></div>
+      <div><label className="text-xs text-[var(--text-3)] block mb-1">Total Value (₹)</label><input type="number" value={form.totalValue} onChange={e => setForm(f => ({ ...f, totalValue: Number(e.target.value) }))} className="w-full px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--surface)] text-sm text-[var(--text)]" /></div>
+      <div className="flex gap-2 mt-4"><button onClick={onCancel} className="flex-1 py-2 border border-[var(--border)] text-[var(--text)] rounded-lg text-sm">Cancel</button><button onClick={() => onSave(form)} className="flex-1 py-2 bg-[var(--brand)] text-white rounded-lg text-sm font-medium">Save</button></div>
     </div>
   );
 }
