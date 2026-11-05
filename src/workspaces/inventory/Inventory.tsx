@@ -10,7 +10,7 @@ type SortKey = 'materialCode' | 'materialName' | 'locationName' | 'onHandQty' | 
 type SortDir = 'asc' | 'desc';
 
 export default function Inventory() {
-  const { inventory, currentUser } = useStore();
+  const { inventory, lots, currentUser } = useStore();
   const navigate = useNavigate();
 
   const [search, setSearch] = useState('');
@@ -209,7 +209,10 @@ export default function Inventory() {
                     }}
                     onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(var(--brand-rgb,112,72,245),0.04)'; }}
                     onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = idx % 2 === 0 ? 'var(--surface)' : 'var(--surface-muted,#F8F9FC)'; }}
-                    onClick={() => navigate(`/inventory/lot/${item.id}`)}
+                    onClick={() => {
+                      const firstLot = lots.find(l => l.materialItemId === item.materialItemId);
+                      if (firstLot) navigate(`/inventory/lot/${firstLot.id}`);
+                    }}
                   >
                     <td className="px-4 py-3 font-mono text-xs font-bold whitespace-nowrap" style={{ color: 'var(--brand)' }}>
                       {item.materialCode}
