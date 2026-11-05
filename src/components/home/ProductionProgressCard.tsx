@@ -33,7 +33,7 @@ export default function ProductionProgressCard() {
           <div className="text-orange-500 flex items-center justify-center">
             <BarChart3 size={19} strokeWidth={2.5} />
           </div>
-          <h3 className="text-base font-bold text-[var(--text-primary, #1A1F36)] tracking-tight">
+          <h3 className="text-base font-bold text-[var(--text)] tracking-tight">
             Production Progress
           </h3>
         </div>
@@ -56,7 +56,7 @@ export default function ProductionProgressCard() {
             className="flex items-center gap-3 p-1 rounded-lg hover:bg-white/80 hover:shadow-2xs cursor-pointer group transition-all"
             title={`View Job for ${order.orderId}`}
           >
-            <span className="text-xs sm:text-[13px] font-bold text-gray-800 w-16 flex-shrink-0 group-hover:text-[var(--brand-primary)]">
+            <span className="text-xs sm:text-[13px] font-bold text-[var(--text)] w-16 flex-shrink-0 group-hover:text-[var(--brand)]">
               {order.orderId}
             </span>
 

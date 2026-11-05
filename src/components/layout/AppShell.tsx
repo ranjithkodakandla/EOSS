@@ -17,7 +17,7 @@ export default function AppShell() {
   }, [eossTheme]);
 
   return (
-    <div className={clsx(`theme-${eossTheme}`, 'min-h-screen bg-[var(--app-bg,var(--bg))] text-[var(--text-primary,var(--text))]')}>
+    <div className={clsx(`theme-${eossTheme}`, 'min-h-screen bg-[var(--app-bg,var(--bg))] text-[var(--text)]')}>
       <Sidebar />
       <TopBar />
       <main

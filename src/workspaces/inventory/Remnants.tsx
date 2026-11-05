@@ -28,15 +28,15 @@ export default function Remnants() {
       <div>
         <button
           onClick={() => navigate('/inventory')}
-          className="flex items-center gap-1.5 text-sm text-[var(--text-secondary,#626A84)] hover:text-[var(--brand,#7048F5)] mb-3 cursor-pointer transition-colors"
+          className="flex items-center gap-1.5 text-sm text-[var(--text-2)] hover:text-[var(--brand)] mb-3 cursor-pointer transition-colors"
         >
           <ArrowLeft size={14} /> Inventory
         </button>
         <div className="flex items-center gap-2">
-          <Scissors size={20} className="text-[var(--brand,#7048F5)]" />
-          <h1 className="text-xl font-bold text-[var(--text-primary,#1A1F36)]">Remnants & Scrap</h1>
+          <Scissors size={20} className="text-[var(--brand)]" />
+          <h1 className="text-xl font-bold text-[var(--text)]">Remnants & Scrap</h1>
         </div>
-        <p className="text-sm text-[var(--text-secondary,#626A84)] mt-1">
+        <p className="text-sm text-[var(--text-2)] mt-1">
           Off-cuts, partial lots, and scrapped material. Remnants can be re-issued or scrapped; scrap is tracked for disposal reporting.
         </p>
       </div>
@@ -44,17 +44,17 @@ export default function Remnants() {
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
         {[
-          { label: 'Remnant Lots', value: remnants.length, color: 'var(--brand,#7048F5)' },
+          { label: 'Remnant Lots', value: remnants.length, color: 'var(--brand)' },
           { label: 'Scrapped Lots', value: scrapped.length, color: '#EF4444' },
           { label: 'Reusable Remnants', value: remnants.filter(r => r.status === 'available').length, color: '#16A34A' },
         ].map(stat => (
           <div
             key={stat.label}
             className="rounded-xl p-3 border"
-            style={{ borderColor: 'var(--border,#E5E7EB)', background: 'var(--surface,#FFFFFF)' }}
+            style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
           >
             <div className="text-xl font-bold" style={{ color: stat.color }}>{stat.value}</div>
-            <div className="text-xs text-[var(--text-secondary,#626A84)] mt-0.5">{stat.label}</div>
+            <div className="text-xs text-[var(--text-2)] mt-0.5">{stat.label}</div>
           </div>
         ))}
       </div>
@@ -67,8 +67,8 @@ export default function Remnants() {
             onClick={() => setFilter(f)}
             className={`px-3 py-1.5 rounded-lg text-xs font-semibold capitalize cursor-pointer transition ${filter === f ? 'text-white' : 'border'}`}
             style={filter === f
-              ? { background: 'var(--brand,#7048F5)', border: 'none' }
-              : { borderColor: 'var(--border,#E5E7EB)', color: 'var(--text-secondary,#626A84)' }
+              ? { background: 'var(--brand)', border: 'none' }
+              : { borderColor: 'var(--border)', color: 'var(--text-2)' }
             }
           >
             {f === 'all' ? 'All' : f === 'remnants' ? 'Remnants' : 'Scrap'}
@@ -78,20 +78,20 @@ export default function Remnants() {
 
       {/* Table */}
       {display.length === 0 ? (
-        <div className="text-center py-12 text-sm text-[var(--text-secondary,#626A84)]">
+        <div className="text-center py-12 text-sm text-[var(--text-2)]">
           <Package size={32} className="mx-auto mb-2 opacity-30" />
           No items in this view.
         </div>
       ) : (
         <div
           className="rounded-2xl border overflow-hidden"
-          style={{ borderColor: 'var(--border,#E5E7EB)', background: 'var(--surface,#FFFFFF)' }}
+          style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
         >
           <table className="w-full text-sm">
             <thead>
-              <tr style={{ borderBottom: '1px solid var(--border,#E5E7EB)', background: 'var(--surface-muted,#F8F9FC)' }}>
+              <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface-2)' }}>
                 {['Lot', 'Material', 'Qty', 'Location', 'Type', 'Status', 'Actions'].map(h => (
-                  <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold text-[var(--text-secondary,#626A84)] font-medium">{h}</th>
+                  <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold text-[var(--text-2)] font-medium">{h}</th>
                 ))}
               </tr>
             </thead>
@@ -99,24 +99,24 @@ export default function Remnants() {
               {display.map((lot, i) => (
                 <tr
                   key={lot.id}
-                  style={{ borderBottom: i < display.length - 1 ? '1px solid var(--border,#E5E7EB)' : 'none' }}
+                  style={{ borderBottom: i < display.length - 1 ? '1px solid var(--border)' : 'none' }}
                 >
                   <td className="px-4 py-3">
                     <button
                       onClick={() => navigate(`/inventory/lot/${lot.id}`)}
-                      className="font-semibold text-[var(--brand,#7048F5)] hover:underline cursor-pointer text-xs"
+                      className="font-semibold text-[var(--brand)] hover:underline cursor-pointer text-xs"
                     >
                       {lot.lotNumber}
                     </button>
                     {lot.heatNumber && (
-                      <div className="text-[11px] text-[var(--text-secondary,#626A84)]">Heat: {lot.heatNumber}</div>
+                      <div className="text-[11px] text-[var(--text-2)]">Heat: {lot.heatNumber}</div>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-xs text-[var(--text-primary,#1A1F36)]">{lot.materialName}</td>
-                  <td className="px-4 py-3 text-xs font-semibold text-[var(--text-primary,#1A1F36)]">
+                  <td className="px-4 py-3 text-xs text-[var(--text)]">{lot.materialName}</td>
+                  <td className="px-4 py-3 text-xs font-semibold text-[var(--text)]">
                     {lot.primaryQty} {lot.primaryUom}
                   </td>
-                  <td className="px-4 py-3 text-xs text-[var(--text-secondary,#626A84)]">{lot.storeLocationName}</td>
+                  <td className="px-4 py-3 text-xs text-[var(--text-2)]">{lot.storeLocationName}</td>
                   <td className="px-4 py-3">
                     <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${lot.parentLotId ? 'bg-purple-50 text-purple-700' : 'bg-red-50 text-red-700'}`}>
                       {lot.parentLotId ? 'Remnant' : 'Scrap'}
@@ -135,7 +135,7 @@ export default function Remnants() {
                           </button>
                           <button
                             onClick={() => setScrapTarget(null)}
-                            className="text-xs text-[var(--text-secondary,#626A84)] hover:underline cursor-pointer"
+                            className="text-xs text-[var(--text-2)] hover:underline cursor-pointer"
                           >
                             Cancel
                           </button>

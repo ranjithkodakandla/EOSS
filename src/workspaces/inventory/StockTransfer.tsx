@@ -31,15 +31,15 @@ export default function StockTransfer() {
       <div>
         <button
           onClick={() => navigate('/inventory')}
-          className="flex items-center gap-1.5 text-sm text-[var(--text-secondary,#626A84)] hover:text-[var(--brand,#7048F5)] mb-3 cursor-pointer transition-colors"
+          className="flex items-center gap-1.5 text-sm text-[var(--text-2)] hover:text-[var(--brand)] mb-3 cursor-pointer transition-colors"
         >
           <ArrowLeft size={14} /> Inventory
         </button>
         <div className="flex items-center gap-2">
-          <Layers size={20} className="text-[var(--brand,#7048F5)]" />
-          <h1 className="text-xl font-bold text-[var(--text-primary,#1A1F36)]">Stock Transfer</h1>
+          <Layers size={20} className="text-[var(--brand)]" />
+          <h1 className="text-xl font-bold text-[var(--text)]">Stock Transfer</h1>
         </div>
-        <p className="text-sm text-[var(--text-secondary,#626A84)] mt-1">
+        <p className="text-sm text-[var(--text-2)] mt-1">
           Move a material lot between store locations within the same site.
         </p>
       </div>
@@ -59,16 +59,16 @@ export default function StockTransfer() {
       <form
         onSubmit={handleSubmit}
         className="rounded-2xl border p-5 space-y-4"
-        style={{ borderColor: 'var(--border,#E5E7EB)', background: 'var(--surface,#FFFFFF)' }}
+        style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
       >
         <div>
-          <label className="block text-xs font-semibold text-[var(--text-secondary,#626A84)] mb-1.5">Material Lot *</label>
+          <label className="block text-xs font-semibold text-[var(--text-2)] mb-1.5">Material Lot *</label>
           <select
             required
             value={selectedLot}
             onChange={e => setSelectedLot(e.target.value)}
             className="w-full px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2"
-            style={{ borderColor: 'var(--border,#E5E7EB)', color: 'var(--text-primary,#1A1F36)' }}
+            style={{ borderColor: 'var(--border)', color: 'var(--text)' }}
           >
             <option value="">Select a lot to transfer…</option>
             {availableLots.map(l => (
@@ -82,31 +82,31 @@ export default function StockTransfer() {
         {lotObj && (
           <div
             className="flex items-center gap-4 p-3 rounded-lg text-sm"
-            style={{ background: 'var(--surface-muted,#F8F9FC)', border: '1px solid var(--border,#E5E7EB)' }}
+            style={{ background: 'var(--surface-2)', border: '1px solid var(--border)' }}
           >
             <div className="text-center">
-              <div className="text-[11px] text-[var(--text-secondary,#626A84)] mb-1">From</div>
-              <div className="font-semibold text-[var(--text-primary,#1A1F36)] text-xs">{lotObj.storeLocationName}</div>
+              <div className="text-[11px] text-[var(--text-2)] mb-1">From</div>
+              <div className="font-semibold text-[var(--text)] text-xs">{lotObj.storeLocationName}</div>
             </div>
-            <ArrowRight size={16} className="text-[var(--brand,#7048F5)] flex-shrink-0 mx-auto" />
+            <ArrowRight size={16} className="text-[var(--brand)] flex-shrink-0 mx-auto" />
             <div className="text-center flex-1">
-              <div className="text-[11px] text-[var(--text-secondary,#626A84)] mb-1">To</div>
+              <div className="text-[11px] text-[var(--text-2)] mb-1">To</div>
               {toLocation
-                ? <div className="font-semibold text-[var(--brand,#7048F5)] text-xs">{storeLocations.find(sl => sl.id === toLocation)?.name ?? '—'}</div>
-                : <div className="text-xs text-[var(--text-secondary,#626A84)]">Select below</div>
+                ? <div className="font-semibold text-[var(--brand)] text-xs">{storeLocations.find(sl => sl.id === toLocation)?.name ?? '—'}</div>
+                : <div className="text-xs text-[var(--text-2)]">Select below</div>
               }
             </div>
           </div>
         )}
 
         <div>
-          <label className="block text-xs font-semibold text-[var(--text-secondary,#626A84)] mb-1.5">Destination Location *</label>
+          <label className="block text-xs font-semibold text-[var(--text-2)] mb-1.5">Destination Location *</label>
           <select
             required
             value={toLocation}
             onChange={e => setToLocation(e.target.value)}
             className="w-full px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2"
-            style={{ borderColor: 'var(--border,#E5E7EB)', color: 'var(--text-primary,#1A1F36)' }}
+            style={{ borderColor: 'var(--border)', color: 'var(--text)' }}
           >
             <option value="">Select destination…</option>
             {storeLocations
@@ -120,14 +120,14 @@ export default function StockTransfer() {
         </div>
 
         <div>
-          <label className="block text-xs font-semibold text-[var(--text-secondary,#626A84)] mb-1.5">Transfer Note</label>
+          <label className="block text-xs font-semibold text-[var(--text-2)] mb-1.5">Transfer Note</label>
           <textarea
             value={transferNote}
             onChange={e => setTransferNote(e.target.value)}
             rows={2}
             placeholder="Optional reason or reference…"
             className="w-full px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 resize-none"
-            style={{ borderColor: 'var(--border,#E5E7EB)', color: 'var(--text-primary,#1A1F36)' }}
+            style={{ borderColor: 'var(--border)', color: 'var(--text)' }}
           />
         </div>
 
@@ -135,8 +135,8 @@ export default function StockTransfer() {
           <button
             type="button"
             onClick={() => navigate('/inventory')}
-            className="px-4 py-2 rounded-lg text-sm font-semibold border cursor-pointer hover:bg-[var(--surface-muted,#F8F9FC)] transition"
-            style={{ borderColor: 'var(--border,#E5E7EB)', color: 'var(--text-secondary,#626A84)' }}
+            className="px-4 py-2 rounded-lg text-sm font-semibold border cursor-pointer hover:bg-[var(--surface-2)] transition"
+            style={{ borderColor: 'var(--border)', color: 'var(--text-2)' }}
           >
             Cancel
           </button>
@@ -144,7 +144,7 @@ export default function StockTransfer() {
             type="submit"
             disabled={submitted || !selectedLot || !toLocation}
             className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white cursor-pointer hover:opacity-90 transition disabled:opacity-40"
-            style={{ background: 'var(--brand,#7048F5)' }}
+            style={{ background: 'var(--brand)' }}
           >
             {submitted ? <CheckCircle size={14} /> : <Layers size={14} />}
             {submitted ? 'Transferred' : 'Confirm Transfer'}

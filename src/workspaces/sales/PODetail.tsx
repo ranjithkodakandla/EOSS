@@ -157,7 +157,7 @@ export default function PODetail() {
                           key={j.id}
                           className="cursor-pointer transition-colors"
                           style={{ borderBottom: '1px solid var(--border)' }}
-                          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--surface-muted,#F8F9FC)'; }}
+                          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--surface-2)'; }}
                           onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = ''; }}
                           onClick={() => navigate(`/jobs/${j.id}`)}
                         >
@@ -195,7 +195,7 @@ export default function PODetail() {
                       key={j.id}
                       onClick={() => navigate(`/jobs/${j.id}`)}
                       className="w-full flex items-center justify-between px-3 py-2 rounded-lg border text-left hover:opacity-80 transition-opacity text-xs"
-                      style={{ borderColor: 'var(--border)', background: 'var(--surface-muted,#F8F9FC)' }}
+                      style={{ borderColor: 'var(--border)', background: 'var(--surface-2)' }}
                     >
                       <span className="font-mono font-bold" style={{ color: 'var(--brand)' }}>{j.jobNumber}</span>
                       <ChevronRight size={12} style={{ color: 'var(--text-3)' }} />
@@ -219,11 +219,11 @@ export default function PODetail() {
         {activeTab === 'lines' && (
           <div className="p-6 max-w-7xl">
             <div className="rounded-xl border overflow-hidden" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
-              <div className="px-4 py-3 border-b text-sm font-semibold" style={{ borderColor: 'var(--border)', background: 'var(--surface-muted,#F8F9FC)', color: 'var(--text)' }}>
+              <div className="px-4 py-3 border-b text-sm font-semibold" style={{ borderColor: 'var(--border)', background: 'var(--surface-2)', color: 'var(--text)' }}>
                 Line Items — {po.lineCount} lines · {po.currency}
               </div>
               <table className="w-full text-sm">
-                <thead style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface-muted,#F8F9FC)' }}>
+                <thead style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface-2)' }}>
                   <tr>
                     {['#', 'Item / Specification', 'Qty', 'UOM', 'Rate', 'Total'].map(h => (
                       <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold font-medium" style={{ color: 'var(--text-3)' }}>{h}</th>
@@ -254,7 +254,7 @@ export default function PODetail() {
                       </td>
                     </tr>
                   ))}
-                  <tr style={{ background: 'var(--surface-muted,#F8F9FC)' }}>
+                  <tr style={{ background: 'var(--surface-2)' }}>
                     <td colSpan={5} className="px-4 py-3 text-sm font-bold text-right" style={{ color: 'var(--text)' }}>Total</td>
                     <td className="px-4 py-3 font-mono text-sm font-bold" style={{ color: 'var(--brand)' }}>
                       ₹{po.totalValue.toLocaleString('en-IN')}
@@ -283,7 +283,7 @@ export default function PODetail() {
               </div>
             ) : (
               <div className="rounded-xl border overflow-hidden" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
-                <div className="px-4 py-3 border-b flex items-center justify-between" style={{ borderColor: 'var(--border)', background: 'var(--surface-muted,#F8F9FC)' }}>
+                <div className="px-4 py-3 border-b flex items-center justify-between" style={{ borderColor: 'var(--border)', background: 'var(--surface-2)' }}>
                   <span className="text-sm font-semibold" style={{ color: 'var(--text)' }}>Amendment History</span>
                   <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: 'var(--warning-bg)', color: 'var(--warning)' }}>Pending Review</span>
                 </div>
@@ -293,7 +293,7 @@ export default function PODetail() {
                     <div className="flex-1">
                       <div className="text-sm font-semibold" style={{ color: 'var(--text)' }}>Amendment #1 — Quantity Revision</div>
                       <div className="text-xs mt-0.5" style={{ color: 'var(--text-3)' }}>Requested by customer · Pending internal approval</div>
-                      <div className="mt-2 p-3 rounded-lg text-xs" style={{ background: 'var(--surface-muted,#F8F9FC)', color: 'var(--text-2)' }}>
+                      <div className="mt-2 p-3 rounded-lg text-xs" style={{ background: 'var(--surface-2)', color: 'var(--text-2)' }}>
                         Line 1 qty: 10 pcs → 15 pcs (+5 pcs). Impact on value and delivery schedule under review.
                       </div>
                     </div>
@@ -307,14 +307,14 @@ export default function PODetail() {
         {activeTab === 'jobs' && (
           <div className="p-6 max-w-7xl">
             <div className="rounded-xl border overflow-hidden" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
-              <div className="px-4 py-3 border-b" style={{ borderColor: 'var(--border)', background: 'var(--surface-muted,#F8F9FC)' }}>
+              <div className="px-4 py-3 border-b" style={{ borderColor: 'var(--border)', background: 'var(--surface-2)' }}>
                 <span className="text-sm font-semibold" style={{ color: 'var(--text)' }}>Linked Jobs ({poJobs.length})</span>
               </div>
               {poJobs.length === 0 ? (
                 <div className="p-10 text-center text-sm" style={{ color: 'var(--text-3)' }}>No jobs linked to this PO.</div>
               ) : (
                 <table className="w-full text-sm">
-                  <thead style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface-muted,#F8F9FC)' }}>
+                  <thead style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface-2)' }}>
                     <tr>
                       {['Job #', 'Description', 'Current Stage', 'Status', 'Due Date', 'Value', ''].map(h => (
                         <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold font-medium" style={{ color: 'var(--text-3)' }}>{h}</th>
@@ -327,7 +327,7 @@ export default function PODetail() {
                         key={j.id}
                         className="cursor-pointer"
                         style={{ borderBottom: '1px solid var(--border)' }}
-                        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--surface-muted,#F8F9FC)'; }}
+                        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--surface-2)'; }}
                         onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = ''; }}
                         onClick={() => navigate(`/jobs/${j.id}`)}
                       >
@@ -396,7 +396,7 @@ function SummaryBadge({ label, value, emphasis, mono }: { label: string; value: 
 function Card({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="rounded-xl border overflow-hidden" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
-      <div className="px-4 py-3 border-b text-sm font-semibold" style={{ borderColor: 'var(--border)', background: 'var(--surface-muted,#F8F9FC)', color: 'var(--text)' }}>
+      <div className="px-4 py-3 border-b text-sm font-semibold" style={{ borderColor: 'var(--border)', background: 'var(--surface-2)', color: 'var(--text)' }}>
         {title}
       </div>
       <div className="p-4">{children}</div>

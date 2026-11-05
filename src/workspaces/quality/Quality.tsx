@@ -46,7 +46,7 @@ export default function Quality() {
         {tab === 'inspections' && (
           <table className="w-full text-sm border-separate border-spacing-0" style={{ minWidth: 800 }}>
             <thead style={{ position: 'sticky', top: 0, zIndex: 5 }}>
-              <tr style={{ background: 'var(--surface-muted,#F8F9FC)' }}>
+              <tr style={{ background: 'var(--surface-2)' }}>
                 {['Inspection #', 'Type', 'Subject', 'Date', 'Inspector', 'Sample', 'Accept', 'Reject', 'Result', ''].map(h => (
                   <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold font-medium" style={{ color: 'var(--text-3)', borderBottom: '1px solid var(--border)' }}>{h}</th>
                 ))}
@@ -55,7 +55,7 @@ export default function Quality() {
             <tbody>
               {inspections.map(i => (
                 <tr key={i.id} className="cursor-pointer" style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}
-                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--surface-muted,#F8F9FC)'; }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--surface-2)'; }}
                   onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'var(--surface)'; }}
                   onClick={() => navigate(`/quality/inspection/${i.id}`)}>
                   <td className="px-4 py-3">

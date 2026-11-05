@@ -195,24 +195,24 @@ export default function GlobalSearchModal({ isOpen, onClose }: Props) {
           className="flex items-center gap-3 px-4 py-3.5 border-b"
           style={{ borderColor: 'var(--border, #E5E0F5)' }}
         >
-          <Search size={18} className="text-[var(--text-secondary, #626A84)] flex-shrink-0" />
+          <Search size={18} className="text-[var(--text-2)] flex-shrink-0" />
           <input
             ref={inputRef}
             type="text"
             value={query}
             onChange={e => setQuery(e.target.value)}
             placeholder="Search orders, customers, suppliers, materials, documents..."
-            className="flex-1 bg-transparent text-sm md:text-base text-[var(--text-primary, #1A1F36)] placeholder-[var(--text-secondary, #626A84)]/60 focus:outline-none"
+            className="flex-1 bg-transparent text-sm md:text-base text-[var(--text)] placeholder-[var(--text-2)]/60 focus:outline-none"
           />
           {query ? (
             <button
               onClick={() => setQuery('')}
-              className="p-1 rounded-md text-[var(--text-secondary)] hover:bg-[var(--surface-muted, #F3F0FF)]"
+              className="p-1 rounded-md text-[var(--text-2)] hover:bg-[var(--surface-2)]"
             >
               <X size={16} />
             </button>
           ) : (
-            <kbd className="hidden sm:inline-flex items-center gap-1 font-mono text-[11px] px-2 py-0.5 rounded bg-[var(--surface-muted, #F3F0FF)] text-[var(--text-secondary)] border border-[var(--border)]">
+            <kbd className="hidden sm:inline-flex items-center gap-1 font-mono text-[11px] px-2 py-0.5 rounded bg-[var(--surface-2)] text-[var(--text-2)] border border-[var(--border)]">
               ESC
             </kbd>
           )}
@@ -224,7 +224,7 @@ export default function GlobalSearchModal({ isOpen, onClose }: Props) {
             /* Recent Searches & Guidance */
             <div className="p-3 space-y-4">
               <div>
-                <div className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-secondary, #626A84)] mb-2 flex items-center gap-1.5">
+                <div className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-2)] mb-2 flex items-center gap-1.5">
                   <Clock size={12} />
                   <span>Recent Records & Searches</span>
                 </div>
@@ -233,7 +233,7 @@ export default function GlobalSearchModal({ isOpen, onClose }: Props) {
                     <button
                       key={idx}
                       onClick={() => setQuery(tag)}
-                      className="text-xs px-3 py-1.5 rounded-lg border font-medium text-[var(--text-primary)] hover:border-[var(--brand-primary)] hover:bg-[var(--surface-muted)] transition-colors flex items-center gap-1.5"
+                      className="text-xs px-3 py-1.5 rounded-lg border font-medium text-[var(--text)] hover:border-[var(--brand)] hover:bg-[var(--surface-2)] transition-colors flex items-center gap-1.5"
                       style={{ borderColor: 'var(--border)' }}
                     >
                       <span>{tag}</span>
@@ -243,32 +243,32 @@ export default function GlobalSearchModal({ isOpen, onClose }: Props) {
               </div>
 
               <div className="pt-2 border-t border-[var(--border)]">
-                <div className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-secondary)] mb-2">
+                <div className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-2)] mb-2">
                   Search Scope
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs text-[var(--text-secondary)]">
-                  <div className="flex items-center gap-2 p-2 rounded-lg bg-[var(--surface-muted)]">
-                    <Briefcase size={14} className="text-[var(--brand-primary)]" />
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs text-[var(--text-2)]">
+                  <div className="flex items-center gap-2 p-2 rounded-lg bg-[var(--surface-2)]">
+                    <Briefcase size={14} className="text-[var(--brand)]" />
                     <span>Customer & Sales POs</span>
                   </div>
-                  <div className="flex items-center gap-2 p-2 rounded-lg bg-[var(--surface-muted)]">
-                    <Package size={14} className="text-[var(--brand-primary)]" />
+                  <div className="flex items-center gap-2 p-2 rounded-lg bg-[var(--surface-2)]">
+                    <Package size={14} className="text-[var(--brand)]" />
                     <span>Procurement & Supplier POs</span>
                   </div>
-                  <div className="flex items-center gap-2 p-2 rounded-lg bg-[var(--surface-muted)]">
-                    <Box size={14} className="text-[var(--brand-primary)]" />
+                  <div className="flex items-center gap-2 p-2 rounded-lg bg-[var(--surface-2)]">
+                    <Box size={14} className="text-[var(--brand)]" />
                     <span>Inventory & Lots</span>
                   </div>
-                  <div className="flex items-center gap-2 p-2 rounded-lg bg-[var(--surface-muted)]">
-                    <Wrench size={14} className="text-[var(--brand-primary)]" />
+                  <div className="flex items-center gap-2 p-2 rounded-lg bg-[var(--surface-2)]">
+                    <Wrench size={14} className="text-[var(--brand)]" />
                     <span>Machines & Assets</span>
                   </div>
-                  <div className="flex items-center gap-2 p-2 rounded-lg bg-[var(--surface-muted)]">
-                    <FileText size={14} className="text-[var(--brand-primary)]" />
+                  <div className="flex items-center gap-2 p-2 rounded-lg bg-[var(--surface-2)]">
+                    <FileText size={14} className="text-[var(--brand)]" />
                     <span>Vault Documents & MTCs</span>
                   </div>
-                  <div className="flex items-center gap-2 p-2 rounded-lg bg-[var(--surface-muted)]">
-                    <Users size={14} className="text-[var(--brand-primary)]" />
+                  <div className="flex items-center gap-2 p-2 rounded-lg bg-[var(--surface-2)]">
+                    <Users size={14} className="text-[var(--brand)]" />
                     <span>Customers & Suppliers</span>
                   </div>
                 </div>
@@ -277,33 +277,33 @@ export default function GlobalSearchModal({ isOpen, onClose }: Props) {
           ) : results.length > 0 ? (
             /* Search Results List */
             <div className="space-y-1">
-              <div className="px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-[var(--text-secondary)]">
+              <div className="px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-[var(--text-2)]">
                 Found {results.length} records matching "{query}"
               </div>
               {results.map(item => (
                 <button
                   key={`${item.type}-${item.id}`}
                   onClick={() => handleSelect(item)}
-                  className="w-full text-left flex items-center justify-between p-3 rounded-xl hover:bg-[var(--surface-muted, #F3F0FF)] transition-colors group border border-transparent hover:border-[var(--border)]"
+                  className="w-full text-left flex items-center justify-between p-3 rounded-xl hover:bg-[var(--surface-2)] transition-colors group border border-transparent hover:border-[var(--border)]"
                 >
                   <div className="flex items-center gap-3 overflow-hidden">
                     <span
                       className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full flex-shrink-0"
                       style={{
                         background: 'var(--brand-soft, #EEE9FF)',
-                        color: 'var(--brand-primary, #7048F5)',
+                        color: 'var(--brand)',
                       }}
                     >
                       {item.type}
                     </span>
                     <div className="overflow-hidden">
-                      <div className="text-sm font-semibold text-[var(--text-primary)] group-hover:text-[var(--brand-primary)] flex items-center gap-2">
+                      <div className="text-sm font-semibold text-[var(--text)] group-hover:text-[var(--brand)] flex items-center gap-2">
                         <span className="font-mono text-xs">{item.code}</span>
                         <span>·</span>
                         <span className="truncate">{item.title}</span>
                       </div>
                       {item.subtitle && (
-                        <div className="text-xs text-[var(--text-secondary)] truncate">
+                        <div className="text-xs text-[var(--text-2)] truncate">
                           {item.subtitle}
                         </div>
                       )}
@@ -311,11 +311,11 @@ export default function GlobalSearchModal({ isOpen, onClose }: Props) {
                   </div>
                   <div className="flex items-center gap-2 ml-3 flex-shrink-0">
                     {item.status && (
-                      <span className="text-[11px] font-medium px-2 py-0.5 rounded bg-[var(--surface-muted)] text-[var(--text-secondary)]">
+                      <span className="text-[11px] font-medium px-2 py-0.5 rounded bg-[var(--surface-2)] text-[var(--text-2)]">
                         {item.status}
                       </span>
                     )}
-                    <ChevronRight size={14} className="text-[var(--text-secondary)] group-hover:text-[var(--brand-primary)] transition-transform group-hover:translate-x-0.5" />
+                    <ChevronRight size={14} className="text-[var(--text-2)] group-hover:text-[var(--brand)] transition-transform group-hover:translate-x-0.5" />
                   </div>
                 </button>
               ))}
@@ -323,11 +323,11 @@ export default function GlobalSearchModal({ isOpen, onClose }: Props) {
           ) : (
             /* No Results */
             <div className="text-center py-12 px-4">
-              <Search size={28} className="mx-auto text-[var(--text-secondary)]/50 mb-2" />
-              <div className="text-sm font-semibold text-[var(--text-primary)]">
+              <Search size={28} className="mx-auto text-[var(--text-2)]/50 mb-2" />
+              <div className="text-sm font-semibold text-[var(--text)]">
                 No records found for "{query}"
               </div>
-              <div className="text-xs text-[var(--text-secondary)] mt-1">
+              <div className="text-xs text-[var(--text-2)] mt-1">
                 Try searching by order number (e.g. SO-1245), material grade (SS 304), machine code, or supplier name.
               </div>
             </div>
@@ -336,11 +336,11 @@ export default function GlobalSearchModal({ isOpen, onClose }: Props) {
 
         {/* Footer info */}
         <div
-          className="px-4 py-2.5 bg-[var(--surface-muted, #F3F0FF)] border-t flex items-center justify-between text-xs text-[var(--text-secondary)]"
+          className="px-4 py-2.5 bg-[var(--surface-2)] border-t flex items-center justify-between text-xs text-[var(--text-2)]"
           style={{ borderColor: 'var(--border, #E5E0F5)' }}
         >
           <span className="flex items-center gap-1.5">
-            <span className="font-medium text-[var(--text-primary)]">Navigation Search</span>
+            <span className="font-medium text-[var(--text)]">Navigation Search</span>
             <span>· Instant record lookup</span>
           </span>
           <span className="font-mono text-[11px]">Press ESC to close</span>

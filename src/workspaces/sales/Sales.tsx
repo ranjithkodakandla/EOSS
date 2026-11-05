@@ -102,7 +102,7 @@ export default function Sales() {
       {/* Filter Bar */}
       <div
         className="flex-shrink-0 flex items-center gap-3 px-6 py-3 border-b"
-        style={{ borderColor: 'var(--border)', background: 'var(--surface-muted,#F8F9FC)' }}
+        style={{ borderColor: 'var(--border)', background: 'var(--surface-2)' }}
       >
         <div className="relative flex-1 max-w-xs">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-3)' }} />
@@ -160,7 +160,7 @@ export default function Sales() {
         >
           {tab === 'pos' && (
             <table className="w-full text-sm border-collapse">
-              <thead className="sticky top-0 z-10" style={{ background: 'var(--surface-muted,#F8F9FC)' }}>
+              <thead className="sticky top-0 z-10" style={{ background: 'var(--surface-2)' }}>
                 <tr style={{ borderBottom: '1px solid var(--border)' }}>
                   {['PO Number', 'Customer', 'Date', 'Value', 'Lines', 'Terms', 'Status'].map(h => (
                     <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold font-medium" style={{ color: 'var(--text-3)' }}>
@@ -182,7 +182,7 @@ export default function Sales() {
                         background: isSelected ? 'var(--brand-50, rgba(var(--brand-rgb,112,72,245),0.06))' : 'var(--surface)',
                         borderLeft: isSelected ? '3px solid var(--brand)' : '3px solid transparent',
                       }}
-                      onMouseEnter={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.background = 'var(--surface-muted,#F8F9FC)'; }}
+                      onMouseEnter={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.background = 'var(--surface-2)'; }}
                       onMouseLeave={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.background = 'var(--surface)'; }}
                     >
                       <td className="px-4 py-3">
@@ -213,7 +213,7 @@ export default function Sales() {
 
           {tab === 'rfqs' && (
             <table className="w-full text-sm border-collapse">
-              <thead className="sticky top-0 z-10" style={{ background: 'var(--surface-muted,#F8F9FC)' }}>
+              <thead className="sticky top-0 z-10" style={{ background: 'var(--surface-2)' }}>
                 <tr style={{ borderBottom: '1px solid var(--border)' }}>
                   {['RFQ Number', 'Customer', 'Received', 'Required By', 'Lines', 'Channel', 'Status', 'Owner'].map(h => (
                     <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold font-medium" style={{ color: 'var(--text-3)' }}>{h}</th>
@@ -226,7 +226,7 @@ export default function Sales() {
                     key={r.id}
                     className="cursor-pointer transition-colors"
                     style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}
-                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--surface-muted,#F8F9FC)'; }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--surface-2)'; }}
                     onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'var(--surface)'; }}
                     onClick={() => navigate(`/sales/rfq/${r.id}`)}
                   >
@@ -275,7 +275,7 @@ export default function Sales() {
             </div>
 
             {/* Value Summary */}
-            <div className="px-5 py-4 border-b grid grid-cols-3 gap-4" style={{ borderColor: 'var(--border)', background: 'var(--surface-muted,#F8F9FC)' }}>
+            <div className="px-5 py-4 border-b grid grid-cols-3 gap-4" style={{ borderColor: 'var(--border)', background: 'var(--surface-2)' }}>
               <Metric icon={<DollarSign size={14} />} label="Total Value" value={`₹${(selectedPo.totalValue / 100000).toFixed(2)}L`} />
               <Metric icon={<FileText size={14} />} label="Line Items" value={String(selectedPo.lineCount)} />
               <Metric icon={<Clock size={14} />} label="Terms" value={selectedPo.paymentTerms} small />

@@ -60,7 +60,7 @@ export default function OrderToDeliveryFlow() {
       countSize: 'text-[15px] sm:text-[16px] font-extrabold',
       icon: <FileText size={20} className="text-purple-600" />,
       bg: 'linear-gradient(180deg, #FAF8FF 0%, #EDE9FE 100%)',
-      borderColor: '#DDD6FE',
+      borderColor: 'var(--brand-light, #DDD6FE)',
       glowColor: 'rgba(112, 72, 245, 0.08)',
       path: '/sales',
     },
@@ -72,7 +72,7 @@ export default function OrderToDeliveryFlow() {
       countSize: 'text-[11.5px] sm:text-[12.5px] font-bold',
       icon: <ShoppingCart size={20} className="text-orange-600" />,
       bg: 'linear-gradient(180deg, #FFF9F5 0%, #FFEDD5 100%)',
-      borderColor: '#FED7AA',
+      borderColor: 'var(--warning-light, #FED7AA)',
       glowColor: 'rgba(234, 88, 12, 0.08)',
       badge: {
         type: 'alert',
@@ -92,7 +92,7 @@ export default function OrderToDeliveryFlow() {
       countSize: 'text-[11.5px] sm:text-[12.5px] font-bold',
       icon: <Settings size={20} className="text-blue-600" />,
       bg: 'linear-gradient(180deg, #F5FAFF 0%, #DBEAFE 100%)',
-      borderColor: '#BFDBFE',
+      borderColor: 'var(--info-light, #BFDBFE)',
       glowColor: 'rgba(37, 99, 235, 0.08)',
       path: '/jobs',
     },
@@ -104,7 +104,7 @@ export default function OrderToDeliveryFlow() {
       countSize: 'text-[11.5px] sm:text-[12.5px] font-bold',
       icon: <ShieldCheck size={20} className="text-amber-600" />,
       bg: 'linear-gradient(180deg, #FFFCF2 0%, #FEF3C7 100%)',
-      borderColor: '#FDE68A',
+      borderColor: 'var(--warning-pale, #FDE68A)',
       glowColor: 'rgba(217, 119, 6, 0.08)',
       path: '/quality',
     },
@@ -116,7 +116,7 @@ export default function OrderToDeliveryFlow() {
       countSize: 'text-[11.5px] sm:text-[12.5px] font-bold',
       icon: <Truck size={20} className="text-emerald-600" />,
       bg: 'linear-gradient(180deg, #F3FDF7 0%, #DCFCE7 100%)',
-      borderColor: '#BBF7D0',
+      borderColor: 'var(--success-light, #BBF7D0)',
       glowColor: 'rgba(22, 163, 74, 0.08)',
       badge: {
         type: 'success',
@@ -135,7 +135,7 @@ export default function OrderToDeliveryFlow() {
       className="p-4 sm:p-5 rounded-2xl border"
       style={{
         background: 'var(--card-gradient, linear-gradient(180deg, #FFFFFF 0%, #FAF9FE 100%))',
-        borderColor: 'var(--border, #E5E0F5)',
+        borderColor: 'var(--border)',
         boxShadow: '0 4px 20px -2px rgba(24, 27, 65, 0.06), 0 2px 6px -1px rgba(24, 27, 65, 0.03), inset 0 1px 0 #FFFFFF',
       }}
     >
@@ -143,14 +143,14 @@ export default function OrderToDeliveryFlow() {
       <div className="flex flex-wrap items-center justify-between gap-3 mb-3.5">
         <div className="flex items-center gap-2">
           {/* Distinct Purple Workflow / Spiral Icon (No Box) */}
-          <div className="text-[var(--brand-primary, #7048F5)] flex items-center justify-center">
+          <div className="text-[var(--brand)] flex items-center justify-center">
             <Workflow size={20} strokeWidth={2.5} />
           </div>
           <div>
-            <h2 className="text-base sm:text-lg font-bold text-[var(--text-primary, #1A1F36)] tracking-tight">
+            <h2 className="text-base sm:text-lg font-bold text-[var(--text)] tracking-tight">
               Order to Delivery
             </h2>
-            <div className="text-[11px] text-[var(--text-secondary, #626A84)]">
+            <div className="text-[11px] text-[var(--text-2)]">
               Operational shop floor sequence & throughput
             </div>
           </div>
@@ -172,18 +172,18 @@ export default function OrderToDeliveryFlow() {
           <div className="relative">
             <button
               onClick={() => setTimeMenuOpen(o => !o)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-semibold bg-white text-[var(--text-primary)] hover:border-[var(--brand-primary)] transition-colors shadow-2xs cursor-pointer"
-              style={{ borderColor: 'var(--border, #E5E0F5)' }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-semibold bg-white text-[var(--text)] hover:border-[var(--brand)] transition-colors shadow-2xs cursor-pointer"
+              style={{ borderColor: 'var(--border)' }}
             >
               <span>{timeRange}</span>
-              <ChevronDown size={12} className="text-[var(--text-secondary)]" />
+              <ChevronDown size={12} className="text-[var(--text-2)]" />
             </button>
 
             {timeMenuOpen && (
               <>
                 <div className="fixed inset-0 z-30" onClick={() => setTimeMenuOpen(false)} />
                 <div
-                  className="absolute right-0 mt-1.5 w-36 rounded-xl border bg-white shadow-lg z-40 p-1 text-xs"
+                  className="absolute right-0 mt-1.5 w-36 rounded-xl border bg-[var(--surface)] shadow-lg z-40 p-1 text-xs"
                   style={{ borderColor: 'var(--border)' }}
                 >
                   {['Today', 'This Week', 'This Month', 'All Active'].map(range => (
@@ -193,7 +193,7 @@ export default function OrderToDeliveryFlow() {
                         setTimeRange(range);
                         setTimeMenuOpen(false);
                       }}
-                      className="w-full text-left px-3 py-1.5 rounded-lg hover:bg-[var(--surface-muted)] font-medium text-[var(--text-primary)] cursor-pointer"
+                      className="w-full text-left px-3 py-1.5 rounded-lg hover:bg-[var(--surface-2)] font-medium text-[var(--text)] cursor-pointer"
                     >
                       {range}
                     </button>

@@ -67,7 +67,7 @@ export default function YourPrioritiesCard() {
         <div className="text-red-500 flex items-center justify-center">
           <Target size={19} strokeWidth={2.5} />
         </div>
-        <h3 className="text-base font-bold text-[var(--text-primary, #1A1F36)] tracking-tight">
+        <h3 className="text-base font-bold text-[var(--text)] tracking-tight">
           Your Priorities (3)
         </h3>
       </div>
@@ -78,7 +78,7 @@ export default function YourPrioritiesCard() {
           <div
             key={item.id}
             onClick={() => navigate(item.path)}
-            className="flex items-center justify-between p-2 rounded-xl hover:bg-white/80 hover:shadow-2xs transition-all cursor-pointer group"
+            className="flex items-center justify-between p-2 rounded-xl hover:bg-[var(--surface-2)] hover:shadow-2xs transition-all cursor-pointer group"
           >
             <div className="flex items-center gap-2.5 min-w-0 pr-2">
               <button
@@ -92,7 +92,7 @@ export default function YourPrioritiesCard() {
                     ✓
                   </div>
                 ) : (
-                  <div className="w-4 h-4 rounded-md border-2 border-gray-300 bg-white hover:border-[var(--brand-primary)] transition-colors" />
+                  <div className="w-4 h-4 rounded-md border-2 border-gray-300 bg-[var(--surface)] hover:border-[var(--brand)] transition-colors" />
                 )}
               </button>
 
@@ -100,7 +100,7 @@ export default function YourPrioritiesCard() {
                 className={`text-[13px] font-semibold truncate transition-all ${
                   item.completed
                     ? 'text-gray-800'
-                    : 'text-gray-800 group-hover:text-[var(--brand-primary)]'
+                    : 'text-[var(--text)] group-hover:text-[var(--brand)]'
                 }`}
               >
                 {item.title}
@@ -109,7 +109,7 @@ export default function YourPrioritiesCard() {
 
             <ChevronRight
               size={15}
-              className="text-gray-400 group-hover:text-[var(--brand-primary)] group-hover:translate-x-0.5 transition-all flex-shrink-0"
+              className="text-gray-400 group-hover:text-[var(--brand)] group-hover:translate-x-0.5 transition-all flex-shrink-0"
             />
           </div>
         ))}

@@ -25,7 +25,7 @@ export default function BusinessHealthCard() {
       >
         {/* Header */}
         <div className="flex items-center justify-between">
-          <h3 className="text-base font-bold text-[var(--text-primary, #1A1F36)] tracking-tight">
+          <h3 className="text-base font-bold text-[var(--text)] tracking-tight">
             Business Health
           </h3>
         </div>
@@ -80,7 +80,7 @@ export default function BusinessHealthCard() {
       {showDetail && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in">
           <div
-            className="w-full max-w-md rounded-2xl p-6 border shadow-2xl relative bg-white"
+            className="w-full max-w-md rounded-2xl p-6 border shadow-2xl relative bg-[var(--surface)]"
             style={{ borderColor: 'var(--border, #E5E0F5)' }}
           >
             <button
@@ -95,7 +95,7 @@ export default function BusinessHealthCard() {
                 {healthScore}%
               </div>
               <div>
-                <h4 className="text-lg font-bold text-[var(--text-primary)]">Operational Health Breakdown</h4>
+                <h4 className="text-lg font-bold text-[var(--text)]">Operational Health Breakdown</h4>
                 <div className="text-xs text-gray-500">Composite deterministic operational telemetry</div>
               </div>
             </div>

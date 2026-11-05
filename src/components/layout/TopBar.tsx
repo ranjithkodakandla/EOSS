@@ -34,12 +34,12 @@ export default function TopBar() {
             title="Active Organization Profile"
           >
             <div className="flex items-center gap-1">
-              <span className="text-sm sm:text-base font-extrabold text-[var(--text-primary, #1A1F36)] tracking-tight whitespace-nowrap">
+              <span className="text-sm sm:text-base font-extrabold text-[var(--text)] tracking-tight whitespace-nowrap">
                 Sri Lakshmi Traders
               </span>
-              <ChevronDown size={13} className="text-[var(--text-secondary, #626A84)] hidden sm:inline" />
+              <ChevronDown size={13} className="text-[var(--text-2)] hidden sm:inline" />
             </div>
-            <span className="text-[10px] sm:text-[11px] text-[var(--text-secondary, #626A84)] font-medium -mt-0.5 truncate hidden md:inline">
+            <span className="text-[10px] sm:text-[11px] text-[var(--text-2)] font-medium -mt-0.5 truncate hidden md:inline">
               Manufacturing & Trading · Hyderabad
             </span>
           </button>
@@ -49,11 +49,11 @@ export default function TopBar() {
         <div className="flex-1 max-w-xs sm:max-w-md lg:max-w-xl mx-1 sm:mx-3 md:mx-6">
           <button
             onClick={() => setSearchOpen(true)}
-            className="w-full flex items-center gap-2 sm:gap-2.5 px-3 sm:px-4 py-2 rounded-full border text-xs sm:text-sm text-[var(--text-secondary, #626A84)] bg-white hover:border-[var(--brand-primary, #7048F5)] transition-all shadow-sm group cursor-pointer"
+            className="w-full flex items-center gap-2 sm:gap-2.5 px-3 sm:px-4 py-2 rounded-full border text-xs sm:text-sm text-[var(--text-2)] bg-[var(--surface)] hover:border-[var(--brand)] transition-all shadow-sm group cursor-pointer"
             style={{ borderColor: 'var(--border, #E5E0F5)' }}
             title="Global Record Search (Cmd+K / Ctrl+K)"
           >
-            <Search size={15} className="text-[var(--text-secondary, #626A84)] group-hover:text-[var(--brand-primary)] flex-shrink-0" />
+            <Search size={15} className="text-[var(--text-2)] group-hover:text-[var(--brand)] flex-shrink-0" />
             <span className="truncate flex-1 text-left text-xs sm:text-[13px] font-normal text-gray-500 hidden sm:inline">
               Search orders, customers, materials, documents...
             </span>
@@ -72,7 +72,7 @@ export default function TopBar() {
           <div className="relative">
             <button
               onClick={() => setThemeMenuOpen(o => !o)}
-              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full border text-xs font-semibold bg-white text-[var(--text-primary)] hover:border-[var(--brand-primary)] transition-colors shadow-2xs cursor-pointer"
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full border text-xs font-semibold bg-white text-[var(--text)] hover:border-[var(--brand)] transition-colors shadow-2xs cursor-pointer"
               style={{ borderColor: 'var(--border, #E5E0F5)' }}
               title="Switch Visual Theme (Aurora Indigo / Ocean Teal / Graphite Amber)"
             >
@@ -88,21 +88,21 @@ export default function TopBar() {
                 }}
               />
               <span className="hidden sm:inline capitalize font-medium">{eossTheme}</span>
-              <ChevronDown size={11} className="text-[var(--text-secondary)] hidden sm:inline" />
+              <ChevronDown size={11} className="text-[var(--text-2)] hidden sm:inline" />
             </button>
 
             {themeMenuOpen && (
               <>
                 <div className="fixed inset-0 z-30" onClick={() => setThemeMenuOpen(false)} />
                 <div
-                  className="absolute right-0 mt-2 w-56 rounded-xl border bg-white shadow-xl z-40 p-1.5 animate-in fade-in"
+                  className="absolute right-0 mt-2 w-56 rounded-xl border bg-[var(--surface)] shadow-xl z-40 p-1.5 animate-in fade-in"
                   style={{
                     background: 'var(--surface, #FFFFFF)',
                     borderColor: 'var(--border, #E5E0F5)',
                     boxShadow: 'var(--shadow-elevated)',
                   }}
                 >
-                  <div className="px-3 py-1.5 text-[11px] font-bold text-[var(--text-secondary)] uppercase tracking-wider">
+                  <div className="px-3 py-1.5 text-[11px] font-bold text-[var(--text-2)] uppercase tracking-wider">
                     EOSS Theme Presets
                   </div>
                   {themes.map(t => (
@@ -115,15 +115,15 @@ export default function TopBar() {
                       className={clsx(
                         'w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-colors text-left cursor-pointer',
                         eossTheme === t.id
-                          ? 'bg-[var(--surface-muted, #F3F0FF)] text-[var(--brand-primary)] font-semibold'
-                          : 'text-[var(--text-primary)] hover:bg-[var(--surface-muted)]'
+                          ? 'bg-[var(--surface-2)] text-[var(--brand)] font-semibold'
+                          : 'text-[var(--text)] hover:bg-[var(--surface-2)]'
                       )}
                     >
                       <div className="flex items-center gap-2">
                         <span className="w-3 h-3 rounded-full" style={{ background: t.accent }} />
                         <span>{t.label}</span>
                       </div>
-                      {eossTheme === t.id && <Check size={14} className="text-[var(--brand-primary)]" />}
+                      {eossTheme === t.id && <Check size={14} className="text-[var(--brand)]" />}
                     </button>
                   ))}
                 </div>
@@ -138,7 +138,7 @@ export default function TopBar() {
           <div className="relative hidden sm:block">
             <button
               onClick={() => setHelpOpen(o => !o)}
-              className="p-1.5 rounded-full text-[var(--text-secondary, #626A84)] hover:text-[var(--text-primary)] hover:bg-white transition-colors cursor-pointer"
+              className="p-1.5 rounded-full text-[var(--text-2)] hover:text-[var(--text)] hover:bg-[var(--surface-2)] transition-colors cursor-pointer"
               title="System Documentation & Help"
             >
               <HelpCircle size={19} />
@@ -147,17 +147,17 @@ export default function TopBar() {
               <>
                 <div className="fixed inset-0 z-30" onClick={() => setHelpOpen(false)} />
                 <div
-                  className="absolute right-0 mt-2 w-64 rounded-xl border bg-white shadow-xl z-40 p-3 text-xs space-y-2 animate-in fade-in"
+                  className="absolute right-0 mt-2 w-64 rounded-xl border bg-[var(--surface)] shadow-xl z-40 p-3 text-xs space-y-2 animate-in fade-in"
                   style={{
                     background: 'var(--surface, #FFFFFF)',
                     borderColor: 'var(--border, #E5E0F5)',
                   }}
                 >
-                  <div className="font-bold text-[var(--text-primary)]">EOSS Business OS v1.0</div>
-                  <div className="text-[var(--text-secondary)]">
+                  <div className="font-bold text-[var(--text)]">EOSS Business OS v1.0</div>
+                  <div className="text-[var(--text-2)]">
                     Autonomous manufacturing & trading business operating system for growing Indian SMEs.
                   </div>
-                  <div className="pt-2 border-t border-[var(--border)] font-mono text-[11px] text-[var(--brand-primary)]">
+                  <div className="pt-2 border-t border-[var(--border)] font-mono text-[11px] text-[var(--brand)]">
                     Hyderabad Hub · Tenant: Sri Lakshmi Traders
                   </div>
                 </div>
@@ -169,7 +169,7 @@ export default function TopBar() {
           <div
             className="w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center font-bold text-white text-xs shadow-sm cursor-pointer select-none flex-shrink-0"
             style={{
-              background: 'linear-gradient(135deg, var(--brand-primary, #7048F5), var(--brand-secondary, #A855F7))',
+              background: 'linear-gradient(135deg, var(--brand), var(--brand-secondary, #A855F7))',
             }}
             title={`${currentUser.name} (${currentUser.role})`}
           >

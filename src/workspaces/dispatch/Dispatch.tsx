@@ -73,7 +73,7 @@ export default function DispatchWorkspace() {
       <div className="flex-1 overflow-auto">
         <table className="w-full text-sm border-separate border-spacing-0" style={{ minWidth: 800 }}>
           <thead style={{ position: 'sticky', top: 0, zIndex: 5 }}>
-            <tr style={{ background: 'var(--surface-muted,#F8F9FC)' }}>
+            <tr style={{ background: 'var(--surface-2)' }}>
               {['Dispatch #', 'Customer', 'Jobs', 'Carrier / Vehicle', 'Dispatch Date', 'Expected Delivery', 'Qty', 'Status', ''].map(h => (
                 <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold font-medium" style={{ color: 'var(--text-3)', borderBottom: '1px solid var(--border)' }}>{h}</th>
               ))}
@@ -82,7 +82,7 @@ export default function DispatchWorkspace() {
           <tbody>
             {filtered.map(d => (
               <tr key={d.id} className="cursor-pointer" style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}
-                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--surface-muted,#F8F9FC)'; }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--surface-2)'; }}
                 onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'var(--surface)'; }}
                 onClick={() => navigate(`/dispatch/${d.id}`)}>
                 <td className="px-4 py-3 font-mono text-xs font-bold" style={{ color: 'var(--brand)' }}>{d.dispatchNumber}</td>

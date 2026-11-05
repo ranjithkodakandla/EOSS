@@ -193,7 +193,7 @@ export default function AdminSecurity() {
                   <div className="text-xs font-medium text-[var(--text-2)] mb-2">Store Locations</div>
                   <div className="flex flex-wrap gap-2">
                     {storeLocations.filter(sl => sl.siteId === site.id).map(sl => (
-                      <span key={sl.id} className="text-xs px-2 py-1 rounded-lg bg-[var(--surface-muted,#F3F0FF)] border border-[var(--border)] text-[var(--text-2)]">
+                      <span key={sl.id} className="text-xs px-2 py-1 rounded-lg bg-[var(--surface-2)] border border-[var(--border)] text-[var(--text-2)]">
                         {sl.name} ({sl.code})
                       </span>
                     ))}
@@ -235,7 +235,7 @@ export default function AdminSecurity() {
                           </div>
                         </div>
                       </td>
-                      <td><span className="text-xs font-semibold bg-[var(--surface-muted,#F3F0FF)] px-2 py-0.5 rounded text-[var(--text-2)]">{ROLE_LABELS[u.role] ?? u.role}</span></td>
+                      <td><span className="text-xs font-semibold bg-[var(--surface-2)] px-2 py-0.5 rounded text-[var(--text-2)]">{ROLE_LABELS[u.role] ?? u.role}</span></td>
                       <td className="font-mono text-xs text-[var(--text-3)]">{emp?.employeeCode ?? '—'}</td>
                       <td className="text-xs text-[var(--text-2)]">{emp?.department ?? '—'}</td>
                       <td className="text-xs text-[var(--text-2)]">{u.email}</td>
@@ -296,7 +296,7 @@ export default function AdminSecurity() {
                   <tr key={p.id}>
                     <td className="font-medium text-sm">{p.scope}</td>
                     <td className="text-sm text-[var(--text-2)]">{p.condition}</td>
-                    <td><span className="text-xs font-semibold bg-[var(--surface-muted,#F3F0FF)] px-2 py-0.5 rounded">{ROLE_LABELS[p.requiredRole] ?? p.requiredRole}</span></td>
+                    <td><span className="text-xs font-semibold bg-[var(--surface-2)] px-2 py-0.5 rounded">{ROLE_LABELS[p.requiredRole] ?? p.requiredRole}</span></td>
                     <td className="text-xs text-[var(--text-3)]">{p.escalationRole ? (ROLE_LABELS[p.escalationRole] ?? p.escalationRole) : '—'}</td>
                     <td><StatusChip status={p.active ? 'active' : 'inactive'} size="sm" /></td>
                   </tr>
@@ -385,7 +385,7 @@ export default function AdminSecurity() {
                 {auditEvents.slice().reverse().slice(0, 20).map(e => (
                   <tr key={e.id}>
                     <td className="text-sm font-medium">{e.actor}</td>
-                    <td><span className="text-xs font-semibold capitalize px-2 py-0.5 rounded bg-[var(--surface-muted,#F3F0FF)]">{e.action}</span></td>
+                    <td><span className="text-xs font-semibold capitalize px-2 py-0.5 rounded bg-[var(--surface-2)]">{e.action}</span></td>
                     <td className="text-xs text-[var(--text-2)]">{e.scope}</td>
                     <td className="font-mono text-xs text-[var(--brand)]">{e.entityRef}</td>
                     <td className="text-xs text-[var(--text-3)]">{e.timestamp.replace('T', ' ')}</td>

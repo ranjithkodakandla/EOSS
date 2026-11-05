@@ -122,7 +122,7 @@ export default function Inventory() {
       {/* Store tiles summary row */}
       <div
         className="flex-shrink-0 flex items-center gap-2 px-5 py-2.5 overflow-x-auto scrollbar-none border-b"
-        style={{ borderColor: 'var(--border)', background: 'var(--surface-muted,#F8F9FC)' }}
+        style={{ borderColor: 'var(--border)', background: 'var(--surface-2)' }}
       >
         {STORE_LOCATIONS.map(loc => {
           const items = inventory.filter(i => i.locationName === loc.name);
@@ -161,7 +161,7 @@ export default function Inventory() {
       <div className="flex-1 overflow-auto">
         <table className="w-full text-sm border-separate border-spacing-0" style={{ minWidth: 900 }}>
           <thead style={{ position: 'sticky', top: 0, zIndex: 10 }}>
-            <tr style={{ background: 'var(--surface-muted,#F8F9FC)', borderBottom: '2px solid var(--border)' }}>
+            <tr style={{ background: 'var(--surface-2)', borderBottom: '2px solid var(--border)' }}>
               {([
                 ['materialCode', 'Code'],
                 ['materialName', 'Material / Specification'],
@@ -204,11 +204,11 @@ export default function Inventory() {
                     key={item.id}
                     className="cursor-pointer"
                     style={{
-                      background: idx % 2 === 0 ? 'var(--surface)' : 'var(--surface-muted,#F8F9FC)',
+                      background: idx % 2 === 0 ? 'var(--surface)' : 'var(--surface-2)',
                       borderBottom: '1px solid var(--border)',
                     }}
                     onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(var(--brand-rgb,112,72,245),0.04)'; }}
-                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = idx % 2 === 0 ? 'var(--surface)' : 'var(--surface-muted,#F8F9FC)'; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = idx % 2 === 0 ? 'var(--surface)' : 'var(--surface-2)'; }}
                     onClick={() => {
                       const firstLot = lots.find(l => l.materialItemId === item.materialItemId);
                       if (firstLot) navigate(`/inventory/lot/${firstLot.id}`);

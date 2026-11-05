@@ -120,11 +120,11 @@ export default function CustomerDetail() {
               <Card title="Quick Links">
                 <div className="space-y-2">
                   <button onClick={() => setTab('orders')} className="w-full text-left px-3 py-2 rounded-lg border text-xs font-medium hover:opacity-80"
-                    style={{ borderColor: 'var(--border)', background: 'var(--surface-muted,#F8F9FC)', color: 'var(--text-2)' }}>
+                    style={{ borderColor: 'var(--border)', background: 'var(--surface-2)', color: 'var(--text-2)' }}>
                     {orders.length} Purchase Order{orders.length !== 1 ? 's' : ''}
                   </button>
                   <button onClick={() => navigate('/documents')} className="w-full text-left px-3 py-2 rounded-lg border text-xs font-medium hover:opacity-80"
-                    style={{ borderColor: 'var(--border)', background: 'var(--surface-muted,#F8F9FC)', color: 'var(--text-2)' }}>
+                    style={{ borderColor: 'var(--border)', background: 'var(--surface-2)', color: 'var(--text-2)' }}>
                     Document Vault →
                   </button>
                 </div>
@@ -137,7 +137,7 @@ export default function CustomerDetail() {
           <div className="max-w-5xl">
             <div className="rounded-xl border overflow-hidden" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
               <table className="w-full text-sm">
-                <thead style={{ background: 'var(--surface-muted,#F8F9FC)', borderBottom: '1px solid var(--border)' }}>
+                <thead style={{ background: 'var(--surface-2)', borderBottom: '1px solid var(--border)' }}>
                   <tr>
                     {['PO Number', 'Accepted', 'Value', 'Lines', 'Payment', 'Status'].map(h => (
                       <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold font-medium" style={{ color: 'var(--text-3)' }}>{h}</th>
@@ -149,7 +149,7 @@ export default function CustomerDetail() {
                     <tr><td colSpan={6} className="px-4 py-10 text-center text-sm" style={{ color: 'var(--text-3)' }}>No orders on record.</td></tr>
                   ) : orders.map(po => (
                     <tr key={po.id} className="cursor-pointer" style={{ borderBottom: '1px solid var(--border)' }}
-                      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--surface-muted,#F8F9FC)'; }}
+                      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--surface-2)'; }}
                       onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = ''; }}
                       onClick={() => navigate(`/sales/po/${po.id}`)}>
                       <td className="px-4 py-3 font-mono text-xs font-bold" style={{ color: 'var(--brand)' }}>{po.poNumber}</td>
@@ -213,7 +213,7 @@ function SBadge({ label, value, emphasis }: { label: string; value: string; emph
 function Card({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="rounded-xl border overflow-hidden" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
-      <div className="px-4 py-3 border-b text-sm font-semibold" style={{ borderColor: 'var(--border)', background: 'var(--surface-muted,#F8F9FC)', color: 'var(--text)' }}>{title}</div>
+      <div className="px-4 py-3 border-b text-sm font-semibold" style={{ borderColor: 'var(--border)', background: 'var(--surface-2)', color: 'var(--text)' }}>{title}</div>
       <div className="p-4">{children}</div>
     </div>
   );

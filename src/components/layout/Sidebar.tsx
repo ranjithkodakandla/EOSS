@@ -102,7 +102,7 @@ export default function Sidebar() {
           <div
             className="w-7 h-7 rounded-lg flex items-center justify-center shadow-md relative overflow-hidden"
             style={{
-              background: 'linear-gradient(135deg, var(--brand-primary, #7048F5), var(--brand-secondary, #A855F7))',
+              background: 'linear-gradient(135deg, var(--brand), var(--brand-secondary, #A855F7))',
             }}
           >
             <div className="w-4 h-1.5 bg-white rounded-full -rotate-45 transform -translate-x-0.5 -translate-y-1 shadow-sm" />
@@ -139,7 +139,7 @@ export default function Sidebar() {
             )}
             style={({ isActive }) => ({
               background: isActive
-                ? 'var(--sidebar-active-bg, linear-gradient(135deg, var(--brand-primary), var(--brand-secondary)))'
+                ? 'var(--sidebar-active-bg, linear-gradient(135deg, var(--brand), var(--brand-secondary)))'
                 : 'transparent',
               boxShadow: isActive
                 ? '0 4px 14px -2px rgba(0, 0, 0, 0.3), inset 0 1px 1px rgba(255, 255, 255, 0.4)'

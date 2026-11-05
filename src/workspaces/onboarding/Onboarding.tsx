@@ -346,7 +346,7 @@ export default function Onboarding() {
                   <CheckCircle size={16} className="ml-auto text-[var(--success)]" />
                 </div>
               </div>
-              <div className="mt-4 p-3 rounded-xl border border-[var(--border)] bg-[var(--surface-muted,#F7F6FE)]">
+              <div className="mt-4 p-3 rounded-xl border border-[var(--border)] bg-[var(--surface-2)]">
                 <p className="text-xs text-[var(--text-2)]">Default roles (Sales, Buyer, Storekeeper, Production, QC, Maintenance, Dispatch, Auditor) are pre-configured and can be assigned to users from Admin & Security after activation.</p>
               </div>
             </div>

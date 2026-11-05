@@ -24,15 +24,15 @@ export default function CustomerDirectory() {
       {/* Header */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
-          <h1 className="text-xl font-bold text-[var(--text-primary,#1A1F36)]">Customer Directory</h1>
-          <p className="text-sm text-[var(--text-secondary,#626A84)] mt-0.5">
+          <h1 className="text-xl font-bold text-[var(--text)]">Customer Directory</h1>
+          <p className="text-sm text-[var(--text-2)] mt-0.5">
             {CUSTOMERS.filter(c => c.status === 'active').length} active customers
           </p>
         </div>
         <button
           onClick={() => setShowAdd(true)}
           className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white cursor-pointer hover:opacity-90 transition-opacity"
-          style={{ background: 'var(--brand,#7048F5)' }}
+          style={{ background: 'var(--brand)' }}
         >
           <Plus size={15} />
           Add Customer
@@ -42,14 +42,14 @@ export default function CustomerDirectory() {
       {/* Filters */}
       <div className="flex gap-3 flex-wrap items-center">
         <div className="relative flex-1 min-w-[220px]">
-          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary,#626A84)]" />
+          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-2)]" />
           <input
             type="text"
             placeholder="Search by name, GSTIN or city…"
             value={search}
             onChange={e => setSearch(e.target.value)}
-            className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border bg-white focus:outline-none focus:ring-2"
-            style={{ borderColor: 'var(--border,#E5E7EB)', color: 'var(--text-primary,#1A1F36)' }}
+            className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border bg-[var(--surface)] focus:outline-none focus:ring-2"
+            style={{ borderColor: 'var(--border)', color: 'var(--text)' }}
           />
         </div>
         {(['all', 'active', 'inactive'] as const).map(s => (
@@ -57,7 +57,7 @@ export default function CustomerDirectory() {
             key={s}
             onClick={() => setStatusFilter(s)}
             className={`px-3 py-1.5 rounded-lg text-xs font-semibold capitalize border transition-colors cursor-pointer ${statusFilter === s ? 'text-white border-transparent' : 'border-transparent bg-transparent'}`}
-            style={statusFilter === s ? { background: 'var(--brand,#7048F5)' } : { color: 'var(--text-secondary,#626A84)' }}
+            style={statusFilter === s ? { background: 'var(--brand)' } : { color: 'var(--text-2)' }}
           >
             {s === 'all' ? 'All' : s.charAt(0).toUpperCase() + s.slice(1)}
           </button>
@@ -70,13 +70,13 @@ export default function CustomerDirectory() {
       ) : (
         <div
           className="rounded-2xl border overflow-hidden"
-          style={{ borderColor: 'var(--border,#E5E7EB)', background: 'var(--surface,#FFFFFF)' }}
+          style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
         >
           <table className="w-full text-sm">
             <thead>
-              <tr style={{ borderBottom: '1px solid var(--border,#E5E7EB)', background: 'var(--surface-muted,#F8F9FC)' }}>
+              <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface-2)' }}>
                 {['Customer', 'GSTIN / State', 'Contact', 'Terms', 'Rating', 'Status', ''].map(h => (
-                  <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold text-[var(--text-secondary,#626A84)] font-medium">
+                  <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold text-[var(--text-2)] font-medium">
                     {h}
                   </th>
                 ))}
@@ -86,32 +86,32 @@ export default function CustomerDirectory() {
               {filtered.map((c, i) => (
                 <tr
                   key={c.id}
-                  className="hover:bg-[var(--surface-muted,#F8F9FC)] cursor-pointer transition-colors"
-                  style={{ borderBottom: i < filtered.length - 1 ? '1px solid var(--border,#E5E7EB)' : 'none' }}
+                  className="hover:bg-[var(--surface-2)] cursor-pointer transition-colors"
+                  style={{ borderBottom: i < filtered.length - 1 ? '1px solid var(--border)' : 'none' }}
                   onClick={() => navigate(`/sales/customers/${c.id}`)}
                 >
                   <td className="px-4 py-3">
-                    <div className="font-semibold text-[var(--text-primary,#1A1F36)]">{c.tradingName}</div>
-                    <div className="text-xs text-[var(--text-secondary,#626A84)]">{c.legalName}</div>
+                    <div className="font-semibold text-[var(--text)]">{c.tradingName}</div>
+                    <div className="text-xs text-[var(--text-2)]">{c.legalName}</div>
                   </td>
                   <td className="px-4 py-3">
-                    <div className="text-xs font-mono text-[var(--text-primary,#1A1F36)]">{c.gstin}</div>
-                    <div className="text-xs text-[var(--text-secondary,#626A84)]">{c.state} · {c.city}</div>
+                    <div className="text-xs font-mono text-[var(--text)]">{c.gstin}</div>
+                    <div className="text-xs text-[var(--text-2)]">{c.state} · {c.city}</div>
                   </td>
                   <td className="px-4 py-3">
-                    <div className="flex items-center gap-1 text-xs text-[var(--text-secondary,#626A84)]">
+                    <div className="flex items-center gap-1 text-xs text-[var(--text-2)]">
                       <Phone size={11} /> {c.phone}
                     </div>
-                    <div className="flex items-center gap-1 text-xs text-[var(--text-secondary,#626A84)] mt-0.5">
+                    <div className="flex items-center gap-1 text-xs text-[var(--text-2)] mt-0.5">
                       <Mail size={11} /> {c.email}
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-xs text-[var(--text-secondary,#626A84)]">{c.paymentTerms}</td>
+                  <td className="px-4 py-3 text-xs text-[var(--text-2)]">{c.paymentTerms}</td>
                   <td className="px-4 py-3">
                     {c.rating != null && (
                       <div className="flex items-center gap-1 text-xs">
                         <Star size={11} className="text-amber-400 fill-amber-400" />
-                        <span className="font-semibold text-[var(--text-primary,#1A1F36)]">{c.rating.toFixed(1)}</span>
+                        <span className="font-semibold text-[var(--text)]">{c.rating.toFixed(1)}</span>
                       </div>
                     )}
                   </td>
@@ -119,7 +119,7 @@ export default function CustomerDirectory() {
                     <StatusChip status={c.status as 'active' | 'archived'} />
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <ChevronRight size={15} className="text-[var(--text-secondary,#626A84)]" />
+                    <ChevronRight size={15} className="text-[var(--text-2)]" />
                   </td>
                 </tr>
               ))}

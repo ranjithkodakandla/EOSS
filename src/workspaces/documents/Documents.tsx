@@ -53,13 +53,13 @@ export default function Documents() {
           {filtered.map(doc => (
             <div key={doc.id} className="rounded-xl border p-4 flex items-center gap-3 cursor-pointer hover:opacity-90 transition-opacity"
               style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
-              <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: 'var(--surface-muted,#F8F9FC)' }}>
+              <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: 'var(--surface-2)' }}>
                 <FileText size={16} style={{ color: 'var(--brand)' }} />
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-sm font-medium truncate" style={{ color: 'var(--text)' }}>{doc.title}</span>
-                  <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded" style={{ background: 'var(--surface-muted,#F8F9FC)', color: 'var(--text-3)' }}>{doc.category}</span>
+                  <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded" style={{ background: 'var(--surface-2)', color: 'var(--text-3)' }}>{doc.category}</span>
                   {doc.obligation && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded" style={{ background: 'var(--warning-bg,#FFFBEB)', color: 'var(--warning,#D97706)' }}>RENEWAL DUE</span>}
                 </div>
                 <div className="flex items-center gap-3 mt-0.5 text-xs" style={{ color: 'var(--text-3)' }}>

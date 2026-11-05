@@ -51,7 +51,7 @@ export default function Admin() {
         {tab === 'users' && (
           <table className="w-full text-sm border-separate border-spacing-0">
             <thead style={{ position: 'sticky', top: 0, zIndex: 5 }}>
-              <tr style={{ background: 'var(--surface-muted,#F8F9FC)' }}>
+              <tr style={{ background: 'var(--surface-2)' }}>
                 {['User', 'Role', 'Email', 'Employee ID', 'Status'].map(h => (
                   <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold font-medium" style={{ color: 'var(--text-3)', borderBottom: '1px solid var(--border)' }}>{h}</th>
                 ))}
@@ -60,7 +60,7 @@ export default function Admin() {
             <tbody>
               {DEMO_USERS.map(u => (
                 <tr key={u.id} style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}
-                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--surface-muted,#F8F9FC)'; }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--surface-2)'; }}
                   onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'var(--surface)'; }}>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
@@ -69,7 +69,7 @@ export default function Admin() {
                     </div>
                   </td>
                   <td className="px-4 py-3">
-                    <span className="text-xs font-semibold px-2 py-0.5 rounded" style={{ background: 'var(--surface-muted,#F8F9FC)', color: 'var(--text-2)' }}>{ROLE_LABELS[u.role] ?? u.role}</span>
+                    <span className="text-xs font-semibold px-2 py-0.5 rounded" style={{ background: 'var(--surface-2)', color: 'var(--text-2)' }}>{ROLE_LABELS[u.role] ?? u.role}</span>
                   </td>
                   <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-2)' }}>{u.email}</td>
                   <td className="px-4 py-3 font-mono text-xs" style={{ color: 'var(--text-3)' }}>{u.employeeId ?? '—'}</td>

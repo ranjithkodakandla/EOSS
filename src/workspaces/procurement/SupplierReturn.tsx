@@ -30,15 +30,15 @@ export default function SupplierReturn() {
       <div>
         <button
           onClick={() => navigate('/procurement')}
-          className="flex items-center gap-1.5 text-sm text-[var(--text-secondary,#626A84)] hover:text-[var(--brand,#7048F5)] mb-3 cursor-pointer transition-colors"
+          className="flex items-center gap-1.5 text-sm text-[var(--text-2)] hover:text-[var(--brand)] mb-3 cursor-pointer transition-colors"
         >
           <ArrowLeft size={14} /> Procurement
         </button>
         <div className="flex items-center gap-2">
           <Truck size={20} className="text-orange-500" />
-          <h1 className="text-xl font-bold text-[var(--text-primary,#1A1F36)]">Supplier Return</h1>
+          <h1 className="text-xl font-bold text-[var(--text)]">Supplier Return</h1>
         </div>
-        <p className="text-sm text-[var(--text-secondary,#626A84)] mt-1">
+        <p className="text-sm text-[var(--text-2)] mt-1">
           Return defective or excess material to supplier against an accepted GRN.
         </p>
       </div>
@@ -57,16 +57,16 @@ export default function SupplierReturn() {
       <form
         onSubmit={handleSubmit}
         className="rounded-2xl border p-5 space-y-4"
-        style={{ borderColor: 'var(--border,#E5E7EB)', background: 'var(--surface,#FFFFFF)' }}
+        style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
       >
         <div>
-          <label className="block text-xs font-semibold text-[var(--text-secondary,#626A84)] mb-1.5">Select GRN *</label>
+          <label className="block text-xs font-semibold text-[var(--text-2)] mb-1.5">Select GRN *</label>
           <select
             required
             value={selectedGrn}
             onChange={e => setSelectedGrn(e.target.value)}
             className="w-full px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2"
-            style={{ borderColor: 'var(--border,#E5E7EB)', color: 'var(--text-primary,#1A1F36)' }}
+            style={{ borderColor: 'var(--border)', color: 'var(--text)' }}
           >
             <option value="">Choose an accepted GRN…</option>
             {acceptedGrns.map(g => (
@@ -80,35 +80,35 @@ export default function SupplierReturn() {
         {selectedGrnObj && (
           <div
             className="p-3 rounded-lg text-sm space-y-1"
-            style={{ background: 'var(--surface-muted,#F8F9FC)', border: '1px solid var(--border,#E5E7EB)' }}
+            style={{ background: 'var(--surface-2)', border: '1px solid var(--border)' }}
           >
             <div className="flex justify-between">
-              <span className="text-xs text-[var(--text-secondary,#626A84)]">Supplier</span>
-              <span className="text-xs font-semibold text-[var(--text-primary,#1A1F36)]">{selectedGrnObj.supplierName}</span>
+              <span className="text-xs text-[var(--text-2)]">Supplier</span>
+              <span className="text-xs font-semibold text-[var(--text)]">{selectedGrnObj.supplierName}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-xs text-[var(--text-secondary,#626A84)]">SPO Ref</span>
-              <span className="text-xs font-semibold text-[var(--text-primary,#1A1F36)]">{selectedGrnObj.spoNumber}</span>
+              <span className="text-xs text-[var(--text-2)]">SPO Ref</span>
+              <span className="text-xs font-semibold text-[var(--text)]">{selectedGrnObj.spoNumber}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-xs text-[var(--text-secondary,#626A84)]">Received</span>
-              <span className="text-xs font-semibold text-[var(--text-primary,#1A1F36)]">{selectedGrnObj.receivedDate}</span>
+              <span className="text-xs text-[var(--text-2)]">Received</span>
+              <span className="text-xs font-semibold text-[var(--text)]">{selectedGrnObj.receivedDate}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-xs text-[var(--text-secondary,#626A84)]">Status</span>
+              <span className="text-xs text-[var(--text-2)]">Status</span>
               <StatusChip status={selectedGrnObj.status} />
             </div>
           </div>
         )}
 
         <div>
-          <label className="block text-xs font-semibold text-[var(--text-secondary,#626A84)] mb-1.5">Return Reason *</label>
+          <label className="block text-xs font-semibold text-[var(--text-2)] mb-1.5">Return Reason *</label>
           <select
             required
             value={returnReason}
             onChange={e => setReturnReason(e.target.value)}
             className="w-full px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2"
-            style={{ borderColor: 'var(--border,#E5E7EB)', color: 'var(--text-primary,#1A1F36)' }}
+            style={{ borderColor: 'var(--border)', color: 'var(--text)' }}
           >
             <option value="">Select reason…</option>
             <option value="quality_rejection">Quality Rejection (failed inspection)</option>
@@ -121,7 +121,7 @@ export default function SupplierReturn() {
         </div>
 
         <div>
-          <label className="block text-xs font-semibold text-[var(--text-secondary,#626A84)] mb-2">Disposition *</label>
+          <label className="block text-xs font-semibold text-[var(--text-2)] mb-2">Disposition *</label>
           <div className="flex gap-2 flex-wrap">
             {[
               { value: 'return_to_supplier', label: 'Return to Supplier' },
@@ -134,8 +134,8 @@ export default function SupplierReturn() {
                 onClick={() => setDisposition(opt.value as typeof disposition)}
                 className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition cursor-pointer ${disposition === opt.value ? 'text-white border-transparent' : 'border-transparent'}`}
                 style={disposition === opt.value
-                  ? { background: 'var(--brand,#7048F5)' }
-                  : { background: 'var(--surface-muted,#F8F9FC)', color: 'var(--text-secondary,#626A84)', border: '1px solid var(--border,#E5E7EB)' }
+                  ? { background: 'var(--brand)' }
+                  : { background: 'var(--surface-2)', color: 'var(--text-2)', border: '1px solid var(--border)' }
                 }
               >
                 {opt.label}
@@ -145,14 +145,14 @@ export default function SupplierReturn() {
         </div>
 
         <div>
-          <label className="block text-xs font-semibold text-[var(--text-secondary,#626A84)] mb-1.5">Notes / NCR Reference</label>
+          <label className="block text-xs font-semibold text-[var(--text-2)] mb-1.5">Notes / NCR Reference</label>
           <textarea
             value={notes}
             onChange={e => setNotes(e.target.value)}
             rows={3}
             placeholder="Reference NCR number, inspection report, or any supporting information…"
             className="w-full px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 resize-none"
-            style={{ borderColor: 'var(--border,#E5E7EB)', color: 'var(--text-primary,#1A1F36)' }}
+            style={{ borderColor: 'var(--border)', color: 'var(--text)' }}
           />
         </div>
 
@@ -160,8 +160,8 @@ export default function SupplierReturn() {
           <button
             type="button"
             onClick={() => navigate('/procurement')}
-            className="px-4 py-2 rounded-lg text-sm font-semibold border cursor-pointer hover:bg-[var(--surface-muted,#F8F9FC)] transition"
-            style={{ borderColor: 'var(--border,#E5E7EB)', color: 'var(--text-secondary,#626A84)' }}
+            className="px-4 py-2 rounded-lg text-sm font-semibold border cursor-pointer hover:bg-[var(--surface-2)] transition"
+            style={{ borderColor: 'var(--border)', color: 'var(--text-2)' }}
           >
             Cancel
           </button>
@@ -169,7 +169,7 @@ export default function SupplierReturn() {
             type="submit"
             disabled={submitted || !selectedGrn || !returnReason}
             className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white cursor-pointer hover:opacity-90 transition disabled:opacity-40"
-            style={{ background: 'var(--brand,#7048F5)' }}
+            style={{ background: 'var(--brand)' }}
           >
             {submitted ? <CheckCircle size={14} /> : <Plus size={14} />}
             {submitted ? 'Submitted' : 'Raise Return Note'}

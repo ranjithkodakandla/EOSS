@@ -31,11 +31,11 @@ export default function Home() {
     <div className="p-4 md:p-6 lg:p-7 max-w-[1720px] mx-auto select-none">
       {/* Top Greeting */}
       <div className="mb-4 md:mb-5">
-        <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight text-[var(--text-primary, #1A1F36)] flex items-center gap-2">
+        <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight text-[var(--text)] flex items-center gap-2">
           <span>{`Good Evening, ${firstName}`}</span>
           <span className="text-2xl">👋</span>
         </h1>
-        <p className="text-sm md:text-base text-[var(--text-secondary, #626A84)] mt-1 font-normal">
+        <p className="text-sm md:text-base text-[var(--text-2)] mt-1 font-normal">
           Here's how your business is doing this month.
         </p>
       </div>
@@ -66,11 +66,11 @@ export default function Home() {
                 className="rounded-2xl border px-4 py-3"
                 style={{
                   background: 'var(--surface, #FFFFFF)',
-                  borderColor: 'var(--border, #E5E7EB)',
+                  borderColor: 'var(--border)',
                   boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
                 }}
               >
-                <p className="text-[11px] font-semibold text-[var(--text-secondary,#626A84)] font-medium mb-2.5">Quick Actions</p>
+                <p className="text-[11px] font-semibold text-[var(--text-2)] font-medium mb-2.5">Quick Actions</p>
                 <div className="flex flex-wrap gap-2">
                   {visible.map(({ icon: Icon, label, path }) => (
                     <button
@@ -78,8 +78,8 @@ export default function Home() {
                       onClick={() => navigate(path)}
                       className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all hover:-translate-y-0.5 hover:shadow-sm cursor-pointer"
                       style={{
-                        background: 'var(--surface-muted, #F8F9FC)',
-                        borderColor: 'var(--border, #E5E7EB)',
+                        background: 'var(--surface-2)',
+                        borderColor: 'var(--border)',
                         color: 'var(--brand, #7048F5)',
                       }}
                     >

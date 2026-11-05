@@ -63,15 +63,15 @@ export default function CycleCount() {
       <div>
         <button
           onClick={() => navigate('/inventory')}
-          className="flex items-center gap-1.5 text-sm text-[var(--text-secondary,#626A84)] hover:text-[var(--brand,#7048F5)] mb-3 cursor-pointer transition-colors"
+          className="flex items-center gap-1.5 text-sm text-[var(--text-2)] hover:text-[var(--brand)] mb-3 cursor-pointer transition-colors"
         >
           <ArrowLeft size={14} /> Inventory
         </button>
         <div className="flex items-center gap-2">
-          <ClipboardList size={20} className="text-[var(--brand,#7048F5)]" />
-          <h1 className="text-xl font-bold text-[var(--text-primary,#1A1F36)]">Cycle Count</h1>
+          <ClipboardList size={20} className="text-[var(--brand)]" />
+          <h1 className="text-xl font-bold text-[var(--text)]">Cycle Count</h1>
         </div>
-        <p className="text-sm text-[var(--text-secondary,#626A84)] mt-1">
+        <p className="text-sm text-[var(--text-2)] mt-1">
           Physical count of a store location. Variances are flagged for approval before stock adjustment.
         </p>
       </div>
@@ -79,28 +79,28 @@ export default function CycleCount() {
       {!started ? (
         <div
           className="rounded-2xl border p-6 space-y-4 max-w-md"
-          style={{ borderColor: 'var(--border,#E5E7EB)', background: 'var(--surface,#FFFFFF)' }}
+          style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
         >
-          <h3 className="font-semibold text-[var(--text-primary,#1A1F36)]">Start Count Session</h3>
+          <h3 className="font-semibold text-[var(--text)]">Start Count Session</h3>
           <div>
-            <label className="block text-xs font-semibold text-[var(--text-secondary,#626A84)] mb-1.5">Store Location</label>
+            <label className="block text-xs font-semibold text-[var(--text-2)] mb-1.5">Store Location</label>
             <select
               value={locationFilter}
               onChange={e => setLocationFilter(e.target.value)}
               className="w-full px-3 py-2 rounded-lg border text-sm focus:outline-none"
-              style={{ borderColor: 'var(--border,#E5E7EB)', color: 'var(--text-primary,#1A1F36)' }}
+              style={{ borderColor: 'var(--border)', color: 'var(--text)' }}
             >
               <option value="all">All Locations</option>
               {locations.map(l => <option key={l} value={l}>{l}</option>)}
             </select>
           </div>
-          <div className="text-xs text-[var(--text-secondary,#626A84)]">
+          <div className="text-xs text-[var(--text-2)]">
             Counted by: <strong>{currentUser.name}</strong> · {new Date().toLocaleDateString('en-IN')}
           </div>
           <button
             onClick={handleStart}
             className="w-full px-4 py-2.5 rounded-lg text-sm font-semibold text-white cursor-pointer hover:opacity-90 transition"
-            style={{ background: 'var(--brand,#7048F5)' }}
+            style={{ background: 'var(--brand)' }}
           >
             Begin Count
           </button>
@@ -111,10 +111,10 @@ export default function CycleCount() {
           <div className="flex items-center gap-4 flex-wrap">
             <div
               className="rounded-xl px-4 py-2 text-sm"
-              style={{ background: 'var(--surface,#FFFFFF)', border: '1px solid var(--border,#E5E7EB)' }}
+              style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
             >
-              <span className="text-[var(--text-secondary,#626A84)]">Progress: </span>
-              <strong className="text-[var(--text-primary,#1A1F36)]">{counted}/{lines.length}</strong>
+              <span className="text-[var(--text-2)]">Progress: </span>
+              <strong className="text-[var(--text)]">{counted}/{lines.length}</strong>
             </div>
             {variances.length > 0 && (
               <div
@@ -130,13 +130,13 @@ export default function CycleCount() {
           {/* Count Table */}
           <div
             className="rounded-2xl border overflow-hidden"
-            style={{ borderColor: 'var(--border,#E5E7EB)', background: 'var(--surface,#FFFFFF)' }}
+            style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
           >
             <table className="w-full text-sm">
               <thead>
-                <tr style={{ borderBottom: '1px solid var(--border,#E5E7EB)', background: 'var(--surface-muted,#F8F9FC)' }}>
+                <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface-2)' }}>
                   {['Material', 'Location', 'System Qty', 'Counted Qty', 'Variance'].map(h => (
-                    <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold text-[var(--text-secondary,#626A84)] font-medium">{h}</th>
+                    <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold text-[var(--text-2)] font-medium">{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -148,16 +148,16 @@ export default function CycleCount() {
                     <tr
                       key={l.invId}
                       style={{
-                        borderBottom: i < lines.length - 1 ? '1px solid var(--border,#E5E7EB)' : 'none',
+                        borderBottom: i < lines.length - 1 ? '1px solid var(--border)' : 'none',
                         background: hasVariance ? 'rgba(245,158,11,0.04)' : 'transparent',
                       }}
                     >
                       <td className="px-4 py-2.5">
-                        <div className="font-semibold text-xs text-[var(--text-primary,#1A1F36)]">{l.materialName}</div>
-                        <div className="text-[11px] text-[var(--text-secondary,#626A84)]">{l.materialCode}</div>
+                        <div className="font-semibold text-xs text-[var(--text)]">{l.materialName}</div>
+                        <div className="text-[11px] text-[var(--text-2)]">{l.materialCode}</div>
                       </td>
-                      <td className="px-4 py-2.5 text-xs text-[var(--text-secondary,#626A84)]">{l.locationName}</td>
-                      <td className="px-4 py-2.5 text-xs font-semibold text-[var(--text-primary,#1A1F36)]">
+                      <td className="px-4 py-2.5 text-xs text-[var(--text-2)]">{l.locationName}</td>
+                      <td className="px-4 py-2.5 text-xs font-semibold text-[var(--text)]">
                         {l.systemQty} {l.uom}
                       </td>
                       <td className="px-4 py-2.5">
@@ -169,13 +169,13 @@ export default function CycleCount() {
                           onChange={e => updateCounted(l.invId, e.target.value)}
                           placeholder="Enter count"
                           className="w-24 px-2 py-1 rounded-lg border text-xs focus:outline-none focus:ring-2 text-right"
-                          style={{ borderColor: hasVariance ? '#F59E0B' : 'var(--border,#E5E7EB)', color: 'var(--text-primary,#1A1F36)' }}
+                          style={{ borderColor: hasVariance ? '#F59E0B' : 'var(--border)', color: 'var(--text)' }}
                         />
                       </td>
                       <td className="px-4 py-2.5">
                         {diff !== null && (
                           <span
-                            className={`text-xs font-bold ${diff > 0 ? 'text-green-600' : diff < 0 ? 'text-red-500' : 'text-[var(--text-secondary,#626A84)]'}`}
+                            className={`text-xs font-bold ${diff > 0 ? 'text-green-600' : diff < 0 ? 'text-red-500' : 'text-[var(--text-2)]'}`}
                           >
                             {diff > 0 ? '+' : ''}{diff.toFixed(2)} {l.uom}
                           </span>
@@ -191,8 +191,8 @@ export default function CycleCount() {
           <div className="flex items-center justify-end gap-3">
             <button
               onClick={() => { setStarted(false); setLines([]); }}
-              className="px-4 py-2 rounded-lg text-sm font-semibold border cursor-pointer hover:bg-[var(--surface-muted,#F8F9FC)] transition"
-              style={{ borderColor: 'var(--border,#E5E7EB)', color: 'var(--text-secondary,#626A84)' }}
+              className="px-4 py-2 rounded-lg text-sm font-semibold border cursor-pointer hover:bg-[var(--surface-2)] transition"
+              style={{ borderColor: 'var(--border)', color: 'var(--text-2)' }}
             >
               Discard
             </button>
@@ -200,7 +200,7 @@ export default function CycleCount() {
               onClick={handleSubmit}
               disabled={submitted || counted === 0}
               className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white cursor-pointer hover:opacity-90 transition disabled:opacity-40"
-              style={{ background: 'var(--brand,#7048F5)' }}
+              style={{ background: 'var(--brand)' }}
             >
               {submitted ? <CheckCircle size={14} /> : <ClipboardList size={14} />}
               {submitted ? 'Submitted' : 'Submit Count'}
