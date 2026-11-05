@@ -48,6 +48,8 @@ const Reports = lazy(() => import('./workspaces/reports/Reports'));
 const Admin = lazy(() => import('./workspaces/admin/AdminSecurity'));
 const AuditTimeline = lazy(() => import('./workspaces/admin/AuditTimeline'));
 const Finance = lazy(() => import('./workspaces/finance/Finance'));
+const InvoiceDetail = lazy(() => import('./workspaces/finance/InvoiceDetail'));
+const PaymentDetail = lazy(() => import('./workspaces/finance/PaymentDetail'));
 const Products = lazy(() => import('./workspaces/products/Products'));
 const Allocations = lazy(() => import('./workspaces/allocations/Allocations'));
 const Transfers = lazy(() => import('./workspaces/transfers/Transfers'));
@@ -95,6 +97,8 @@ export default function App() {
           <Route path="documents" element={<Documents />} />
           <Route path="reports" element={<Reports />} />
           <Route path="finance" element={<Finance />} />
+          <Route path="finance/invoice/:id" element={<InvoiceDetail />} />
+          <Route path="finance/payment/:id" element={<PaymentDetail />} />
           <Route path="products" element={<Products />} />
           <Route path="allocations" element={<Allocations />} />
           <Route path="transfers" element={<Transfers />} />

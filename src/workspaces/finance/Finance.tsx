@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { TrendingUp, TrendingDown, AlertCircle, Plus, ArrowUpRight, ArrowDownLeft, Clock, Check, Building2 } from 'lucide-react';
 import { useStore } from '../../store';
 import StatusChip from '../../components/layout/StatusChip';
@@ -15,6 +16,7 @@ export default function Finance() {
     addCustomerInvoice, addSupplierInvoice, addPaymentRecord,
     recordPaymentAgainstInvoice, showToast, currentUser
   } = useStore();
+  const navigate = useNavigate();
   const [tab, setTab] = useState<Tab>('overview');
   const [showAddInvoice, setShowAddInvoice] = useState(false);
   const [showAddPayment, setShowAddPayment] = useState(false);
@@ -221,7 +223,7 @@ export default function Finance() {
             </thead>
             <tbody>
               {allReceivables.map((inv, i) => (
-                <tr key={inv.id} className={`border-b transition-colors hover:bg-[var(--surface-2)] ${i % 2 === 0 ? '' : ''}`} style={{ borderColor: 'var(--border)' }}>
+                <tr key={inv.id} className="border-b transition-colors hover:bg-[var(--surface-2)] cursor-pointer" style={{ borderColor: 'var(--border)' }} onClick={() => navigate(`/finance/invoice/${inv.id}`)}>
                   <td className="px-3 py-2.5 font-mono text-[var(--brand)] font-medium text-xs">{inv.number}</td>
                   <td className="px-3 py-2.5 text-[var(--text)] text-xs font-medium">{inv.customer}</td>
                   <td className="px-3 py-2.5 text-[var(--text-2)] text-xs">{inv.poRef}</td>
@@ -280,7 +282,7 @@ export default function Finance() {
               </thead>
               <tbody>
                 {allPayments.map((pay, i) => (
-                  <tr key={pay.id} className="border-b transition-colors hover:bg-[var(--surface-2)]" style={{ borderColor: 'var(--border)' }}>
+                  <tr key={pay.id} className="border-b transition-colors hover:bg-[var(--surface-2)] cursor-pointer" style={{ borderColor: 'var(--border)' }} onClick={() => navigate(`/finance/payment/${pay.id}`)}>
                     <td className="px-3 py-2.5 font-mono text-[var(--brand)] font-medium text-xs">{pay.number}</td>
                     <td className="px-3 py-2.5 text-[var(--text)] text-xs font-medium">{pay.customer}</td>
                     <td className="px-3 py-2.5 text-[var(--text-2)] text-xs">{pay.date}</td>
