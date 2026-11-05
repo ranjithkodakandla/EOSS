@@ -147,11 +147,11 @@ function NewJobModal({ onClose, onSave }: { onClose: () => void; onSave: (j: Job
     const id = `job-${Date.now()}`;
     const num = `J-${String(Math.floor(Math.random() * 900 + 110))}`;
     const defaultStages: JobStage[] = [
-      { id: `${id}-s1`, jobId: id, name: 'Material Preparation', sequence: 1, status: 'pending', plannedHrs: 4, actualHrs: 0, outputQty: 0 },
-      { id: `${id}-s2`, jobId: id, name: 'Fabrication', sequence: 2, status: 'pending', plannedHrs: 8, actualHrs: 0, outputQty: 0 },
-      { id: `${id}-s3`, jobId: id, name: 'QC Inspection', sequence: 3, status: 'pending', plannedHrs: 2, actualHrs: 0, outputQty: 0 },
+      { id: `${id}-s1`, jobId: id, name: 'Material Preparation', sequence: 1, status: 'pending', plannedStart: '2026-11-05', plannedEnd: form.plannedEnd, inputQty: 0, completedGoodQty: 0, rejectedQty: 0, reworkQty: 0, scrapQty: 0, uom: 'pcs' },
+      { id: `${id}-s2`, jobId: id, name: 'Fabrication', sequence: 2, status: 'pending', plannedStart: '2026-11-05', plannedEnd: form.plannedEnd, inputQty: 0, completedGoodQty: 0, rejectedQty: 0, reworkQty: 0, scrapQty: 0, uom: 'pcs' },
+      { id: `${id}-s3`, jobId: id, name: 'QC Inspection', sequence: 3, status: 'pending', plannedStart: '2026-11-05', plannedEnd: form.plannedEnd, inputQty: 0, completedGoodQty: 0, rejectedQty: 0, reworkQty: 0, scrapQty: 0, uom: 'pcs' },
     ];
-    onSave({ id, jobNumber: num, customerId: form.customerId, customerName: form.customerName, description: form.description, status: 'active', priority: form.priority, plannedEnd: form.plannedEnd, openedDate: '2026-11-05', stages: defaultStages, updates: [], blockers: [], materialRequirements: [], currentStage: 'Material Preparation', outputQty: 0, targetQty: 1, uom: 'pcs' });
+    onSave({ id, jobNumber: num, customerId: form.customerId, customerName: form.customerName, description: form.description, status: 'active', priority: form.priority, plannedStart: '2026-11-05', plannedEnd: form.plannedEnd, siteId: 'site-1', siteName: 'Main Plant', owner: 'Owner', stages: defaultStages, currentStage: 'Material Preparation', materialReadiness: 'pending', hasBlocker: false });
   };
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">

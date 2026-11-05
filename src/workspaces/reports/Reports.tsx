@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { BarChart2, Download, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { useStore } from '../../store';
+import { useNavigate } from 'react-router-dom';
 
 const REPORT_TYPES = [
   { id: 'production', label: 'Production Summary', desc: 'Job completion rates, stage cycle times, OEE', icon: '🏭' },
@@ -12,8 +13,13 @@ const REPORT_TYPES = [
 ];
 
 export default function Reports() {
-  const { jobs, inventory, inspections, assets, dispatches, maintenanceEvents } = useStore();
+  const { jobs, inventory, inspections, assets, dispatches, maintenanceEvents, showToast } = useStore();
+  const navigate = useNavigate();
   const [activeReport, setActiveReport] = useState<string | null>(null);
+  const [dateFrom, setDateFrom] = useState('2026-10-01');
+  const [dateTo, setDateTo] = useState('2026-11-05');
+
+  const REPORT_ROUTES: Record<string, string> = { production: '/jobs', inventory: '/inventory', quality: '/quality', procurement: '/procurement', asset: '/assets', dispatch: '/dispatch' };
 
   const completedJobs = jobs.filter(j => j.status === 'complete').length;
   const inProgressJobs = jobs.filter(j => j.status === 'active').length;
@@ -22,9 +28,17 @@ export default function Reports() {
 
   return (
     <div className="p-4 md:p-6">
-      <div className="mb-5">
-        <h1 className="text-xl font-bold text-[var(--text)]">Reports & Analytics</h1>
-        <p className="text-sm text-[var(--text-2)] mt-0.5">Business intelligence across all workspaces</p>
+      <div className="flex items-start justify-between gap-4 mb-5 flex-wrap">
+        <div>
+          <h1 className="text-xl font-bold text-[var(--text)]">Reports & Analytics</h1>
+          <p className="text-sm text-[var(--text-2)] mt-0.5">Business intelligence across all workspaces</p>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-xs text-[var(--text-2)]">Period:</span>
+          <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="eoss-input text-xs py-1.5" />
+          <span className="text-xs text-[var(--text-3)]">to</span>
+          <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="eoss-input text-xs py-1.5" />
+        </div>
       </div>
 
       {/* Headline KPIs */}
@@ -44,8 +58,8 @@ export default function Reports() {
             <div className="font-semibold text-sm text-[var(--text)]">{r.label}</div>
             <div className="text-xs text-[var(--text-3)] mt-1">{r.desc}</div>
             <div className="mt-3 flex items-center gap-2">
-              <button className="text-xs text-[var(--brand)] font-medium">View Report →</button>
-              <button className="ml-auto text-[var(--text-3)] hover:text-[var(--brand)]"><Download size={13} /></button>
+              <button onClick={e => { e.stopPropagation(); setActiveReport(r.id); navigate(REPORT_ROUTES[r.id] ?? '/reports'); }} className="text-xs text-[var(--brand)] font-medium hover:underline">View Report →</button>
+              <button onClick={e => { e.stopPropagation(); showToast({ type: 'info', title: 'Export queued', body: `${r.label} (${dateFrom} – ${dateTo}) will download shortly.` }); }} className="ml-auto text-[var(--text-3)] hover:text-[var(--brand)]"><Download size={13} /></button>
             </div>
           </div>
         ))}

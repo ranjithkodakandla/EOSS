@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   TrendingUp, ShoppingCart, Box, Users, FileText, Coins
 } from 'lucide-react';
+import { useStore } from '../../store';
 
 interface KpiItem {
   id: string;
@@ -17,15 +18,30 @@ interface KpiItem {
   path: string;
 }
 
+function fmt(n: number) {
+  if (n >= 100000) return `₹${(n / 100000).toFixed(1)} L`;
+  if (n >= 1000) return `₹${(n / 1000).toFixed(1)} K`;
+  return `₹${n}`;
+}
+
 export default function FinancialKpis() {
   const navigate = useNavigate();
+  const { customerInvoices, supplierInvoices, inventory } = useStore();
+
+  const totalSales = customerInvoices.reduce((s, i) => s + i.totalAmount, 0);
+  const totalPurchases = supplierInvoices.reduce((s, i) => s + i.totalAmount, 0);
+  const totalReceivables = customerInvoices.filter(i => i.status !== 'paid').reduce((s, i) => s + (i.totalAmount - i.amountPaid), 0);
+  const totalPayables = supplierInvoices.filter(i => i.status !== 'paid').reduce((s, i) => s + (i.totalAmount - i.amountPaid), 0);
+  const dueInWeek = supplierInvoices.filter(i => i.status !== 'paid' && new Date(i.dueDate) <= new Date(Date.now() + 7 * 86400000)).length;
+  const stockValue = inventory.reduce((s, m) => s + (m.stockQty * (m.unitCost ?? 0)), 0);
+  const profit = totalSales - totalPurchases;
 
   const kpis: KpiItem[] = [
     {
       id: 'sales',
       label: 'Sales',
-      value: '₹18.4 L',
-      trend: '↑ +24%',
+      value: fmt(totalSales),
+      trend: totalSales > 0 ? '↑ invoiced' : undefined,
       icon: <TrendingUp size={15} strokeWidth={2.5} />,
       iconBg: 'linear-gradient(135deg, #DCFCE7 0%, #BBF7D0 100%)',
       iconColor: '#16A34A',
@@ -35,8 +51,8 @@ export default function FinancialKpis() {
     {
       id: 'purchases',
       label: 'Purchases',
-      value: '₹11.2 L',
-      trend: '↑ +12%',
+      value: fmt(totalPurchases),
+      trend: totalPurchases > 0 ? '↑ invoiced' : undefined,
       icon: <ShoppingCart size={15} strokeWidth={2.5} />,
       iconBg: 'linear-gradient(135deg, #F3E8FF 0%, #E9D5FF 100%)',
       iconColor: '#9333EA',
@@ -46,7 +62,7 @@ export default function FinancialKpis() {
     {
       id: 'stock',
       label: 'Stock Value',
-      value: '₹26.9 L',
+      value: fmt(stockValue),
       icon: <Box size={15} strokeWidth={2.5} />,
       iconBg: 'linear-gradient(135deg, #FFEDD5 0%, #FED7AA 100%)',
       iconColor: '#EA580C',
@@ -56,8 +72,8 @@ export default function FinancialKpis() {
     {
       id: 'receivables',
       label: 'Receivables',
-      value: '₹6.2 L',
-      subtext: '(12 customers)',
+      value: fmt(totalReceivables),
+      subtext: `(${customerInvoices.filter(i => i.status !== 'paid').length} invoices)`,
       icon: <Users size={15} strokeWidth={2.5} />,
       iconBg: 'linear-gradient(135deg, #DBEAFE 0%, #BFDBFE 100%)',
       iconColor: '#2563EB',
@@ -67,8 +83,8 @@ export default function FinancialKpis() {
     {
       id: 'payables',
       label: 'Payables',
-      value: '₹2.9 L',
-      subtext: '(due in 7 days)',
+      value: fmt(totalPayables),
+      subtext: dueInWeek > 0 ? `(${dueInWeek} due this week)` : undefined,
       icon: <FileText size={15} strokeWidth={2.5} />,
       iconBg: 'linear-gradient(135deg, #FEE2E2 0%, #FECACA 100%)',
       iconColor: '#DC2626',
@@ -78,8 +94,8 @@ export default function FinancialKpis() {
     {
       id: 'profit',
       label: 'Profit',
-      value: '₹3.8 L',
-      trend: '↑ +28%',
+      value: fmt(Math.max(0, profit)),
+      trend: profit > 0 ? `↑ margin` : profit < 0 ? '↓ loss' : undefined,
       icon: <Coins size={15} strokeWidth={2.5} />,
       iconBg: 'linear-gradient(135deg, #FEF3C7 0%, #FDE68A 100%)',
       iconColor: '#D97706',
