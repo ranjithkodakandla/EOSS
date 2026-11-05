@@ -108,6 +108,15 @@ interface EOSSState {
   addSupplierQuotation: (quote: SupplierQuotation) => void;
   selectQuotation: (quoteId: string) => void;
 
+  // Sales actions
+  addRfq: (rfq: CustomerRFQ) => void;
+  addCustomerPO: (po: CustomerPO) => void;
+  addSupplierPO: (po: SupplierPO) => void;
+  addGRN: (grn: GoodsReceipt) => void;
+  addJob: (job: Job) => void;
+  addInspection: (ins: Inspection) => void;
+  addDispatchRecord: (d: Dispatch) => void;
+
   // Finance state
   customerInvoices: CustomerInvoice[];
   supplierInvoices: SupplierInvoice[];
@@ -378,6 +387,15 @@ export const useStore = create<EOSSState>((set, get) => ({
           : q
     ),
   })),
+
+  // ── Sales / Cross-entity Actions ──
+  addRfq: (rfq) => set(s => ({ rfqs: [rfq, ...s.rfqs] })),
+  addCustomerPO: (po) => set(s => ({ customerPos: [po, ...s.customerPos] })),
+  addSupplierPO: (spo) => set(s => ({ supplierPos: [spo, ...s.supplierPos] })),
+  addGRN: (grn) => set(s => ({ grns: [grn, ...s.grns] })),
+  addJob: (job) => set(s => ({ jobs: [job, ...s.jobs] })),
+  addInspection: (ins) => set(s => ({ inspections: [ins, ...s.inspections] })),
+  addDispatchRecord: (d) => set(s => ({ dispatches: [d, ...s.dispatches] })),
 
   // ── Finance Actions ──
   addCustomerInvoice: (inv) => set(s => ({ customerInvoices: [inv, ...s.customerInvoices] })),

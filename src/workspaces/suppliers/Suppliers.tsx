@@ -1,14 +1,15 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, ChevronRight, Plus } from 'lucide-react';
+import { Search, ChevronRight, Plus, X } from 'lucide-react';
 import { useStore, SUPPLIERS } from '../../store';
 import StatusChip from '../../components/layout/StatusChip';
 
 export default function Suppliers() {
-  const { currentUser } = useStore();
+  const { currentUser, showToast } = useStore();
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
-  const filtered = SUPPLIERS.filter(s => !search || s.tradingName.toLowerCase().includes(search.toLowerCase()) || s.legalName.toLowerCase().includes(search.toLowerCase()) || s.city.toLowerCase().includes(search.toLowerCase()));
+  const [showAdd, setShowAdd] = useState(false);
+  const filtered = SUPPLIERS.filter(s => !search || s.tradingName.toLowerCase().includes(search.toLowerCase()) || s.legalName.toLowerCase().includes(search.toLowerCase()) || (s.city ?? '').toLowerCase().includes(search.toLowerCase()));
 
   return (
     <div className="p-4 md:p-6">
@@ -18,7 +19,7 @@ export default function Suppliers() {
           <p className="text-sm text-[var(--text-2)]">{SUPPLIERS.length} suppliers registered</p>
         </div>
         {['owner', 'buyer'].includes(currentUser.role) && (
-          <button className="flex items-center gap-2 px-4 py-2 bg-[var(--brand)] text-white rounded-lg text-sm font-medium"><Plus size={16} /> Add Supplier</button>
+          <button onClick={() => setShowAdd(true)} className="flex items-center gap-2 px-4 py-2 bg-[var(--brand)] text-white rounded-lg text-sm font-medium"><Plus size={16} /> Add Supplier</button>
         )}
       </div>
 
@@ -62,6 +63,70 @@ export default function Suppliers() {
               ))}
             </tbody>
           </table>
+        </div>
+      </div>
+
+      {showAdd && (
+        <AddSupplierModal
+          onClose={() => setShowAdd(false)}
+          onSave={(name) => {
+            showToast({ type: 'success', title: 'Supplier added', body: `${name} has been registered.` });
+            setShowAdd(false);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function AddSupplierModal({ onClose, onSave }: { onClose: () => void; onSave: (name: string) => void }) {
+  const [form, setForm] = useState({ tradingName: '', legalName: '', category: 'Raw Material', city: '', state: '', gstin: '', pan: '', paymentTerms: 'Net 30', contactPerson: '', phone: '', email: '' });
+  const [err, setErr] = useState('');
+  const save = () => {
+    if (!form.legalName || !form.city) { setErr('Legal name and city are required'); return; }
+    onSave(form.tradingName || form.legalName);
+  };
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl w-full max-w-md p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="font-bold text-[var(--text)]">Add Supplier</h3>
+          <button onClick={onClose}><X size={16} className="text-[var(--text-3)]" /></button>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          {[
+            { label: 'Legal Name *', key: 'legalName', placeholder: 'As per company registration' },
+            { label: 'Trading Name', key: 'tradingName', placeholder: 'Short name' },
+            { label: 'City *', key: 'city', placeholder: '' },
+            { label: 'State', key: 'state', placeholder: '' },
+            { label: 'GSTIN', key: 'gstin', placeholder: '' },
+            { label: 'PAN', key: 'pan', placeholder: '' },
+            { label: 'Contact Person', key: 'contactPerson', placeholder: '' },
+            { label: 'Phone', key: 'phone', placeholder: '' },
+            { label: 'Email', key: 'email', placeholder: '' },
+          ].map(f => (
+            <div key={f.key} className={f.key === 'legalName' || f.key === 'email' ? 'col-span-2' : ''}>
+              <label className="block text-xs font-medium text-[var(--text-2)] mb-1">{f.label}</label>
+              <input className="eoss-input w-full" value={(form as any)[f.key]} onChange={e => setForm(prev => ({ ...prev, [f.key]: e.target.value }))} placeholder={f.placeholder} />
+            </div>
+          ))}
+          <div>
+            <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Category</label>
+            <select className="eoss-input w-full" value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))}>
+              {['Raw Material', 'Consumables', 'Fasteners', 'Subcontractor', 'Services', 'Spares', 'Scrap'].map(c => <option key={c}>{c}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Payment Terms</label>
+            <select className="eoss-input w-full" value={form.paymentTerms} onChange={e => setForm(f => ({ ...f, paymentTerms: e.target.value }))}>
+              {['Net 15', 'Net 30', 'Net 45', 'Net 60', 'Advance'].map(t => <option key={t}>{t}</option>)}
+            </select>
+          </div>
+        </div>
+        {err && <p className="text-xs text-[var(--danger)] mt-2">{err}</p>}
+        <div className="flex gap-3 mt-5">
+          <button onClick={onClose} className="flex-1 py-2.5 border border-[var(--border)] rounded-xl text-sm text-[var(--text-2)]">Cancel</button>
+          <button onClick={save} className="flex-1 py-2.5 bg-[var(--brand)] text-white rounded-xl text-sm font-medium">Save Supplier</button>
         </div>
       </div>
     </div>

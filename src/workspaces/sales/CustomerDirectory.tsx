@@ -1,14 +1,16 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Plus, Building2, Phone, Mail, ChevronRight, Star } from 'lucide-react';
-import { CUSTOMERS } from '../../store';
+import { Search, Plus, Building2, Phone, Mail, ChevronRight, Star, X } from 'lucide-react';
+import { CUSTOMERS, useStore } from '../../store';
 import StatusChip from '../../components/layout/StatusChip';
 import EmptyState from '../../components/feedback/EmptyState';
 
 export default function CustomerDirectory() {
   const navigate = useNavigate();
+  const { showToast } = useStore();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
+  const [showAdd, setShowAdd] = useState(false);
 
   const filtered = CUSTOMERS.filter(c => {
     const q = search.toLowerCase();
@@ -28,6 +30,7 @@ export default function CustomerDirectory() {
           </p>
         </div>
         <button
+          onClick={() => setShowAdd(true)}
           className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white cursor-pointer hover:opacity-90 transition-opacity"
           style={{ background: 'var(--brand,#7048F5)' }}
         >
@@ -124,6 +127,64 @@ export default function CustomerDirectory() {
           </table>
         </div>
       )}
+
+      {showAdd && (
+        <AddCustomerModal
+          onClose={() => setShowAdd(false)}
+          onSave={(name) => {
+            showToast({ type: 'success', title: 'Customer added', body: `${name} has been registered.` });
+            setShowAdd(false);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function AddCustomerModal({ onClose, onSave }: { onClose: () => void; onSave: (name: string) => void }) {
+  const [form, setForm] = useState({ legalName: '', tradingName: '', gstin: '', pan: '', city: '', state: '', phone: '', email: '', paymentTerms: 'Net 30', contactPerson: '' });
+  const [err, setErr] = useState('');
+  const save = () => {
+    if (!form.legalName || !form.city) { setErr('Legal name and city are required'); return; }
+    onSave(form.tradingName || form.legalName);
+  };
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl w-full max-w-md p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="font-bold text-[var(--text)]">Add Customer</h3>
+          <button onClick={onClose}><X size={16} className="text-[var(--text-3)]" /></button>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          {[
+            { label: 'Legal Name *', key: 'legalName', placeholder: 'As per company registration', span: true },
+            { label: 'Trading Name', key: 'tradingName', placeholder: 'Short name', span: false },
+            { label: 'City *', key: 'city', placeholder: '', span: false },
+            { label: 'State', key: 'state', placeholder: '', span: false },
+            { label: 'GSTIN', key: 'gstin', placeholder: '', span: false },
+            { label: 'PAN', key: 'pan', placeholder: '', span: false },
+            { label: 'Contact Person', key: 'contactPerson', placeholder: '', span: false },
+            { label: 'Phone', key: 'phone', placeholder: '', span: false },
+            { label: 'Email', key: 'email', placeholder: '', span: true },
+          ].map(f => (
+            <div key={f.key} className={f.span ? 'col-span-2' : ''}>
+              <label className="block text-xs font-medium text-[var(--text-2)] mb-1">{f.label}</label>
+              <input className="eoss-input w-full" value={(form as any)[f.key]} onChange={e => setForm(prev => ({ ...prev, [f.key]: e.target.value }))} placeholder={f.placeholder} />
+            </div>
+          ))}
+          <div>
+            <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Payment Terms</label>
+            <select className="eoss-input w-full" value={form.paymentTerms} onChange={e => setForm(f => ({ ...f, paymentTerms: e.target.value }))}>
+              {['Advance', 'Net 15', 'Net 30', 'Net 45', 'Net 60'].map(t => <option key={t}>{t}</option>)}
+            </select>
+          </div>
+        </div>
+        {err && <p className="text-xs text-[var(--danger)] mt-2">{err}</p>}
+        <div className="flex gap-3 mt-5">
+          <button onClick={onClose} className="flex-1 py-2.5 border border-[var(--border)] rounded-xl text-sm text-[var(--text-2)]">Cancel</button>
+          <button onClick={save} className="flex-1 py-2.5 bg-[var(--brand)] text-white rounded-xl text-sm font-medium">Save Customer</button>
+        </div>
+      </div>
     </div>
   );
 }

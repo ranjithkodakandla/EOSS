@@ -1,13 +1,15 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, ChevronRight, AlertTriangle } from 'lucide-react';
+import { Plus, ChevronRight, AlertTriangle, X } from 'lucide-react';
 import { useStore } from '../../store';
 import StatusChip from '../../components/layout/StatusChip';
+import type { Inspection } from '../../types';
 
 export default function Quality() {
-  const { inspections, ncrs, currentUser } = useStore();
+  const { inspections, ncrs, currentUser, addInspection, showToast } = useStore();
   const navigate = useNavigate();
   const [tab, setTab] = useState<'inspections' | 'ncrs'>('inspections');
+  const [showNew, setShowNew] = useState(false);
 
   const openNcrs = ncrs.filter(n => n.status === 'open' || n.status === 'in_progress').length;
   const pendingInspections = inspections.filter(i => i.result === 'pending').length;
@@ -22,7 +24,7 @@ export default function Quality() {
         </div>
         <div className="flex-1" />
         {['owner', 'qc'].includes(currentUser.role) && (
-          <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white" style={{ background: 'var(--brand)' }}>
+          <button onClick={() => setShowNew(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white" style={{ background: 'var(--brand)' }}>
             <Plus size={13} /> New Inspection
           </button>
         )}
@@ -106,6 +108,64 @@ export default function Quality() {
             {ncrs.length === 0 && <div className="text-center py-10 text-sm" style={{ color: 'var(--text-3)' }}>No NCRs raised</div>}
           </div>
         )}
+      </div>
+
+      {showNew && (
+        <NewInspectionModal
+          onClose={() => setShowNew(false)}
+          onSave={(ins) => {
+            addInspection(ins);
+            showToast({ type: 'success', title: 'Inspection created', body: `${ins.inspectionNumber} has been opened.` });
+            setShowNew(false);
+            navigate(`/quality/inspection/${ins.id}`);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function NewInspectionModal({ onClose, onSave }: { onClose: () => void; onSave: (i: Inspection) => void }) {
+  const [form, setForm] = useState({ type: 'Incoming' as Inspection['type'], templateName: '', inspectorName: '', sampleQty: '1' });
+  const [err, setErr] = useState('');
+  const save = () => {
+    if (!form.inspectorName) { setErr('Inspector name is required'); return; }
+    const id = `ins-${Date.now()}`;
+    const num = `INS-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 900 + 100))}`;
+    onSave({ id, inspectionNumber: num, type: form.type, date: '2026-11-05', inspectorId: `usr-demo`, inspectorName: form.inspectorName, templateName: form.templateName || 'General', sampleQty: parseInt(form.sampleQty) || 1, acceptedQty: 0, rejectedQty: 0, result: 'pending' });
+  };
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl w-full max-w-sm p-6 shadow-2xl">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="font-bold text-[var(--text)]">New Inspection</h3>
+          <button onClick={onClose}><X size={16} className="text-[var(--text-3)]" /></button>
+        </div>
+        <div className="space-y-3">
+          <div>
+            <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Type</label>
+            <select className="eoss-input w-full" value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value as Inspection['type'] }))}>
+              {(['Incoming', 'In-Process', 'Final'] as const).map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Checklist Template</label>
+            <input className="eoss-input w-full" value={form.templateName} onChange={e => setForm(f => ({ ...f, templateName: e.target.value }))} placeholder="e.g. MS Plate Incoming Check" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Inspector *</label>
+            <input className="eoss-input w-full" value={form.inspectorName} onChange={e => setForm(f => ({ ...f, inspectorName: e.target.value }))} placeholder="Inspector name" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Sample Qty</label>
+            <input type="number" min="1" className="eoss-input w-full" value={form.sampleQty} onChange={e => setForm(f => ({ ...f, sampleQty: e.target.value }))} />
+          </div>
+        </div>
+        {err && <p className="text-xs text-[var(--danger)] mt-2">{err}</p>}
+        <div className="flex gap-3 mt-5">
+          <button onClick={onClose} className="flex-1 py-2.5 border border-[var(--border)] rounded-xl text-sm text-[var(--text-2)]">Cancel</button>
+          <button onClick={save} className="flex-1 py-2.5 bg-[var(--brand)] text-white rounded-xl text-sm font-medium">Create</button>
+        </div>
       </div>
     </div>
   );

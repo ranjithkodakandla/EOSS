@@ -1,20 +1,22 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, AlertTriangle, Search, Filter, ChevronRight } from 'lucide-react';
-import { useStore } from '../../store';
+import { Plus, AlertTriangle, Search, Filter, ChevronRight, X } from 'lucide-react';
+import { useStore, CUSTOMERS } from '../../store';
 import StatusChip from '../../components/layout/StatusChip';
 import clsx from 'clsx';
+import type { Job, JobStage } from '../../types';
 
 const PRIORITY_COLOR: Record<string, string> = {
   urgent: 'var(--error)', high: 'var(--warning)', normal: 'var(--info)', low: 'var(--text-3)'
 };
 
 export default function Jobs() {
-  const { jobs, currentUser } = useStore();
+  const { jobs, currentUser, addJob, showToast } = useStore();
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [view, setView] = useState<'board' | 'list'>('list');
+  const [showNewJob, setShowNewJob] = useState(false);
 
   const filtered = jobs.filter(j => {
     const matchSearch = !search || j.jobNumber.toLowerCase().includes(search.toLowerCase()) ||
@@ -62,7 +64,7 @@ export default function Jobs() {
         </div>
         <div className="flex-1" />
         {(currentUser.role === 'owner' || currentUser.role === 'supervisor' || currentUser.role === 'sales') && (
-          <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white"
+          <button onClick={() => setShowNewJob(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white"
             style={{ background: 'var(--brand)' }}>
             <Plus size={13} /> New Job
           </button>
@@ -120,6 +122,77 @@ export default function Jobs() {
               )}
             </tbody>
           </table>
+      </div>
+
+      {showNewJob && (
+        <NewJobModal
+          onClose={() => setShowNewJob(false)}
+          onSave={(job) => {
+            addJob(job);
+            showToast({ type: 'success', title: 'Job created', body: `${job.jobNumber} opened.` });
+            setShowNewJob(false);
+            navigate(`/jobs/${job.id}`);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function NewJobModal({ onClose, onSave }: { onClose: () => void; onSave: (j: Job) => void }) {
+  const [form, setForm] = useState({ customerId: '', customerName: '', description: '', plannedEnd: '', priority: 'normal' as Job['priority'] });
+  const [err, setErr] = useState('');
+  const save = () => {
+    if (!form.customerId || !form.description || !form.plannedEnd) { setErr('Customer, description and planned end date required'); return; }
+    const id = `job-${Date.now()}`;
+    const num = `J-${String(Math.floor(Math.random() * 900 + 110))}`;
+    const defaultStages: JobStage[] = [
+      { id: `${id}-s1`, jobId: id, name: 'Material Preparation', sequence: 1, status: 'pending', plannedHrs: 4, actualHrs: 0, outputQty: 0 },
+      { id: `${id}-s2`, jobId: id, name: 'Fabrication', sequence: 2, status: 'pending', plannedHrs: 8, actualHrs: 0, outputQty: 0 },
+      { id: `${id}-s3`, jobId: id, name: 'QC Inspection', sequence: 3, status: 'pending', plannedHrs: 2, actualHrs: 0, outputQty: 0 },
+    ];
+    onSave({ id, jobNumber: num, customerId: form.customerId, customerName: form.customerName, description: form.description, status: 'active', priority: form.priority, plannedEnd: form.plannedEnd, openedDate: '2026-11-05', stages: defaultStages, updates: [], blockers: [], materialRequirements: [], currentStage: 'Material Preparation', outputQty: 0, targetQty: 1, uom: 'pcs' });
+  };
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl w-full max-w-sm p-6 shadow-2xl">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="font-bold text-[var(--text)]">New Job</h3>
+          <button onClick={onClose}><X size={16} className="text-[var(--text-3)]" /></button>
+        </div>
+        <div className="space-y-3">
+          <div>
+            <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Customer *</label>
+            <select className="eoss-input w-full" value={form.customerId} onChange={e => {
+              const c = CUSTOMERS.find(x => x.id === e.target.value);
+              setForm(f => ({ ...f, customerId: e.target.value, customerName: c?.tradingName ?? c?.legalName ?? '' }));
+            }}>
+              <option value="">Select customer…</option>
+              {CUSTOMERS.map(c => <option key={c.id} value={c.id}>{c.tradingName ?? c.legalName}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Job Description *</label>
+            <input className="eoss-input w-full" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="e.g. Fabrication of 10 MS Frames" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Planned End *</label>
+              <input type="date" className="eoss-input w-full" value={form.plannedEnd} onChange={e => setForm(f => ({ ...f, plannedEnd: e.target.value }))} />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Priority</label>
+              <select className="eoss-input w-full" value={form.priority} onChange={e => setForm(f => ({ ...f, priority: e.target.value as Job['priority'] }))}>
+                {(['normal', 'high', 'urgent', 'low'] as const).map(p => <option key={p} value={p}>{p}</option>)}
+              </select>
+            </div>
+          </div>
+        </div>
+        {err && <p className="text-xs text-[var(--danger)] mt-2">{err}</p>}
+        <div className="flex gap-3 mt-5">
+          <button onClick={onClose} className="flex-1 py-2.5 border border-[var(--border)] rounded-xl text-sm text-[var(--text-2)]">Cancel</button>
+          <button onClick={save} className="flex-1 py-2.5 bg-[var(--brand)] text-white rounded-xl text-sm font-medium">Create Job</button>
+        </div>
       </div>
     </div>
   );

@@ -2,21 +2,23 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Plus, Search, ChevronRight, ArrowUpRight, Calendar,
-  FileText, Briefcase, DollarSign, Clock, User
+  FileText, Briefcase, DollarSign, Clock, User, X
 } from 'lucide-react';
-import { useStore } from '../../store';
+import { useStore, CUSTOMERS } from '../../store';
 import StatusChip from '../../components/layout/StatusChip';
 import clsx from 'clsx';
+import type { CustomerRFQ } from '../../types';
 
 type POTab = 'pos' | 'rfqs' | 'customers';
 
 export default function Sales() {
-  const { rfqs, customerPos, jobs, currentUser } = useStore();
+  const { rfqs, customerPos, jobs, currentUser, showToast } = useStore();
   const navigate = useNavigate();
   const [tab, setTab] = useState<POTab>('pos');
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [selectedPoId, setSelectedPoId] = useState<string | null>(null);
+  const [showNewRFQ, setShowNewRFQ] = useState(false);
 
   const canCreate = ['owner', 'sales'].includes(currentUser.role);
 
@@ -56,6 +58,7 @@ export default function Sales() {
         </div>
         {canCreate && (
           <button
+            onClick={() => setShowNewRFQ(true)}
             className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white transition-opacity hover:opacity-90"
             style={{ background: 'var(--brand)' }}
           >
@@ -331,6 +334,77 @@ export default function Sales() {
             </div>
           </div>
         )}
+      </div>
+
+      {/* New RFQ Modal */}
+      {showNewRFQ && (
+        <NewRFQModal
+          onClose={() => setShowNewRFQ(false)}
+          onSave={(rfq) => {
+            showToast({ type: 'success', title: 'RFQ created', body: `${rfq.rfqNumber} opened.` });
+            setShowNewRFQ(false);
+            setTab('rfqs');
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function NewRFQModal({ onClose, onSave }: { onClose: () => void; onSave: (r: CustomerRFQ) => void }) {
+  const { currentUser, addRfq } = useStore();
+  const [form, setForm] = useState({
+    customerId: '', customerName: '', requiredBy: '', channel: 'Email', lineCount: '1',
+  });
+  const [err, setErr] = useState('');
+  const save = () => {
+    if (!form.customerId || !form.requiredBy) { setErr('Customer and required-by date are required'); return; }
+    const id = `rfq-${Date.now()}`;
+    const num = `RFQ-2026-${String(Math.floor(Math.random() * 900 + 100))}`;
+    const rfq: CustomerRFQ = { id, rfqNumber: num, customerId: form.customerId, customerName: form.customerName, receivedDate: '2026-11-05', requiredBy: form.requiredBy, status: 'open', lineCount: Number(form.lineCount), channel: form.channel as CustomerRFQ['channel'], owner: currentUser.name };
+    addRfq(rfq);
+    onSave(rfq);
+  };
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl w-full max-w-sm p-6 shadow-2xl">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="font-bold text-[var(--text)]">New RFQ</h3>
+          <button onClick={onClose}><X size={16} className="text-[var(--text-3)]" /></button>
+        </div>
+        <div className="space-y-3">
+          <div>
+            <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Customer *</label>
+            <select className="eoss-input w-full" value={form.customerId} onChange={e => {
+              const c = CUSTOMERS.find(x => x.id === e.target.value);
+              setForm(f => ({ ...f, customerId: e.target.value, customerName: c?.tradingName ?? c?.legalName ?? '' }));
+            }}>
+              <option value="">Select customer…</option>
+              {CUSTOMERS.map(c => <option key={c.id} value={c.id}>{c.tradingName ?? c.legalName}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Required By *</label>
+            <input type="date" className="eoss-input w-full" value={form.requiredBy} onChange={e => setForm(f => ({ ...f, requiredBy: e.target.value }))} />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Channel</label>
+              <select className="eoss-input w-full" value={form.channel} onChange={e => setForm(f => ({ ...f, channel: e.target.value }))}>
+                {['Email', 'Portal', 'WhatsApp', 'Phone', 'Tender'].map(c => <option key={c}>{c}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Line Items</label>
+              <input type="number" className="eoss-input w-full" value={form.lineCount} onChange={e => setForm(f => ({ ...f, lineCount: e.target.value }))} min="1" />
+            </div>
+          </div>
+        </div>
+        {err && <p className="text-xs text-[var(--danger)] mt-2">{err}</p>}
+        <div className="flex gap-3 mt-5">
+          <button onClick={onClose} className="flex-1 py-2.5 border border-[var(--border)] rounded-xl text-sm text-[var(--text-2)]">Cancel</button>
+          <button onClick={save} className="flex-1 py-2.5 bg-[var(--brand)] text-white rounded-xl text-sm font-medium">Create RFQ</button>
+        </div>
       </div>
     </div>
   );

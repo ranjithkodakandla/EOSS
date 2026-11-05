@@ -1,15 +1,17 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, AlertTriangle, ChevronRight, Wrench, Search } from 'lucide-react';
+import { Plus, AlertTriangle, ChevronRight, Wrench, Search, X } from 'lucide-react';
 import { useStore } from '../../store';
 import StatusChip from '../../components/layout/StatusChip';
 import clsx from 'clsx';
+import type { MaintenanceEvent } from '../../types';
 
 export default function Assets() {
-  const { assets, maintenanceEvents, currentUser } = useStore();
+  const { assets, maintenanceEvents, currentUser, addMaintenanceEvent, showToast } = useStore();
   const navigate = useNavigate();
   const [tab, setTab] = useState<'assets' | 'maintenance'>('assets');
   const [search, setSearch] = useState('');
+  const [showLogEvent, setShowLogEvent] = useState(false);
 
   const breakdowns = assets.filter(a => a.status === 'breakdown').length;
   const pmOverdue = assets.filter(a => a.status === 'pm_overdue').length;
@@ -35,7 +37,7 @@ export default function Assets() {
         {breakdowns > 0 && <span className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ background: 'var(--error-bg,#FEF2F2)', color: 'var(--error,#DC2626)' }}><AlertTriangle size={12} /> {breakdowns} breakdown</span>}
         {pmOverdue > 0 && <span className="px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ background: 'var(--warning-bg,#FFFBEB)', color: 'var(--warning,#D97706)' }}>{pmOverdue} PM overdue</span>}
         {canCreate && (
-          <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white" style={{ background: 'var(--brand)' }}>
+          <button onClick={() => setShowLogEvent(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white" style={{ background: 'var(--brand)' }}>
             <Plus size={13} /> Log Event
           </button>
         )}
@@ -119,6 +121,77 @@ export default function Assets() {
           {filteredME.length === 0 && <div className="text-center py-10 text-sm" style={{ color: 'var(--text-3)' }}>No maintenance events found</div>}
         </div>
       )}
+      </div>
+
+      {showLogEvent && (
+        <LogEventModal
+          assets={assets}
+          onClose={() => setShowLogEvent(false)}
+          onSave={(event) => {
+            addMaintenanceEvent(event);
+            showToast({ type: 'success', title: 'Event logged', body: `${event.eventNumber} has been opened.` });
+            setShowLogEvent(false);
+            setTab('maintenance');
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function LogEventModal({ assets, onClose, onSave }: { assets: { id: string; name: string; assetCode: string }[]; onClose: () => void; onSave: (e: MaintenanceEvent) => void }) {
+  const [form, setForm] = useState({ assetId: assets[0]?.id ?? '', type: 'Breakdown' as MaintenanceEvent['type'], symptom: '', technicianName: '', severity: 'Medium' as NonNullable<MaintenanceEvent['severity']> });
+  const [err, setErr] = useState('');
+  const save = () => {
+    if (!form.assetId || !form.symptom || !form.technicianName) { setErr('Asset, symptom and technician are required'); return; }
+    const asset = assets.find(a => a.id === form.assetId);
+    if (!asset) return;
+    const id = `me-${Date.now()}`;
+    const num = `ME-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 900 + 100))}`;
+    onSave({ id, eventNumber: num, type: form.type, assetId: form.assetId, assetName: asset.name, assetCode: asset.assetCode, severity: form.severity, symptom: form.symptom, technicianId: 'usr-demo', technicianName: form.technicianName, downtimeStart: '2026-11-05', status: 'open', affectedJobs: [], sparesUsed: [] });
+  };
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl w-full max-w-sm p-6 shadow-2xl">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="font-bold text-[var(--text)]">Log Maintenance Event</h3>
+          <button onClick={onClose}><X size={16} className="text-[var(--text-3)]" /></button>
+        </div>
+        <div className="space-y-3">
+          <div>
+            <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Asset *</label>
+            <select className="eoss-input w-full" value={form.assetId} onChange={e => setForm(f => ({ ...f, assetId: e.target.value }))}>
+              {assets.map(a => <option key={a.id} value={a.id}>{a.name} ({a.assetCode})</option>)}
+            </select>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Type</label>
+              <select className="eoss-input w-full" value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value as MaintenanceEvent['type'] }))}>
+                {(['Breakdown', 'Preventive', 'Corrective'] as const).map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Severity</label>
+              <select className="eoss-input w-full" value={form.severity} onChange={e => setForm(f => ({ ...f, severity: e.target.value as NonNullable<MaintenanceEvent['severity']> }))}>
+                {(['Low', 'Medium', 'High', 'Critical'] as const).map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Symptom / Description *</label>
+            <input className="eoss-input w-full" value={form.symptom} onChange={e => setForm(f => ({ ...f, symptom: e.target.value }))} placeholder="Describe the issue" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Technician *</label>
+            <input className="eoss-input w-full" value={form.technicianName} onChange={e => setForm(f => ({ ...f, technicianName: e.target.value }))} placeholder="Technician name" />
+          </div>
+        </div>
+        {err && <p className="text-xs text-[var(--danger)] mt-2">{err}</p>}
+        <div className="flex gap-3 mt-5">
+          <button onClick={onClose} className="flex-1 py-2.5 border border-[var(--border)] rounded-xl text-sm text-[var(--text-2)]">Cancel</button>
+          <button onClick={save} className="flex-1 py-2.5 bg-[var(--brand)] text-white rounded-xl text-sm font-medium">Log Event</button>
+        </div>
       </div>
     </div>
   );

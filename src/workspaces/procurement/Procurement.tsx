@@ -1,16 +1,18 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, AlertTriangle, Search, ChevronRight } from 'lucide-react';
-import { useStore, PURCHASE_REQS } from '../../store';
+import { Plus, AlertTriangle, Search, ChevronRight, X } from 'lucide-react';
+import { useStore, PURCHASE_REQS, CUSTOMERS } from '../../store';
 import StatusChip from '../../components/layout/StatusChip';
+import type { SupplierPO } from '../../types';
 
 type ProcTab = 'spo' | 'pr' | 'grn' | 'approvals';
 
 export default function Procurement() {
-  const { supplierPos, grns, approvalRequests, currentUser } = useStore();
+  const { supplierPos, grns, approvalRequests, currentUser, showToast, addSupplierPO } = useStore();
   const navigate = useNavigate();
   const [tab, setTab] = useState<ProcTab>('spo');
   const [search, setSearch] = useState('');
+  const [showNewPO, setShowNewPO] = useState(false);
 
   const overduePOs = supplierPos.filter(p => p.status === 'overdue').length;
   const pendingApprovals = approvalRequests.filter(a => a.status === 'pending').length;
@@ -59,7 +61,7 @@ export default function Procurement() {
               style={{ borderColor: 'var(--border)', color: 'var(--text-2)' }}>
               Supplier Return
             </button>
-            <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white"
+            <button onClick={() => setShowNewPO(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white"
               style={{ background: 'var(--brand)' }}>
               <Plus size={13} /> New PO
             </button>
@@ -199,6 +201,68 @@ export default function Procurement() {
             )}
           </div>
         )}
+      </div>
+
+      {showNewPO && (
+        <NewSupplierPOModal
+          onClose={() => setShowNewPO(false)}
+          onSave={(po) => {
+            addSupplierPO(po);
+            showToast({ type: 'success', title: 'Supplier PO created', body: `${po.poNumber} raised.` });
+            setShowNewPO(false);
+            navigate(`/procurement/spo/${po.id}`);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+import { SUPPLIERS } from '../../store';
+
+function NewSupplierPOModal({ onClose, onSave }: { onClose: () => void; onSave: (po: SupplierPO) => void }) {
+  const [form, setForm] = useState({ supplierId: '', supplierName: '', committedDate: '', paymentTerms: 'Net 30', notes: '' });
+  const [err, setErr] = useState('');
+  const save = () => {
+    if (!form.supplierId || !form.committedDate) { setErr('Supplier and committed delivery date required'); return; }
+    const id = `spo-${Date.now()}`;
+    const num = `SPO-2026-${String(Math.floor(Math.random() * 900 + 100))}`;
+    onSave({ id, poNumber: num, supplierId: form.supplierId, supplierName: form.supplierName, raisedDate: '2026-11-05', committedDate: form.committedDate, status: 'draft', totalValue: 0, currency: 'INR', paymentTerms: form.paymentTerms, lineCount: 0 });
+  };
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl w-full max-w-sm p-6 shadow-2xl">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="font-bold text-[var(--text)]">New Supplier PO</h3>
+          <button onClick={onClose}><X size={16} className="text-[var(--text-3)]" /></button>
+        </div>
+        <div className="space-y-3">
+          <div>
+            <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Supplier *</label>
+            <select className="eoss-input w-full" value={form.supplierId} onChange={e => {
+              const s = SUPPLIERS.find(x => x.id === e.target.value);
+              setForm(f => ({ ...f, supplierId: e.target.value, supplierName: s?.tradingName ?? s?.legalName ?? '' }));
+            }}>
+              <option value="">Select supplier…</option>
+              {SUPPLIERS.map(s => <option key={s.id} value={s.id}>{s.tradingName ?? s.legalName}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Committed Delivery *</label>
+            <input type="date" className="eoss-input w-full" value={form.committedDate} onChange={e => setForm(f => ({ ...f, committedDate: e.target.value }))} />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Payment Terms</label>
+            <select className="eoss-input w-full" value={form.paymentTerms} onChange={e => setForm(f => ({ ...f, paymentTerms: e.target.value }))}>
+              {['Net 15', 'Net 30', 'Net 45', 'Net 60', 'Advance'].map(t => <option key={t}>{t}</option>)}
+            </select>
+          </div>
+        </div>
+        {err && <p className="text-xs text-[var(--danger)] mt-2">{err}</p>}
+        <div className="flex gap-3 mt-5">
+          <button onClick={onClose} className="flex-1 py-2.5 border border-[var(--border)] rounded-xl text-sm text-[var(--text-2)]">Cancel</button>
+          <button onClick={save} className="flex-1 py-2.5 bg-[var(--brand)] text-white rounded-xl text-sm font-medium">Create PO</button>
+        </div>
       </div>
     </div>
   );
