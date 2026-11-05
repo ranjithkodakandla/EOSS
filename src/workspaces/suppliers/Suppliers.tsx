@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, ChevronRight, Plus, X } from 'lucide-react';
+import { Search, ChevronRight, Plus, X, Pencil } from 'lucide-react';
 import { useStore, SUPPLIERS } from '../../store';
 import StatusChip from '../../components/layout/StatusChip';
 
@@ -9,6 +9,7 @@ export default function Suppliers() {
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
   const [showAdd, setShowAdd] = useState(false);
+  const [editSupplier, setEditSupplier] = useState<typeof SUPPLIERS[0] | null>(null);
   const filtered = SUPPLIERS.filter(s => !search || s.tradingName.toLowerCase().includes(search.toLowerCase()) || s.legalName.toLowerCase().includes(search.toLowerCase()) || (s.city ?? '').toLowerCase().includes(search.toLowerCase()));
 
   return (
@@ -58,6 +59,11 @@ export default function Suppliers() {
                   <td className="text-sm text-[var(--text-2)]">{s.paymentTerms}</td>
                   <td className="font-mono text-xs text-[var(--text-2)]">{s.gstin ?? '—'}</td>
                   <td><StatusChip status={s.status} size="sm" /></td>
+                  <td className="px-2">
+                    <button onClick={e => { e.stopPropagation(); setEditSupplier(s); }} className="p-1.5 rounded hover:bg-[var(--surface-2)] transition-colors" title="Edit supplier">
+                      <Pencil size={13} className="text-[var(--text-3)]" />
+                    </button>
+                  </td>
                   <td><ChevronRight size={14} className="text-[var(--text-3)]" /></td>
                 </tr>
               ))}
@@ -75,12 +81,23 @@ export default function Suppliers() {
           }}
         />
       )}
+      {editSupplier && (
+        <AddSupplierModal
+          initialValues={{ tradingName: editSupplier.tradingName, legalName: editSupplier.legalName, category: editSupplier.category ?? 'Raw Material', city: editSupplier.city ?? '', state: editSupplier.state ?? '', gstin: editSupplier.gstin ?? '', pan: editSupplier.panNumber ?? '', paymentTerms: editSupplier.paymentTerms, contactPerson: editSupplier.contactPerson, phone: editSupplier.phone, email: editSupplier.email }}
+          editMode
+          onClose={() => setEditSupplier(null)}
+          onSave={(name) => {
+            showToast({ type: 'success', title: 'Supplier updated', body: `${name} has been updated.` });
+            setEditSupplier(null);
+          }}
+        />
+      )}
     </div>
   );
 }
 
-function AddSupplierModal({ onClose, onSave }: { onClose: () => void; onSave: (name: string) => void }) {
-  const [form, setForm] = useState({ tradingName: '', legalName: '', category: 'Raw Material', city: '', state: '', gstin: '', pan: '', paymentTerms: 'Net 30', contactPerson: '', phone: '', email: '' });
+function AddSupplierModal({ onClose, onSave, initialValues, editMode }: { onClose: () => void; onSave: (name: string) => void; initialValues?: Record<string, string>; editMode?: boolean }) {
+  const [form, setForm] = useState({ tradingName: '', legalName: '', category: 'Raw Material', city: '', state: '', gstin: '', pan: '', paymentTerms: 'Net 30', contactPerson: '', phone: '', email: '', ...initialValues });
   const [err, setErr] = useState('');
   const save = () => {
     if (!form.legalName || !form.city) { setErr('Legal name and city are required'); return; }
@@ -90,7 +107,7 @@ function AddSupplierModal({ onClose, onSave }: { onClose: () => void; onSave: (n
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
       <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl w-full max-w-md p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
         <div className="flex justify-between items-center mb-4">
-          <h3 className="font-bold text-[var(--text)]">Add Supplier</h3>
+          <h3 className="font-bold text-[var(--text)]">{editMode ? 'Edit Supplier' : 'Add Supplier'}</h3>
           <button onClick={onClose}><X size={16} className="text-[var(--text-3)]" /></button>
         </div>
         <div className="grid grid-cols-2 gap-3">

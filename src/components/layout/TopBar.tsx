@@ -1,15 +1,16 @@
 import React, { useState } from 'react';
-import { Search, Bell, HelpCircle, ChevronDown, Check } from 'lucide-react';
+import { Search, HelpCircle, ChevronDown, Check, X, User } from 'lucide-react';
 import { useStore, type EOSSTheme } from '../../store';
 import NotificationDropdown from './NotificationDropdown';
 import GlobalSearchModal from '../search/GlobalSearchModal';
 import clsx from 'clsx';
 
 export default function TopBar() {
-  const { sidebarCollapsed, currentUser, eossTheme, setEOSSTheme } = useStore();
+  const { sidebarCollapsed, currentUser, eossTheme, setEOSSTheme, showToast } = useStore();
   const [searchOpen, setSearchOpen] = useState(false);
   const [themeMenuOpen, setThemeMenuOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
 
   const themes: { id: EOSSTheme; label: string; accent: string }[] = [
     { id: 'aurora', label: 'Theme 1 · Aurora Indigo', accent: '#7048F5' },
@@ -166,20 +167,87 @@ export default function TopBar() {
           </div>
 
           {/* User Avatar */}
-          <div
-            className="w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center font-bold text-white text-xs shadow-sm cursor-pointer select-none flex-shrink-0"
+          <button
+            onClick={() => setProfileOpen(true)}
+            className="w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center font-bold text-white text-xs shadow-sm cursor-pointer select-none flex-shrink-0 hover:opacity-80 transition-opacity"
             style={{
               background: 'linear-gradient(135deg, var(--brand), var(--brand-secondary, #A855F7))',
             }}
-            title={`${currentUser.name} (${currentUser.role})`}
+            title={`${currentUser.name} (${currentUser.role}) — Click to view profile`}
           >
             {currentUser.name.charAt(0)}
-          </div>
+          </button>
         </div>
       </header>
 
       {/* Global Record Search Dialog (Cmd+K) */}
       <GlobalSearchModal isOpen={searchOpen} onClose={() => setSearchOpen(false)} />
+
+      {/* Profile Modal */}
+      {profileOpen && (
+        <ProfileModal
+          currentUser={currentUser}
+          eossTheme={eossTheme}
+          themes={themes}
+          onThemeChange={t => { setEOSSTheme(t); }}
+          onClose={() => setProfileOpen(false)}
+          onSave={() => { showToast({ type: 'success', title: 'Preferences saved', body: 'Your profile preferences have been updated.' }); setProfileOpen(false); }}
+        />
+      )}
     </>
+  );
+}
+
+function ProfileModal({ currentUser, eossTheme, themes, onThemeChange, onClose, onSave }: {
+  currentUser: { name: string; role: string; email?: string };
+  eossTheme: EOSSTheme;
+  themes: { id: EOSSTheme; label: string; accent: string }[];
+  onThemeChange: (t: EOSSTheme) => void;
+  onClose: () => void;
+  onSave: () => void;
+}) {
+  const [selectedTheme, setSelectedTheme] = useState<EOSSTheme>(eossTheme);
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl w-full max-w-sm shadow-2xl">
+        <div className="flex justify-between items-center px-6 py-4 border-b border-[var(--border)]">
+          <h3 className="font-bold text-[var(--text)]">My Profile</h3>
+          <button onClick={onClose}><X size={16} className="text-[var(--text-3)]" /></button>
+        </div>
+        <div className="px-6 py-5 space-y-5">
+          {/* Avatar + name */}
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-full flex items-center justify-center font-bold text-white text-lg flex-shrink-0"
+              style={{ background: 'linear-gradient(135deg, var(--brand), var(--brand-secondary, #A855F7))' }}>
+              {currentUser.name.charAt(0)}
+            </div>
+            <div>
+              <div className="font-semibold text-[var(--text)]">{currentUser.name}</div>
+              <div className="text-xs text-[var(--text-2)] mt-0.5">{currentUser.email ?? 'ranjith302@gmail.com'}</div>
+              <div className="text-[11px] text-[var(--text-3)] capitalize mt-0.5">Role: {currentUser.role}</div>
+            </div>
+          </div>
+
+          {/* Theme preference */}
+          <div>
+            <div className="text-xs font-semibold text-[var(--text-2)] mb-2">Theme Preference</div>
+            <div className="space-y-1.5">
+              {themes.map(t => (
+                <button key={t.id} onClick={() => { setSelectedTheme(t.id); onThemeChange(t.id); }}
+                  className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg border text-sm transition-colors ${selectedTheme === t.id ? 'border-[var(--brand)] bg-[var(--surface-2)]' : 'border-[var(--border)] hover:bg-[var(--surface-2)]'}`}>
+                  <span className="w-3.5 h-3.5 rounded-full flex-shrink-0" style={{ background: t.accent }} />
+                  <span className="text-[var(--text)] font-medium text-xs">{t.label}</span>
+                  {selectedTheme === t.id && <Check size={14} className="ml-auto text-[var(--brand)]" />}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+        <div className="px-6 pb-5 flex gap-3">
+          <button onClick={onClose} className="flex-1 py-2.5 border border-[var(--border)] rounded-xl text-sm text-[var(--text-2)]">Cancel</button>
+          <button onClick={onSave} className="flex-1 py-2.5 bg-[var(--brand)] text-white rounded-xl text-sm font-medium">Save Preferences</button>
+        </div>
+      </div>
+    </div>
   );
 }

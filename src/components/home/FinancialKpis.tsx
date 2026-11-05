@@ -33,7 +33,7 @@ export default function FinancialKpis() {
   const totalReceivables = customerInvoices.filter(i => i.status !== 'paid').reduce((s, i) => s + (i.amount - i.amountPaid), 0);
   const totalPayables = supplierInvoices.filter(i => i.status !== 'paid').reduce((s, i) => s + (i.amount - i.amountPaid), 0);
   const dueInWeek = supplierInvoices.filter(i => i.status !== 'paid' && new Date(i.dueDate) <= new Date(Date.now() + 7 * 86400000)).length;
-  const stockValue = inventory.reduce((s, m) => s + (m.stockQty * (m.unitCost ?? 0)), 0);
+  const stockValue = inventory.reduce((s, m) => s + (m.onHandQty * (m.unitCost ?? 120)), 0);
   const profit = totalSales - totalPurchases;
 
   const kpis: KpiItem[] = [

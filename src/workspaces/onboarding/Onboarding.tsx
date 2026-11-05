@@ -332,25 +332,7 @@ export default function Onboarding() {
           )}
 
           {/* Step 6: Users */}
-          {step === 6 && (
-            <div>
-              <h2 className="text-xl font-bold text-[var(--text)] mb-1">Users & Access</h2>
-              <p className="text-sm text-[var(--text-2)] mb-5">Your account has been created as the owner/administrator. You can invite team members after activation.</p>
-              <div className="p-4 rounded-xl border border-[var(--success)]/30 bg-[var(--success)]/5">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-[var(--brand)] flex items-center justify-center text-white font-bold text-sm">O</div>
-                  <div>
-                    <div className="text-sm font-semibold text-[var(--text)]">Owner / Administrator</div>
-                    <div className="text-xs text-[var(--text-3)]">Full access to all workspaces</div>
-                  </div>
-                  <CheckCircle size={16} className="ml-auto text-[var(--success)]" />
-                </div>
-              </div>
-              <div className="mt-4 p-3 rounded-xl border border-[var(--border)] bg-[var(--surface-2)]">
-                <p className="text-xs text-[var(--text-2)]">Default roles (Sales, Buyer, Storekeeper, Production, QC, Maintenance, Dispatch, Auditor) are pre-configured and can be assigned to users from Admin & Security after activation.</p>
-              </div>
-            </div>
-          )}
+          {step === 6 && <Step6Users />}
 
           {/* Step 7: Review */}
           {step === 7 && (
@@ -393,6 +375,78 @@ export default function Onboarding() {
               </button>
             )}
           </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const ROLE_CAPS = [
+  { role: 'Owner', access: 'Full access to all workspaces, settings and approvals' },
+  { role: 'Sales Manager', access: 'Sales, Customers, Dispatch — Read/Write' },
+  { role: 'Production Supervisor', access: 'Production, Quality, Inventory — Read/Write' },
+  { role: 'Buyer', access: 'Procurement, Suppliers — Read/Write' },
+  { role: 'QC Inspector', access: 'Quality — Read/Write; other modules — Read only' },
+  { role: 'Store Keeper', access: 'Inventory — Read/Write; other modules — Read only' },
+  { role: 'Accounts', access: 'Finance — Read/Write; other modules — Read only' },
+  { role: 'Viewer', access: 'All modules — Read only' },
+];
+
+function Step6Users() {
+  const [users, setUsers] = useState([{ name: 'Owner / Administrator', email: 'ranjith302@gmail.com', role: 'Owner', access: 'Full Access' }]);
+  const [showAdd, setShowAdd] = useState(false);
+  const [form, setForm] = useState({ name: '', email: '', role: 'Sales Manager' });
+  return (
+    <div>
+      <h2 className="text-xl font-bold text-[var(--text)] mb-1">Users & Access</h2>
+      <p className="text-sm text-[var(--text-2)] mb-4">Add team members and assign roles. You can always change this from Admin &amp; Security.</p>
+
+      {/* User table */}
+      <div className="rounded-xl border border-[var(--border)] overflow-hidden mb-3">
+        <table className="w-full text-sm">
+          <thead style={{ background: 'var(--surface-2)', borderBottom: '1px solid var(--border)' }}>
+            <tr>{['Name', 'Email', 'Role', 'Access'].map(h => <th key={h} className="text-left px-3 py-2 text-xs font-semibold text-[var(--text-2)]">{h}</th>)}</tr>
+          </thead>
+          <tbody>
+            {users.map((u, i) => (
+              <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
+                <td className="px-3 py-2 text-xs font-medium text-[var(--text)]">{u.name}</td>
+                <td className="px-3 py-2 text-xs text-[var(--text-2)]">{u.email}</td>
+                <td className="px-3 py-2 text-xs text-[var(--text-2)]">{u.role}</td>
+                <td className="px-3 py-2 text-xs text-[var(--text-3)]">{u.access}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {!showAdd ? (
+        <button onClick={() => setShowAdd(true)} className="text-sm text-[var(--brand)] font-medium hover:underline">+ Add User</button>
+      ) : (
+        <div className="p-3 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] space-y-2 mb-3">
+          <div className="grid grid-cols-2 gap-2">
+            <input className="eoss-input col-span-2 text-xs" placeholder="Full name" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
+            <input className="eoss-input text-xs" placeholder="Email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} />
+            <select className="eoss-input text-xs" value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value }))}>
+              {ROLE_CAPS.map(r => <option key={r.role}>{r.role}</option>)}
+            </select>
+          </div>
+          <div className="flex gap-2">
+            <button onClick={() => { if (form.name && form.email) { setUsers(u => [...u, { name: form.name, email: form.email, role: form.role, access: ROLE_CAPS.find(r => r.role === form.role)?.access.split(';')[0] ?? 'Read/Write' }]); setForm({ name: '', email: '', role: 'Sales Manager' }); setShowAdd(false); } }} className="px-3 py-1.5 bg-[var(--brand)] text-white rounded-lg text-xs font-medium">Add</button>
+            <button onClick={() => setShowAdd(false)} className="px-3 py-1.5 border border-[var(--border)] text-[var(--text-2)] rounded-lg text-xs">Cancel</button>
+          </div>
+        </div>
+      )}
+
+      {/* Role capabilities */}
+      <div className="mt-5">
+        <div className="text-xs font-semibold text-[var(--text-2)] mb-2">Role Capabilities</div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          {ROLE_CAPS.map(r => (
+            <div key={r.role} className="p-3 rounded-xl border border-[var(--border)] bg-[var(--surface-2)]">
+              <div className="text-xs font-semibold text-[var(--text)]">{r.role}</div>
+              <div className="text-[11px] text-[var(--text-3)] mt-0.5">{r.access}</div>
+            </div>
+          ))}
         </div>
       </div>
     </div>

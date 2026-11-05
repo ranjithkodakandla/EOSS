@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Plus, Building2, Phone, Mail, ChevronRight, Star, X } from 'lucide-react';
+import { Search, Plus, Building2, Phone, Mail, ChevronRight, Star, X, Pencil } from 'lucide-react';
 import { CUSTOMERS, useStore } from '../../store';
 import StatusChip from '../../components/layout/StatusChip';
 import EmptyState from '../../components/feedback/EmptyState';
@@ -11,6 +11,7 @@ export default function CustomerDirectory() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
   const [showAdd, setShowAdd] = useState(false);
+  const [editCustomer, setEditCustomer] = useState<typeof CUSTOMERS[0] | null>(null);
 
   const filtered = CUSTOMERS.filter(c => {
     const q = search.toLowerCase();
@@ -118,7 +119,10 @@ export default function CustomerDirectory() {
                   <td className="px-4 py-3">
                     <StatusChip status={c.status as 'active' | 'archived'} />
                   </td>
-                  <td className="px-4 py-3 text-right">
+                  <td className="px-4 py-3 text-right flex items-center justify-end gap-1">
+                    <button onClick={e => { e.stopPropagation(); setEditCustomer(c); }} className="p-1 rounded hover:bg-[var(--surface-2)]" title="Edit customer">
+                      <Pencil size={13} className="text-[var(--text-3)]" />
+                    </button>
                     <ChevronRight size={15} className="text-[var(--text-2)]" />
                   </td>
                 </tr>
@@ -137,12 +141,23 @@ export default function CustomerDirectory() {
           }}
         />
       )}
+      {editCustomer && (
+        <AddCustomerModal
+          editMode
+          initialValues={{ legalName: editCustomer.legalName, tradingName: editCustomer.tradingName ?? '', gstin: editCustomer.gstin, pan: editCustomer.panNumber, city: editCustomer.city, state: editCustomer.state, phone: editCustomer.phone, email: editCustomer.email, paymentTerms: editCustomer.paymentTerms, contactPerson: editCustomer.contactPerson }}
+          onClose={() => setEditCustomer(null)}
+          onSave={(name) => {
+            showToast({ type: 'success', title: 'Customer updated', body: `${name} has been updated.` });
+            setEditCustomer(null);
+          }}
+        />
+      )}
     </div>
   );
 }
 
-function AddCustomerModal({ onClose, onSave }: { onClose: () => void; onSave: (name: string) => void }) {
-  const [form, setForm] = useState({ legalName: '', tradingName: '', gstin: '', pan: '', city: '', state: '', phone: '', email: '', paymentTerms: 'Net 30', contactPerson: '' });
+function AddCustomerModal({ onClose, onSave, initialValues, editMode }: { onClose: () => void; onSave: (name: string) => void; initialValues?: Record<string, string>; editMode?: boolean }) {
+  const [form, setForm] = useState({ legalName: '', tradingName: '', gstin: '', pan: '', city: '', state: '', phone: '', email: '', paymentTerms: 'Net 30', contactPerson: '', ...initialValues });
   const [err, setErr] = useState('');
   const save = () => {
     if (!form.legalName || !form.city) { setErr('Legal name and city are required'); return; }
@@ -152,7 +167,7 @@ function AddCustomerModal({ onClose, onSave }: { onClose: () => void; onSave: (n
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
       <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl w-full max-w-md p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
         <div className="flex justify-between items-center mb-4">
-          <h3 className="font-bold text-[var(--text)]">Add Customer</h3>
+          <h3 className="font-bold text-[var(--text)]">{editMode ? 'Edit Customer' : 'Add Customer'}</h3>
           <button onClick={onClose}><X size={16} className="text-[var(--text-3)]" /></button>
         </div>
         <div className="grid grid-cols-2 gap-3">

@@ -133,9 +133,10 @@ export default function Procurement() {
             </thead>
             <tbody>
               {PURCHASE_REQS.map(pr => (
-                <tr key={pr.id} style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}
+                <tr key={pr.id} className="cursor-pointer" style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}
                   onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--surface-2)'; }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'var(--surface)'; }}>
+                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'var(--surface)'; }}
+                  onClick={() => showToast({ type: 'info', title: pr.prNumber, body: `${pr.raisedBy} · ${pr.lineCount} lines · Priority: ${pr.priority} · ${pr.status}` })}>
                   <td className="px-4 py-3 font-mono text-xs font-bold" style={{ color: 'var(--brand)' }}>{pr.prNumber}</td>
                   <td className="px-4 py-3 text-sm" style={{ color: 'var(--text)' }}>{pr.raisedBy}</td>
                   <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-2)' }}>{new Date(pr.raisedDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</td>

@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { BarChart2, Download, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { useStore } from '../../store';
-import { useNavigate } from 'react-router-dom';
 
 const REPORT_TYPES = [
   { id: 'production', label: 'Production Summary', desc: 'Job completion rates, stage cycle times, OEE', icon: '🏭' },
@@ -13,13 +12,10 @@ const REPORT_TYPES = [
 ];
 
 export default function Reports() {
-  const { jobs, inventory, inspections, assets, dispatches, maintenanceEvents, showToast } = useStore();
-  const navigate = useNavigate();
+  const { jobs, inventory, inspections, assets, dispatches, maintenanceEvents, supplierPos, showToast } = useStore();
   const [activeReport, setActiveReport] = useState<string | null>(null);
   const [dateFrom, setDateFrom] = useState('2026-10-01');
   const [dateTo, setDateTo] = useState('2026-11-05');
-
-  const REPORT_ROUTES: Record<string, string> = { production: '/jobs', inventory: '/inventory', quality: '/quality', procurement: '/procurement', asset: '/assets', dispatch: '/dispatch' };
 
   const completedJobs = jobs.filter(j => j.status === 'complete').length;
   const inProgressJobs = jobs.filter(j => j.status === 'active').length;
@@ -58,7 +54,7 @@ export default function Reports() {
             <div className="font-semibold text-sm text-[var(--text)]">{r.label}</div>
             <div className="text-xs text-[var(--text-3)] mt-1">{r.desc}</div>
             <div className="mt-3 flex items-center gap-2">
-              <button onClick={e => { e.stopPropagation(); setActiveReport(r.id); navigate(REPORT_ROUTES[r.id] ?? '/reports'); }} className="text-xs text-[var(--brand)] font-medium hover:underline">View Report →</button>
+              <button onClick={e => { e.stopPropagation(); setActiveReport(r.id === activeReport ? null : r.id); }} className="text-xs text-[var(--brand)] font-medium hover:underline">View Report →</button>
               <button onClick={e => { e.stopPropagation(); showToast({ type: 'info', title: 'Export queued', body: `${r.label} (${dateFrom} – ${dateTo}) will download shortly.` }); }} className="ml-auto text-[var(--text-3)] hover:text-[var(--brand)]"><Download size={13} /></button>
             </div>
           </div>
@@ -99,6 +95,88 @@ export default function Reports() {
             <Stat label="Inspections" value={inspections.length} />
             <Stat label="Pass Rate" value={`${passRate}%`} color={passRate >= 90 ? 'success' : 'warning'} />
             <Stat label="Failed" value={inspections.filter(i => i.result === 'fail').length} color="error" />
+          </div>
+        </div>
+      )}
+
+      {activeReport === 'inventory' && (
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-5">
+          <h3 className="font-semibold text-[var(--text)] mb-4">Inventory Report</h3>
+          <div className="grid md:grid-cols-3 gap-4 mb-5">
+            <Stat label="Total Items" value={inventory.length} />
+            <Stat label="Shortage Items" value={inventory.filter(i => i.shortage).length} color={inventory.filter(i => i.shortage).length > 0 ? 'error' : 'success'} />
+            <Stat label="In Transit" value={inventory.filter(i => i.inTransitQty > 0).length} color="info" />
+          </div>
+          <div className="overflow-x-auto">
+            <table className="eoss-table">
+              <thead><tr><th>Material</th><th>Location</th><th>On Hand</th><th>Available</th><th>Status</th></tr></thead>
+              <tbody>
+                {inventory.slice(0, 10).map(i => (
+                  <tr key={i.id}>
+                    <td className="text-sm font-medium text-[var(--text)]">{i.materialName}</td>
+                    <td className="text-xs text-[var(--text-2)]">{i.locationName}</td>
+                    <td className="text-sm text-[var(--text)]">{i.onHandQty} {i.primaryUom}</td>
+                    <td className="text-sm text-[var(--text-2)]">{i.availableQty}</td>
+                    <td><span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${i.shortage ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-700'}`}>{i.shortage ? 'Shortage' : 'OK'}</span></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {activeReport === 'procurement' && (
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-5">
+          <h3 className="font-semibold text-[var(--text)] mb-4">Procurement Report</h3>
+          <div className="grid md:grid-cols-3 gap-4 mb-5">
+            <Stat label="Supplier POs" value={supplierPos.length} />
+            <Stat label="Overdue POs" value={supplierPos.filter(p => p.status === 'overdue').length} color={supplierPos.filter(p => p.status === 'overdue').length > 0 ? 'error' : 'success'} />
+            <Stat label="Total Spend" value={`₹${(supplierPos.reduce((s, p) => s + p.totalValue, 0) / 100000).toFixed(1)}L`} color="info" />
+          </div>
+          <div className="overflow-x-auto">
+            <table className="eoss-table">
+              <thead><tr><th>PO Number</th><th>Supplier</th><th>Raised</th><th>Value</th><th>Status</th></tr></thead>
+              <tbody>
+                {supplierPos.slice(0, 8).map(p => (
+                  <tr key={p.id}>
+                    <td className="font-mono text-xs font-bold text-[var(--brand)]">{p.poNumber}</td>
+                    <td className="text-sm text-[var(--text)]">{p.supplierName}</td>
+                    <td className="text-xs text-[var(--text-2)]">{new Date(p.raisedDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</td>
+                    <td className="font-mono text-sm text-[var(--text)]">₹{(p.totalValue / 1000).toFixed(1)}k</td>
+                    <td><span className="text-xs text-[var(--text-2)]">{p.status}</span></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {activeReport === 'dispatch' && (
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-5">
+          <h3 className="font-semibold text-[var(--text)] mb-4">Dispatch Report</h3>
+          <div className="grid md:grid-cols-3 gap-4 mb-5">
+            <Stat label="Total Dispatches" value={dispatches.length} />
+            <Stat label="Delivered" value={dispatches.filter(d => d.status === 'delivered').length} color="success" />
+            <Stat label="In Transit" value={dispatches.filter(d => d.status === 'in_transit').length} color="info" />
+          </div>
+          <div className="overflow-x-auto">
+            <table className="eoss-table">
+              <thead><tr><th>Dispatch #</th><th>Customer</th><th>Date</th><th>Vehicle</th><th>Status</th></tr></thead>
+              <tbody>
+                {dispatches.slice(0, 8).map(d => (
+                  <tr key={d.id}>
+                    <td className="font-mono text-xs font-bold text-[var(--brand)]">{d.dispatchNumber}</td>
+                    <td className="text-sm text-[var(--text)]">{d.customerName}</td>
+                    <td className="text-xs text-[var(--text-2)]">{new Date(d.dispatchDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</td>
+                    <td className="text-xs text-[var(--text-2)]">{d.vehicleNumber ?? '—'}</td>
+                    <td><span className="text-xs text-[var(--text-2)]">{d.status}</span></td>
+                  </tr>
+                ))}
+                {dispatches.length === 0 && <tr><td colSpan={5} className="text-center py-6 text-sm text-[var(--text-3)]">No dispatch records found</td></tr>}
+              </tbody>
+            </table>
           </div>
         </div>
       )}
