@@ -20,7 +20,7 @@ export async function initializeDatabase(): Promise<void> {
 }
 
 export async function resetDemo(): Promise<void> {
-  await db.transaction('rw',
+  await db.transaction('rw', [
     db.rfqs, db.quotations, db.customerPos, db.poLines,
     db.invoices, db.payments, db.collections, db.deliveryConfirmations,
     db.jobs, db.grns, db.supplierPos, db.supplierPoLines,
@@ -29,7 +29,7 @@ export async function resetDemo(): Promise<void> {
     db.auditEvents, db.sites, db.parties, db.materials,
     db.employees, db.storeLocations, db.assets, db.maintenanceEvents,
     db.documents, db.supplierQuotations,
-    async () => {
+  ], async () => {
       await Promise.all([
         db.rfqs.clear(), db.quotations.clear(), db.customerPos.clear(),
         db.poLines.clear(), db.invoices.clear(), db.payments.clear(),
@@ -48,7 +48,7 @@ export async function resetDemo(): Promise<void> {
 }
 
 async function seedAll(): Promise<void> {
-  await db.transaction('rw',
+  await db.transaction('rw', [
     db.sites, db.parties, db.materials, db.employees, db.storeLocations,
     db.rfqs, db.quotations, db.customerPos, db.poLines,
     db.invoices, db.payments, db.collections,
@@ -56,7 +56,7 @@ async function seedAll(): Promise<void> {
     db.purchaseReqs, db.lots, db.movements, db.inspections,
     db.ncrs, db.qualityReleases, db.dispatches, db.auditEvents,
     db.assets, db.maintenanceEvents, db.documents, db.supplierQuotations,
-    async () => {
+  ], async () => {
       await db.sites.bulkAdd(SITES_FULL);
       await db.storeLocations.bulkAdd(STORE_LOCATIONS);
       await db.parties.bulkAdd([...CUSTOMERS, ...SUPPLIERS]);
