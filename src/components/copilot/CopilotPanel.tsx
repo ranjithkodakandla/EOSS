@@ -42,11 +42,6 @@ export default function CopilotPanel({ isDrawer, onClose }: Props) {
   const isOcean = eossTheme === 'ocean';
 
   const themeConfig = {
-    heroImg: isGraphite
-      ? '/assets/copilot/hero_graphite.png'
-      : isOcean
-      ? '/assets/copilot/hero_ocean.png'
-      : '/assets/copilot/hero_aurora.png',
     panelBg: isGraphite
       ? '#1C1D24'
       : isOcean
@@ -63,12 +58,7 @@ export default function CopilotPanel({ isDrawer, onClose }: Props) {
       ? '0 16px 40px -8px rgba(8,127,140,0.45)'
       : '0 16px 40px -8px rgba(112,72,245,0.45)',
     sparkleColor: isGraphite ? '#F59E0B' : isOcean ? '#22D3EE' : '#FCD34D',
-    // Graphite robot sits far right in its image → shift image left so robot is close to bubble
-    // Ocean robot is wide/centered → push mask further right so it doesn't bleed into content
-    // Aurora confirmed good at right:0 / mask:38%
-    heroRight: isGraphite ? 14 : isOcean ? 0 : 0,
-    heroMask: isGraphite ? '28%' : isOcean ? '46%' : '38%',
-    sendBtnBg: isGraphite
+sendBtnBg: isGraphite
       ? 'linear-gradient(135deg, #E58A36, #F59E0B)'
       : isOcean
       ? 'linear-gradient(135deg, #087F8C, #0EA5A5)'
@@ -170,29 +160,35 @@ export default function CopilotPanel({ isDrawer, onClose }: Props) {
       }}
     >
       {/* ── Hero ── */}
-      {/* Robot images are 570×467 with robot centered. We right-align at natural
-          aspect ratio (height=100%) so the robot sits in the right half, then
-          mask-fade the left edge so it blends into the panel gradient.
-          Content column is capped at 54% so it never reaches the robot body. */}
       <div
         className="relative flex-shrink-0 overflow-hidden"
-        style={{ height: 192, background: themeConfig.panelBg }}
+        style={{ height: 200, background: themeConfig.panelBg }}
       >
-        {/* Robot artwork — right-aligned, natural ratio, left-edge faded */}
-        <img
-          src={themeConfig.heroImg}
-          alt=""
-          aria-hidden
-          style={{
-            position: 'absolute',
-            right: themeConfig.heroRight,
-            top: 0,
-            height: '108%',
-            width: 'auto',
-            WebkitMaskImage: `linear-gradient(to right, transparent 0%, black ${themeConfig.heroMask})`,
-            maskImage: `linear-gradient(to right, transparent 0%, black ${themeConfig.heroMask})`,
-          }}
-        />
+        {/* All 3 hero images pre-rendered; opacity switch avoids flicker on theme change */}
+        {([
+          { theme: 'aurora', src: '/assets/copilot/hero_aurora.png', right: 0, mask: '38%' },
+          { theme: 'ocean',  src: '/assets/copilot/hero_ocean.png',  right: 0, mask: '46%' },
+          { theme: 'graphite', src: '/assets/copilot/hero_graphite.png', right: 14, mask: '28%' },
+        ] as const).map(({ theme, src, right, mask }) => (
+          <img
+            key={theme}
+            src={src}
+            alt=""
+            aria-hidden
+            style={{
+              position: 'absolute',
+              right,
+              top: 0,
+              height: '108%',
+              width: 'auto',
+              WebkitMaskImage: `linear-gradient(to right, transparent 0%, black ${mask})`,
+              maskImage: `linear-gradient(to right, transparent 0%, black ${mask})`,
+              opacity: eossTheme === theme ? 1 : 0,
+              transition: 'opacity 0.2s ease',
+              pointerEvents: 'none',
+            }}
+          />
+        ))}
 
         {/* Bottom fade into panel bg */}
         <div style={{
@@ -201,23 +197,19 @@ export default function CopilotPanel({ isDrawer, onClose }: Props) {
           zIndex: 2,
         }} />
 
-        {/* Left content column — header top, speech bubble bottom */}
+        {/* Left content column — header + bubble stacked at bottom */}
         <div
-          className="relative flex flex-col justify-between p-4"
+          className="relative flex flex-col justify-end gap-3 p-4"
           style={{ width: '54%', height: '100%', zIndex: 3 }}
         >
           <div className="flex items-center gap-2">
             <div className="w-7 h-7 rounded-lg bg-white/20 backdrop-blur-md flex items-center justify-center flex-shrink-0">
               <Sparkles size={15} style={{ color: themeConfig.sparkleColor }} />
             </div>
-            <div>
-              <div className="flex items-center gap-1 font-extrabold text-white text-[13px] leading-tight">
-                EOSS Copilot
-                <span style={{ color: themeConfig.sparkleColor }} className="text-xs ml-0.5">✦</span>
-              </div>
-              <div className="text-[10px] text-white/70 leading-tight mt-0.5">
-                Your intelligent business partner
-              </div>
+            <div className="flex items-center gap-1 font-extrabold text-white text-[13px] leading-none whitespace-nowrap">
+              EOSS Copilot
+              <span style={{ color: themeConfig.sparkleColor }} className="text-xs mx-0.5">✦</span>
+              <span className="text-[10px] text-white/60 font-normal">Your intelligent partner</span>
             </div>
           </div>
 

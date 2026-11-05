@@ -42,7 +42,7 @@ export default function Quality() {
 
       <div className="flex-1 overflow-auto">
         {tab === 'inspections' && (
-          <table className="w-full text-sm border-separate border-spacing-0">
+          <table className="w-full text-sm border-separate border-spacing-0" style={{ minWidth: 800 }}>
             <thead style={{ position: 'sticky', top: 0, zIndex: 5 }}>
               <tr style={{ background: 'var(--surface-muted,#F8F9FC)' }}>
                 {['Inspection #', 'Type', 'Subject', 'Date', 'Inspector', 'Sample', 'Accept', 'Reject', 'Result', ''].map(h => (
@@ -56,18 +56,25 @@ export default function Quality() {
                   onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--surface-muted,#F8F9FC)'; }}
                   onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'var(--surface)'; }}
                   onClick={() => navigate(`/quality/inspection/${i.id}`)}>
-                  <td className="px-4 py-3 font-mono text-xs font-bold" style={{ color: 'var(--brand)' }}>{i.inspectionNumber}</td>
-                  <td className="px-4 py-3"><StatusChip status={i.type.toLowerCase().replace('-', '_').replace(' ', '_')} label={i.type} size="sm" /></td>
+                  <td className="px-4 py-3">
+                    <span className="font-mono text-xs font-bold" style={{ color: 'var(--brand)' }}>{i.inspectionNumber}</span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className="text-xs font-semibold capitalize" style={{ color: 'var(--text-2)' }}>{i.type}</span>
+                  </td>
                   <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-2)' }}>{i.jobNumber ? `Job ${i.jobNumber} · ${i.stageName}` : i.lotId ? 'Lot' : '—'}</td>
                   <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-2)' }}>{new Date(i.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</td>
-                  <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-2)' }}>{i.inspectorName}</td>
-                  <td className="px-4 py-3 font-mono text-sm text-center" style={{ color: 'var(--text)' }}>{i.sampleQty}</td>
-                  <td className="px-4 py-3 font-mono text-sm text-center font-semibold" style={{ color: 'var(--success,#16A34A)' }}>{i.acceptedQty > 0 ? i.acceptedQty : '—'}</td>
-                  <td className="px-4 py-3 font-mono text-sm text-center font-semibold" style={{ color: 'var(--error,#DC2626)' }}>{i.rejectedQty > 0 ? i.rejectedQty : '—'}</td>
+                  <td className="px-4 py-3 text-xs font-medium" style={{ color: 'var(--text)' }}>{i.inspectorName}</td>
+                  <td className="px-4 py-3 text-xs text-center font-mono" style={{ color: 'var(--text)' }}>{i.sampleQty}</td>
+                  <td className="px-4 py-3 text-xs text-center font-semibold" style={{ color: i.acceptedQty > 0 ? 'var(--success,#16A34A)' : 'var(--text-3)' }}>{i.acceptedQty > 0 ? i.acceptedQty : '—'}</td>
+                  <td className="px-4 py-3 text-xs text-center font-semibold" style={{ color: i.rejectedQty > 0 ? 'var(--error,#DC2626)' : 'var(--text-3)' }}>{i.rejectedQty > 0 ? i.rejectedQty : '—'}</td>
                   <td className="px-4 py-3"><StatusChip status={i.result} size="sm" /></td>
                   <td className="px-4 py-3"><ChevronRight size={14} style={{ color: 'var(--text-3)' }} /></td>
                 </tr>
               ))}
+              {inspections.length === 0 && (
+                <tr><td colSpan={10} className="px-4 py-10 text-center text-sm" style={{ color: 'var(--text-3)' }}>No inspections found</td></tr>
+              )}
             </tbody>
           </table>
         )}
