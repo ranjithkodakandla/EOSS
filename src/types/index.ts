@@ -361,6 +361,7 @@ export interface InventoryItem {
   reorderPoint: number;
   shortage: boolean;
   lotCount: number;
+  unitCost?: number;
 }
 
 // ── Quality ──

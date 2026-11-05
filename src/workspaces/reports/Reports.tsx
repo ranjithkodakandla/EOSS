@@ -160,7 +160,7 @@ export default function Reports() {
           <div className="grid md:grid-cols-3 gap-4 mb-5">
             <Stat label="Total Dispatches" value={dispatches.length} />
             <Stat label="Delivered" value={dispatches.filter(d => d.status === 'delivered').length} color="success" />
-            <Stat label="In Transit" value={dispatches.filter(d => d.status === 'in_transit').length} color="info" />
+            <Stat label="In Transit" value={dispatches.filter(d => (d.status as string) === 'in_transit' || d.status === 'dispatched').length} color="info" />
           </div>
           <div className="overflow-x-auto">
             <table className="eoss-table">

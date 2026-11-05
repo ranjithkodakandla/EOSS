@@ -116,7 +116,6 @@ export default function Sales() {
               borderColor: 'var(--border)',
               background: 'var(--surface)',
               color: 'var(--text)',
-              focusRingColor: 'var(--brand)',
             }}
           />
         </div>
