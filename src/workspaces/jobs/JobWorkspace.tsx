@@ -15,13 +15,16 @@ export default function JobWorkspace() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const {
-    jobs, setJobStatus, updateJobStage, resolveBlocker, currentUser, showToast
+    jobs, setJobStatus, updateJobStage, resolveBlocker, currentUser, showToast,
+    inspections, ncrs, lots, issueMaterial, addInspection, addNCR,
   } = useStore();
 
   const [tab, setTab] = useState('Overview');
   const [stageModalOpen, setStageModalOpen] = useState(false);
   const [selectedStageId, setSelectedStageId] = useState<string>('');
   const [goodQtyInput, setGoodQtyInput] = useState<number>(0);
+  const [rejectQtyInput, setRejectQtyInput] = useState<number>(0);
+  const [stageNotes, setStageNotes] = useState('');
   const [selectedEmployee, setSelectedEmployee] = useState<string>(EMPLOYEES[5]?.name || 'Mohan Das');
 
   const job = jobs.find(j => j.id === id);
@@ -41,6 +44,8 @@ export default function JobWorkspace() {
       setSelectedStageId(targetStage.id);
       const rem = Math.max(0, targetStage.inputQty - targetStage.completedGoodQty);
       setGoodQtyInput(rem || targetStage.inputQty);
+      setRejectQtyInput(0);
+      setStageNotes('');
       setStageModalOpen(true);
     }
   };
@@ -50,10 +55,13 @@ export default function JobWorkspace() {
     if (!targetStage) return;
 
     const totalGood = targetStage.completedGoodQty + goodQtyInput;
+    const totalReject = targetStage.rejectedQty + rejectQtyInput;
     updateJobStage(job.id, selectedStageId, {
       completedGoodQty: totalGood,
+      rejectedQty: totalReject,
       status: totalGood >= targetStage.inputQty ? 'complete' : 'in_progress',
       owner: selectedEmployee,
+      actualStart: targetStage.actualStart || '2026-11-05',
     });
 
     setStageModalOpen(false);
@@ -360,7 +368,92 @@ export default function JobWorkspace() {
         </div>
       )}
 
-      {['Procurement', 'Quality', 'NCR / Rework', 'Assets', 'Documents', 'Dispatch', 'Updates', 'Blockers'].includes(tab) && (
+      {/* Quality tab */}
+      {tab === 'Quality' && (() => {
+        const jobInspections = inspections.filter(i => i.jobId === job.id);
+        return (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-bold text-[var(--text)]">Inspections for {job.jobNumber}</h3>
+              {['owner', 'qc'].includes(currentUser.role) && (
+                <button onClick={() => navigate(`/quality?newFor=${job.id}`)}
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-white" style={{ background: 'var(--brand)' }}>
+                  + New Inspection
+                </button>
+              )}
+            </div>
+            {jobInspections.length === 0 ? (
+              <div className="rounded-xl border p-8 text-center" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
+                <p className="text-sm text-[var(--text-3)]">No inspections recorded for this job yet.</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto rounded-xl border" style={{ borderColor: 'var(--border)' }}>
+                <table className="eoss-table">
+                  <thead><tr><th>Inspection #</th><th>Type</th><th>Stage</th><th>Date</th><th>Inspector</th><th>Sample</th><th>Accept</th><th>Reject</th><th>Result</th></tr></thead>
+                  <tbody>
+                    {jobInspections.map(i => (
+                      <tr key={i.id} className="cursor-pointer" onClick={() => navigate(`/quality/inspection/${i.id}`)}>
+                        <td className="font-mono text-xs font-bold" style={{ color: 'var(--brand)' }}>{i.inspectionNumber}</td>
+                        <td className="text-xs capitalize">{i.type}</td>
+                        <td className="text-xs text-[var(--text-2)]">{i.stageName || '—'}</td>
+                        <td className="text-xs text-[var(--text-2)]">{new Date(i.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</td>
+                        <td className="text-xs">{i.inspectorName}</td>
+                        <td className="text-xs text-center font-mono">{i.sampleQty}</td>
+                        <td className="text-xs text-center font-semibold" style={{ color: i.acceptedQty > 0 ? 'var(--success,#16A34A)' : 'var(--text-3)' }}>{i.acceptedQty || '—'}</td>
+                        <td className="text-xs text-center font-semibold" style={{ color: i.rejectedQty > 0 ? 'var(--error,#DC2626)' : 'var(--text-3)' }}>{i.rejectedQty || '—'}</td>
+                        <td><StatusChip status={i.result} size="sm" /></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
+      {/* NCR / Rework tab */}
+      {tab === 'NCR / Rework' && (() => {
+        const jobNcrs = ncrs.filter(n => n.jobId === job.id);
+        return (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-bold text-[var(--text)]">NCRs for {job.jobNumber}</h3>
+            </div>
+            {jobNcrs.length === 0 ? (
+              <div className="rounded-xl border p-8 text-center" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
+                <p className="text-sm text-[var(--text-3)]">No NCRs raised for this job.</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {jobNcrs.map(n => (
+                  <div key={n.id} className="rounded-xl border p-4 cursor-pointer hover:opacity-90"
+                    style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
+                    onClick={() => navigate(`/quality/ncr/${n.id}`)}>
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap mb-1">
+                          <span className="font-mono font-bold text-sm" style={{ color: 'var(--brand)' }}>{n.ncrNumber}</span>
+                          <StatusChip status={n.severity.toLowerCase()} label={n.severity} size="sm" />
+                          <StatusChip status={n.status} size="sm" />
+                        </div>
+                        <p className="text-sm text-[var(--text)]">{n.description}</p>
+                        <p className="text-xs text-[var(--text-3)] mt-1">{n.sourceType} · {n.affectedQty} units · Disposition: {n.disposition}</p>
+                      </div>
+                      <ChevronRight size={14} style={{ color: 'var(--text-3)' }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
+      {/* Material Issue tab */}
+      {tab === 'Materials' && (() => null)()}
+
+      {['Procurement', 'Assets', 'Documents', 'Dispatch', 'Updates', 'Blockers'].includes(tab) && (
         <div className="rounded-xl border p-10 text-center" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
           <p className="text-sm font-medium" style={{ color: 'var(--text-2)' }}>{tab}</p>
           <p className="text-xs mt-1" style={{ color: 'var(--text-3)' }}>No data recorded yet for this job.</p>
@@ -404,18 +497,27 @@ export default function JobWorkspace() {
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-[var(--text-2)] mb-1">
-                  Operator
-                </label>
-                <select
-                  value={selectedEmployee}
-                  onChange={e => setSelectedEmployee(e.target.value)}
-                  className="w-full p-2.5 rounded-lg bg-[var(--surface-2)] border border-[var(--border)] text-[var(--text)]"
-                >
+                <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Rejected Qty</label>
+                <input type="number" min="0" value={rejectQtyInput}
+                  onChange={e => setRejectQtyInput(Number(e.target.value))}
+                  className="w-full p-2.5 rounded-lg bg-[var(--surface-2)] border border-[var(--border)] font-mono text-sm text-[var(--text)]" />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Operator</label>
+                <select value={selectedEmployee} onChange={e => setSelectedEmployee(e.target.value)}
+                  className="w-full p-2.5 rounded-lg bg-[var(--surface-2)] border border-[var(--border)] text-[var(--text)]">
                   {EMPLOYEES.map(emp => (
                     <option key={emp.id} value={emp.name}>{emp.name} ({emp.department})</option>
                   ))}
                 </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Notes</label>
+                <textarea rows={2} value={stageNotes} onChange={e => setStageNotes(e.target.value)}
+                  placeholder="Optional production notes…"
+                  className="w-full p-2.5 rounded-lg bg-[var(--surface-2)] border border-[var(--border)] text-sm text-[var(--text)] resize-none" />
               </div>
             </div>
 

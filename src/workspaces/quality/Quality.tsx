@@ -1,15 +1,20 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Plus, ChevronRight, AlertTriangle, X, Trash2 } from 'lucide-react';
 import { useStore } from '../../store';
 import StatusChip from '../../components/layout/StatusChip';
-import type { Inspection } from '../../types';
+import type { Inspection, NCR } from '../../types';
+
+let ncrSeq = 100;
 
 export default function Quality() {
-  const { inspections, ncrs, currentUser, addInspection, showToast } = useStore();
+  const { inspections, ncrs, jobs, currentUser, addInspection, addNCR, showToast } = useStore();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [tab, setTab] = useState<'inspections' | 'ncrs'>('inspections');
-  const [showNew, setShowNew] = useState(false);
+  const [showNew, setShowNew] = useState(!!searchParams.get('newFor'));
+  const [showNewNcr, setShowNewNcr] = useState(false);
+  const prefilledJobId = searchParams.get('newFor') ?? '';
   const [deletedInspectionIds, setDeletedInspectionIds] = useState<Set<string>>(new Set());
   const [deletedNcrIds, setDeletedNcrIds] = useState<Set<string>>(new Set());
 
@@ -45,9 +50,15 @@ export default function Quality() {
         </div>
         <div className="flex-1" />
         {['owner', 'qc'].includes(currentUser.role) && (
-          <button onClick={() => setShowNew(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white" style={{ background: 'var(--brand)' }}>
-            <Plus size={13} /> New Inspection
-          </button>
+          <>
+            <button onClick={() => setShowNewNcr(true)} className="px-3 py-1.5 rounded-lg border text-xs font-medium hover:opacity-80"
+              style={{ borderColor: 'var(--error,#DC2626)', color: 'var(--error,#DC2626)' }}>
+              <Plus size={12} className="inline -mt-0.5 mr-0.5" /> New NCR
+            </button>
+            <button onClick={() => setShowNew(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white" style={{ background: 'var(--brand)' }}>
+              <Plus size={13} /> New Inspection
+            </button>
+          </>
         )}
       </div>
 
@@ -145,6 +156,8 @@ export default function Quality() {
 
       {showNew && (
         <NewInspectionModal
+          prefilledJobId={prefilledJobId}
+          jobs={jobs}
           onClose={() => setShowNew(false)}
           onSave={(ins) => {
             addInspection(ins);
@@ -154,22 +167,57 @@ export default function Quality() {
           }}
         />
       )}
+
+      {showNewNcr && (
+        <NewNCRModal
+          jobs={jobs}
+          onClose={() => setShowNewNcr(false)}
+          onSave={(ncr) => {
+            addNCR(ncr);
+            showToast({ type: 'success', title: 'NCR raised', body: `${ncr.ncrNumber} opened.` });
+            setShowNewNcr(false);
+            navigate(`/quality/ncr/${ncr.id}`);
+          }}
+        />
+      )}
     </div>
   );
 }
 
-function NewInspectionModal({ onClose, onSave }: { onClose: () => void; onSave: (i: Inspection) => void }) {
-  const [form, setForm] = useState({ type: 'Incoming' as Inspection['type'], templateName: '', inspectorName: '', sampleQty: '1' });
+function NewInspectionModal({ onClose, onSave, prefilledJobId, jobs }: {
+  onClose: () => void;
+  onSave: (i: Inspection) => void;
+  prefilledJobId?: string;
+  jobs: any[];
+}) {
+  const [form, setForm] = useState({
+    type: 'In-Process' as Inspection['type'],
+    templateName: '',
+    inspectorName: '',
+    sampleQty: '1',
+    jobId: prefilledJobId ?? '',
+    stageName: '',
+    notes: '',
+  });
   const [err, setErr] = useState('');
+  const selectedJob = jobs.find(j => j.id === form.jobId);
   const save = () => {
     if (!form.inspectorName) { setErr('Inspector name is required'); return; }
     const id = `ins-${Date.now()}`;
-    const num = `INS-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 900 + 100))}`;
-    onSave({ id, inspectionNumber: num, type: form.type, date: '2026-11-05', inspectorId: `usr-demo`, inspectorName: form.inspectorName, templateName: form.templateName || 'General', sampleQty: parseInt(form.sampleQty) || 1, acceptedQty: 0, rejectedQty: 0, result: 'pending' });
+    const num = `INS-2026-${String(Math.floor(Math.random() * 900 + 100))}`;
+    onSave({
+      id, inspectionNumber: num, type: form.type, date: '2026-11-05',
+      inspectorId: 'usr-demo', inspectorName: form.inspectorName,
+      templateName: form.templateName || 'General',
+      sampleQty: parseInt(form.sampleQty) || 1, acceptedQty: 0, rejectedQty: 0, result: 'pending',
+      jobId: form.jobId || undefined,
+      jobNumber: selectedJob?.jobNumber,
+      stageName: form.stageName || undefined,
+    });
   };
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl w-full max-w-sm p-6 shadow-2xl">
+      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl w-full max-w-md p-6 shadow-2xl">
         <div className="flex justify-between items-center mb-4">
           <h3 className="font-bold text-[var(--text)]">New Inspection</h3>
           <button onClick={onClose}><X size={16} className="text-[var(--text-3)]" /></button>
@@ -182,8 +230,26 @@ function NewInspectionModal({ onClose, onSave }: { onClose: () => void; onSave: 
             </select>
           </div>
           <div>
+            <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Job Reference (optional)</label>
+            <select className="eoss-input w-full" value={form.jobId} onChange={e => setForm(f => ({ ...f, jobId: e.target.value, stageName: '' }))}>
+              <option value="">— Not linked to a job —</option>
+              {jobs.filter(j => j.status === 'active' || j.status === 'hold').map((j: any) => (
+                <option key={j.id} value={j.id}>{j.jobNumber} · {j.description}</option>
+              ))}
+            </select>
+          </div>
+          {selectedJob && (
+            <div>
+              <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Stage</label>
+              <select className="eoss-input w-full" value={form.stageName} onChange={e => setForm(f => ({ ...f, stageName: e.target.value }))}>
+                <option value="">— Select stage —</option>
+                {selectedJob.stages?.map((s: any) => <option key={s.id} value={s.name}>{s.name}</option>)}
+              </select>
+            </div>
+          )}
+          <div>
             <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Checklist Template</label>
-            <input className="eoss-input w-full" value={form.templateName} onChange={e => setForm(f => ({ ...f, templateName: e.target.value }))} placeholder="e.g. MS Plate Incoming Check" />
+            <input className="eoss-input w-full" value={form.templateName} onChange={e => setForm(f => ({ ...f, templateName: e.target.value }))} placeholder="e.g. Weld Visual Check" />
           </div>
           <div>
             <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Inspector *</label>
@@ -194,10 +260,105 @@ function NewInspectionModal({ onClose, onSave }: { onClose: () => void; onSave: 
             <input type="number" min="1" className="eoss-input w-full" value={form.sampleQty} onChange={e => setForm(f => ({ ...f, sampleQty: e.target.value }))} />
           </div>
         </div>
-        {err && <p className="text-xs text-[var(--danger)] mt-2">{err}</p>}
+        {err && <p className="text-xs text-red-500 mt-2">{err}</p>}
         <div className="flex gap-3 mt-5">
           <button onClick={onClose} className="flex-1 py-2.5 border border-[var(--border)] rounded-xl text-sm text-[var(--text-2)]">Cancel</button>
           <button onClick={save} className="flex-1 py-2.5 bg-[var(--brand)] text-white rounded-xl text-sm font-medium">Create</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function NewNCRModal({ onClose, onSave, jobs }: { onClose: () => void; onSave: (n: NCR) => void; jobs: any[] }) {
+  const [form, setForm] = useState({
+    sourceType: 'In-Process' as NCR['sourceType'],
+    severity: 'Major' as NCR['severity'],
+    description: '',
+    affectedQty: '1',
+    disposition: 'Pending' as NCR['disposition'],
+    jobId: '',
+    raisedBy: '',
+  });
+  const [err, setErr] = useState('');
+  const selectedJob = jobs.find(j => j.id === form.jobId);
+  const save = () => {
+    if (!form.description) { setErr('Description is required'); return; }
+    if (!form.raisedBy) { setErr('Raised by is required'); return; }
+    const id = `ncr-new-${++ncrSeq}`;
+    const num = `NCR-2026-${String(ncrSeq).padStart(3, '0')}`;
+    onSave({
+      id, ncrNumber: num,
+      sourceType: form.sourceType,
+      severity: form.severity,
+      description: form.description,
+      affectedQty: parseInt(form.affectedQty) || 1,
+      disposition: form.disposition,
+      raisedBy: form.raisedBy,
+      raisedAt: new Date().toISOString(),
+      status: 'open',
+      jobId: form.jobId || undefined,
+      jobNumber: selectedJob?.jobNumber,
+    });
+  };
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl w-full max-w-md p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="font-bold text-[var(--text)]">Raise NCR</h3>
+          <button onClick={onClose}><X size={16} className="text-[var(--text-3)]" /></button>
+        </div>
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Source Type</label>
+              <select className="eoss-input w-full" value={form.sourceType} onChange={e => setForm(f => ({ ...f, sourceType: e.target.value as any }))}>
+                {(['Incoming', 'In-Process', 'Final', 'Customer Return'] as const).map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Severity</label>
+              <select className="eoss-input w-full" value={form.severity} onChange={e => setForm(f => ({ ...f, severity: e.target.value as any }))}>
+                {(['Minor', 'Major', 'Critical'] as const).map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Job Reference (optional)</label>
+            <select className="eoss-input w-full" value={form.jobId} onChange={e => setForm(f => ({ ...f, jobId: e.target.value }))}>
+              <option value="">— Not linked —</option>
+              {jobs.filter(j => j.status !== 'cancelled').map((j: any) => (
+                <option key={j.id} value={j.id}>{j.jobNumber} · {j.description}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Description *</label>
+            <textarea rows={3} className="eoss-input w-full resize-none" value={form.description}
+              onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="Describe the non-conformance…" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Affected Qty</label>
+              <input type="number" min="1" className="eoss-input w-full" value={form.affectedQty}
+                onChange={e => setForm(f => ({ ...f, affectedQty: e.target.value }))} />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Initial Disposition</label>
+              <select className="eoss-input w-full" value={form.disposition} onChange={e => setForm(f => ({ ...f, disposition: e.target.value as any }))}>
+                {(['Pending', 'Rework', 'Return', 'Scrap', 'Accept-on-Deviation'] as const).map(d => <option key={d} value={d}>{d}</option>)}
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Raised By *</label>
+            <input className="eoss-input w-full" value={form.raisedBy} onChange={e => setForm(f => ({ ...f, raisedBy: e.target.value }))} placeholder="Your name" />
+          </div>
+        </div>
+        {err && <p className="text-xs text-red-500 mt-2">{err}</p>}
+        <div className="flex gap-3 mt-5">
+          <button onClick={onClose} className="flex-1 py-2.5 border border-[var(--border)] rounded-xl text-sm text-[var(--text-2)]">Cancel</button>
+          <button onClick={save} className="flex-1 py-2.5 text-white rounded-xl text-sm font-medium" style={{ background: 'var(--error,#DC2626)' }}>Raise NCR</button>
         </div>
       </div>
     </div>
