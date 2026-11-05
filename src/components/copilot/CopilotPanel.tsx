@@ -168,22 +168,29 @@ export default function CopilotPanel({ isDrawer, onClose }: Props) {
         boxShadow: themeConfig.panelShadow,
       }}
     >
-      {/* Robot mascot — absolutely pinned to top-right of panel, no shadow to avoid rectangular bg artefact */}
+      {/* Robot mascot — theme-matched cropped image, circular vignette blends into panel */}
       {messages.length === 0 && (
         <div
           className="absolute z-10 pointer-events-none select-none"
-          style={{ top: 0, right: 4, width: 118 }}
+          style={{ top: -10, right: -10, width: 160, height: 160 }}
         >
           <img
             src={themeConfig.robotImg}
             alt="EOSS Copilot Mascot"
-            className="w-full h-auto object-contain"
+            style={{
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover',
+              objectPosition: 'center 72%',
+              WebkitMaskImage: 'radial-gradient(ellipse 70% 62% at 48% 72%, black 28%, transparent 68%)',
+              maskImage: 'radial-gradient(ellipse 70% 62% at 48% 72%, black 28%, transparent 68%)',
+            }}
           />
         </div>
       )}
 
       {/* Top Header */}
-      <div className="p-4 md:p-5 flex items-start justify-between flex-shrink-0 border-b border-white/10 pr-[130px]">
+      <div className="p-4 md:p-5 flex items-start justify-between flex-shrink-0 border-b border-white/10 pr-[140px]">
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center text-white shadow-inner">
             <Sparkles size={18} style={{ color: themeConfig.sparkleColor }} />
