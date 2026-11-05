@@ -19,6 +19,7 @@ export default function Sales() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [selectedPoId, setSelectedPoId] = useState<string | null>(null);
   const [showNewRFQ, setShowNewRFQ] = useState(false);
+  const [selectedRfq, setSelectedRfq] = useState<CustomerRFQ | null>(null);
 
   const canCreate = ['owner', 'sales'].includes(currentUser.role);
 
@@ -215,7 +216,7 @@ export default function Sales() {
             <table className="w-full text-sm border-collapse">
               <thead className="sticky top-0 z-10" style={{ background: 'var(--surface-2)' }}>
                 <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                  {['RFQ Number', 'Customer', 'Received', 'Required By', 'Lines', 'Channel', 'Status', 'Owner'].map(h => (
+                  {['RFQ Number', 'Customer', 'Received', 'Required By', 'Lines', 'Channel', 'Status', 'Owner', ''].map(h => (
                     <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold font-medium" style={{ color: 'var(--text-3)' }}>{h}</th>
                   ))}
                 </tr>
@@ -228,7 +229,7 @@ export default function Sales() {
                     style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}
                     onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--surface-2)'; }}
                     onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'var(--surface)'; }}
-                    onClick={() => showToast({ type: 'info', title: r.rfqNumber, body: `${r.customerName} · ${r.lineCount} lines · Due ${fmt(r.requiredBy)}` })}
+                    onClick={() => setSelectedRfq(r)}
                   >
                     <td className="px-4 py-3 font-mono text-xs font-bold" style={{ color: 'var(--brand)' }}>{r.rfqNumber}</td>
                     <td className="px-4 py-3 font-medium" style={{ color: 'var(--text)' }}>{r.customerName}</td>
@@ -238,6 +239,13 @@ export default function Sales() {
                     <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-2)' }}>{r.channel}</td>
                     <td className="px-4 py-3"><StatusChip status={r.status} size="sm" /></td>
                     <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-2)' }}>{r.owner}</td>
+                    <td className="px-4 py-3">
+                      <button onClick={e => { e.stopPropagation(); showToast({ type: 'success', title: 'PO Created', body: `Purchase Order raised from ${r.rfqNumber} for ${r.customerName}.` }); }}
+                        className="text-xs px-2 py-1 rounded-lg border font-medium transition-colors"
+                        style={{ borderColor: 'var(--brand)', color: 'var(--brand)', background: 'transparent' }}>
+                        → PO
+                      </button>
+                    </td>
                   </tr>
                 ))}
                 {filteredRfqs.length === 0 && (
@@ -347,6 +355,54 @@ export default function Sales() {
             setTab('rfqs');
           }}
         />
+      )}
+
+      {/* RFQ Detail Drawer */}
+      {selectedRfq && (
+        <div className="fixed inset-0 z-50 flex justify-end">
+          <div className="absolute inset-0 bg-black/30" onClick={() => setSelectedRfq(null)} />
+          <div className="relative w-full max-w-sm bg-[var(--surface)] border-l border-[var(--border)] h-full overflow-y-auto shadow-2xl p-6 flex flex-col gap-5">
+            <div className="flex items-center justify-between">
+              <h3 className="font-bold text-[var(--text)]">{selectedRfq.rfqNumber}</h3>
+              <button onClick={() => setSelectedRfq(null)}><X size={16} className="text-[var(--text-3)]" /></button>
+            </div>
+            <div className="space-y-3 text-sm">
+              <div className="flex justify-between">
+                <span className="text-[var(--text-3)]">Customer</span>
+                <span className="font-medium text-[var(--text)]">{selectedRfq.customerName}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-[var(--text-3)]">Status</span>
+                <StatusChip status={selectedRfq.status} size="sm" />
+              </div>
+              <div className="flex justify-between">
+                <span className="text-[var(--text-3)]">Received</span>
+                <span className="text-[var(--text)]">{fmt(selectedRfq.receivedDate)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-[var(--text-3)]">Required By</span>
+                <span className="text-[var(--text)]">{fmt(selectedRfq.requiredBy)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-[var(--text-3)]">Channel</span>
+                <span className="text-[var(--text)]">{selectedRfq.channel}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-[var(--text-3)]">Line Items</span>
+                <span className="text-[var(--text)]">{selectedRfq.lineCount}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-[var(--text-3)]">Owner</span>
+                <span className="text-[var(--text)]">{selectedRfq.owner}</span>
+              </div>
+            </div>
+            <button onClick={() => { showToast({ type: 'success', title: 'PO Created', body: `Purchase Order raised from ${selectedRfq.rfqNumber} for ${selectedRfq.customerName}.` }); setSelectedRfq(null); }}
+              className="mt-auto w-full py-2.5 rounded-xl text-sm font-semibold text-white"
+              style={{ background: 'var(--brand)' }}>
+              Convert to PO
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );

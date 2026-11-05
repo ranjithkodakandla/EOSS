@@ -9,10 +9,11 @@ const REPORT_TYPES = [
   { id: 'procurement', label: 'Procurement Report', desc: 'PO status, delivery performance, spend by supplier', icon: '🛒' },
   { id: 'asset', label: 'Asset Utilization', desc: 'Uptime, downtime, maintenance costs, PM compliance', icon: '⚙️' },
   { id: 'dispatch', label: 'Dispatch Report', desc: 'On-time delivery, transit times, customer-wise', icon: '🚚' },
+  { id: 'finance', label: 'Financial Summary', desc: 'Revenue, collections, payables, cash position', icon: '💰' },
 ];
 
 export default function Reports() {
-  const { jobs, inventory, inspections, assets, dispatches, maintenanceEvents, supplierPos, showToast } = useStore();
+  const { jobs, inventory, inspections, assets, dispatches, maintenanceEvents, supplierPos, customerInvoices, supplierInvoices, showToast } = useStore();
   const [activeReport, setActiveReport] = useState<string | null>(null);
   const [dateFrom, setDateFrom] = useState('2026-10-01');
   const [dateTo, setDateTo] = useState('2026-11-05');
@@ -191,6 +192,41 @@ export default function Reports() {
           </div>
         </div>
       )}
+
+      {activeReport === 'finance' && (() => {
+        const fmtINR = (n: number) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n);
+        const revenue = customerInvoices.reduce((s, i) => s + i.amount, 0);
+        const collected = customerInvoices.filter(i => i.status === 'paid').reduce((s, i) => s + i.amount, 0);
+        const outstandingAR = customerInvoices.filter(i => i.status !== 'paid').reduce((s, i) => s + (i.amount - i.amountPaid), 0);
+        const payables = supplierInvoices.reduce((s, i) => s + (i.amount - i.amountPaid), 0);
+        return (
+          <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-5">
+            <h3 className="font-semibold text-[var(--text)] mb-4">Financial Summary</h3>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-5">
+              <Stat label="Total Revenue" value={fmtINR(revenue)} color="info" />
+              <Stat label="Collected" value={fmtINR(collected)} color="success" />
+              <Stat label="Outstanding AR" value={fmtINR(outstandingAR)} color={outstandingAR > 0 ? 'warning' : 'success'} />
+              <Stat label="Payables" value={fmtINR(payables)} color={payables > 0 ? 'error' : 'success'} />
+            </div>
+            <div className="overflow-x-auto">
+              <table className="eoss-table">
+                <thead><tr><th>Invoice #</th><th>Customer</th><th>Amount</th><th>Due Date</th><th>Status</th></tr></thead>
+                <tbody>
+                  {customerInvoices.slice(0, 8).map(i => (
+                    <tr key={i.id}>
+                      <td className="font-mono text-xs font-bold text-[var(--brand)]">{i.invoiceNumber}</td>
+                      <td className="text-sm text-[var(--text)]">{i.customerName}</td>
+                      <td className="font-mono text-sm text-[var(--text)]">{fmtINR(i.amount)}</td>
+                      <td className="text-xs text-[var(--text-2)]">{new Date(i.dueDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</td>
+                      <td><span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${i.status === 'paid' ? 'bg-green-50 text-green-700' : i.status === 'overdue' ? 'bg-red-50 text-red-600' : 'bg-amber-50 text-amber-700'}`}>{i.status}</span></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

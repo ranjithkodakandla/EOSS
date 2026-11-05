@@ -342,8 +342,16 @@ function AddInvoiceModal({ type, onTypeChange, onClose, onSave }: AddInvoiceModa
     invoiceDate: '2026-11-05',
     dueDate: '2026-12-05',
     amount: '',
+    hsnCode: '',
+    taxType: 'cgst_sgst' as 'cgst_sgst' | 'igst',
+    taxRate: '18',
   });
   const [err, setErr] = useState('');
+
+  const baseAmt = Number(form.amount) || 0;
+  const taxRate = Number(form.taxRate) / 100;
+  const taxAmt = baseAmt * taxRate;
+  const halfTax = taxAmt / 2;
 
   const parties = type === 'customer'
     ? store.customerPos.reduce((acc: {id: string; name: string}[], po) => {
@@ -408,9 +416,48 @@ function AddInvoiceModal({ type, onTypeChange, onClose, onSave }: AddInvoiceModa
             </div>
           </div>
           <div>
-            <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Amount (₹) *</label>
+            <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Base Amount (₹) *</label>
             <input type="number" className="eoss-input w-full" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} placeholder="e.g. 150000" />
           </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-[var(--text-2)] mb-1">HSN Code</label>
+              <input className="eoss-input w-full" value={form.hsnCode} onChange={e => setForm(f => ({ ...f, hsnCode: e.target.value }))} placeholder="e.g. 7208" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Tax Rate</label>
+              <select className="eoss-input w-full" value={form.taxRate} onChange={e => setForm(f => ({ ...f, taxRate: e.target.value }))}>
+                {['0','5','12','18','28'].map(r => <option key={r} value={r}>{r}%</option>)}
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Tax Type</label>
+            <div className="flex gap-2">
+              {(['cgst_sgst', 'igst'] as const).map(t => (
+                <button key={t} type="button" onClick={() => setForm(f => ({ ...f, taxType: t }))}
+                  className={`flex-1 py-1.5 rounded-lg text-xs border font-medium transition-colors ${form.taxType === t ? 'bg-[var(--brand)] text-white border-[var(--brand)]' : 'border-[var(--border)] text-[var(--text-2)]'}`}>
+                  {t === 'cgst_sgst' ? 'CGST + SGST (Intra-state)' : 'IGST (Inter-state)'}
+                </button>
+              ))}
+            </div>
+          </div>
+          {baseAmt > 0 && Number(form.taxRate) > 0 && (
+            <div className="text-xs rounded-xl p-3 space-y-1" style={{ background: 'var(--surface-2)', color: 'var(--text-2)' }}>
+              <div className="flex justify-between"><span>Base Amount</span><span>{fmt(baseAmt)}</span></div>
+              {form.taxType === 'cgst_sgst' ? (
+                <>
+                  <div className="flex justify-between"><span>CGST ({Number(form.taxRate)/2}%)</span><span>{fmt(halfTax)}</span></div>
+                  <div className="flex justify-between"><span>SGST ({Number(form.taxRate)/2}%)</span><span>{fmt(halfTax)}</span></div>
+                </>
+              ) : (
+                <div className="flex justify-between"><span>IGST ({form.taxRate}%)</span><span>{fmt(taxAmt)}</span></div>
+              )}
+              <div className="flex justify-between font-semibold pt-1 border-t border-[var(--border)]" style={{ color: 'var(--text)' }}>
+                <span>Total</span><span>{fmt(baseAmt + taxAmt)}</span>
+              </div>
+            </div>
+          )}
         </div>
         {err && <p className="text-xs text-[var(--danger)] mt-2">{err}</p>}
         <div className="flex gap-3 mt-5">

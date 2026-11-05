@@ -2,11 +2,12 @@ import React, { useRef, useState } from 'react';
 import { FileText, Download, Search, Plus, X } from 'lucide-react';
 import { useStore } from '../../store';
 import StatusChip from '../../components/layout/StatusChip';
+import type { VaultDocument } from '../../types';
 
 const CATEGORIES = ['All', 'Job Documents', 'Quality Documents', 'Material Certificates', 'Supplier Documents', 'Company Certificates', 'Asset Documents'];
 
 export default function Documents() {
-  const { documents: vaultDocuments, currentUser, showToast } = useStore();
+  const { documents: vaultDocuments, currentUser, addDocument, showToast } = useStore();
   const [search, setSearch] = useState('');
   const [cat, setCat] = useState('All');
   const [showUpload, setShowUpload] = useState(false);
@@ -86,9 +87,11 @@ export default function Documents() {
 
       {showUpload && (
         <UploadModal
+          currentUser={currentUser}
           onClose={() => setShowUpload(false)}
-          onSave={(title) => {
-            showToast({ type: 'success', title: 'Document uploaded', body: `${title} has been added to the vault.` });
+          onSave={(doc) => {
+            addDocument(doc);
+            showToast({ type: 'success', title: 'Document uploaded', body: `${doc.title} has been added to the vault.` });
             setShowUpload(false);
           }}
         />
@@ -97,14 +100,25 @@ export default function Documents() {
   );
 }
 
-function UploadModal({ onClose, onSave }: { onClose: () => void; onSave: (title: string) => void }) {
+function UploadModal({ currentUser, onClose, onSave }: { currentUser: { name: string; id: string }; onClose: () => void; onSave: (doc: VaultDocument) => void }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [form, setForm] = useState({ title: '', category: 'Job Documents', docType: '', file: null as File | null });
   const [err, setErr] = useState('');
   const save = () => {
     if (!form.title) { setErr('Title is required'); return; }
     if (!form.file) { setErr('Please select a file'); return; }
-    onSave(form.title);
+    const doc: VaultDocument = {
+      id: `doc-${Date.now()}`,
+      title: form.title,
+      category: form.category,
+      docType: form.docType || 'General',
+      uploadedBy: currentUser.name,
+      uploadedAt: new Date().toISOString(),
+      version: 1,
+      fileSize: form.file.size > 1024 * 1024 ? `${(form.file.size / 1024 / 1024).toFixed(1)} MB` : `${Math.round(form.file.size / 1024)} KB`,
+      linkedEntities: [],
+    };
+    onSave(doc);
   };
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">

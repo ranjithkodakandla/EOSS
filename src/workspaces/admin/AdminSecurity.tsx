@@ -2,10 +2,11 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Building2, MapPin, Users, Shield, Settings2, Plug, Brain, Clock,
-  Plus, Edit2, ChevronRight, CheckCircle, AlertCircle, Eye, EyeOff, X
+  Plus, Edit2, ChevronRight, CheckCircle, AlertCircle, Eye, EyeOff, X, Pencil
 } from 'lucide-react';
 import { useStore, DEMO_USERS } from '../../store';
 import StatusChip from '../../components/layout/StatusChip';
+import type { DemoUser, RoleKey } from '../../types';
 
 type AdminTab = 'company' | 'sites' | 'users' | 'roles' | 'approvals' | 'integrations' | 'ai' | 'audit';
 
@@ -40,12 +41,14 @@ const INTEGRATIONS = [
 
 export default function AdminSecurity() {
   const navigate = useNavigate();
-  const { currentUser, companyConfig, updateCompanyConfig, storeLocations, auditEvents, approvalPolicies, employees, showToast } = useStore();
+  const { currentUser, companyConfig, updateCompanyConfig, storeLocations, auditEvents, approvalPolicies, employees, switchRole, showToast } = useStore();
   const [tab, setTab] = useState<AdminTab>('company');
   const [editCompany, setEditCompany] = useState(false);
   const [companyForm, setCompanyForm] = useState({ ...companyConfig });
   const [showAddUser, setShowAddUser] = useState(false);
   const [showAddSite, setShowAddSite] = useState(false);
+  const [editUser, setEditUser] = useState<DemoUser | null>(null);
+  const [demoRole, setDemoRole] = useState<RoleKey>(currentUser.role);
 
   if (!['owner', 'auditor'].includes(currentUser.role)) {
     return (
@@ -219,7 +222,7 @@ export default function AdminSecurity() {
           <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl overflow-hidden">
             <table className="eoss-table">
               <thead>
-                <tr><th>User</th><th>Role</th><th>Employee Code</th><th>Department</th><th>Email</th><th>Status</th></tr>
+                <tr><th>User</th><th>Role</th><th>Employee Code</th><th>Department</th><th>Email</th><th>Status</th><th></th></tr>
               </thead>
               <tbody>
                 {DEMO_USERS.map(u => {
@@ -240,11 +243,39 @@ export default function AdminSecurity() {
                       <td className="text-xs text-[var(--text-2)]">{emp?.department ?? '—'}</td>
                       <td className="text-xs text-[var(--text-2)]">{u.email}</td>
                       <td><StatusChip status="active" size="sm" /></td>
+                      <td>
+                        {!isReadOnly && (
+                          <button onClick={() => setEditUser(u)} className="p-1.5 rounded-lg hover:bg-[var(--surface-2)] transition-colors" title="Edit user">
+                            <Pencil size={13} style={{ color: 'var(--text-3)' }} />
+                          </button>
+                        )}
+                      </td>
                     </tr>
                   );
                 })}
               </tbody>
             </table>
+          </div>
+
+          {/* Demo Role Switcher */}
+          <div className="mt-6 p-4 border border-dashed border-[var(--border)] rounded-2xl bg-[var(--surface-2)]">
+            <div className="flex items-center gap-2 mb-3">
+              <Shield size={14} style={{ color: 'var(--brand)' }} />
+              <span className="text-xs font-semibold text-[var(--text)]">Demo Role Switcher</span>
+              <span className="text-[10px] text-[var(--text-3)] ml-1">— preview access by role</span>
+            </div>
+            <div className="flex items-center gap-3 flex-wrap">
+              <select value={demoRole} onChange={e => setDemoRole(e.target.value as RoleKey)} className="eoss-input text-sm py-1.5">
+                {Object.entries(ROLE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+              </select>
+              <button onClick={() => {
+                switchRole(demoRole);
+                showToast({ type: 'info', title: `Switched to ${ROLE_LABELS[demoRole] ?? demoRole}`, body: 'Navigation and permissions now reflect this role.' });
+              }} className="px-4 py-2 bg-[var(--brand)] text-white rounded-xl text-sm font-medium">
+                Switch Role
+              </button>
+              <span className="text-xs text-[var(--text-3)]">Currently: <strong className="text-[var(--text)]">{ROLE_LABELS[currentUser.role] ?? currentUser.role}</strong></span>
+            </div>
           </div>
         </div>
       )}
@@ -404,6 +435,12 @@ export default function AdminSecurity() {
         setShowAddUser(false);
       }} />}
 
+      {/* Edit User Modal */}
+      {editUser && <EditUserModal user={editUser} onClose={() => setEditUser(null)} onSave={(name, role, email) => {
+        showToast({ type: 'success', title: 'User updated', body: `${name} (${ROLE_LABELS[role] ?? role}) has been updated.` });
+        setEditUser(null);
+      }} />}
+
       {/* Add Site Modal */}
       {showAddSite && <AddSiteModal onClose={() => setShowAddSite(false)} onSave={(siteName, type, city) => {
         showToast({ type: 'success', title: 'Site added', body: `${siteName} (${city}) has been configured.` });
@@ -489,6 +526,45 @@ function AddSiteModal({ onClose, onSave }: { onClose: () => void; onSave: (name:
             if (!form.name || !form.city) { setErr('Name and city required'); return; }
             onSave(form.name, form.type, form.city);
           }} className="flex-1 py-2.5 bg-[var(--brand)] text-white rounded-xl text-sm font-medium">Add Site</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EditUserModal({ user, onClose, onSave }: { user: DemoUser; onClose: () => void; onSave: (name: string, role: string, email: string) => void }) {
+  const [form, setForm] = useState({ name: user.name, role: user.role as string, email: user.email });
+  const [err, setErr] = useState('');
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl w-full max-w-sm p-6 shadow-2xl">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="font-bold text-[var(--text)]">Edit User</h3>
+          <button onClick={onClose}><X size={16} className="text-[var(--text-3)]" /></button>
+        </div>
+        <div className="space-y-3">
+          <div>
+            <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Full Name *</label>
+            <input className="eoss-input w-full" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Email *</label>
+            <input type="email" className="eoss-input w-full" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Role *</label>
+            <select className="eoss-input w-full" value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value }))}>
+              {Object.entries(ROLE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+            </select>
+          </div>
+        </div>
+        {err && <p className="text-xs text-[var(--danger)] mt-2">{err}</p>}
+        <div className="flex gap-3 mt-5">
+          <button onClick={onClose} className="flex-1 py-2.5 border border-[var(--border)] rounded-xl text-sm text-[var(--text-2)]">Cancel</button>
+          <button onClick={() => {
+            if (!form.name || !form.email) { setErr('Name and email required'); return; }
+            onSave(form.name, form.role, form.email);
+          }} className="flex-1 py-2.5 bg-[var(--brand)] text-white rounded-xl text-sm font-medium">Save Changes</button>
         </div>
       </div>
     </div>

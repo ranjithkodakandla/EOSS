@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, ChevronRight, Search, X } from 'lucide-react';
+import { Plus, ChevronRight, Search, X, PackageCheck } from 'lucide-react';
 import { useStore, CUSTOMERS } from '../../store';
 import type { Dispatch } from '../../types';
 import StatusChip from '../../components/layout/StatusChip';
@@ -8,10 +8,11 @@ import StatusChip from '../../components/layout/StatusChip';
 let dspSeq = 100;
 
 export default function DispatchWorkspace() {
-  const { dispatches, currentUser, addDispatch } = useStore();
+  const { dispatches, currentUser, addDispatch, recordPoD, showToast } = useStore();
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
   const [showModal, setShowModal] = useState(false);
+  const [podDispatchId, setPodDispatchId] = useState<string | null>(null);
   const [form, setForm] = useState({
     customerId: '', customerName: '', carrier: '',
     vehicleNumber: '', lrNumber: '', dispatchDate: '', jobs: '',
@@ -93,7 +94,17 @@ export default function DispatchWorkspace() {
                 <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-2)' }}>{d.expectedDelivery ? new Date(d.expectedDelivery).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '—'}</td>
                 <td className="px-4 py-3 text-xs text-center" style={{ color: 'var(--text-2)' }}>{d.totalQty ?? '—'}</td>
                 <td className="px-4 py-3"><StatusChip status={d.status} size="sm" /></td>
-                <td className="px-4 py-3"><ChevronRight size={14} style={{ color: 'var(--text-3)' }} /></td>
+                <td className="px-4 py-3">
+                  {d.status === 'dispatched' && !d.hasPoD ? (
+                    <button onClick={e => { e.stopPropagation(); setPodDispatchId(d.id); }}
+                      className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg border font-medium transition-colors"
+                      style={{ borderColor: 'var(--brand)', color: 'var(--brand)' }} title="Record Proof of Delivery">
+                      <PackageCheck size={11} /> PoD
+                    </button>
+                  ) : (
+                    <ChevronRight size={14} style={{ color: 'var(--text-3)' }} />
+                  )}
+                </td>
               </tr>
             ))}
             {filtered.length === 0 && (
@@ -161,6 +172,56 @@ export default function DispatchWorkspace() {
           </div>
         </div>
       )}
+
+      {/* PoD Modal */}
+      {podDispatchId && (
+        <PodModal
+          onClose={() => setPodDispatchId(null)}
+          onSave={() => {
+            recordPoD(podDispatchId);
+            showToast({ type: 'success', title: 'Proof of Delivery recorded', body: 'Dispatch marked as delivered.' });
+            setPodDispatchId(null);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function PodModal({ onClose, onSave }: { onClose: () => void; onSave: () => void }) {
+  const [form, setForm] = useState({ receivedBy: '', receivedDate: '2026-11-05', condition: 'Good', notes: '' });
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl w-full max-w-sm p-6 shadow-2xl">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="font-bold text-[var(--text)]">Record Proof of Delivery</h3>
+          <button onClick={onClose}><X size={16} className="text-[var(--text-3)]" /></button>
+        </div>
+        <div className="space-y-3">
+          <div>
+            <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Received By *</label>
+            <input className="eoss-input w-full" value={form.receivedBy} onChange={e => setForm(f => ({ ...f, receivedBy: e.target.value }))} placeholder="Name of person who received" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Received Date</label>
+            <input type="date" className="eoss-input w-full" value={form.receivedDate} onChange={e => setForm(f => ({ ...f, receivedDate: e.target.value }))} />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Condition</label>
+            <select className="eoss-input w-full" value={form.condition} onChange={e => setForm(f => ({ ...f, condition: e.target.value }))}>
+              {['Good', 'Damaged', 'Partial'].map(c => <option key={c}>{c}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Notes</label>
+            <input className="eoss-input w-full" value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} placeholder="Optional notes" />
+          </div>
+        </div>
+        <div className="flex gap-3 mt-5">
+          <button onClick={onClose} className="flex-1 py-2.5 border border-[var(--border)] rounded-xl text-sm text-[var(--text-2)]">Cancel</button>
+          <button onClick={() => { if (!form.receivedBy) return; onSave(); }} className="flex-1 py-2.5 bg-[var(--brand)] text-white rounded-xl text-sm font-medium">Confirm PoD</button>
+        </div>
+      </div>
     </div>
   );
 }

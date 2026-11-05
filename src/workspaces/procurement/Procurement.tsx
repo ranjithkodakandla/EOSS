@@ -3,12 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import { Plus, AlertTriangle, Search, ChevronRight, X } from 'lucide-react';
 import { useStore, PURCHASE_REQS, CUSTOMERS } from '../../store';
 import StatusChip from '../../components/layout/StatusChip';
-import type { SupplierPO } from '../../types';
+import type { SupplierPO, SupplierQuotation } from '../../types';
 
-type ProcTab = 'spo' | 'pr' | 'grn' | 'approvals';
+type ProcTab = 'spo' | 'pr' | 'grn' | 'approvals' | 'quotes';
 
 export default function Procurement() {
-  const { supplierPos, grns, approvalRequests, currentUser, showToast, addSupplierPO } = useStore();
+  const { supplierPos, grns, approvalRequests, supplierQuotations, currentUser, showToast, addSupplierPO, resolveApproval } = useStore();
   const navigate = useNavigate();
   const [tab, setTab] = useState<ProcTab>('spo');
   const [search, setSearch] = useState('');
@@ -27,8 +27,10 @@ export default function Procurement() {
     { id: 'spo' as ProcTab, label: `Supplier POs (${supplierPos.length})` },
     { id: 'pr' as ProcTab, label: `PRs (${PURCHASE_REQS.length})` },
     { id: 'grn' as ProcTab, label: `GRNs (${grns.length})` },
+    { id: 'quotes' as ProcTab, label: `Quotations (${supplierQuotations.length})` },
     { id: 'approvals' as ProcTab, label: `Approvals${pendingApprovals > 0 ? ` · ${pendingApprovals}` : ''}` },
   ];
+  const [compareQuotes, setCompareQuotes] = useState<SupplierQuotation[] | null>(null);
 
   return (
     <div className="flex flex-col h-full">
@@ -180,6 +182,44 @@ export default function Procurement() {
           </table>
         )}
 
+        {tab === 'quotes' && (
+          <div className="p-5">
+            <div className="overflow-x-auto">
+              <table className="eoss-table">
+                <thead><tr><th>Quote #</th><th>Supplier</th><th>Date</th><th>Valid Until</th><th>Lead Time</th><th>Payment Terms</th><th>Total Value</th><th>Status</th><th></th></tr></thead>
+                <tbody>
+                  {supplierQuotations.map(q => {
+                    const total = q.lines.reduce((s, l) => s + l.lineTotal, 0);
+                    const grouped = supplierQuotations.filter(x => x.prId && x.prId === q.prId);
+                    return (
+                      <tr key={q.id} style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}>
+                        <td className="font-mono text-xs font-bold" style={{ color: 'var(--brand)' }}>{q.quoteNumber}</td>
+                        <td className="text-sm font-medium" style={{ color: 'var(--text)' }}>{q.supplierName}</td>
+                        <td className="text-xs" style={{ color: 'var(--text-2)' }}>{new Date(q.quoteDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</td>
+                        <td className="text-xs" style={{ color: 'var(--text-2)' }}>{new Date(q.validUntil).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</td>
+                        <td className="text-xs" style={{ color: 'var(--text-2)' }}>{q.deliveryDays} days</td>
+                        <td className="text-xs" style={{ color: 'var(--text-2)' }}>{q.paymentTerms}</td>
+                        <td className="font-mono text-sm font-semibold" style={{ color: 'var(--text)' }}>₹{(total / 1000).toFixed(1)}k</td>
+                        <td><StatusChip status={q.status} size="sm" /></td>
+                        <td>
+                          {grouped.length > 1 && (
+                            <button onClick={() => setCompareQuotes(grouped)}
+                              className="text-xs px-2 py-1 rounded-lg border font-medium transition-colors"
+                              style={{ borderColor: 'var(--brand)', color: 'var(--brand)' }}>
+                              Compare
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {supplierQuotations.length === 0 && <tr><td colSpan={9} className="text-center py-10 text-sm" style={{ color: 'var(--text-3)' }}>No quotations received yet</td></tr>}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
         {tab === 'approvals' && (
           <div className="p-5">
             {approvalRequests.filter(a => a.status === 'pending').length === 0 ? (
@@ -191,11 +231,23 @@ export default function Procurement() {
                 {approvalRequests.filter(a => a.status === 'pending').map(a => (
                   <div key={a.id} className="rounded-xl border p-4 flex items-start justify-between gap-4"
                     style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
-                    <div>
+                    <div className="flex-1 min-w-0">
                       <div className="text-sm font-semibold" style={{ color: 'var(--text)' }}>{a.entityRef}</div>
                       <div className="text-xs mt-0.5" style={{ color: 'var(--text-3)' }}>{a.requestedBy} · {new Date(a.requestedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</div>
+                      {a.description && <div className="text-xs mt-1" style={{ color: 'var(--text-2)' }}>{a.description}</div>}
                     </div>
-                    <StatusChip status={a.status} size="sm" />
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <button onClick={() => resolveApproval(a.id, 'rejected', currentUser.name)}
+                        className="px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors"
+                        style={{ borderColor: 'var(--error,#DC2626)', color: 'var(--error,#DC2626)', background: 'transparent' }}>
+                        Reject
+                      </button>
+                      <button onClick={() => resolveApproval(a.id, 'approved', currentUser.name)}
+                        className="px-3 py-1.5 text-xs font-semibold rounded-lg text-white transition-colors"
+                        style={{ background: 'var(--success,#16A34A)' }}>
+                        Approve
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -215,6 +267,68 @@ export default function Procurement() {
           }}
         />
       )}
+
+      {compareQuotes && (
+        <QuoteCompareModal quotes={compareQuotes} onClose={() => setCompareQuotes(null)}
+          onSelect={(q) => { showToast({ type: 'success', title: 'Quote selected', body: `Quote from ${q.supplierName} has been selected.` }); setCompareQuotes(null); }} />
+      )}
+    </div>
+  );
+}
+
+function QuoteCompareModal({ quotes, onClose, onSelect }: { quotes: SupplierQuotation[]; onClose: () => void; onSelect: (q: SupplierQuotation) => void }) {
+  const totals = quotes.map(q => q.lines.reduce((s, l) => s + l.lineTotal, 0));
+  const minTotal = Math.min(...totals);
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl w-full max-w-2xl p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
+        <div className="flex justify-between items-center mb-5">
+          <h3 className="font-bold text-[var(--text)]">Quote Comparison</h3>
+          <button onClick={onClose}><X size={16} className="text-[var(--text-3)]" /></button>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm border-collapse">
+            <thead>
+              <tr style={{ borderBottom: '2px solid var(--border)', background: 'var(--surface-2)' }}>
+                <th className="text-left p-3 text-xs font-semibold text-[var(--text-2)]">Criteria</th>
+                {quotes.map(q => (
+                  <th key={q.id} className="text-left p-3 text-xs font-semibold text-[var(--text-2)]">{q.supplierName}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {[
+                { label: 'Quote #', render: (q: SupplierQuotation) => <span className="font-mono text-xs text-[var(--brand)]">{q.quoteNumber}</span> },
+                { label: 'Lead Time', render: (q: SupplierQuotation) => `${q.deliveryDays} days` },
+                { label: 'Payment Terms', render: (q: SupplierQuotation) => q.paymentTerms },
+                { label: 'Valid Until', render: (q: SupplierQuotation) => new Date(q.validUntil).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) },
+                { label: 'Total Value', render: (q: SupplierQuotation, i: number) => (
+                  <span className={`font-semibold ${totals[i] === minTotal ? 'text-green-600' : 'text-[var(--text)]'}`}>
+                    ₹{totals[i].toLocaleString('en-IN')}
+                    {totals[i] === minTotal && <span className="ml-1 text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full">Lowest</span>}
+                  </span>
+                ) },
+              ].map(row => (
+                <tr key={row.label} style={{ borderBottom: '1px solid var(--border)' }}>
+                  <td className="p-3 text-xs font-medium text-[var(--text-3)]">{row.label}</td>
+                  {quotes.map((q, i) => (
+                    <td key={q.id} className="p-3 text-sm text-[var(--text)]">{(row.render as any)(q, i)}</td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <div className="flex gap-3 mt-5 flex-wrap">
+          {quotes.map((q, i) => (
+            <button key={q.id} onClick={() => onSelect(q)}
+              className={`flex-1 py-2.5 rounded-xl text-sm font-medium text-white transition-opacity hover:opacity-90 ${totals[i] === minTotal ? '' : 'opacity-80'}`}
+              style={{ background: totals[i] === minTotal ? 'var(--success,#16A34A)' : 'var(--brand)' }}>
+              Select {q.supplierName}
+            </button>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
