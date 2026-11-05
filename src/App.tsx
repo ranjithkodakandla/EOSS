@@ -1,6 +1,7 @@
 import React, { lazy, Suspense } from 'react';
 import { Routes, Route } from 'react-router-dom';
 import AppShell from './components/layout/AppShell';
+import OnboardingGuard from './components/layout/OnboardingGuard';
 
 const Loading = () => (
   <div className="flex items-center justify-center min-h-[60vh]">
@@ -40,14 +41,17 @@ const Dispatch = lazy(() => import('./workspaces/dispatch/Dispatch'));
 const DispatchDetail = lazy(() => import('./workspaces/dispatch/DispatchDetail'));
 const Documents = lazy(() => import('./workspaces/documents/Documents'));
 const Reports = lazy(() => import('./workspaces/reports/Reports'));
-const Admin = lazy(() => import('./workspaces/admin/Admin'));
+const Admin = lazy(() => import('./workspaces/admin/AdminSecurity'));
 const AuditTimeline = lazy(() => import('./workspaces/admin/AuditTimeline'));
+const Finance = lazy(() => import('./workspaces/finance/Finance'));
+const Onboarding = lazy(() => import('./workspaces/onboarding/Onboarding'));
 
 export default function App() {
   return (
     <Suspense fallback={<Loading />}>
       <Routes>
-        <Route element={<AppShell />}>
+        <Route path="onboarding" element={<Onboarding />} />
+        <Route element={<OnboardingGuard><AppShell /></OnboardingGuard>}>
           <Route index element={<Home />} />
           <Route path="sales" element={<Sales />} />
           <Route path="sales/po/:id" element={<SalesPODetail />} />
@@ -79,6 +83,7 @@ export default function App() {
           <Route path="dispatch/:id" element={<DispatchDetail />} />
           <Route path="documents" element={<Documents />} />
           <Route path="reports" element={<Reports />} />
+          <Route path="finance" element={<Finance />} />
           <Route path="admin" element={<Admin />} />
           <Route path="admin/audit" element={<AuditTimeline />} />
           <Route path="*" element={<Home />} />

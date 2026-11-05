@@ -3,7 +3,7 @@ import { NavLink } from 'react-router-dom';
 import {
   Home, ShoppingCart, Package, Box, Activity, ShieldCheck,
   Wrench, Truck, Users, FileText, BarChart3,
-  ChevronLeft, ChevronRight
+  ChevronLeft, ChevronRight, Store, Landmark, Settings
 } from 'lucide-react';
 import clsx from 'clsx';
 import { useStore } from '../../store';
@@ -17,16 +17,18 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   { path: '/', label: 'Home', icon: <Home size={17} /> },
-  { path: '/sales', label: 'Sales', icon: <ShoppingCart size={17} /> },
+  { path: '/sales', label: 'Sales & Orders', icon: <ShoppingCart size={17} /> },
+  { path: '/suppliers', label: 'Suppliers', icon: <Store size={17} /> },
   { path: '/procurement', label: 'Procurement', icon: <Package size={17} /> },
   { path: '/inventory', label: 'Inventory', icon: <Box size={17} /> },
   { path: '/jobs', label: 'Production', icon: <Activity size={17} /> },
   { path: '/quality', label: 'Quality', icon: <ShieldCheck size={17} /> },
   { path: '/assets', label: 'Maintenance', icon: <Wrench size={17} /> },
   { path: '/dispatch', label: 'Dispatch', icon: <Truck size={17} /> },
-  { path: '/admin', label: 'People', icon: <Users size={17} /> },
+  { path: '/finance', label: 'Finance', icon: <Landmark size={17} /> },
   { path: '/documents', label: 'Documents', icon: <FileText size={17} /> },
   { path: '/reports', label: 'Reports', icon: <BarChart3 size={17} /> },
+  { path: '/admin', label: 'Admin & Security', icon: <Settings size={17} /> },
 ];
 
 function AuroraWave({ theme }: { theme: string }) {

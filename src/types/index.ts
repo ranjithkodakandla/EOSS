@@ -671,3 +671,92 @@ export interface ApprovalPolicy {
   escalationRole?: string;
   active: boolean;
 }
+
+// ── Finance ──
+export interface CustomerInvoice {
+  id: ID;
+  invoiceNumber: string;
+  customerId: ID;
+  customerName: string;
+  customerPoRef?: string;
+  customerPoId?: ID;
+  invoiceDate: string;
+  dueDate: string;
+  amount: number;
+  amountPaid: number;
+  currency: string;
+  status: 'draft' | 'sent' | 'partial' | 'paid' | 'overdue' | 'disputed';
+}
+
+export interface SupplierInvoice {
+  id: ID;
+  invoiceNumber: string;
+  supplierId: ID;
+  supplierName: string;
+  supplierPoRef?: string;
+  supplierPoId?: ID;
+  invoiceDate: string;
+  dueDate: string;
+  amount: number;
+  amountPaid: number;
+  currency: string;
+  status: 'pending' | 'partial' | 'paid' | 'overdue' | 'disputed';
+}
+
+export interface PaymentRecord {
+  id: ID;
+  direction: 'inbound' | 'outbound';
+  partyId: ID;
+  partyName: string;
+  date: string;
+  amount: number;
+  currency: string;
+  mode: 'NEFT' | 'RTGS' | 'IMPS' | 'Cheque' | 'UPI' | 'Cash' | 'Other';
+  reference: string;
+  linkedInvoiceId?: ID;
+  notes?: string;
+}
+
+// ── Onboarding ──
+export type OnboardingStatus = 'not_started' | 'in_progress' | 'complete';
+
+export interface OnboardingState {
+  status: OnboardingStatus;
+  completedSteps: number[];
+  companyProfile?: {
+    companyName: string;
+    tradingName: string;
+    businessType: 'manufacturing' | 'fabrication' | 'trading' | 'mixed';
+    legalName: string;
+    entityType: string;
+    pan: string;
+    registeredAddress: string;
+    city: string;
+    state: string;
+    pincode: string;
+    phone: string;
+    email: string;
+    financialYear: string;
+    currency: string;
+  };
+  gstRegistrations?: Array<{
+    gstin: string;
+    state: string;
+    type: string;
+    notApplicable?: boolean;
+  }>;
+  sites?: Array<{
+    id: string;
+    name: string;
+    type: 'factory' | 'warehouse' | 'office' | 'branch';
+    address: string;
+    city: string;
+    state: string;
+    isPrimary: boolean;
+  }>;
+  storeLocations?: Array<{
+    siteId: string;
+    name: string;
+    code: string;
+  }>;
+}

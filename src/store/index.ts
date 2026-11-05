@@ -5,7 +5,8 @@ import type {
   Dispatch, VaultDocument, ApprovalRequest, AppNotification,
   PulseException, CustomerPO, SupplierPO, CustomerRFQ, GoodsReceipt,
   Inspection, NCR, MaterialCertificate, Employee, StoreLocation,
-  SupplierQuotation, AuditEvent, ApprovalPolicy
+  SupplierQuotation, AuditEvent, ApprovalPolicy,
+  CustomerInvoice, SupplierInvoice, PaymentRecord, OnboardingState
 } from '../types';
 import {
   DEMO_USERS, JOBS, MATERIAL_LOTS, INVENTORY, STOCK_MOVEMENTS,
@@ -13,7 +14,8 @@ import {
   APPROVAL_REQUESTS, NOTIFICATIONS, PULSE_EXCEPTIONS, CUSTOMER_POS,
   SUPPLIER_POS, RFQS, GRNS, INSPECTIONS, NCRS, CERTIFICATES,
   CUSTOMERS, SUPPLIERS, SUPPLIER_PO_LINES, JOB_BLOCKERS, PURCHASE_REQS,
-  EMPLOYEES, STORE_LOCATIONS, SUPPLIER_QUOTATIONS, AUDIT_EVENTS, APPROVAL_POLICIES
+  EMPLOYEES, STORE_LOCATIONS, SUPPLIER_QUOTATIONS, AUDIT_EVENTS, APPROVAL_POLICIES,
+  CUSTOMER_INVOICES, SUPPLIER_INVOICES, PAYMENT_RECORDS, COMPANY_CONFIG
 } from '../data/seed';
 
 // ── App State ──
@@ -106,6 +108,27 @@ interface EOSSState {
   addSupplierQuotation: (quote: SupplierQuotation) => void;
   selectQuotation: (quoteId: string) => void;
 
+  // Finance state
+  customerInvoices: CustomerInvoice[];
+  supplierInvoices: SupplierInvoice[];
+  paymentRecords: PaymentRecord[];
+
+  // Finance actions
+  addCustomerInvoice: (inv: CustomerInvoice) => void;
+  addSupplierInvoice: (inv: SupplierInvoice) => void;
+  addPaymentRecord: (pay: PaymentRecord) => void;
+  recordPaymentAgainstInvoice: (invoiceId: string, direction: 'inbound' | 'outbound', amount: number) => void;
+
+  // Onboarding state
+  onboarding: OnboardingState;
+  companyConfig: typeof COMPANY_CONFIG;
+
+  // Onboarding actions
+  updateOnboarding: (partial: Partial<OnboardingState>) => void;
+  completeOnboarding: () => void;
+  resetOnboarding: () => void;
+  updateCompanyConfig: (partial: Partial<typeof COMPANY_CONFIG>) => void;
+
   // Audit actions (append-only)
   appendAuditEvent: (event: Omit<AuditEvent, 'id'>) => void;
 
@@ -155,6 +178,11 @@ export const useStore = create<EOSSState>((set, get) => ({
   supplierQuotations: [...SUPPLIER_QUOTATIONS],
   auditEvents: [...AUDIT_EVENTS],
   approvalPolicies: [...APPROVAL_POLICIES],
+  customerInvoices: [...CUSTOMER_INVOICES],
+  supplierInvoices: [...SUPPLIER_INVOICES],
+  paymentRecords: [...PAYMENT_RECORDS],
+  onboarding: { status: 'complete', completedSteps: [1, 2, 3, 4, 5, 6, 7] },
+  companyConfig: { ...COMPANY_CONFIG },
   toasts: [],
 
   // ── Session Actions ──
@@ -350,6 +378,38 @@ export const useStore = create<EOSSState>((set, get) => ({
           : q
     ),
   })),
+
+  // ── Finance Actions ──
+  addCustomerInvoice: (inv) => set(s => ({ customerInvoices: [inv, ...s.customerInvoices] })),
+  addSupplierInvoice: (inv) => set(s => ({ supplierInvoices: [inv, ...s.supplierInvoices] })),
+  addPaymentRecord: (pay) => set(s => ({ paymentRecords: [pay, ...s.paymentRecords] })),
+  recordPaymentAgainstInvoice: (invoiceId, direction, amount) => {
+    if (direction === 'inbound') {
+      set(s => ({
+        customerInvoices: s.customerInvoices.map(inv => {
+          if (inv.id !== invoiceId) return inv;
+          const newPaid = inv.amountPaid + amount;
+          const status = newPaid >= inv.amount ? 'paid' : 'partial';
+          return { ...inv, amountPaid: newPaid, status: status as CustomerInvoice['status'] };
+        }),
+      }));
+    } else {
+      set(s => ({
+        supplierInvoices: s.supplierInvoices.map(inv => {
+          if (inv.id !== invoiceId) return inv;
+          const newPaid = inv.amountPaid + amount;
+          const status = newPaid >= inv.amount ? 'paid' : 'partial';
+          return { ...inv, amountPaid: newPaid, status: status as SupplierInvoice['status'] };
+        }),
+      }));
+    }
+  },
+
+  // ── Onboarding Actions ──
+  updateOnboarding: (partial) => set(s => ({ onboarding: { ...s.onboarding, ...partial } })),
+  completeOnboarding: () => set({ onboarding: { status: 'complete', completedSteps: [1, 2, 3, 4, 5, 6, 7] } }),
+  resetOnboarding: () => set({ onboarding: { status: 'not_started', completedSteps: [] } }),
+  updateCompanyConfig: (partial) => set(s => ({ companyConfig: { ...s.companyConfig, ...partial } })),
 
   // ── Audit Actions (append-only) ──
   appendAuditEvent: (event) => {

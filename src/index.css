@@ -663,3 +663,21 @@ body {
   transform: translateY(1px);
 }
 
+
+/* ── EOSS Input ── */
+.eoss-input {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control, 10px);
+  padding: 8px 12px;
+  font-size: 13px;
+  color: var(--text);
+  outline: none;
+  transition: border-color 0.15s;
+}
+.eoss-input:focus {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px rgba(112, 72, 245, 0.08);
+}
+.eoss-input::placeholder { color: var(--text-3); }
+select.eoss-input { cursor: pointer; }
