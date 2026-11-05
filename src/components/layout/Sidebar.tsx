@@ -3,7 +3,8 @@ import { NavLink } from 'react-router-dom';
 import {
   Home, ShoppingCart, Package, Box, Activity, ShieldCheck,
   Wrench, Truck, Users, FileText, BarChart3,
-  ChevronLeft, ChevronRight, Store, Landmark, Settings
+  ChevronLeft, ChevronRight, Store, Landmark, Settings,
+  Package2, GitMerge, MoveRight
 } from 'lucide-react';
 import clsx from 'clsx';
 import { useStore } from '../../store';
@@ -22,6 +23,9 @@ const NAV_ITEMS: NavItem[] = [
   { path: '/procurement', label: 'Procurement', icon: <Package size={17} /> },
   { path: '/inventory', label: 'Inventory', icon: <Box size={17} /> },
   { path: '/jobs', label: 'Production', icon: <Activity size={17} /> },
+  { path: '/products', label: 'Products', icon: <Package2 size={17} /> },
+  { path: '/allocations', label: 'Site Allocations', icon: <GitMerge size={17} /> },
+  { path: '/transfers', label: 'Transfers', icon: <MoveRight size={17} /> },
   { path: '/quality', label: 'Quality', icon: <ShieldCheck size={17} /> },
   { path: '/assets', label: 'Maintenance', icon: <Wrench size={17} /> },
   { path: '/dispatch', label: 'Dispatch', icon: <Truck size={17} /> },
