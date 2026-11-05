@@ -4,7 +4,7 @@ import { ArrowLeft, FileText } from 'lucide-react';
 import { useStore } from '../../store';
 import StatusChip from '../../components/layout/StatusChip';
 
-const fmt = (d: string) => d ? new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
+const fmt = (d?: string) => d ? new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
 const fmtMoney = (n: number) => `₹${n.toLocaleString('en-IN')}`;
 
 export default function PaymentDetail() {
