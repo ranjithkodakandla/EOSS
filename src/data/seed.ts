@@ -39,6 +39,24 @@ export const EMPLOYEES: Employee[] = [
   { id: 'emp-008', userId: 'u-maint', employeeCode: 'EMP-008', name: 'Venkat Rao', role: 'maintenance', department: 'Maintenance', designation: 'Maintenance Technician', joiningDate: '2016-11-01', siteId: 'site-hyd' },
   { id: 'emp-009', userId: 'u-disp', employeeCode: 'EMP-009', name: 'Deepa Singh', role: 'dispatch', department: 'Dispatch', designation: 'Dispatch Coordinator', joiningDate: '2021-04-01', siteId: 'site-hyd' },
   { id: 'emp-010', userId: 'u-audit', employeeCode: 'EMP-010', name: 'External Auditor', role: 'auditor', department: 'External', designation: 'Quality Auditor', joiningDate: '2026-01-01', siteId: 'site-hyd' },
+  // Hyderabad Plant 2
+  { id: 'emp-011', userId: '', employeeCode: 'EMP-011', name: 'Ravi Shankar', role: 'supervisor', department: 'Production', designation: 'Plant Supervisor', joiningDate: '2016-04-01', siteId: 'site-hyd2' },
+  { id: 'emp-012', userId: '', employeeCode: 'EMP-012', name: 'Ramesh Nair', role: 'operator', department: 'Production', designation: 'CNC Operator', joiningDate: '2019-07-01', siteId: 'site-hyd2' },
+  { id: 'emp-013', userId: '', employeeCode: 'EMP-013', name: 'Latha Krishnan', role: 'qc', department: 'Quality', designation: 'QC Inspector', joiningDate: '2020-03-01', siteId: 'site-hyd2' },
+  { id: 'emp-014', userId: '', employeeCode: 'EMP-014', name: 'Srikanth B', role: 'storekeeper', department: 'Store', designation: 'Storekeeper', joiningDate: '2021-01-15', siteId: 'site-hyd2' },
+  { id: 'emp-015', userId: '', employeeCode: 'EMP-015', name: 'Naresh M', role: 'maintenance', department: 'Maintenance', designation: 'Maintenance Technician', joiningDate: '2020-09-01', siteId: 'site-hyd2' },
+  // Pune Manufacturing Plant
+  { id: 'emp-016', userId: '', employeeCode: 'EMP-016', name: 'Ajay Kulkarni', role: 'supervisor', department: 'Production', designation: 'Plant Manager', joiningDate: '2015-05-01', siteId: 'site-pun' },
+  { id: 'emp-017', userId: '', employeeCode: 'EMP-017', name: 'Santosh Desai', role: 'operator', department: 'Production', designation: 'VMC Operator', joiningDate: '2018-11-01', siteId: 'site-pun' },
+  { id: 'emp-018', userId: '', employeeCode: 'EMP-018', name: 'Meena Joshi', role: 'qc', department: 'Quality', designation: 'Quality Engineer', joiningDate: '2019-04-01', siteId: 'site-pun' },
+  { id: 'emp-019', userId: '', employeeCode: 'EMP-019', name: 'Prakash Mane', role: 'storekeeper', department: 'Store', designation: 'Store Incharge', joiningDate: '2017-06-01', siteId: 'site-pun' },
+  { id: 'emp-020', userId: '', employeeCode: 'EMP-020', name: 'Vikas Pawar', role: 'maintenance', department: 'Maintenance', designation: 'Electrical Technician', joiningDate: '2019-08-01', siteId: 'site-pun' },
+  // Chennai Fabrication Unit
+  { id: 'emp-021', userId: '', employeeCode: 'EMP-021', name: 'Selvam Murugan', role: 'supervisor', department: 'Production', designation: 'Unit Head', joiningDate: '2016-02-01', siteId: 'site-che' },
+  { id: 'emp-022', userId: '', employeeCode: 'EMP-022', name: 'Arjun Raghunathan', role: 'operator', department: 'Production', designation: 'Welding Operator', joiningDate: '2020-05-01', siteId: 'site-che' },
+  { id: 'emp-023', userId: '', employeeCode: 'EMP-023', name: 'Kavitha Sundaram', role: 'qc', department: 'Quality', designation: 'NDT Technician', joiningDate: '2021-02-01', siteId: 'site-che' },
+  { id: 'emp-024', userId: '', employeeCode: 'EMP-024', name: 'Dinesh Kumar C', role: 'storekeeper', department: 'Store', designation: 'Storekeeper', joiningDate: '2020-10-01', siteId: 'site-che' },
+  { id: 'emp-025', userId: '', employeeCode: 'EMP-025', name: 'Balaji R', role: 'maintenance', department: 'Maintenance', designation: 'Fitter', joiningDate: '2019-12-01', siteId: 'site-che' },
 ];
 
 // ── Sites ──
@@ -565,6 +583,22 @@ export const COLLECTION_ACTIVITIES: CollectionActivity[] = [
   { id: 'col-001', collectionNumber: 'COL-0001', customerId: 'cust-rw', customerName: 'RheinWerk Turbinenanlagen GmbH', invoiceId: 'inv-rw-001', invoiceNumber: 'INV-0001', assignedTo: 'Anita Mehta', followUpDate: '2024-12-02', channel: 'email', notes: 'Sent payment reminder for INV-0001 (₹36L). Due 20-Jan-2025.', promiseToPayDate: '2024-12-05', outcome: 'Klaus Werner confirmed payment in 2–3 days.', status: 'resolved', createdAt: '2024-12-02T10:00:00' },
   { id: 'col-002', collectionNumber: 'COL-0002', customerId: 'cust-rw', customerName: 'RheinWerk Turbinenanlagen GmbH', invoiceId: 'inv-rw-001', invoiceNumber: 'INV-0001', assignedTo: 'Anita Mehta', followUpDate: '2024-12-18', channel: 'phone', notes: 'Called Klaus Werner — balance of ₹26L to arrive by 20-Dec-2024.', promiseToPayDate: '2024-12-20', outcome: 'Payment received on 20-Dec-2024 as promised.', status: 'resolved', createdAt: '2024-12-18T14:30:00' },
   { id: 'col-003', collectionNumber: 'COL-0003', customerId: 'cust-rw', customerName: 'RheinWerk Turbinenanlagen GmbH', invoiceId: 'inv-rw-002', invoiceNumber: 'INV-0002', assignedTo: 'Anita Mehta', followUpDate: '2025-01-07', channel: 'email', notes: 'Advance notice sent for INV-0002 due 24-Jan-2025. ₹24L outstanding.', status: 'resolved', createdAt: '2025-01-07T09:00:00' },
+];
+
+// ── RheinWerk Quality Inspections ──
+export const FLAGSHIP_INSPECTIONS: Inspection[] = [
+  { id: 'ins-rw-001', inspectionNumber: 'QI-RW-001', type: 'Final', jobId: 'job-rw-001', jobNumber: 'JOB-0001', inspectorId: 'u-qc', inspectorName: 'Priya Patel', date: '2024-10-29', templateName: 'Precision Machining Final', sampleQty: 25, acceptedQty: 25, rejectedQty: 0, result: 'pass' },
+  { id: 'ins-rw-002', inspectionNumber: 'QI-RW-002', type: 'Final', jobId: 'job-rw-003', jobNumber: 'JOB-0003', inspectorId: 'emp-018', inspectorName: 'Meena Joshi', date: '2024-11-13', templateName: 'Bearing Housing Final', sampleQty: 80, acceptedQty: 78, rejectedQty: 2, result: 'pass' },
+  { id: 'ins-rw-003', inspectionNumber: 'QI-RW-003', type: 'Final', jobId: 'job-rw-006', jobNumber: 'JOB-0006', inspectorId: 'u-qc', inspectorName: 'Priya Patel', date: '2024-11-20', templateName: 'Flange Assembly Final', sampleQty: 30, acceptedQty: 30, rejectedQty: 0, result: 'pass' },
+];
+
+export const FLAGSHIP_NCRS: NCR[] = [
+  { id: 'ncr-rw-001', ncrNumber: 'NCR-RW-001', inspectionId: 'ins-rw-002', sourceType: 'In-Process', severity: 'Minor', description: 'Minor burr on bearing bore on 2 of 80 Shaft Bearing Housings. Burr height >0.1mm detected during post-machining inspection.', affectedQty: 2, disposition: 'Rework', raisedBy: 'Meena Joshi', raisedAt: '2024-11-13T10:30:00', status: 'closed', jobId: 'job-rw-003' },
+];
+
+export const FLAGSHIP_PURCHASE_REQS: PurchaseRequisition[] = [
+  { id: 'pr-rw-001', prNumber: 'PR-RW-001', raisedBy: 'Karthik Raju', raisedDate: '2024-10-15', requiredBy: '2024-10-25', jobId: 'job-rw-001', jobNumber: 'JOB-0001', status: 'converted', lineCount: 1, totalQty: 850, priority: 'high' },
+  { id: 'pr-rw-002', prNumber: 'PR-RW-002', raisedBy: 'Karthik Raju', raisedDate: '2024-10-15', requiredBy: '2024-10-25', jobId: 'job-rw-003', jobNumber: 'JOB-0003', status: 'converted', lineCount: 1, totalQty: 1200, priority: 'high' },
 ];
 
 export const ADDITIONAL_RFQ: CustomerRFQ = {

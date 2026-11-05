@@ -6,7 +6,9 @@ import type {
   PulseException, CustomerPO, SupplierPO, CustomerRFQ, GoodsReceipt,
   Inspection, NCR, MaterialCertificate, Employee, StoreLocation,
   SupplierQuotation, AuditEvent, ApprovalPolicy,
-  CustomerInvoice, SupplierInvoice, PaymentRecord, OnboardingState
+  CustomerInvoice, SupplierInvoice, PaymentRecord, OnboardingState,
+  Invoice, InvoiceLine, Payment, PaymentAllocation, CollectionActivity,
+  FinishedProduct, SiteAllocation
 } from '../types';
 import {
   DEMO_USERS, JOBS, MATERIAL_LOTS, INVENTORY, STOCK_MOVEMENTS,
@@ -17,6 +19,10 @@ import {
   EMPLOYEES, STORE_LOCATIONS, SUPPLIER_QUOTATIONS, AUDIT_EVENTS, APPROVAL_POLICIES,
   CUSTOMER_INVOICES, SUPPLIER_INVOICES, PAYMENT_RECORDS, COMPANY_CONFIG,
   GERMAN_CUSTOMER, FLAGSHIP_RFQ, ADDITIONAL_RFQ, FLAGSHIP_PO, FLAGSHIP_JOBS, FLAGSHIP_DISPATCHES,
+  FLAGSHIP_INVOICES, FLAGSHIP_INVOICE_LINES, FLAGSHIP_PAYMENTS, FLAGSHIP_PAYMENT_ALLOCATIONS,
+  COLLECTION_ACTIVITIES, FINISHED_PRODUCTS, FLAGSHIP_SITE_ALLOCATIONS,
+  FLAGSHIP_INSPECTIONS, FLAGSHIP_NCRS,
+  CUSTOMERS as CUSTOMERS_DATA, SITES, FLAGSHIP_QUOTATION,
 } from '../data/seed';
 
 // ── App State ──
@@ -118,16 +124,30 @@ interface EOSSState {
   addInspection: (ins: Inspection) => void;
   addDispatchRecord: (d: Dispatch) => void;
 
-  // Finance state
+  // Finance state (legacy types)
   customerInvoices: CustomerInvoice[];
   supplierInvoices: SupplierInvoice[];
   paymentRecords: PaymentRecord[];
+  // Finance state (rich flagship types)
+  invoices: Invoice[];
+  invoiceLines: InvoiceLine[];
+  payments: Payment[];
+  paymentAllocations: PaymentAllocation[];
+  collectionActivities: CollectionActivity[];
+  // Product & allocation catalogue
+  finishedProducts: FinishedProduct[];
+  siteAllocations: SiteAllocation[];
 
-  // Finance actions
+  // Finance actions (legacy)
   addCustomerInvoice: (inv: CustomerInvoice) => void;
   addSupplierInvoice: (inv: SupplierInvoice) => void;
   addPaymentRecord: (pay: PaymentRecord) => void;
   recordPaymentAgainstInvoice: (invoiceId: string, direction: 'inbound' | 'outbound', amount: number) => void;
+  // Finance actions (rich flagship types)
+  addInvoice: (inv: Invoice) => void;
+  addPayment: (pay: Payment) => void;
+  addPaymentAllocation: (pa: PaymentAllocation) => void;
+  addCollectionActivity: (ca: CollectionActivity) => void;
 
   // Onboarding state
   onboarding: OnboardingState;
@@ -180,8 +200,8 @@ export const useStore = create<EOSSState>((set, get) => ({
   supplierPos: [...SUPPLIER_POS],
   rfqs: [...RFQS, FLAGSHIP_RFQ, ADDITIONAL_RFQ],
   grns: [...GRNS],
-  inspections: [...INSPECTIONS],
-  ncrs: [...NCRS],
+  inspections: [...INSPECTIONS, ...FLAGSHIP_INSPECTIONS],
+  ncrs: [...NCRS, ...FLAGSHIP_NCRS],
   certificates: [...CERTIFICATES],
   employees: [...EMPLOYEES],
   storeLocations: [...STORE_LOCATIONS],
@@ -191,6 +211,13 @@ export const useStore = create<EOSSState>((set, get) => ({
   customerInvoices: [...CUSTOMER_INVOICES],
   supplierInvoices: [...SUPPLIER_INVOICES],
   paymentRecords: [...PAYMENT_RECORDS],
+  invoices: [...FLAGSHIP_INVOICES],
+  invoiceLines: [...FLAGSHIP_INVOICE_LINES],
+  payments: [...FLAGSHIP_PAYMENTS],
+  paymentAllocations: [...FLAGSHIP_PAYMENT_ALLOCATIONS],
+  collectionActivities: [...COLLECTION_ACTIVITIES],
+  finishedProducts: [...FINISHED_PRODUCTS],
+  siteAllocations: [...FLAGSHIP_SITE_ALLOCATIONS],
   onboarding: { status: 'complete', completedSteps: [1, 2, 3, 4, 5, 6, 7] },
   companyConfig: { ...COMPANY_CONFIG },
   toasts: [],
@@ -424,6 +451,12 @@ export const useStore = create<EOSSState>((set, get) => ({
     }
   },
 
+  // ── New Finance Actions ──
+  addInvoice: (inv) => set(s => ({ invoices: [inv, ...s.invoices] })),
+  addPayment: (pay) => set(s => ({ payments: [pay, ...s.payments] })),
+  addPaymentAllocation: (pa) => set(s => ({ paymentAllocations: [pa, ...s.paymentAllocations] })),
+  addCollectionActivity: (ca) => set(s => ({ collectionActivities: [ca, ...s.collectionActivities] })),
+
   // ── Onboarding Actions ──
   updateOnboarding: (partial) => set(s => ({ onboarding: { ...s.onboarding, ...partial } })),
   completeOnboarding: () => set({ onboarding: { status: 'complete', completedSteps: [1, 2, 3, 4, 5, 6, 7] } }),
@@ -456,6 +489,12 @@ export const selectLotMovements = (lotId: string) => (s: EOSSState) =>
   s.movements.filter(m => m.lotId === lotId);
 
 // Re-export seed data needed by components
-export { DEMO_USERS, SUPPLIERS, SUPPLIER_PO_LINES, JOB_BLOCKERS, PURCHASE_REQS, EMPLOYEES, STORE_LOCATIONS, SUPPLIER_QUOTATIONS, AUDIT_EVENTS, APPROVAL_POLICIES };
+export {
+  DEMO_USERS, SUPPLIERS, SUPPLIER_PO_LINES, JOB_BLOCKERS, PURCHASE_REQS, EMPLOYEES, STORE_LOCATIONS,
+  SUPPLIER_QUOTATIONS, AUDIT_EVENTS, APPROVAL_POLICIES,
+  FINISHED_PRODUCTS, FLAGSHIP_SITE_ALLOCATIONS, FLAGSHIP_INVOICES, FLAGSHIP_PAYMENTS,
+  FLAGSHIP_PAYMENT_ALLOCATIONS, COLLECTION_ACTIVITIES, CUSTOMERS_DATA, SITES,
+  FLAGSHIP_QUOTATION, FLAGSHIP_RFQ,
+};
 export const CUSTOMERS = [...CUSTOMERS_BASE, GERMAN_CUSTOMER];
 export { FLAGSHIP_PO_LINES, FLAGSHIP_SITE_ALLOCATIONS, FLAGSHIP_INVOICES, FLAGSHIP_PAYMENTS, FLAGSHIP_PAYMENT_ALLOCATIONS, COLLECTION_ACTIVITIES, FINISHED_PRODUCTS, FLAGSHIP_QUOTATION, FLAGSHIP_QUOTATION_LINES } from '../data/seed';
