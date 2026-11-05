@@ -429,6 +429,150 @@ export const APPROVAL_POLICIES: ApprovalPolicy[] = [
   { id: 'ap-004', scope: 'CustomerPOAmendment', condition: 'All amendments', thresholdType: 'always', requiredRole: 'owner', escalationRole: 'sales', active: true },
 ];
 
+// ═══════════════════════════════════════════════════════════════════
+// RHEINWERK FLAGSHIP SCENARIO — Apex Precision Engineering Pvt Ltd
+// Customer: RheinWerk Turbinenanlagen GmbH (Düsseldorf, Germany)
+// All financial values in INR only
+// ═══════════════════════════════════════════════════════════════════
+
+export const GERMAN_CUSTOMER: Party = {
+  id: 'cust-rw', partyType: 'Customer',
+  legalName: 'RheinWerk Turbinenanlagen GmbH',
+  tradingName: 'RheinWerk',
+  panNumber: 'AABCR9900Z',
+  gstin: '',
+  state: 'Export',
+  paymentTerms: 'Net 60',
+  creditLimit: 10000000,
+  currency: 'INR',
+  status: 'active',
+  contactPerson: 'Klaus Werner',
+  phone: '+49-211-98765400',
+  email: 'purchase@rheinwerk-turbinen.de',
+  city: 'Düsseldorf',
+  since: '2024',
+};
+
+export const FINISHED_PRODUCTS: FinishedProduct[] = [
+  { id: 'fg-001', productCode: 'APE-TC-001', name: 'Turbine Casing Cover Plate', description: 'High-precision cover plate for turbine casing, CNC machined SS304', categoryId: 'cat-precision', categoryName: 'Precision Components', primaryUom: 'Nos', drawingNumber: 'DWG-TC-001', drawingRevision: 'C', materialSpec: 'SS304 Grade', netWeightKg: 4.2, grossWeightKg: 4.8, primaryDimension: '450×320×18 mm', manufacturingRoute: 'CNC Turning → Milling → Inspection', status: 'active', unitPriceInr: 45000 },
+  { id: 'fg-002', productCode: 'APE-SB-001', name: 'Shaft Bearing Housing', description: 'Precision bearing housing for turbine shaft, toleranced to H7', categoryId: 'cat-precision', categoryName: 'Precision Components', primaryUom: 'Nos', drawingNumber: 'DWG-SB-001', drawingRevision: 'B', materialSpec: 'EN8 Steel', netWeightKg: 6.5, grossWeightKg: 7.2, primaryDimension: '220×220×180 mm', manufacturingRoute: 'CNC Turning → Boring → Honing → Inspection', status: 'active', unitPriceInr: 8750 },
+  { id: 'fg-003', productCode: 'APE-NZ-001', name: 'Steam Nozzle Block', description: 'Steam distribution nozzle block, investment cast and precision machined', categoryId: 'cat-precision', categoryName: 'Precision Components', primaryUom: 'Nos', drawingNumber: 'DWG-NZ-001', drawingRevision: 'A', materialSpec: 'SS316L', netWeightKg: 2.8, grossWeightKg: 3.2, primaryDimension: '180×90×75 mm', manufacturingRoute: 'CNC Milling → EDM → CMM Inspection', status: 'active', unitPriceInr: 10000 },
+  { id: 'fg-004', productCode: 'APE-RF-001', name: 'Rotor Flange Assembly', description: 'Precision rotor flange with bolt circle, dynamic balanced', categoryId: 'cat-precision', categoryName: 'Precision Components', primaryUom: 'Nos', drawingNumber: 'DWG-RF-001', drawingRevision: 'D', materialSpec: 'Alloy Steel 42CrMo4', netWeightKg: 18.5, grossWeightKg: 20.0, primaryDimension: 'Ø520×85 mm', manufacturingRoute: 'Rough Turning → Heat Treatment → Finish Turning → Grinding → Balance', status: 'active', unitPriceInr: 50000 },
+  { id: 'fg-005', productCode: 'APE-SP-001', name: 'Seal Plate Set', description: 'Labyrinth seal plate set for turbine end cover, 4-piece', categoryId: 'cat-precision', categoryName: 'Precision Components', primaryUom: 'Set', drawingNumber: 'DWG-SP-001', drawingRevision: 'B', materialSpec: 'SS410', netWeightKg: 1.4, grossWeightKg: 1.6, primaryDimension: 'Ø180×12 mm each', manufacturingRoute: 'CNC Turning → Wire EDM → Deburr → Inspection', status: 'active', unitPriceInr: 16000 },
+  { id: 'fg-006', productCode: 'APE-DP-001', name: 'Diaphragm Plate', description: 'Stage diaphragm plate for steam turbine, precision EDM slots', categoryId: 'cat-precision', categoryName: 'Precision Components', primaryUom: 'Nos', drawingNumber: 'DWG-DP-001', drawingRevision: 'A', materialSpec: 'SS316', netWeightKg: 9.2, grossWeightKg: 10.0, primaryDimension: 'Ø380×25 mm', manufacturingRoute: 'CNC Turning → EDM → CMM', status: 'active', unitPriceInr: 32000 },
+  { id: 'fg-007', productCode: 'APE-CB-001', name: 'Coupling Bolt Set', description: 'High-strength coupling bolt set M24×200, 8-piece with nuts', categoryId: 'cat-fastener', categoryName: 'Precision Fasteners', primaryUom: 'Set', drawingNumber: 'DWG-CB-001', drawingRevision: 'A', materialSpec: 'High Tensile Grade 10.9', netWeightKg: 3.6, grossWeightKg: 4.0, primaryDimension: 'M24×200 mm', manufacturingRoute: 'Thread Rolling → Heat Treatment → Plating → Inspection', status: 'active', unitPriceInr: 5500 },
+];
+
+export const FLAGSHIP_RFQ: CustomerRFQ = {
+  id: 'rfq-rw-001', rfqNumber: 'RFQ-0001', customerId: 'cust-rw', customerName: 'RheinWerk Turbinenanlagen GmbH',
+  receivedDate: '2024-10-01', requiredBy: '2024-11-30',
+  status: 'converted', lineCount: 5, channel: 'Email', owner: 'Anita Mehta',
+};
+
+export const FLAGSHIP_QUOTATION: CustomerQuotation = {
+  id: 'qt-rw-001', quotationNumber: 'QT-0001', rfqId: 'rfq-rw-001', rfqNumber: 'RFQ-0001',
+  customerId: 'cust-rw', customerName: 'RheinWerk Turbinenanlagen GmbH',
+  quotationDate: '2024-10-07', validUntil: '2024-11-07', currency: 'INR',
+  status: 'accepted', totalValue: 6000000, revision: 1, owner: 'Anita Mehta',
+  notes: 'Quotation accepted by Klaus Werner on 12-Oct-2024.',
+};
+
+export const FLAGSHIP_QUOTATION_LINES: CustomerQuotationLine[] = [
+  { id: 'qtl-001', quotationId: 'qt-rw-001', productId: 'fg-001', productName: 'Turbine Casing Cover Plate', drawingNumber: 'DWG-TC-001', drawingRevision: 'C', orderedQty: 40, uom: 'Nos', unitPrice: 45000, value: 1800000, requiredDate: '2024-11-20' },
+  { id: 'qtl-002', quotationId: 'qt-rw-001', productId: 'fg-002', productName: 'Shaft Bearing Housing', drawingNumber: 'DWG-SB-001', drawingRevision: 'B', orderedQty: 80, uom: 'Nos', unitPrice: 8750, value: 700000, requiredDate: '2024-11-20' },
+  { id: 'qtl-003', quotationId: 'qt-rw-001', productId: 'fg-003', productName: 'Steam Nozzle Block', drawingNumber: 'DWG-NZ-001', drawingRevision: 'A', orderedQty: 120, uom: 'Nos', unitPrice: 10000, value: 1200000, requiredDate: '2024-11-25' },
+  { id: 'qtl-004', quotationId: 'qt-rw-001', productId: 'fg-004', productName: 'Rotor Flange Assembly', drawingNumber: 'DWG-RF-001', drawingRevision: 'D', orderedQty: 30, uom: 'Nos', unitPrice: 50000, value: 1500000, requiredDate: '2024-11-28' },
+  { id: 'qtl-005', quotationId: 'qt-rw-001', productId: 'fg-005', productName: 'Seal Plate Set', drawingNumber: 'DWG-SP-001', drawingRevision: 'B', orderedQty: 50, uom: 'Set', unitPrice: 16000, value: 800000, requiredDate: '2024-11-25' },
+];
+
+export const FLAGSHIP_PO: CustomerPO = {
+  id: 'cpo-rw-001', poNumber: 'CPO-0001', customerId: 'cust-rw', customerName: 'RheinWerk Turbinenanlagen GmbH',
+  acceptedDate: '2024-10-14', currency: 'INR', totalValue: 6000000, lineCount: 5,
+  status: 'complete', paymentTerms: 'Net 60', deliveryTerms: 'FOB Hyderabad — ICD Patparganj, New Delhi',
+  quotationRef: 'QT-0001',
+};
+
+export const FLAGSHIP_PO_LINES: POLine[] = [
+  { id: 'cpl-001', poId: 'cpo-rw-001', drawingNumber: 'DWG-TC-001', revision: 'C', description: 'Turbine Casing Cover Plate (APE-TC-001)', orderedQty: 40, uom: 'Nos', rate: 45000, value: 1800000, requiredDate: '2024-11-20', status: 'complete' },
+  { id: 'cpl-002', poId: 'cpo-rw-001', drawingNumber: 'DWG-SB-001', revision: 'B', description: 'Shaft Bearing Housing (APE-SB-001)', orderedQty: 80, uom: 'Nos', rate: 8750, value: 700000, requiredDate: '2024-11-20', status: 'complete' },
+  { id: 'cpl-003', poId: 'cpo-rw-001', drawingNumber: 'DWG-NZ-001', revision: 'A', description: 'Steam Nozzle Block (APE-NZ-001)', orderedQty: 120, uom: 'Nos', rate: 10000, value: 1200000, requiredDate: '2024-11-25', status: 'complete' },
+  { id: 'cpl-004', poId: 'cpo-rw-001', drawingNumber: 'DWG-RF-001', revision: 'D', description: 'Rotor Flange Assembly (APE-RF-001)', orderedQty: 30, uom: 'Nos', rate: 50000, value: 1500000, requiredDate: '2024-11-28', status: 'complete' },
+  { id: 'cpl-005', poId: 'cpo-rw-001', drawingNumber: 'DWG-SP-001', revision: 'B', description: 'Seal Plate Set (APE-SP-001)', orderedQty: 50, uom: 'Set', rate: 16000, value: 800000, requiredDate: '2024-11-25', status: 'complete' },
+];
+
+export const FLAGSHIP_SITE_ALLOCATIONS: SiteAllocation[] = [
+  { id: 'sa-001', poId: 'cpo-rw-001', poNumber: 'CPO-0001', poLineId: 'cpl-001', productId: 'fg-001', productName: 'Turbine Casing Cover Plate', siteId: 'site-hyd', siteName: 'Hyderabad Plant 1', allocatedQty: 25, uom: 'Nos', jobId: 'job-rw-001', jobNumber: 'JOB-0001', status: 'complete', allocatedDate: '2024-10-15', allocatedBy: 'Suresh Kumar' },
+  { id: 'sa-002', poId: 'cpo-rw-001', poNumber: 'CPO-0001', poLineId: 'cpl-001', productId: 'fg-001', productName: 'Turbine Casing Cover Plate', siteId: 'site-hyd2', siteName: 'Hyderabad Plant 2', allocatedQty: 15, uom: 'Nos', jobId: 'job-rw-002', jobNumber: 'JOB-0002', status: 'complete', allocatedDate: '2024-10-15', allocatedBy: 'Suresh Kumar' },
+  { id: 'sa-003', poId: 'cpo-rw-001', poNumber: 'CPO-0001', poLineId: 'cpl-002', productId: 'fg-002', productName: 'Shaft Bearing Housing', siteId: 'site-pun', siteName: 'Pune Manufacturing Plant', allocatedQty: 80, uom: 'Nos', jobId: 'job-rw-003', jobNumber: 'JOB-0003', status: 'complete', allocatedDate: '2024-10-15', allocatedBy: 'Suresh Kumar' },
+  { id: 'sa-004', poId: 'cpo-rw-001', poNumber: 'CPO-0001', poLineId: 'cpl-003', productId: 'fg-003', productName: 'Steam Nozzle Block', siteId: 'site-hyd', siteName: 'Hyderabad Plant 1', allocatedQty: 60, uom: 'Nos', jobId: 'job-rw-004', jobNumber: 'JOB-0004', status: 'complete', allocatedDate: '2024-10-16', allocatedBy: 'Suresh Kumar' },
+  { id: 'sa-005', poId: 'cpo-rw-001', poNumber: 'CPO-0001', poLineId: 'cpl-003', productId: 'fg-003', productName: 'Steam Nozzle Block', siteId: 'site-che', siteName: 'Chennai Fabrication Unit', allocatedQty: 60, uom: 'Nos', jobId: 'job-rw-005', jobNumber: 'JOB-0005', status: 'complete', allocatedDate: '2024-10-16', allocatedBy: 'Suresh Kumar' },
+  { id: 'sa-006', poId: 'cpo-rw-001', poNumber: 'CPO-0001', poLineId: 'cpl-004', productId: 'fg-004', productName: 'Rotor Flange Assembly', siteId: 'site-hyd', siteName: 'Hyderabad Plant 1', allocatedQty: 30, uom: 'Nos', jobId: 'job-rw-006', jobNumber: 'JOB-0006', status: 'complete', allocatedDate: '2024-10-16', allocatedBy: 'Suresh Kumar' },
+  { id: 'sa-007', poId: 'cpo-rw-001', poNumber: 'CPO-0001', poLineId: 'cpl-005', productId: 'fg-005', productName: 'Seal Plate Set', siteId: 'site-hyd2', siteName: 'Hyderabad Plant 2', allocatedQty: 50, uom: 'Set', jobId: 'job-rw-007', jobNumber: 'JOB-0007', status: 'complete', allocatedDate: '2024-10-17', allocatedBy: 'Suresh Kumar' },
+];
+
+function rwStages(jobId: string, qty: number): JobStage[] {
+  return [
+    { id: `${jobId}-s1`, jobId, sequence: 1, name: 'Material Preparation', status: 'complete', plannedStart: '2024-10-18', plannedEnd: '2024-10-20', actualStart: '2024-10-18', actualEnd: '2024-10-20', owner: 'Mohan Das', workCentre: 'Prep Bay', inputQty: qty, completedGoodQty: qty, rejectedQty: 0, reworkQty: 0, scrapQty: 0, uom: 'Nos' },
+    { id: `${jobId}-s2`, jobId, sequence: 2, name: 'CNC Machining', status: 'complete', plannedStart: '2024-10-21', plannedEnd: '2024-10-28', actualStart: '2024-10-21', actualEnd: '2024-10-27', owner: 'Mohan Das', workCentre: 'CNC-1', inputQty: qty, completedGoodQty: qty, rejectedQty: 0, reworkQty: 0, scrapQty: 0, uom: 'Nos' },
+    { id: `${jobId}-s3`, jobId, sequence: 3, name: 'Quality Inspection', status: 'complete', plannedStart: '2024-10-28', plannedEnd: '2024-10-29', actualStart: '2024-10-28', actualEnd: '2024-10-29', owner: 'Priya Patel', workCentre: 'QC Lab', inputQty: qty, completedGoodQty: qty, rejectedQty: 0, reworkQty: 0, scrapQty: 0, uom: 'Nos' },
+    { id: `${jobId}-s4`, jobId, sequence: 4, name: 'Packaging', status: 'complete', plannedStart: '2024-10-30', plannedEnd: '2024-10-30', actualStart: '2024-10-30', actualEnd: '2024-10-30', owner: 'Deepa Singh', workCentre: 'Pack Bay', inputQty: qty, completedGoodQty: qty, rejectedQty: 0, reworkQty: 0, scrapQty: 0, uom: 'Nos' },
+  ];
+}
+
+export const FLAGSHIP_JOBS: Job[] = [
+  { id: 'job-rw-001', jobNumber: 'JOB-0001', customerId: 'cust-rw', customerName: 'RheinWerk', customerPoId: 'cpo-rw-001', customerPoNumber: 'CPO-0001', drawingRef: 'DWG-TC-001 Rev C', description: 'Turbine Casing Cover Plate — 25 Nos', siteId: 'site-hyd', siteName: 'Hyderabad Plant 1', plannedStart: '2024-10-18', plannedEnd: '2024-11-10', actualStart: '2024-10-18', actualEnd: '2024-11-08', status: 'complete', currentStage: 'Packaging', priority: 'high', owner: 'Suresh Kumar', materialReadiness: 'ready', hasBlocker: false, stages: rwStages('job-rw-001', 25), value: 1125000 },
+  { id: 'job-rw-002', jobNumber: 'JOB-0002', customerId: 'cust-rw', customerName: 'RheinWerk', customerPoId: 'cpo-rw-001', customerPoNumber: 'CPO-0001', drawingRef: 'DWG-TC-001 Rev C', description: 'Turbine Casing Cover Plate — 15 Nos', siteId: 'site-hyd2', siteName: 'Hyderabad Plant 2', plannedStart: '2024-10-18', plannedEnd: '2024-11-10', actualStart: '2024-10-18', actualEnd: '2024-11-09', status: 'complete', currentStage: 'Packaging', priority: 'high', owner: 'Ravi Shankar', materialReadiness: 'ready', hasBlocker: false, stages: rwStages('job-rw-002', 15), value: 675000 },
+  { id: 'job-rw-003', jobNumber: 'JOB-0003', customerId: 'cust-rw', customerName: 'RheinWerk', customerPoId: 'cpo-rw-001', customerPoNumber: 'CPO-0001', drawingRef: 'DWG-SB-001 Rev B', description: 'Shaft Bearing Housing — 80 Nos', siteId: 'site-pun', siteName: 'Pune Manufacturing Plant', plannedStart: '2024-10-18', plannedEnd: '2024-11-15', actualStart: '2024-10-19', actualEnd: '2024-11-13', status: 'complete', currentStage: 'Packaging', priority: 'normal', owner: 'Ajay Kulkarni', materialReadiness: 'ready', hasBlocker: false, stages: rwStages('job-rw-003', 80), value: 700000 },
+  { id: 'job-rw-004', jobNumber: 'JOB-0004', customerId: 'cust-rw', customerName: 'RheinWerk', customerPoId: 'cpo-rw-001', customerPoNumber: 'CPO-0001', drawingRef: 'DWG-NZ-001 Rev A', description: 'Steam Nozzle Block — 60 Nos', siteId: 'site-hyd', siteName: 'Hyderabad Plant 1', plannedStart: '2024-10-20', plannedEnd: '2024-11-18', actualStart: '2024-10-20', actualEnd: '2024-11-16', status: 'complete', currentStage: 'Packaging', priority: 'normal', owner: 'Suresh Kumar', materialReadiness: 'ready', hasBlocker: false, stages: rwStages('job-rw-004', 60), value: 600000 },
+  { id: 'job-rw-005', jobNumber: 'JOB-0005', customerId: 'cust-rw', customerName: 'RheinWerk', customerPoId: 'cpo-rw-001', customerPoNumber: 'CPO-0001', drawingRef: 'DWG-NZ-001 Rev A', description: 'Steam Nozzle Block — 60 Nos', siteId: 'site-che', siteName: 'Chennai Fabrication Unit', plannedStart: '2024-10-20', plannedEnd: '2024-11-18', actualStart: '2024-10-21', actualEnd: '2024-11-17', status: 'complete', currentStage: 'Packaging', priority: 'normal', owner: 'Selvam Murugan', materialReadiness: 'ready', hasBlocker: false, stages: rwStages('job-rw-005', 60), value: 600000 },
+  { id: 'job-rw-006', jobNumber: 'JOB-0006', customerId: 'cust-rw', customerName: 'RheinWerk', customerPoId: 'cpo-rw-001', customerPoNumber: 'CPO-0001', drawingRef: 'DWG-RF-001 Rev D', description: 'Rotor Flange Assembly — 30 Nos', siteId: 'site-hyd', siteName: 'Hyderabad Plant 1', plannedStart: '2024-10-18', plannedEnd: '2024-11-22', actualStart: '2024-10-18', actualEnd: '2024-11-20', status: 'complete', currentStage: 'Packaging', priority: 'high', owner: 'Suresh Kumar', materialReadiness: 'ready', hasBlocker: false, stages: rwStages('job-rw-006', 30), value: 1500000 },
+  { id: 'job-rw-007', jobNumber: 'JOB-0007', customerId: 'cust-rw', customerName: 'RheinWerk', customerPoId: 'cpo-rw-001', customerPoNumber: 'CPO-0001', drawingRef: 'DWG-SP-001 Rev B', description: 'Seal Plate Set — 50 Sets', siteId: 'site-hyd2', siteName: 'Hyderabad Plant 2', plannedStart: '2024-10-20', plannedEnd: '2024-11-18', actualStart: '2024-10-20', actualEnd: '2024-11-15', status: 'complete', currentStage: 'Packaging', priority: 'normal', owner: 'Ravi Shankar', materialReadiness: 'ready', hasBlocker: false, stages: rwStages('job-rw-007', 50), value: 800000 },
+];
+
+export const FLAGSHIP_DISPATCHES: Dispatch[] = [
+  { id: 'dsp-rw-001', dispatchNumber: 'DSP-0001', customerId: 'cust-rw', customerName: 'RheinWerk Turbinenanlagen GmbH', dispatchDate: '2024-11-18', carrier: 'DB Schenker India Pvt Ltd', vehicleNumber: 'TS09EE4521', lrNumber: 'DBK-IND-24-110892', expectedDelivery: '2024-11-21', lineCount: 3, totalQty: 120, status: 'delivered', hasPoD: true, jobs: ['job-rw-001', 'job-rw-002', 'job-rw-003'] },
+  { id: 'dsp-rw-002', dispatchNumber: 'DSP-0002', customerId: 'cust-rw', customerName: 'RheinWerk Turbinenanlagen GmbH', dispatchDate: '2024-11-22', carrier: 'DB Schenker India Pvt Ltd', vehicleNumber: 'TS09EE4789', lrNumber: 'DBK-IND-24-111234', expectedDelivery: '2024-11-25', lineCount: 4, totalQty: 200, status: 'delivered', hasPoD: true, jobs: ['job-rw-004', 'job-rw-005', 'job-rw-006', 'job-rw-007'] },
+];
+
+// INV-0001: ₹36,00,000 (Lines 1+2+3 partial)  INV-0002: ₹24,00,000 (Lines 3 remainder + 4 + 5)
+// INV-0001 paid: PAY-0001 (₹10L) + PAY-0002 (₹26L) = ₹36L
+// INV-0002 paid: PAY-0003 (₹24L)
+export const FLAGSHIP_INVOICES: Invoice[] = [
+  { id: 'inv-rw-001', invoiceNumber: 'INV-0001', customerId: 'cust-rw', customerName: 'RheinWerk Turbinenanlagen GmbH', poId: 'cpo-rw-001', poNumber: 'CPO-0001', dispatchIds: ['dsp-rw-001'], invoiceDate: '2024-11-21', dueDate: '2025-01-20', currency: 'INR', status: 'paid', subtotal: 3050847, taxAmount: 549153, totalAmount: 3600000, paidAmount: 3600000, outstandingAmount: 0, createdBy: 'Anita Mehta', notes: 'First dispatch invoice — DSP-0001. Tax: GST 18% (IGST — Export under LUT).' },
+  { id: 'inv-rw-002', invoiceNumber: 'INV-0002', customerId: 'cust-rw', customerName: 'RheinWerk Turbinenanlagen GmbH', poId: 'cpo-rw-001', poNumber: 'CPO-0001', dispatchIds: ['dsp-rw-002'], invoiceDate: '2024-11-25', dueDate: '2025-01-24', currency: 'INR', status: 'paid', subtotal: 2033898, taxAmount: 366102, totalAmount: 2400000, paidAmount: 2400000, outstandingAmount: 0, createdBy: 'Anita Mehta', notes: 'Second dispatch invoice — DSP-0002.' },
+];
+
+export const FLAGSHIP_INVOICE_LINES: InvoiceLine[] = [
+  { id: 'invl-001', invoiceId: 'inv-rw-001', productId: 'fg-001', productName: 'Turbine Casing Cover Plate', drawingNumber: 'DWG-TC-001', quantity: 40, uom: 'Nos', unitPrice: 45000, taxPct: 18, taxAmount: 324000, lineTotal: 2124000, dispatchId: 'dsp-rw-001', dispatchNumber: 'DSP-0001' },
+  { id: 'invl-002', invoiceId: 'inv-rw-001', productId: 'fg-002', productName: 'Shaft Bearing Housing', drawingNumber: 'DWG-SB-001', quantity: 80, uom: 'Nos', unitPrice: 8750, taxPct: 18, taxAmount: 126000, lineTotal: 826000, dispatchId: 'dsp-rw-001', dispatchNumber: 'DSP-0001' },
+  { id: 'invl-003', invoiceId: 'inv-rw-002', productId: 'fg-003', productName: 'Steam Nozzle Block', drawingNumber: 'DWG-NZ-001', quantity: 120, uom: 'Nos', unitPrice: 10000, taxPct: 18, taxAmount: 216000, lineTotal: 1416000, dispatchId: 'dsp-rw-002', dispatchNumber: 'DSP-0002' },
+  { id: 'invl-004', invoiceId: 'inv-rw-002', productId: 'fg-004', productName: 'Rotor Flange Assembly', drawingNumber: 'DWG-RF-001', quantity: 30, uom: 'Nos', unitPrice: 50000, taxPct: 18, taxAmount: 270000, lineTotal: 1770000, dispatchId: 'dsp-rw-002', dispatchNumber: 'DSP-0002' },
+];
+
+export const FLAGSHIP_PAYMENTS: Payment[] = [
+  { id: 'pay-rw-001', paymentNumber: 'PAY-0001', customerId: 'cust-rw', customerName: 'RheinWerk Turbinenanlagen GmbH', receiptDate: '2024-12-05', currency: 'INR', amount: 1000000, paymentMethod: 'bank_transfer', transactionRef: 'SWIFT-RW-241205-001', receivingAccount: 'Apex Precision — HDFC 50200012345', status: 'allocated', allocatedAmount: 1000000, unallocatedAmount: 0, createdBy: 'Anita Mehta', notes: 'Advance tranche 1 against INV-0001' },
+  { id: 'pay-rw-002', paymentNumber: 'PAY-0002', customerId: 'cust-rw', customerName: 'RheinWerk Turbinenanlagen GmbH', receiptDate: '2024-12-20', currency: 'INR', amount: 2600000, paymentMethod: 'bank_transfer', transactionRef: 'SWIFT-RW-241220-002', receivingAccount: 'Apex Precision — HDFC 50200012345', status: 'allocated', allocatedAmount: 2600000, unallocatedAmount: 0, createdBy: 'Anita Mehta', notes: 'Balance against INV-0001' },
+  { id: 'pay-rw-003', paymentNumber: 'PAY-0003', customerId: 'cust-rw', customerName: 'RheinWerk Turbinenanlagen GmbH', receiptDate: '2025-01-10', currency: 'INR', amount: 2400000, paymentMethod: 'bank_transfer', transactionRef: 'SWIFT-RW-250110-003', receivingAccount: 'Apex Precision — HDFC 50200012345', status: 'allocated', allocatedAmount: 2400000, unallocatedAmount: 0, createdBy: 'Anita Mehta', notes: 'Full settlement of INV-0002' },
+];
+
+export const FLAGSHIP_PAYMENT_ALLOCATIONS: PaymentAllocation[] = [
+  { id: 'pa-001', paymentId: 'pay-rw-001', paymentNumber: 'PAY-0001', invoiceId: 'inv-rw-001', invoiceNumber: 'INV-0001', customerId: 'cust-rw', allocatedAmount: 1000000, allocatedDate: '2024-12-05', allocatedBy: 'Anita Mehta', notes: 'Partial payment against INV-0001' },
+  { id: 'pa-002', paymentId: 'pay-rw-002', paymentNumber: 'PAY-0002', invoiceId: 'inv-rw-001', invoiceNumber: 'INV-0001', customerId: 'cust-rw', allocatedAmount: 2600000, allocatedDate: '2024-12-20', allocatedBy: 'Anita Mehta', notes: 'Balance of INV-0001 fully cleared' },
+  { id: 'pa-003', paymentId: 'pay-rw-003', paymentNumber: 'PAY-0003', invoiceId: 'inv-rw-002', invoiceNumber: 'INV-0002', customerId: 'cust-rw', allocatedAmount: 2400000, allocatedDate: '2025-01-10', allocatedBy: 'Anita Mehta', notes: 'INV-0002 fully cleared' },
+];
+
+export const COLLECTION_ACTIVITIES: CollectionActivity[] = [
+  { id: 'col-001', collectionNumber: 'COL-0001', customerId: 'cust-rw', customerName: 'RheinWerk Turbinenanlagen GmbH', invoiceId: 'inv-rw-001', invoiceNumber: 'INV-0001', assignedTo: 'Anita Mehta', followUpDate: '2024-12-02', channel: 'email', notes: 'Sent payment reminder for INV-0001 (₹36L). Due 20-Jan-2025.', promiseToPayDate: '2024-12-05', outcome: 'Klaus Werner confirmed payment in 2–3 days.', status: 'resolved', createdAt: '2024-12-02T10:00:00' },
+  { id: 'col-002', collectionNumber: 'COL-0002', customerId: 'cust-rw', customerName: 'RheinWerk Turbinenanlagen GmbH', invoiceId: 'inv-rw-001', invoiceNumber: 'INV-0001', assignedTo: 'Anita Mehta', followUpDate: '2024-12-18', channel: 'phone', notes: 'Called Klaus Werner — balance of ₹26L to arrive by 20-Dec-2024.', promiseToPayDate: '2024-12-20', outcome: 'Payment received on 20-Dec-2024 as promised.', status: 'resolved', createdAt: '2024-12-18T14:30:00' },
+  { id: 'col-003', collectionNumber: 'COL-0003', customerId: 'cust-rw', customerName: 'RheinWerk Turbinenanlagen GmbH', invoiceId: 'inv-rw-002', invoiceNumber: 'INV-0002', assignedTo: 'Anita Mehta', followUpDate: '2025-01-07', channel: 'email', notes: 'Advance notice sent for INV-0002 due 24-Jan-2025. ₹24L outstanding.', status: 'resolved', createdAt: '2025-01-07T09:00:00' },
+];
+
+export const ADDITIONAL_RFQ: CustomerRFQ = {
+  id: 'rfq-rw-002', rfqNumber: 'RFQ-0002', customerId: 'cust-rw', customerName: 'RheinWerk Turbinenanlagen GmbH',
+  receivedDate: '2024-10-28', requiredBy: '2025-01-31',
+  status: 'open', lineCount: 2, channel: 'Email', owner: 'Anita Mehta',
+};
+
 // ── Finance Seed Data ──
 import type { CustomerInvoice, SupplierInvoice, PaymentRecord } from '../types';
 
