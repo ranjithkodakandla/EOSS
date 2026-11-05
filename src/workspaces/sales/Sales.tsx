@@ -163,7 +163,7 @@ export default function Sales() {
               <thead className="sticky top-0 z-10" style={{ background: 'var(--surface-muted,#F8F9FC)' }}>
                 <tr style={{ borderBottom: '1px solid var(--border)' }}>
                   {['PO Number', 'Customer', 'Date', 'Value', 'Lines', 'Terms', 'Status'].map(h => (
-                    <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-3)' }}>
+                    <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold font-medium" style={{ color: 'var(--text-3)' }}>
                       {h}
                     </th>
                   ))}
@@ -216,7 +216,7 @@ export default function Sales() {
               <thead className="sticky top-0 z-10" style={{ background: 'var(--surface-muted,#F8F9FC)' }}>
                 <tr style={{ borderBottom: '1px solid var(--border)' }}>
                   {['RFQ Number', 'Customer', 'Received', 'Required By', 'Lines', 'Channel', 'Status', 'Owner'].map(h => (
-                    <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-3)' }}>{h}</th>
+                    <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold font-medium" style={{ color: 'var(--text-3)' }}>{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -228,6 +228,7 @@ export default function Sales() {
                     style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}
                     onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--surface-muted,#F8F9FC)'; }}
                     onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'var(--surface)'; }}
+                    onClick={() => navigate(`/sales/rfq/${r.id}`)}
                   >
                     <td className="px-4 py-3 font-mono text-xs font-bold" style={{ color: 'var(--brand)' }}>{r.rfqNumber}</td>
                     <td className="px-4 py-3 font-medium" style={{ color: 'var(--text)' }}>{r.customerName}</td>
@@ -415,7 +416,7 @@ function Metric({ icon, label, value, small }: { icon: React.ReactNode; label: s
     <div>
       <div className="flex items-center gap-1 mb-1" style={{ color: 'var(--text-3)' }}>
         {icon}
-        <span className="text-[10px] uppercase tracking-wider">{label}</span>
+        <span className="text-[10px] font-medium">{label}</span>
       </div>
       <div className={clsx('font-bold', small ? 'text-sm' : 'text-base')} style={{ color: 'var(--text)' }}>{value}</div>
     </div>
@@ -425,7 +426,7 @@ function Metric({ icon, label, value, small }: { icon: React.ReactNode; label: s
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
-      <div className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: 'var(--text-3)' }}>{title}</div>
+      <div className="text-xs font-semibold font-medium mb-2" style={{ color: 'var(--text-3)' }}>{title}</div>
       <div className="space-y-2.5">{children}</div>
     </div>
   );

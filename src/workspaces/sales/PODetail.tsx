@@ -147,7 +147,7 @@ export default function PODetail() {
                     <thead>
                       <tr style={{ borderBottom: '1px solid var(--border)' }}>
                         {['Job #', 'Description', 'Stage', 'Status', 'Value', ''].map(h => (
-                          <th key={h} className="text-left pb-2 text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-3)' }}>{h}</th>
+                          <th key={h} className="text-left pb-2 text-xs font-semibold font-medium" style={{ color: 'var(--text-3)' }}>{h}</th>
                         ))}
                       </tr>
                     </thead>
@@ -226,7 +226,7 @@ export default function PODetail() {
                 <thead style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface-muted,#F8F9FC)' }}>
                   <tr>
                     {['#', 'Item / Specification', 'Qty', 'UOM', 'Rate', 'Total'].map(h => (
-                      <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-3)' }}>{h}</th>
+                      <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold font-medium" style={{ color: 'var(--text-3)' }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
@@ -317,7 +317,7 @@ export default function PODetail() {
                   <thead style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface-muted,#F8F9FC)' }}>
                     <tr>
                       {['Job #', 'Description', 'Current Stage', 'Status', 'Due Date', 'Value', ''].map(h => (
-                        <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-3)' }}>{h}</th>
+                        <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold font-medium" style={{ color: 'var(--text-3)' }}>{h}</th>
                       ))}
                     </tr>
                   </thead>
@@ -382,7 +382,7 @@ export default function PODetail() {
 function SummaryBadge({ label, value, emphasis, mono }: { label: string; value: string; emphasis?: boolean; mono?: boolean }) {
   return (
     <div className="flex flex-col gap-0.5">
-      <span className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--text-3)' }}>{label}</span>
+      <span className="text-[10px] font-medium" style={{ color: 'var(--text-3)' }}>{label}</span>
       <span
         className={clsx('text-sm font-semibold', mono ? 'font-mono' : '')}
         style={{ color: emphasis ? 'var(--brand)' : 'var(--text)' }}

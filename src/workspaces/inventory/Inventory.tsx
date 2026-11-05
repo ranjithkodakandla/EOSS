@@ -177,7 +177,7 @@ export default function Inventory() {
                 <th
                   key={label}
                   onClick={key ? () => handleSort(key) : undefined}
-                  className={clsx('px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider', key ? 'cursor-pointer select-none hover:opacity-70' : '')}
+                  className={clsx('px-4 py-3 text-left text-xs font-semibold font-medium', key ? 'cursor-pointer select-none hover:opacity-70' : '')}
                   style={{ color: 'var(--text-3)', borderBottom: '1px solid var(--border)' }}
                 >
                   <span className="flex items-center gap-1">

@@ -36,6 +36,8 @@
   --brand-soft: #EEE9FF;
   --app-bg: #F7F6FE;
   --surface: #FFFFFF;
+  --surface-2: #F5F4FF;
+  --surface-3: #EDEBFC;
   --surface-muted: #F3F0FF;
   --card-gradient: linear-gradient(180deg, #FFFFFF 0%, #FAF9FE 100%);
   --text-primary: #1A1F36;
@@ -71,6 +73,8 @@
   --brand-soft: #DDF4F2;
   --app-bg: #F2F9F9;
   --surface: #FFFFFF;
+  --surface-2: #EAF5F5;
+  --surface-3: #D8EEEE;
   --surface-muted: #EAF5F5;
   --card-gradient: linear-gradient(180deg, #FFFFFF 0%, #F5FAFA 100%);
   --text-primary: #0F2D2E;
@@ -106,6 +110,8 @@
   --brand-soft: #FEF3C7;
   --app-bg: #FAF8F5;
   --surface: #FFFFFF;
+  --surface-2: #F5F1EB;
+  --surface-3: #EDE8DF;
   --surface-muted: #F5F1EB;
   --card-gradient: linear-gradient(180deg, #FFFFFF 0%, #FAF8F5 100%);
   --text-primary: #1F2937;
@@ -169,8 +175,8 @@
   /* Text */
   --text: #E8F2FF;
   --text-2: #7A9EBF;
-  --text-3: #3D5F7A;
-  --text-4: #1E3550;
+  --text-3: #5B8DB8;
+  --text-4: #2A4A6A;
 
   /* Semantic */
   --success: #10B981;
@@ -360,11 +366,11 @@ body {
 .eoss-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .eoss-table th {
   background: var(--surface-2);
-  color: var(--text-3);
+  color: var(--text-2);
   font-size: 11px;
   font-weight: 600;
-  letter-spacing: 0.055em;
-  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  text-transform: none;
   padding: 8px 14px;
   text-align: left;
   border-bottom: 1px solid var(--border);

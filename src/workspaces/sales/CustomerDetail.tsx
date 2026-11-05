@@ -140,7 +140,7 @@ export default function CustomerDetail() {
                 <thead style={{ background: 'var(--surface-muted,#F8F9FC)', borderBottom: '1px solid var(--border)' }}>
                   <tr>
                     {['PO Number', 'Accepted', 'Value', 'Lines', 'Payment', 'Status'].map(h => (
-                      <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-3)' }}>{h}</th>
+                      <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold font-medium" style={{ color: 'var(--text-3)' }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
@@ -205,7 +205,7 @@ export default function CustomerDetail() {
 function SBadge({ label, value, emphasis }: { label: string; value: string; emphasis?: boolean }) {
   return (
     <div className="flex flex-col gap-0.5">
-      <span className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--text-3)' }}>{label}</span>
+      <span className="text-[10px] font-medium" style={{ color: 'var(--text-3)' }}>{label}</span>
       <span className="text-sm font-semibold" style={{ color: emphasis ? 'var(--brand)' : 'var(--text)' }}>{value}</span>
     </div>
   );

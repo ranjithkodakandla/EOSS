@@ -70,7 +70,7 @@ export default function Home() {
                   boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
                 }}
               >
-                <p className="text-[11px] font-semibold text-[var(--text-secondary,#626A84)] uppercase tracking-wider mb-2.5">Quick Actions</p>
+                <p className="text-[11px] font-semibold text-[var(--text-secondary,#626A84)] font-medium mb-2.5">Quick Actions</p>
                 <div className="flex flex-wrap gap-2">
                   {visible.map(({ icon: Icon, label, path }) => (
                     <button

@@ -134,7 +134,7 @@ export default function JobWorkspace() {
         isBlocked ? 'bg-[var(--error-bg)]/20 border-[var(--error-border)]' : 'bg-[var(--surface)] border-[var(--border)]'
       )}>
         <div className="space-y-0.5">
-          <div className="text-xs font-mono uppercase tracking-wider font-bold text-[var(--text-3)]">
+          <div className="text-xs font-mono font-medium font-bold text-[var(--text-3)]">
             {isBlocked ? 'Current Blocker' : 'Current Stage & Next Action'}
           </div>
           <div className="text-sm text-[var(--text)]">
@@ -169,7 +169,7 @@ export default function JobWorkspace() {
 
       {/* ── 3. Production Stage Progression Stepper (Calm & Linear) ── */}
       <div className="p-5 rounded-xl bg-[var(--surface)] border border-[var(--border)] space-y-3">
-        <div className="text-xs font-bold uppercase tracking-wider text-[var(--text-3)] font-mono">
+        <div className="text-xs font-bold font-medium text-[var(--text-3)] font-mono">
           Production Timeline
         </div>
 

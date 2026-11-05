@@ -91,7 +91,7 @@ export default function Remnants() {
             <thead>
               <tr style={{ borderBottom: '1px solid var(--border,#E5E7EB)', background: 'var(--surface-muted,#F8F9FC)' }}>
                 {['Lot', 'Material', 'Qty', 'Location', 'Type', 'Status', 'Actions'].map(h => (
-                  <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold text-[var(--text-secondary,#626A84)] uppercase tracking-wider">{h}</th>
+                  <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold text-[var(--text-secondary,#626A84)] font-medium">{h}</th>
                 ))}
               </tr>
             </thead>

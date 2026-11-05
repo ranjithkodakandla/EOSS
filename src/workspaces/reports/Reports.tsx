@@ -50,7 +50,7 @@ export default function Reports() {
       </div>
 
       {/* Report tiles */}
-      <h2 className="text-sm font-semibold text-[var(--text-2)] uppercase tracking-wider mb-3">Available Reports</h2>
+      <h2 className="text-sm font-semibold text-[var(--text-2)] font-medium mb-3">Available Reports</h2>
       <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-3 mb-6">
         {REPORT_TYPES.map(r => (
           <div key={r.id} onClick={() => setActiveReport(r.id === activeReport ? null : r.id)} className={`bg-[var(--surface)] border rounded-xl p-4 cursor-pointer transition-colors ${activeReport === r.id ? 'border-[var(--brand)] ring-1 ring-[var(--brand)]' : 'border-[var(--border)] hover:border-[var(--brand)]'}`}>

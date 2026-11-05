@@ -77,7 +77,7 @@ export default function Jobs() {
             <thead style={{ position: 'sticky', top: 0, zIndex: 5 }}>
               <tr style={{ background: 'var(--surface-muted,#F8F9FC)' }}>
                 {['Job #', 'Customer', 'Description', 'Status', 'Priority', 'Stage', 'Planned End', 'Material', ''].map(h => (
-                  <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-3)', borderBottom: '1px solid var(--border)' }}>{h}</th>
+                  <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold font-medium" style={{ color: 'var(--text-3)', borderBottom: '1px solid var(--border)' }}>{h}</th>
                 ))}
               </tr>
             </thead>
@@ -90,9 +90,9 @@ export default function Jobs() {
                     onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--surface-muted,#F8F9FC)'; }}
                     onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'var(--surface)'; }}
                     onClick={() => navigate(`/jobs/${j.id}`)}>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        {j.hasBlocker && <AlertTriangle size={13} style={{ color: 'var(--error,#DC2626)', flexShrink: 0 }} />}
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <div className="flex items-center gap-1.5">
+                        {j.hasBlocker === true && <AlertTriangle size={12} style={{ color: 'var(--error,#DC2626)', flexShrink: 0 }} />}
                         <span className="font-mono text-xs font-bold" style={{ color: 'var(--brand)' }}>{j.jobNumber}</span>
                       </div>
                     </td>
