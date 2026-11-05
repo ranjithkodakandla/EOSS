@@ -205,14 +205,14 @@ export default function OrderToDeliveryFlow() {
         </div>
       </div>
 
-      {/* Process Boxes: Natural Flex Row with Zero Horizontal Scrollbar & Compact ~82px Height */}
-      <div className="w-full flex items-center justify-between gap-1 sm:gap-2">
+      {/* Process Boxes: Responsive Row (Swipeable on mobile, natural flex grid on desktop) */}
+      <div className="w-full flex items-center justify-start sm:justify-between gap-1.5 sm:gap-2 overflow-x-auto sm:overflow-visible pb-1.5 sm:pb-0 no-scrollbar">
         {steps.map((step, idx) => (
           <React.Fragment key={step.id}>
-            {/* Step Card: Exactly 82px tall, identical flex width, icon placed cleanly at top */}
+            {/* Step Card: 105px on mobile to prevent squishing, flex-1 on tablet/desktop */}
             <button
               onClick={() => navigate(step.path)}
-              className="flex-1 min-w-0 h-[82px] rounded-2xl border transition-all duration-150 hover:-translate-y-0.5 group relative cursor-pointer flex flex-col items-center justify-between py-2 px-1 text-center"
+              className="flex-shrink-0 sm:flex-shrink sm:flex-1 min-w-[105px] sm:min-w-0 h-[82px] rounded-2xl border transition-all duration-150 hover:-translate-y-0.5 group relative cursor-pointer flex flex-col items-center justify-between py-2 px-1.5 text-center"
               style={{
                 background: step.bg,
                 borderColor: step.borderColor,

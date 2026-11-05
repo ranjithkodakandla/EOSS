@@ -21,9 +21,11 @@ export default function TopBar() {
   return (
     <>
       <header
-        className="fixed top-0 right-0 z-30 h-[70px] flex items-center justify-between px-3 sm:px-5 lg:px-7 gap-2 sm:gap-4 transition-[left] duration-200 select-none"
+        className={clsx(
+          "fixed top-0 right-0 z-30 h-[70px] flex items-center justify-between px-3 sm:px-5 lg:px-7 gap-2 sm:gap-4 transition-[left] duration-200 select-none left-0",
+          sidebarCollapsed ? "md:left-[var(--sidebar-w-collapsed,64px)]" : "md:left-[var(--sidebar-width,216px)]"
+        )}
         style={{
-          left: sidebarCollapsed ? 'var(--sidebar-w-collapsed, 64px)' : 'var(--sidebar-width, 216px)',
           background: 'var(--app-bg, #F6F4FF)',
           borderBottom: '1px solid var(--border, #E5E0F5)',
         }}
@@ -47,19 +49,27 @@ export default function TopBar() {
         </div>
 
         {/* Center: Global Record Search (Ctrl + K) */}
-        <div className="flex-1 max-w-xs sm:max-w-md lg:max-w-xl mx-1 sm:mx-3 md:mx-6">
+        <div className="flex-1 flex justify-center sm:justify-start max-w-xs sm:max-w-md lg:max-w-xl mx-1 sm:mx-3 md:mx-6">
+          {/* Mobile search icon button */}
           <button
             onClick={() => setSearchOpen(true)}
-            className="w-full flex items-center gap-2 sm:gap-2.5 px-3 sm:px-4 py-2 rounded-full border text-xs sm:text-sm text-[var(--text-2)] bg-[var(--surface)] hover:border-[var(--brand)] transition-all shadow-sm group cursor-pointer"
+            className="sm:hidden w-8 h-8 rounded-full border flex items-center justify-center text-[var(--text-2)] bg-[var(--surface)] hover:border-[var(--brand)] transition-colors shadow-2xs cursor-pointer"
+            style={{ borderColor: 'var(--border, #E5E0F5)' }}
+            title="Global Record Search"
+          >
+            <Search size={15} className="text-[var(--text-2)]" />
+          </button>
+
+          {/* Desktop/Tablet full search bar */}
+          <button
+            onClick={() => setSearchOpen(true)}
+            className="hidden sm:flex w-full items-center gap-2 sm:gap-2.5 px-3 sm:px-4 py-2 rounded-full border text-xs sm:text-sm text-[var(--text-2)] bg-[var(--surface)] hover:border-[var(--brand)] transition-all shadow-sm group cursor-pointer"
             style={{ borderColor: 'var(--border, #E5E0F5)' }}
             title="Global Record Search (Cmd+K / Ctrl+K)"
           >
             <Search size={15} className="text-[var(--text-2)] group-hover:text-[var(--brand)] flex-shrink-0" />
-            <span className="truncate flex-1 text-left text-xs sm:text-[13px] font-normal text-gray-500 hidden sm:inline">
+            <span className="truncate flex-1 text-left text-xs sm:text-[13px] font-normal text-gray-500">
               Search orders, customers, materials, documents...
-            </span>
-            <span className="truncate flex-1 text-left text-xs font-normal text-gray-500 sm:hidden">
-              Search records...
             </span>
             <kbd className="hidden lg:inline-flex items-center font-mono text-[10px] px-2 py-0.5 rounded-md bg-gray-50 border border-gray-200 text-gray-500 shadow-2xs font-semibold">
               Ctrl + K

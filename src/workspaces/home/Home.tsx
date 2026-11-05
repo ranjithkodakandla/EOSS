@@ -19,9 +19,30 @@ const QUICK_ACTIONS = [
 ];
 
 export default function Home() {
-  const { currentUser } = useStore();
+  const { currentUser, eossTheme } = useStore();
   const navigate = useNavigate();
   const [copilotDrawerOpen, setCopilotDrawerOpen] = useState(false);
+
+  const copilotBtnBg =
+    eossTheme === 'graphite'
+      ? 'linear-gradient(135deg, #1C1D24 0%, #2D2418 100%)'
+      : eossTheme === 'ocean'
+      ? 'linear-gradient(135deg, #06404A 0%, #08606F 100%)'
+      : 'linear-gradient(135deg, #1E0A4C 0%, #3B0764 100%)';
+
+  const copilotBtnBorder =
+    eossTheme === 'graphite'
+      ? '1px solid rgba(245, 158, 11, 0.4)'
+      : eossTheme === 'ocean'
+      ? '1px solid rgba(34, 211, 238, 0.35)'
+      : '1px solid rgba(168, 85, 247, 0.35)';
+
+  const copilotBtnShadow =
+    eossTheme === 'graphite'
+      ? '0 8px 24px -4px rgba(229,138,54,0.45), 0 2px 8px rgba(0,0,0,0.5)'
+      : eossTheme === 'ocean'
+      ? '0 8px 24px -4px rgba(8,127,140,0.5), 0 2px 8px rgba(0,0,0,0.5)'
+      : '0 8px 24px -4px rgba(112,72,245,0.5), 0 2px 8px rgba(0,0,0,0.5)';
 
   // Fallback to 'Ranjith' if owner demo or display name
   const nameParts = currentUser?.name ? currentUser.name.trim().split(' ') : ['Ranjith'];
@@ -99,17 +120,25 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Floating Copilot Button for Mobile and Tablet (< 1280px) */}
-      <div className="xl:hidden fixed bottom-6 right-6 z-40">
+      {/* Floating Copilot Button for Mobile and Tablet (< 1280px) positioned cleanly above bottom nav */}
+      <div className="xl:hidden fixed bottom-[72px] right-4 md:bottom-6 md:right-6 z-40">
         <button
           onClick={() => setCopilotDrawerOpen(true)}
-          className="flex items-center gap-2 px-4 py-3 rounded-full text-white shadow-xl hover:scale-105 transition-transform cursor-pointer"
+          className="flex items-center gap-2.5 px-4 py-2.5 rounded-full text-white transition-all hover:scale-105 active:scale-95 cursor-pointer"
           style={{
-            background: 'linear-gradient(135deg, var(--copilot-start, #4C1D95), var(--copilot-end, #A855F7))',
+            background: copilotBtnBg,
+            border: copilotBtnBorder,
+            boxShadow: copilotBtnShadow,
           }}
+          title="Open EOSS Copilot"
         >
-          <Sparkles size={17} />
-          <span className="text-xs font-bold tracking-wide">EOSS Copilot</span>
+          <img
+            src={`/assets/copilot/robot_${eossTheme}.png`}
+            alt="Copilot Mascot"
+            className="w-7 h-7 object-contain drop-shadow"
+          />
+          <span className="text-xs font-bold tracking-wide">Copilot</span>
+          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse -ml-0.5" />
         </button>
       </div>
 
