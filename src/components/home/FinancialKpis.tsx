@@ -28,10 +28,10 @@ export default function FinancialKpis() {
   const navigate = useNavigate();
   const { customerInvoices, supplierInvoices, inventory } = useStore();
 
-  const totalSales = customerInvoices.reduce((s, i) => s + i.totalAmount, 0);
-  const totalPurchases = supplierInvoices.reduce((s, i) => s + i.totalAmount, 0);
-  const totalReceivables = customerInvoices.filter(i => i.status !== 'paid').reduce((s, i) => s + (i.totalAmount - i.amountPaid), 0);
-  const totalPayables = supplierInvoices.filter(i => i.status !== 'paid').reduce((s, i) => s + (i.totalAmount - i.amountPaid), 0);
+  const totalSales = customerInvoices.reduce((s, i) => s + i.amount, 0);
+  const totalPurchases = supplierInvoices.reduce((s, i) => s + i.amount, 0);
+  const totalReceivables = customerInvoices.filter(i => i.status !== 'paid').reduce((s, i) => s + (i.amount - i.amountPaid), 0);
+  const totalPayables = supplierInvoices.filter(i => i.status !== 'paid').reduce((s, i) => s + (i.amount - i.amountPaid), 0);
   const dueInWeek = supplierInvoices.filter(i => i.status !== 'paid' && new Date(i.dueDate) <= new Date(Date.now() + 7 * 86400000)).length;
   const stockValue = inventory.reduce((s, m) => s + (m.stockQty * (m.unitCost ?? 0)), 0);
   const profit = totalSales - totalPurchases;
