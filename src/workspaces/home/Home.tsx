@@ -10,7 +10,7 @@ import BusinessHealthCard from '../../components/home/BusinessHealthCard';
 import CopilotPanel from '../../components/copilot/CopilotPanel';
 
 const QUICK_ACTIONS = [
-  { icon: ShoppingCart, label: 'Create Sales Order', path: '/sales', roles: ['owner', 'sales'] },
+  { icon: ShoppingCart, label: 'New Customer RFQ', path: '/sales/rfq/new', roles: ['owner', 'sales'] },
   { icon: FileInput, label: 'Create Purchase Request', path: '/procurement', roles: ['owner', 'buyer'] },
   { icon: PackagePlus, label: 'Receive Stock', path: '/procurement', roles: ['owner', 'storekeeper', 'buyer'] },
   { icon: Wrench, label: 'Update Job', path: '/jobs', roles: ['owner', 'supervisor', 'operator'] },

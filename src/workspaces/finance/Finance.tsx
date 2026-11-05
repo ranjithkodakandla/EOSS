@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { TrendingUp, TrendingDown, AlertCircle, Plus, ArrowUpRight, ArrowDownLeft, Clock, Check, Building2 } from 'lucide-react';
 import { useStore } from '../../store';
 import StatusChip from '../../components/layout/StatusChip';
@@ -17,7 +17,8 @@ export default function Finance() {
     recordPaymentAgainstInvoice, showToast, currentUser
   } = useStore();
   const navigate = useNavigate();
-  const [tab, setTab] = useState<Tab>('overview');
+  const [searchParams] = useSearchParams();
+  const [tab, setTab] = useState<Tab>((searchParams.get('tab') as Tab) ?? 'overview');
   const [showAddInvoice, setShowAddInvoice] = useState(false);
   const [showAddPayment, setShowAddPayment] = useState(false);
   const [invoiceType, setInvoiceType] = useState<'customer' | 'supplier'>('customer');

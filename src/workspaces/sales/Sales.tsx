@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Plus, Search, ChevronRight, ArrowUpRight, Calendar,
   FileText, Briefcase, DollarSign, Clock, User, X, Pencil, Trash2
@@ -14,7 +14,8 @@ type POTab = 'pos' | 'rfqs' | 'customers';
 export default function Sales() {
   const { rfqs, customerPos, jobs, currentUser, showToast, updateCustomerPo, updateRfq } = useStore();
   const navigate = useNavigate();
-  const [tab, setTab] = useState<POTab>('pos');
+  const [searchParams] = useSearchParams();
+  const [tab, setTab] = useState<POTab>((searchParams.get('tab') as POTab) ?? 'pos');
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [selectedPoId, setSelectedPoId] = useState<string | null>(null);
