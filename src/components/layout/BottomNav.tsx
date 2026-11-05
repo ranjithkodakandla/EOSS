@@ -9,7 +9,7 @@ const MOBILE_NAV = [
   { path: '/jobs', label: 'Jobs', icon: <ClipboardCheck size={20} /> },
   { path: '/inventory', label: 'Stock', icon: <Package size={20} /> },
   { path: '/sales', label: 'Sales', icon: <Briefcase size={20} /> },
-  { path: '/admin', label: 'More', icon: <Settings size={20} /> },
+  { path: '/admin', label: 'Admin', icon: <Settings size={20} /> },
 ];
 
 export default function BottomNav() {

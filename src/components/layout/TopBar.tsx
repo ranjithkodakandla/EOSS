@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Search, HelpCircle, ChevronDown, Check, X, User } from 'lucide-react';
+import { NavLink, useNavigate } from 'react-router-dom';
+import { Search, HelpCircle, ChevronDown, Check, X, User, Settings } from 'lucide-react';
 import { useStore, type EOSSTheme } from '../../store';
 import NotificationDropdown from './NotificationDropdown';
 import GlobalSearchModal from '../search/GlobalSearchModal';
@@ -145,6 +146,18 @@ export default function TopBar() {
           {/* Notifications */}
           <NotificationDropdown />
 
+          {/* Admin & Settings Link */}
+          <NavLink
+            to="/admin"
+            className={({ isActive }) => clsx(
+              "p-1.5 rounded-full text-[var(--text-2)] hover:text-[var(--text)] hover:bg-[var(--surface-2)] transition-colors cursor-pointer flex items-center justify-center",
+              isActive && "text-[var(--brand)] bg-[var(--surface-2)]"
+            )}
+            title="Admin & Settings"
+          >
+            <Settings size={18} />
+          </NavLink>
+
           {/* Help Button */}
           <div className="relative hidden sm:block">
             <button
@@ -216,6 +229,7 @@ function ProfileModal({ currentUser, eossTheme, themes, onThemeChange, onClose, 
   onClose: () => void;
   onSave: () => void;
 }) {
+  const navigate = useNavigate();
   const [selectedTheme, setSelectedTheme] = useState<EOSSTheme>(eossTheme);
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
@@ -251,6 +265,15 @@ function ProfileModal({ currentUser, eossTheme, themes, onThemeChange, onClose, 
                 </button>
               ))}
             </div>
+          </div>
+          {/* Quick link to Admin & Settings */}
+          <div className="pt-2 border-t border-[var(--border)]">
+            <button
+              onClick={() => { onClose(); navigate('/admin?tab=settings'); }}
+              className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl border border-[var(--border)] text-xs font-semibold text-[var(--text)] hover:bg-[var(--surface-2)] transition-colors"
+            >
+              <Settings size={14} className="text-[var(--brand)]" /> Open Admin & System Settings
+            </button>
           </div>
         </div>
         <div className="px-6 pb-5 flex gap-3">

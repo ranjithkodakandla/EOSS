@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { Users, Settings, Shield, Clock, ChevronRight } from 'lucide-react';
 import { useStore, DEMO_USERS } from '../../store';
 import { COMPANY } from '../../context/company';
@@ -13,22 +13,29 @@ const ROLE_LABELS: Record<string, string> = {
 
 export default function Admin() {
   const navigate = useNavigate();
-  const { currentUser } = useStore();
-  const [tab, setTab] = useState<'users' | 'settings'>('users');
+  const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { currentUser, switchRole } = useStore();
+  const initialTab = (location.pathname.includes('/settings') || searchParams.get('tab') === 'settings') ? 'settings' : 'users';
+  const [tab, setTab] = useState<'users' | 'settings'>(initialTab);
 
-  if (!['owner', 'auditor'].includes(currentUser.role)) {
-    return (
-      <div className="flex flex-col items-center justify-center h-64 p-6">
-        <Shield size={40} className="text-[var(--text-3)] mb-3" />
-        <p className="text-[var(--text-2)] text-sm">Admin access is restricted to Owner and Auditor roles.</p>
-      </div>
-    );
-  }
+  const isAuthorized = ['owner', 'auditor'].includes(currentUser.role);
 
   return (
     <div className="flex flex-col h-full">
+      {!isAuthorized && (
+        <div className="bg-amber-500/10 border-b border-amber-500/30 px-5 py-2.5 flex items-center justify-between text-xs text-amber-800 dark:text-amber-200">
+          <span>You are viewing as <strong>{currentUser.name} ({ROLE_LABELS[currentUser.role] ?? currentUser.role})</strong>. Full administrative changes require Owner role.</span>
+          <button onClick={() => switchRole('owner')} className="px-3 py-1 bg-amber-600 text-white rounded-lg font-semibold hover:opacity-90">Switch to Owner (Demo)</button>
+        </div>
+      )}
+
       {/* Toolbar */}
       <div className="flex-shrink-0 flex items-center gap-2 px-5 py-3 border-b flex-wrap" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
+        <div className="flex items-center gap-2">
+          <Settings size={18} className="text-[var(--brand)]" />
+          <h1 className="text-base font-bold text-[var(--text)]">Admin & Settings</h1>
+        </div>
         <div className="flex-1" />
         <button onClick={() => navigate('/admin/audit')} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium hover:opacity-80"
           style={{ borderColor: 'var(--border)', color: 'var(--text-2)' }}>
@@ -38,8 +45,8 @@ export default function Admin() {
 
       {/* Tabs */}
       <div className="flex-shrink-0 flex items-center border-b px-5" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
-        {([['users', `Users (${DEMO_USERS.length})`], ['settings', 'Settings']] as [string, string][]).map(([id, label]) => (
-          <button key={id} onClick={() => setTab(id as any)}
+        {([['users', `Users (${DEMO_USERS.length})`], ['settings', 'Company Settings']] as [string, string][]).map(([id, label]) => (
+          <button key={id} onClick={() => { setTab(id as any); setSearchParams({ tab: id }); }}
             className="relative px-4 py-3 text-sm font-medium transition-colors whitespace-nowrap"
             style={{ color: tab === id ? 'var(--brand)' : 'var(--text-2)' }}>
             {label}

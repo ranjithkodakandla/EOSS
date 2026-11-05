@@ -32,7 +32,6 @@ const NAV_ITEMS: NavItem[] = [
   { path: '/finance', label: 'Finance', icon: <Landmark size={17} /> },
   { path: '/documents', label: 'Documents', icon: <FileText size={17} /> },
   { path: '/reports', label: 'Reports', icon: <BarChart3 size={17} /> },
-  { path: '/admin', label: 'Admin & Security', icon: <Settings size={17} /> },
 ];
 
 function AuroraWave({ theme }: { theme: string }) {
@@ -127,7 +126,7 @@ export default function Sidebar() {
       </div>
 
       {/* Nav Items */}
-      <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-1 scrollbar-none">
+      <nav className="flex-1 overflow-y-auto py-2 px-2 space-y-0.5 relative z-10">
         {NAV_ITEMS.map((item, idx) => (
           <NavLink
             key={`${item.path}-${idx}`}
@@ -136,7 +135,7 @@ export default function Sidebar() {
             title={collapsed ? item.label : undefined}
             className={({ isActive }) => clsx(
               'flex items-center gap-3 rounded-xl transition-all duration-150 text-[13px] font-medium',
-              collapsed ? 'justify-center p-2.5 mx-auto w-10 h-10' : 'px-3.5 py-2.5',
+              collapsed ? 'justify-center p-2 mx-auto w-9 h-9' : 'px-3 py-2',
               isActive
                 ? 'text-white shadow-md'
                 : 'text-white/70 hover:text-white hover:bg-white/10'
@@ -161,25 +160,48 @@ export default function Sidebar() {
         ))}
       </nav>
 
-      {/* Aurora wave ornament */}
-      <div className="relative flex-shrink-0 h-[90px] overflow-hidden pointer-events-none" aria-hidden="true">
+      {/* Aurora wave ornament (rendered behind footer) */}
+      <div className="absolute bottom-0 left-0 right-0 h-[80px] overflow-hidden pointer-events-none z-0" aria-hidden="true">
         <AuroraWave theme={eossTheme} />
       </div>
 
-      {/* Collapse toggle */}
+      {/* Persistent Sidebar Footer: Admin & Settings + Collapse */}
       <div
-        className="flex-shrink-0 p-2.5 border-t"
-        style={{ borderColor: 'var(--sidebar-border, rgba(255,255,255,0.08))' }}
+        className="flex-shrink-0 px-2 py-1.5 border-t relative z-10 backdrop-blur-md"
+        style={{ borderColor: 'var(--sidebar-border, rgba(255,255,255,0.08))', background: 'rgba(0,0,0,0.15)' }}
       >
+        <NavLink
+          to="/admin"
+          title={collapsed ? 'Admin & Settings' : undefined}
+          className={({ isActive }) => clsx(
+            'flex items-center gap-3 rounded-xl transition-all duration-150 text-[13px] font-medium mb-1',
+            collapsed ? 'justify-center p-2 mx-auto w-9 h-9' : 'px-3 py-2',
+            isActive
+              ? 'text-white shadow-md'
+              : 'text-white/80 hover:text-white hover:bg-white/10'
+          )}
+          style={({ isActive }) => ({
+            background: isActive
+              ? 'var(--sidebar-active-bg, linear-gradient(135deg, var(--brand), var(--brand-secondary)))'
+              : 'transparent',
+            boxShadow: isActive
+              ? '0 4px 14px -2px rgba(0, 0, 0, 0.3), inset 0 1px 1px rgba(255, 255, 255, 0.4)'
+              : undefined,
+          })}
+        >
+          <span className="flex-shrink-0"><Settings size={17} /></span>
+          {!collapsed && <span className="truncate font-semibold">Admin & Settings</span>}
+        </NavLink>
+
         <button
           onClick={toggleSidebar}
           className={clsx(
-            'flex items-center gap-2 w-full rounded-lg px-2.5 py-2 text-xs font-medium text-white/60 hover:text-white hover:bg-white/10 transition-colors',
+            'flex items-center gap-2 w-full rounded-lg px-2.5 py-1.5 text-xs font-medium text-white/60 hover:text-white hover:bg-white/10 transition-colors',
             collapsed ? 'justify-center' : ''
           )}
           title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
         >
-          {collapsed ? <ChevronRight size={15} /> : <><ChevronLeft size={15} /><span>Collapse</span></>}
+          {collapsed ? <ChevronRight size={14} /> : <><ChevronLeft size={14} /><span>Collapse</span></>}
         </button>
       </div>
     </aside>

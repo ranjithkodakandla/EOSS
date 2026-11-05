@@ -109,6 +109,7 @@ export default function App() {
           <Route path="allocations" element={<Allocations />} />
           <Route path="transfers" element={<Transfers />} />
           <Route path="admin" element={<Admin />} />
+          <Route path="settings" element={<Admin />} />
           <Route path="admin/audit" element={<AuditTimeline />} />
           <Route path="*" element={<Home />} />
         </Route>
