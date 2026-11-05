@@ -164,8 +164,34 @@ export default function CopilotPanel({ isDrawer, onClose }: Props) {
         boxShadow: themeConfig.panelShadow,
       }}
     >
-      {/* ── Hero region: theme artwork fills top ~200px ── */}
-      <div className="relative flex-shrink-0" style={{ height: 210 }}>
+      {/* ── Header: sits above the hero, never overlaps robot ── */}
+      <div className="flex-shrink-0 flex items-center justify-between px-4 py-3 border-b border-white/10">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center shadow-inner">
+            <Sparkles size={18} style={{ color: themeConfig.sparkleColor }} />
+          </div>
+          <div>
+            <div className="flex items-center gap-1.5 font-extrabold text-white text-base tracking-tight">
+              <span>EOSS Copilot</span>
+              <span style={{ color: themeConfig.sparkleColor }} className="text-sm">✦</span>
+            </div>
+            <div className="text-[11px] text-white/70 font-medium">
+              Your intelligent business partner
+            </div>
+          </div>
+        </div>
+        {isDrawer && onClose && (
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer"
+          >
+            <X size={16} />
+          </button>
+        )}
+      </div>
+
+      {/* ── Hero region: artwork below header ── */}
+      <div className="relative flex-shrink-0" style={{ height: 180 }}>
         <img
           src={themeConfig.heroImg}
           alt=""
@@ -179,56 +205,27 @@ export default function CopilotPanel({ isDrawer, onClose }: Props) {
             objectPosition: 'center top',
           }}
         />
-
-        {/* Gradient fade to panel bg at the bottom of hero */}
+        {/* Fade into panel bg */}
         <div
           style={{
             position: 'absolute',
             bottom: 0,
             left: 0,
             right: 0,
-            height: 56,
+            height: 60,
             background: `linear-gradient(to bottom, transparent, ${themeConfig.panelBg})`,
           }}
         />
-
-        {/* Header row overlaid on hero */}
-        <div className="relative z-10 p-4 md:p-5 flex items-start justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center shadow-inner">
-              <Sparkles size={18} style={{ color: themeConfig.sparkleColor }} />
-            </div>
-            <div>
-              <div className="flex items-center gap-1.5 font-extrabold text-white text-base md:text-lg tracking-tight">
-                <span>EOSS Copilot</span>
-                <span style={{ color: themeConfig.sparkleColor }} className="text-sm">✦</span>
-              </div>
-              <div className="text-[11px] text-white/80 font-medium">
-                Your intelligent business partner
-              </div>
-            </div>
-          </div>
-
-          {isDrawer && onClose && (
-            <button
-              onClick={onClose}
-              className="p-1.5 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer"
-            >
-              <X size={16} />
-            </button>
-          )}
-        </div>
-
-        {/* Speech bubble anchored at bottom-left of hero */}
+        {/* Speech bubble at bottom-left of hero */}
         {messages.length === 0 && (
           <div
-            className="absolute bottom-3 left-4 right-4 z-10 px-4 py-2.5 rounded-2xl text-sm font-bold"
+            className="absolute bottom-3 left-4 z-10 px-3 py-2 rounded-2xl text-sm font-bold"
             style={{
               background: 'linear-gradient(180deg, #FFFFFF 0%, #F8FAFC 100%)',
               color: '#1A1F36',
               boxShadow: '0 8px 24px -4px rgba(0,0,0,0.18), inset 0 1px 1px #FFFFFF',
               border: '1px solid rgba(255,255,255,0.9)',
-              maxWidth: '62%',
+              maxWidth: '58%',
             }}
           >
             How can I help your business today?
