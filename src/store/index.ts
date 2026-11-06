@@ -115,7 +115,6 @@ interface EOSSState {
 
   // Quality release action
   addQualityRelease: (release: QualityRelease) => void;
-  addInspection: (inspection: Inspection) => void;
 
   // Inventory actions
   issueMaterial: (lotId: string, qty: number, jobId: string, jobNumber: string, by: string) => void;
@@ -390,8 +389,6 @@ export const useStore = create<EOSSState>((set, get) => ({
     set(s => ({ qualityReleases: [...s.qualityReleases, release] }));
     get().showToast({ type: 'success', title: 'Quality release issued', body: `${release.jobNumber} cleared for dispatch.` });
   },
-
-  addInspection: (inspection) => set(s => ({ inspections: [...s.inspections, inspection] })),
 
   // ── Inventory Actions ──
   issueMaterial: (lotId, qty, jobId, jobNumber, by) => {
