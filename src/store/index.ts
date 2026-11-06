@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { persist, createJSONStorage } from 'zustand/middleware';
 import type {
   DemoUser, RoleKey, Job, JobStage, JobUpdate, MaterialLot,
   InventoryItem, StockMovement, Asset, MaintenanceEvent,
@@ -218,6 +219,9 @@ interface EOSSState {
   // Toast actions
   showToast: (toast: Omit<Toast, 'id'>) => void;
   removeToast: (id: string) => void;
+
+  // Demo data lifecycle
+  resetDemoData: () => void;
 }
 
 export interface Toast {
@@ -230,63 +234,72 @@ export interface Toast {
 
 let toastSeq = 0;
 
-export const useStore = create<EOSSState>((set, get) => ({
+// Everything the demo scenario seeds — rebuilt fresh on first load AND on an
+// explicit "Reset Demo Data". Kept as one function so both call sites can
+// never drift apart.
+function buildInitialData() {
+  return {
+    currentUser: DEMO_USERS[0], // owner by default
+    notifications: [...NOTIFICATIONS],
+    unreadCount: NOTIFICATIONS.filter(n => !n.read).length,
+
+    jobs: [...JOBS, ...FLAGSHIP_JOBS, ...JOBS_DEMO].map(j => ({ ...j, stages: [...j.stages] })),
+    lots: [...MATERIAL_LOTS, ...MATERIAL_LOTS_DEMO],
+    inventory: [...INVENTORY, ...INVENTORY_DEMO],
+    movements: [...STOCK_MOVEMENTS],
+    assets: [...ASSETS, ...ASSETS_DEMO],
+    maintenanceEvents: [...MAINTENANCE_EVENTS, ...MAINTENANCE_EVENTS_DEMO],
+    dispatches: [...DISPATCHES, ...FLAGSHIP_DISPATCHES, ...DISPATCHES_DEMO],
+    documents: [...VAULT_DOCUMENTS, ...VAULT_DOCUMENTS_DEMO],
+    approvalRequests: [...APPROVAL_REQUESTS],
+    pulseExceptions: [...PULSE_EXCEPTIONS],
+    customerPos: [...CUSTOMER_POS, FLAGSHIP_PO, ...CUSTOMER_POS_DEMO],
+    supplierPos: [...SUPPLIER_POS, ...SUPPLIER_POS_DEMO],
+    supplierPoLines: [...SUPPLIER_PO_LINES, ...SUPPLIER_PO_LINES_DEMO],
+    purchaseReqs: [...PURCHASE_REQS, ...FLAGSHIP_PURCHASE_REQS],
+    rfqs: [...RFQS, FLAGSHIP_RFQ, ADDITIONAL_RFQ],
+    quotations: [FLAGSHIP_QUOTATION],
+    quotationLines: [...FLAGSHIP_QUOTATION_LINES],
+    poLines: [...FLAGSHIP_PO_LINES],
+    grns: [...GRNS, ...FLAGSHIP_GRNS],
+    inspections: [...INSPECTIONS, ...FLAGSHIP_INSPECTIONS, ...INSPECTIONS_DEMO],
+    ncrs: [...NCRS, ...FLAGSHIP_NCRS, ...NCRS_DEMO],
+    certificates: [...CERTIFICATES],
+    employees: [...EMPLOYEES],
+    storeLocations: [...STORE_LOCATIONS],
+    supplierQuotations: [...SUPPLIER_QUOTATIONS, ...FLAGSHIP_SUPPLIER_RFQS],
+    auditEvents: [...AUDIT_EVENTS, ...AUDIT_EVENTS_DEMO],
+    approvalPolicies: [...APPROVAL_POLICIES],
+    customerInvoices: [...CUSTOMER_INVOICES],
+    supplierInvoices: [...SUPPLIER_INVOICES],
+    paymentRecords: [...PAYMENT_RECORDS],
+    invoices: [...FLAGSHIP_INVOICES],
+    invoiceLines: [...FLAGSHIP_INVOICE_LINES],
+    payments: [...FLAGSHIP_PAYMENTS],
+    paymentAllocations: [...FLAGSHIP_PAYMENT_ALLOCATIONS],
+    collectionActivities: [...COLLECTION_ACTIVITIES],
+    finishedProducts: [...FINISHED_PRODUCTS],
+    siteAllocations: [...FLAGSHIP_SITE_ALLOCATIONS],
+    onboarding: { status: 'complete' as const, completedSteps: [1, 2, 3, 4, 5, 6, 7] },
+    companyConfig: { ...COMPANY_CONFIG },
+    sites: [...SITES],
+    materials: [...MATERIALS],
+    meterReadings: [...METER_READINGS_DEMO],
+    qualityReleases: [...QUALITY_RELEASES, ...QUALITY_RELEASES_DEMO],
+    inspectionTemplates: [...INSPECTION_TEMPLATES],
+    stageTemplates: [...STAGE_TEMPLATES],
+    jobMaterialReqs: [...JOB_MATERIAL_REQS, ...JOB_MATERIAL_REQS_DEMO],
+    jobBlockers: [...JOB_BLOCKERS, ...JOB_BLOCKERS_DEMO],
+    toasts: [] as Toast[],
+  };
+}
+
+export const useStore = create<EOSSState>()(persist((set, get) => ({
   // ── Initial State ──
-  currentUser: DEMO_USERS[0], // owner by default
   theme: (typeof window !== 'undefined' && (localStorage.getItem('eoss-theme') as ThemeMode)) || 'light',
   eossTheme: (typeof window !== 'undefined' && (localStorage.getItem('eoss-palette') as EOSSTheme)) || 'aurora',
   sidebarCollapsed: false,
-  notifications: [...NOTIFICATIONS],
-  unreadCount: NOTIFICATIONS.filter(n => !n.read).length,
-
-  jobs: [...JOBS, ...FLAGSHIP_JOBS, ...JOBS_DEMO].map(j => ({ ...j, stages: [...j.stages] })),
-  lots: [...MATERIAL_LOTS, ...MATERIAL_LOTS_DEMO],
-  inventory: [...INVENTORY, ...INVENTORY_DEMO],
-  movements: [...STOCK_MOVEMENTS],
-  assets: [...ASSETS, ...ASSETS_DEMO],
-  maintenanceEvents: [...MAINTENANCE_EVENTS, ...MAINTENANCE_EVENTS_DEMO],
-  dispatches: [...DISPATCHES, ...FLAGSHIP_DISPATCHES, ...DISPATCHES_DEMO],
-  documents: [...VAULT_DOCUMENTS, ...VAULT_DOCUMENTS_DEMO],
-  approvalRequests: [...APPROVAL_REQUESTS],
-  pulseExceptions: [...PULSE_EXCEPTIONS],
-  customerPos: [...CUSTOMER_POS, FLAGSHIP_PO, ...CUSTOMER_POS_DEMO],
-  supplierPos: [...SUPPLIER_POS, ...SUPPLIER_POS_DEMO],
-  supplierPoLines: [...SUPPLIER_PO_LINES, ...SUPPLIER_PO_LINES_DEMO],
-  purchaseReqs: [...PURCHASE_REQS, ...FLAGSHIP_PURCHASE_REQS],
-  rfqs: [...RFQS, FLAGSHIP_RFQ, ADDITIONAL_RFQ],
-  quotations: [FLAGSHIP_QUOTATION],
-  quotationLines: [...FLAGSHIP_QUOTATION_LINES],
-  poLines: [...FLAGSHIP_PO_LINES],
-  grns: [...GRNS, ...FLAGSHIP_GRNS],
-  inspections: [...INSPECTIONS, ...FLAGSHIP_INSPECTIONS, ...INSPECTIONS_DEMO],
-  ncrs: [...NCRS, ...FLAGSHIP_NCRS, ...NCRS_DEMO],
-  certificates: [...CERTIFICATES],
-  employees: [...EMPLOYEES],
-  storeLocations: [...STORE_LOCATIONS],
-  supplierQuotations: [...SUPPLIER_QUOTATIONS, ...FLAGSHIP_SUPPLIER_RFQS],
-  auditEvents: [...AUDIT_EVENTS, ...AUDIT_EVENTS_DEMO],
-  approvalPolicies: [...APPROVAL_POLICIES],
-  customerInvoices: [...CUSTOMER_INVOICES],
-  supplierInvoices: [...SUPPLIER_INVOICES],
-  paymentRecords: [...PAYMENT_RECORDS],
-  invoices: [...FLAGSHIP_INVOICES],
-  invoiceLines: [...FLAGSHIP_INVOICE_LINES],
-  payments: [...FLAGSHIP_PAYMENTS],
-  paymentAllocations: [...FLAGSHIP_PAYMENT_ALLOCATIONS],
-  collectionActivities: [...COLLECTION_ACTIVITIES],
-  finishedProducts: [...FINISHED_PRODUCTS],
-  siteAllocations: [...FLAGSHIP_SITE_ALLOCATIONS],
-  onboarding: { status: 'complete', completedSteps: [1, 2, 3, 4, 5, 6, 7] },
-  companyConfig: { ...COMPANY_CONFIG },
-  sites: [...SITES],
-  materials: [...MATERIALS],
-  meterReadings: [...METER_READINGS_DEMO],
-  qualityReleases: [...QUALITY_RELEASES, ...QUALITY_RELEASES_DEMO],
-  inspectionTemplates: [...INSPECTION_TEMPLATES],
-  stageTemplates: [...STAGE_TEMPLATES],
-  jobMaterialReqs: [...JOB_MATERIAL_REQS, ...JOB_MATERIAL_REQS_DEMO],
-  jobBlockers: [...JOB_BLOCKERS, ...JOB_BLOCKERS_DEMO],
-  toasts: [],
+  ...buildInitialData(),
 
   // ── Session Actions ──
   setCurrentUser: (user) => set({ currentUser: user }),
@@ -605,6 +618,22 @@ export const useStore = create<EOSSState>((set, get) => ({
   },
 
   removeToast: (id) => set(s => ({ toasts: s.toasts.filter(t => t.id !== id) })),
+
+  // ── Demo Data Lifecycle ──
+  resetDemoData: () => {
+    set(() => buildInitialData());
+    get().showToast({ type: 'success', title: 'Demo data reset', body: 'Restored the original Apex Precision demonstration scenario.' });
+  },
+}), {
+  name: 'eoss-demo-store',
+  storage: createJSONStorage(() => localStorage),
+  version: 1,
+  // Theme/sidebar prefs already persist themselves via their own localStorage keys;
+  // toasts are transient UI state. Everything else is demo business data.
+  partialize: (state) => {
+    const { toasts, theme, eossTheme, sidebarCollapsed, ...demoData } = state;
+    return demoData;
+  },
 }));
 
 // ── Selectors ──

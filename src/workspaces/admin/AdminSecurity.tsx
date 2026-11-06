@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Building2, MapPin, Users, Shield, Settings2, Plug, Brain, Clock,
-  Plus, Edit2, ChevronRight, CheckCircle, AlertCircle, Eye, EyeOff, X, Pencil
+  Plus, Edit2, ChevronRight, CheckCircle, AlertCircle, Eye, EyeOff, X, Pencil, RotateCcw
 } from 'lucide-react';
 import { useStore, DEMO_USERS } from '../../store';
 import StatusChip from '../../components/layout/StatusChip';
@@ -41,7 +41,8 @@ const INTEGRATIONS = [
 
 export default function AdminSecurity() {
   const navigate = useNavigate();
-  const { currentUser, companyConfig, updateCompanyConfig, storeLocations, auditEvents, approvalPolicies, employees, switchRole, showToast } = useStore();
+  const { currentUser, companyConfig, updateCompanyConfig, storeLocations, auditEvents, approvalPolicies, employees, switchRole, showToast, resetDemoData } = useStore();
+  const [confirmReset, setConfirmReset] = useState(false);
   const [tab, setTab] = useState<AdminTab>('company');
   const [editCompany, setEditCompany] = useState(false);
   const [companyForm, setCompanyForm] = useState({ ...companyConfig });
@@ -159,6 +160,48 @@ export default function AdminSecurity() {
               </div>
             </div>
           )}
+
+          <div className="mt-5 bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-5 space-y-3">
+            <div className="flex items-center gap-2">
+              <RotateCcw size={15} className="text-[var(--brand)]" />
+              <h3 className="text-sm font-semibold text-[var(--text)]">Demo Data</h3>
+            </div>
+            <p className="text-xs text-[var(--text-3)]">
+              This is a prototype for customer demonstrations. All data is stored in this browser only
+              (via localStorage) — it is not shared between users or devices, and is not a production database.
+              Changes you make here survive a page refresh but stay local to this browser.
+            </p>
+            {!confirmReset ? (
+              <button
+                onClick={() => setConfirmReset(true)}
+                className="flex items-center gap-1.5 px-3.5 py-2 border rounded-xl text-xs font-semibold hover:opacity-80 transition-colors"
+                style={{ borderColor: 'var(--error,#DC2626)', color: 'var(--error,#DC2626)' }}
+              >
+                <RotateCcw size={13} /> Reset Demo Data
+              </button>
+            ) : (
+              <div className="flex items-center gap-3 p-3 rounded-xl" style={{ background: 'var(--error-bg,#FEF2F2)' }}>
+                <AlertCircle size={15} className="text-[var(--error,#DC2626)] flex-shrink-0" />
+                <span className="text-xs flex-1" style={{ color: 'var(--error,#DC2626)' }}>
+                  This discards every change made in this browser and restores the original Apex Precision demonstration scenario. This cannot be undone.
+                </span>
+                <button
+                  onClick={() => { resetDemoData(); setConfirmReset(false); }}
+                  className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white flex-shrink-0"
+                  style={{ background: 'var(--error,#DC2626)' }}
+                >
+                  Confirm Reset
+                </button>
+                <button
+                  onClick={() => setConfirmReset(false)}
+                  className="px-3 py-1.5 rounded-lg border text-xs font-medium flex-shrink-0 text-[var(--text-2)]"
+                  style={{ borderColor: 'var(--border)' }}
+                >
+                  Cancel
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
