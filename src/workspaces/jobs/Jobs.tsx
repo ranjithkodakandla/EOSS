@@ -2,12 +2,21 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, AlertTriangle, Search, Filter, ChevronRight, X, Trash2 } from 'lucide-react';
 import { useStore, CUSTOMERS } from '../../store';
+import { computeProductionStatus } from '../../domain/productionStatus';
+import { DEMO_NOW } from '../../data/seed';
 import StatusChip from '../../components/layout/StatusChip';
 import clsx from 'clsx';
 import type { Job, JobStage } from '../../types';
 
 const PRIORITY_COLOR: Record<string, string> = {
   urgent: 'var(--error)', high: 'var(--warning)', normal: 'var(--info)', low: 'var(--text-3)'
+};
+
+const RISK_LABEL: Record<string, string> = {
+  on_track: 'On Track', at_risk: 'At Risk', delayed: 'Delayed', blocked: 'Blocked', awaiting_material: 'Awaiting Material', complete: 'Complete',
+};
+const RISK_COLOR: Record<string, string> = {
+  on_track: 'var(--success)', at_risk: 'var(--warning)', delayed: 'var(--error)', blocked: 'var(--error)', awaiting_material: 'var(--warning)', complete: 'var(--text-3)',
 };
 
 export default function Jobs() {
@@ -19,6 +28,9 @@ export default function Jobs() {
   const [showNewJob, setShowNewJob] = useState(false);
   const [deletedJobIds, setDeletedJobIds] = useState<Set<string>>(new Set());
   const canManage = ['owner', 'supervisor'].includes(currentUser.role);
+  const now = new Date(DEMO_NOW);
+
+  const statusByJob = Object.fromEntries(jobs.map(j => [j.id, computeProductionStatus(j, now)]));
 
   const handleDeleteJob = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -47,8 +59,15 @@ export default function Jobs() {
     complete: jobs.filter(j => j.status === 'complete').length,
   };
 
+  const riskCounts = {
+    at_risk: jobs.filter(j => statusByJob[j.id].risk === 'at_risk').length,
+    delayed: jobs.filter(j => statusByJob[j.id].risk === 'delayed').length,
+    blocked: jobs.filter(j => statusByJob[j.id].risk === 'blocked').length,
+    awaiting_material: jobs.filter(j => statusByJob[j.id].risk === 'awaiting_material').length,
+  };
+
   const daysLeft = (end: string) => {
-    const diff = new Date(end).getTime() - Date.now();
+    const diff = new Date(end).getTime() - now.getTime();
     return Math.ceil(diff / 86400000);
   };
 
@@ -85,64 +104,83 @@ export default function Jobs() {
         )}
       </div>
 
+      {/* Production Risk Overview */}
+      <div className="flex-shrink-0 grid grid-cols-2 sm:grid-cols-4 gap-3 px-5 py-4" style={{ background: 'var(--surface)' }}>
+        <RiskTile label="At Risk" value={riskCounts.at_risk} accent="warning" />
+        <RiskTile label="Delayed" value={riskCounts.delayed} accent="error" />
+        <RiskTile label="Blocked" value={riskCounts.blocked} accent="error" />
+        <RiskTile label="Awaiting Material" value={riskCounts.awaiting_material} accent="warning" />
+      </div>
+
       {/* Table */}
       <div className="flex-1 overflow-auto">
-        <table className="w-full text-sm border-separate border-spacing-0" style={{ minWidth: 800 }}>
-            <thead style={{ position: 'sticky', top: 0, zIndex: 5 }}>
-              <tr style={{ background: 'var(--surface-2)' }}>
-                {['Job #', 'Customer', 'Description', 'Status', 'Priority', 'Stage', 'Planned End', 'Material', ''].map(h => (
-                  <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold font-medium" style={{ color: 'var(--text-3)', borderBottom: '1px solid var(--border)' }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map(j => {
-                const dl = daysLeft(j.plannedEnd);
-                const isLate = dl < 0 && j.status !== 'complete';
-                return (
-                  <tr key={j.id} className="cursor-pointer" style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}
-                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--surface-2)'; }}
-                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'var(--surface)'; }}
-                    onClick={() => navigate(`/jobs/${j.id}`)}>
-                    <td className="px-4 py-3 whitespace-nowrap">
-                      <div className="flex items-center gap-1.5">
-                        {j.hasBlocker === true && <AlertTriangle size={12} style={{ color: 'var(--error,#DC2626)', flexShrink: 0 }} />}
-                        <span className="font-mono text-xs font-bold" style={{ color: 'var(--brand)' }}>{j.jobNumber}</span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-sm font-medium" style={{ color: 'var(--text)' }}>{j.customerName}</td>
-                    <td className="px-4 py-3 text-xs max-w-[200px] truncate" style={{ color: 'var(--text-2)' }}>{j.description}</td>
-                    <td className="px-4 py-3"><StatusChip status={j.status} size="sm" /></td>
-                    <td className="px-4 py-3">
-                      <span className="text-xs font-semibold capitalize" style={{ color: PRIORITY_COLOR[j.priority] }}>{j.priority}</span>
-                    </td>
-                    <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-2)' }}>{j.currentStage}</td>
-                    <td className="px-4 py-3">
-                      <span className="text-xs" style={{ color: isLate ? 'var(--error,#DC2626)' : 'var(--text-2)', fontWeight: isLate ? 600 : undefined }}>
-                        {new Date(j.plannedEnd).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
-                        {isLate && ` · ${Math.abs(dl)}d late`}
-                        {!isLate && j.status !== 'complete' && dl <= 3 && ` · ${dl}d left`}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <StatusChip status={j.materialReadiness === 'ready' ? 'available' : j.materialReadiness === 'shortage' ? 'shortage' : j.materialReadiness === 'partial' ? 'partial' : 'pending'} label={j.materialReadiness} size="sm" />
-                    </td>
-                    <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
-                      <div className="flex items-center gap-1">
-                        {canManage && j.status !== 'complete' && (
-                          <button onClick={e => handleDeleteJob(j.id, e)} className="p-1 rounded hover:bg-[var(--surface-2)]" title="Remove job"><Trash2 size={12} style={{ color: 'var(--error,#DC2626)' }} /></button>
-                        )}
-                        <ChevronRight size={14} style={{ color: 'var(--text-3)' }} />
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-              {filtered.length === 0 && (
-                <tr><td colSpan={9} className="px-4 py-10 text-center text-sm" style={{ color: 'var(--text-3)' }}>No jobs found</td></tr>
-              )}
-            </tbody>
-          </table>
+        <table className="w-full text-sm border-separate border-spacing-0" style={{ minWidth: 900 }}>
+          <thead style={{ position: 'sticky', top: 0, zIndex: 5 }}>
+            <tr style={{ background: 'var(--surface-2)' }}>
+              {['Job #', 'Customer', 'Description', 'Status', 'Priority', 'Stage', 'Planned End', 'Projected', 'Material', 'Risk', ''].map(h => (
+                <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold font-medium" style={{ color: 'var(--text-3)', borderBottom: '1px solid var(--border)' }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.map(j => {
+              const dl = daysLeft(j.plannedEnd);
+              const isLate = dl < 0 && j.status !== 'complete';
+              const status = statusByJob[j.id];
+              return (
+                <tr key={j.id} className="cursor-pointer" style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--surface-2)'; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'var(--surface)'; }}
+                  onClick={() => navigate(`/jobs/${j.id}`)}>
+                  <td className="px-4 py-3 whitespace-nowrap">
+                    <div className="flex items-center gap-1.5">
+                      {j.hasBlocker === true && <AlertTriangle size={12} style={{ color: 'var(--error,#DC2626)', flexShrink: 0 }} />}
+                      <span className="font-mono text-xs font-bold" style={{ color: 'var(--brand)' }}>{j.jobNumber}</span>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 text-sm font-medium" style={{ color: 'var(--text)' }}>{j.customerName}</td>
+                  <td className="px-4 py-3 text-xs max-w-[200px] truncate" style={{ color: 'var(--text-2)' }}>{j.description}</td>
+                  <td className="px-4 py-3"><StatusChip status={j.status} size="sm" /></td>
+                  <td className="px-4 py-3">
+                    <span className="text-xs font-semibold capitalize" style={{ color: PRIORITY_COLOR[j.priority] }}>{j.priority}</span>
+                  </td>
+                  <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-2)' }}>{j.currentStage}</td>
+                  <td className="px-4 py-3">
+                    <span className="text-xs" style={{ color: isLate ? 'var(--error,#DC2626)' : 'var(--text-2)', fontWeight: isLate ? 600 : undefined }}>
+                      {new Date(j.plannedEnd).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                      {isLate && ` · ${Math.abs(dl)}d late`}
+                      {!isLate && j.status !== 'complete' && dl <= 3 && ` · ${dl}d left`}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-2)' }} title={status.projectionBasis}>
+                    {status.projectedCompletion ? new Date(status.projectedCompletion).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '—'}
+                  </td>
+                  <td className="px-4 py-3">
+                    <StatusChip
+                      status={j.materialReadiness === 'ready' ? 'available' : j.materialReadiness === 'shortage' ? 'shortage' : j.materialReadiness === 'partial' ? 'partial' : 'pending'}
+                      label={j.materialReadiness}
+                      size="sm"
+                    />
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className="text-xs font-semibold" style={{ color: RISK_COLOR[status.risk] }}>{RISK_LABEL[status.risk]}</span>
+                  </td>
+                  <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
+                    <div className="flex items-center gap-1">
+                      {canManage && j.status !== 'complete' && (
+                        <button onClick={e => handleDeleteJob(j.id, e)} className="p-1 rounded hover:bg-[var(--surface-2)]" title="Remove job"><Trash2 size={12} style={{ color: 'var(--error,#DC2626)' }} /></button>
+                      )}
+                      <ChevronRight size={14} style={{ color: 'var(--text-3)' }} />
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+            {filtered.length === 0 && (
+              <tr><td colSpan={11} className="px-4 py-10 text-center text-sm" style={{ color: 'var(--text-3)' }}>No jobs found</td></tr>
+            )}
+          </tbody>
+        </table>
       </div>
 
       {showNewJob && (
@@ -172,11 +210,11 @@ function NewJobModal({ onClose, onSave }: { onClose: () => void; onSave: (j: Job
     const id = `job-${Date.now()}`;
     const num = `J-${String(Math.floor(Math.random() * 900 + 110))}`;
     const defaultStages: JobStage[] = [
-      { id: `${id}-s1`, jobId: id, name: 'Material Preparation', sequence: 1, status: 'pending', plannedStart: '2026-11-05', plannedEnd: form.plannedEnd, inputQty: plannedQty || 0, completedGoodQty: 0, rejectedQty: 0, reworkQty: 0, scrapQty: 0, uom: 'pcs' },
-      { id: `${id}-s2`, jobId: id, name: 'Fabrication', sequence: 2, status: 'pending', plannedStart: '2026-11-05', plannedEnd: form.plannedEnd, inputQty: plannedQty || 0, completedGoodQty: 0, rejectedQty: 0, reworkQty: 0, scrapQty: 0, uom: 'pcs' },
-      { id: `${id}-s3`, jobId: id, name: 'QC Inspection', sequence: 3, status: 'pending', plannedStart: '2026-11-05', plannedEnd: form.plannedEnd, inputQty: plannedQty || 0, completedGoodQty: 0, rejectedQty: 0, reworkQty: 0, scrapQty: 0, uom: 'pcs' },
+      { id: `${id}-s1`, jobId: id, name: 'Material Preparation', sequence: 1, status: 'pending', plannedStart: DEMO_NOW, plannedEnd: form.plannedEnd, inputQty: plannedQty || 0, completedGoodQty: 0, rejectedQty: 0, reworkQty: 0, scrapQty: 0, uom: 'pcs' },
+      { id: `${id}-s2`, jobId: id, name: 'Fabrication', sequence: 2, status: 'pending', plannedStart: DEMO_NOW, plannedEnd: form.plannedEnd, inputQty: plannedQty || 0, completedGoodQty: 0, rejectedQty: 0, reworkQty: 0, scrapQty: 0, uom: 'pcs' },
+      { id: `${id}-s3`, jobId: id, name: 'QC Inspection', sequence: 3, status: 'pending', plannedStart: DEMO_NOW, plannedEnd: form.plannedEnd, inputQty: plannedQty || 0, completedGoodQty: 0, rejectedQty: 0, reworkQty: 0, scrapQty: 0, uom: 'pcs' },
     ];
-    onSave({ id, jobNumber: num, customerId: form.customerId, customerName: form.customerName, description: form.description, status: 'active', priority: form.priority, plannedStart: '2026-11-05', plannedEnd: form.plannedEnd, siteId: 'site-1', siteName: 'Main Plant', owner: 'Owner', stages: defaultStages, currentStage: 'Material Preparation', materialReadiness: 'pending', hasBlocker: false });
+    onSave({ id, jobNumber: num, customerId: form.customerId, customerName: form.customerName, description: form.description, status: 'active', priority: form.priority, plannedStart: DEMO_NOW, plannedEnd: form.plannedEnd, siteId: 'site-1', siteName: 'Main Plant', owner: 'Owner', stages: defaultStages, currentStage: 'Material Preparation', materialReadiness: 'pending', hasBlocker: false });
   };
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
@@ -241,6 +279,16 @@ function NewJobModal({ onClose, onSave }: { onClose: () => void; onSave: (j: Job
           <button onClick={save} className="flex-1 py-2.5 bg-[var(--brand)] text-white rounded-xl text-sm font-medium">Create Job</button>
         </div>
       </div>
+    </div>
+  );
+}
+
+function RiskTile({ label, value, accent }: { label: string; value: number; accent: 'warning' | 'error' }) {
+  const color = accent === 'error' ? 'var(--error)' : 'var(--warning)';
+  return (
+    <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
+      <div className="text-xl font-bold" style={{ color: value > 0 ? color : 'var(--text)' }}>{value}</div>
+      <div className="text-xs text-[var(--text-2)] mt-0.5">{label}</div>
     </div>
   );
 }

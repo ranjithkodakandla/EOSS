@@ -2,12 +2,14 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, AlertTriangle, ChevronRight, Wrench, Search, X, Trash2 } from 'lucide-react';
 import { useStore } from '../../store';
+import { computeMaintenanceDue } from '../../domain/maintenanceDue';
+import { DEMO_NOW } from '../../data/seed';
 import StatusChip from '../../components/layout/StatusChip';
 import clsx from 'clsx';
 import type { MaintenanceEvent } from '../../types';
 
 export default function Assets() {
-  const { assets, maintenanceEvents, currentUser, addMaintenanceEvent, showToast } = useStore();
+  const { assets, maintenanceEvents, meterReadings, currentUser, addMaintenanceEvent, showToast } = useStore();
   const navigate = useNavigate();
   const [tab, setTab] = useState<'assets' | 'maintenance'>('assets');
   const [search, setSearch] = useState('');
@@ -23,8 +25,12 @@ export default function Assets() {
     showToast({ type: 'success', title: 'Asset removed' });
   };
 
+  const now = new Date(DEMO_NOW);
+  const dueByAsset = Object.fromEntries(assets.map(a => [a.id, computeMaintenanceDue(a, meterReadings, now)]));
+
   const breakdowns = assets.filter(a => a.status === 'breakdown').length;
-  const pmOverdue = assets.filter(a => a.status === 'pm_overdue').length;
+  const pmOverdue = assets.filter(a => a.status === 'pm_overdue' || dueByAsset[a.id]?.status === 'overdue').length;
+  const upcoming = assets.filter(a => dueByAsset[a.id]?.status === 'upcoming' || dueByAsset[a.id]?.status === 'due').length;
   const inMaint = assets.filter(a => a.status === 'in_maintenance').length;
   const openEvents = maintenanceEvents.filter(m => m.status !== 'closed').length;
 
@@ -46,6 +52,7 @@ export default function Assets() {
         <div className="flex-1" />
         {breakdowns > 0 && <span className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ background: 'var(--error-bg,#FEF2F2)', color: 'var(--error,#DC2626)' }}><AlertTriangle size={12} /> {breakdowns} breakdown</span>}
         {pmOverdue > 0 && <span className="px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ background: 'var(--warning-bg,#FFFBEB)', color: 'var(--warning,#D97706)' }}>{pmOverdue} PM overdue</span>}
+        {upcoming > 0 && <span className="px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ background: 'var(--warning-bg,#FFFBEB)', color: 'var(--warning,#D97706)' }}>{upcoming} due soon</span>}
         {canCreate && (
           <button onClick={() => setShowLogEvent(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white" style={{ background: 'var(--brand)' }}>
             <Plus size={13} /> Log Event
@@ -93,8 +100,24 @@ export default function Assets() {
                 <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-2)' }}>{a.meterType !== 'none' && a.currentReading ? `${a.currentReading.toLocaleString()} ${a.meterType}` : '—'}</td>
                 <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-2)' }}>{a.lastServiceDate ? new Date(a.lastServiceDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '—'}</td>
                 <td className="px-4 py-3">
-                  {a.nextServiceDate ? (() => {
-                    const days = Math.round((new Date(a.nextServiceDate).getTime() - new Date('2026-11-05').getTime()) / 86400000);
+                  {(() => {
+                    const due = dueByAsset[a.id];
+                    if (due?.drivingCondition === 'hours' && due.remainingHours != null) {
+                      const overdue = due.status === 'overdue';
+                      const soon = due.status === 'due' || due.status === 'upcoming';
+                      return (
+                        <div>
+                          <div className="text-xs" style={{ color: overdue ? 'var(--error,#DC2626)' : 'var(--text-2)', fontWeight: overdue ? 600 : undefined }}>
+                            {due.remainingHours} hrs left
+                          </div>
+                          <div className="text-[10px] mt-0.5" style={{ color: overdue ? 'var(--error,#DC2626)' : soon ? 'var(--warning,#D97706)' : 'var(--text-3)' }}>
+                            {overdue ? `Overdue by ${Math.abs(due.remainingHours)}h` : `Next at ${due.nextDueReading} hrs`}
+                          </div>
+                        </div>
+                      );
+                    }
+                    if (!a.nextServiceDate) return <span className="text-xs" style={{ color: 'var(--text-3)' }}>—</span>;
+                    const days = Math.round((new Date(a.nextServiceDate).getTime() - new Date(DEMO_NOW).getTime()) / 86400000);
                     return (
                       <div>
                         <div className="text-xs" style={{ color: a.status === 'pm_overdue' ? 'var(--error,#DC2626)' : 'var(--text-2)', fontWeight: a.status === 'pm_overdue' ? 600 : undefined }}>
@@ -105,7 +128,7 @@ export default function Assets() {
                         </div>
                       </div>
                     );
-                  })() : <span className="text-xs" style={{ color: 'var(--text-3)' }}>—</span>}
+                  })()}
                 </td>
                 <td className="px-4 py-3"><StatusChip status={a.status} size="sm" /></td>
                 <td className="px-4 py-3" onClick={e => e.stopPropagation()}>

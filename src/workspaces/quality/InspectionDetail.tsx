@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, CheckCircle, XCircle, AlertTriangle, ShieldCheck } from 'lucide-react';
 import { useStore } from '../../store';
-import type { NCR } from '../../types';
+import { DEMO_NOW } from '../../data/seed';
+import type { NCR, QualityRelease } from '../../types';
 import StatusChip from '../../components/layout/StatusChip';
 
 let ncrSeq = 50;
@@ -10,8 +11,9 @@ let ncrSeq = 50;
 export default function InspectionDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { inspections, lots, jobs, ncrs, currentUser, addNCR, linkNCRToInspection, updateInspection } = useStore();
+  const { inspections, lots, jobs, ncrs, qualityReleases, currentUser, addNCR, linkNCRToInspection, updateInspection, addQualityRelease } = useStore();
   const canRaiseNCR = ['owner', 'qc'].includes(currentUser.role);
+  const canRelease = ['owner', 'qc'].includes(currentUser.role);
   const [recording, setRecording] = useState(false);
   const [recForm, setRecForm] = useState({ accepted: 0, rejected: 0, notes: '' });
 
@@ -20,13 +22,16 @@ export default function InspectionDetail() {
 
   const lot = ins.lotId ? lots.find(l => l.id === ins.lotId) : null;
   const job = ins.jobId ? jobs.find(j => j.id === ins.jobId) : null;
+  const existingRelease = job ? qualityReleases.find(r => r.jobId === job.id) : null;
 
-  const checklistItems = [
-    { label: 'Dimensions check', result: ins.result === 'pass' ? 'pass' : 'pending' },
-    { label: 'Visual / surface inspection', result: ins.result === 'fail' ? 'fail' : ins.result === 'pass' ? 'pass' : 'pending' },
-    { label: 'Grade / mark verification', result: ins.result !== 'pending' ? 'pass' : 'pending' },
-    { label: 'Certificate matching', result: lot?.certStatus === 'verified' ? 'pass' : 'pending' },
-  ];
+  const checklistItems = ins.measurements && ins.measurements.length > 0
+    ? ins.measurements.map(m => ({ label: `${m.parameter} — ${m.acceptanceCriteria} (actual: ${m.actual})`, result: m.passed ? 'pass' : 'fail' }))
+    : [
+      { label: 'Dimensions check', result: ins.result === 'pass' ? 'pass' : 'pending' },
+      { label: 'Visual / surface inspection', result: ins.result === 'fail' ? 'fail' : ins.result === 'pass' ? 'pass' : 'pending' },
+      { label: 'Grade / mark verification', result: ins.result !== 'pending' ? 'pass' : 'pending' },
+      { label: 'Certificate matching', result: lot?.certStatus === 'verified' ? 'pass' : 'pending' },
+    ];
 
   return (
     <div className="max-w-3xl mx-auto p-4 md:p-6">
@@ -37,8 +42,12 @@ export default function InspectionDetail() {
             <h1 className="font-bold text-[var(--text)] font-mono">{ins.inspectionNumber}</h1>
             <StatusChip status={ins.result} />
             <StatusChip status={ins.type.toLowerCase().replace(/[\s-]/g, '_')} label={ins.type} size="sm" />
+            <span className={`text-[10px] font-mono uppercase px-1.5 py-0.5 rounded ${ins.origin === 'external' ? 'bg-[var(--info-bg)] text-[var(--info)]' : 'bg-[var(--surface-3)] text-[var(--text-3)]'}`}>
+              {ins.origin === 'external' ? 'External' : 'Internal'}
+            </span>
           </div>
-          <p className="text-sm text-[var(--text-2)]">{ins.inspectorName} · {new Date(ins.date).toLocaleDateString('en-IN')}</p>
+          <p className="text-sm text-[var(--text-2)]">{ins.inspectorName}{ins.externalOrgName ? ` (${ins.externalOrgName})` : ''} · {new Date(ins.date).toLocaleDateString('en-IN')}</p>
+          {ins.reworkOfInspectionId && <p className="text-xs text-[var(--text-3)] mt-0.5">Re-inspection after rework of <button onClick={() => navigate(`/quality/inspection/${ins.reworkOfInspectionId}`)} className="text-[var(--brand)] hover:underline font-mono">{ins.reworkOfInspectionId}</button></p>}
         </div>
       </div>
 
@@ -53,8 +62,21 @@ export default function InspectionDetail() {
               {lot && <Field label="Lot Number" value={lot.lotNumber} mono />}
               {job && <Field label="Job Number" value={job.jobNumber} mono />}
               {ins.stageName && <Field label="Stage" value={ins.stageName} />}
+              {ins.checklistVersion && <Field label="Checklist Version" value={ins.checklistVersion} mono />}
             </dl>
           </div>
+
+          {ins.origin === 'external' && (
+            <div className="bg-[var(--info-bg)] border border-[var(--info)] rounded-xl p-4">
+              <h3 className="font-semibold text-sm text-[var(--info)] mb-3">External Inspection</h3>
+              <dl className="space-y-2 text-sm">
+                <Field label="Organisation" value={ins.externalOrgName ?? '—'} />
+                <Field label="Scope" value={ins.externalScope ?? '—'} />
+                {ins.reportRef && <Field label="Report Reference" value={ins.reportRef} mono />}
+              </dl>
+              {ins.remarks && <p className="text-xs text-[var(--text-2)] mt-2">{ins.remarks}</p>}
+            </div>
+          )}
 
           {/* Quantities */}
           <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
@@ -181,6 +203,36 @@ export default function InspectionDetail() {
               >
                 Raise NCR
               </button>
+            </div>
+          )}
+
+          {job && ins.result === 'pass' && !existingRelease && canRelease && (
+            <div className="bg-[var(--success-bg)] border border-[var(--success)] rounded-xl p-4">
+              <div className="font-semibold text-sm text-[var(--success)] mb-1 flex items-center gap-1.5">
+                <ShieldCheck size={14} /> Ready for Quality Release
+              </div>
+              <p className="text-xs text-[var(--text-2)] mb-3">Issuing a release clears {job.jobNumber} for dispatch. Dispatch cannot proceed without one.</p>
+              <button
+                onClick={() => {
+                  const release: QualityRelease = {
+                    id: `qr-${Date.now()}`, jobId: job.id, jobNumber: job.jobNumber, inspectionId: ins.id,
+                    releasedBy: currentUser.name, releasedAt: DEMO_NOW + 'T00:00:00', certDossierComplete: true,
+                    notes: `Released based on inspection ${ins.inspectionNumber}.`,
+                  };
+                  addQualityRelease(release);
+                }}
+                className="w-full py-2 bg-[var(--success)] text-white rounded-lg text-sm font-medium"
+              >
+                Issue Quality Release
+              </button>
+            </div>
+          )}
+          {job && existingRelease && (
+            <div className="bg-[var(--surface-2)] border border-[var(--border)] rounded-xl p-4">
+              <div className="font-semibold text-sm text-[var(--success)] mb-1 flex items-center gap-1.5">
+                <ShieldCheck size={14} /> Quality Released
+              </div>
+              <p className="text-xs text-[var(--text-2)]">Released by {existingRelease.releasedBy} on {existingRelease.releasedAt.slice(0, 10)}. {job.jobNumber} is dispatch-eligible.</p>
             </div>
           )}
         </div>

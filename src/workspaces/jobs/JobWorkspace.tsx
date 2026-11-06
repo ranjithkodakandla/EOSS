@@ -4,9 +4,10 @@ import {
   ArrowLeft, AlertTriangle, Activity, Check, X,
   ExternalLink, ChevronRight, FileCheck, ShieldAlert
 } from 'lucide-react';
-import { useStore, JOB_BLOCKERS } from '../../store';
-import { JOB_MATERIAL_REQS, EMPLOYEES } from '../../data/seed';
+import { useStore } from '../../store';
+import { EMPLOYEES } from '../../data/seed';
 import StatusChip from '../../components/layout/StatusChip';
+import MaterialFeasibilityPanel from '../../components/domain/MaterialFeasibilityPanel';
 import clsx from 'clsx';
 
 const TABS = ['Overview', 'Stages', 'Materials', 'Procurement', 'Quality', 'NCR / Rework', 'Assets', 'Documents', 'Dispatch', 'Updates', 'Blockers'];
@@ -17,6 +18,7 @@ export default function JobWorkspace() {
   const {
     jobs, setJobStatus, updateJobStage, resolveBlocker, currentUser, showToast,
     inspections, ncrs, lots, issueMaterial, addInspection, addNCR,
+    jobBlockers: allJobBlockers, jobMaterialReqs, materials,
   } = useStore();
 
   const [tab, setTab] = useState('Overview');
@@ -30,7 +32,8 @@ export default function JobWorkspace() {
   const job = jobs.find(j => j.id === id);
   if (!job) return <div className="p-8 text-sm text-[var(--text-2)]">Job not found: {id}</div>;
 
-  const blockers = JOB_BLOCKERS.filter(b => b.jobId === id && b.status === 'open');
+  const blockers = allJobBlockers.filter(b => b.jobId === id && b.status === 'open');
+  const jobReqs = jobMaterialReqs.filter(r => r.jobId === job.id);
   const isBlocked = job.hasBlocker || blockers.length > 0;
   const activeStage = job.stages.find(s => s.status === 'in_progress') || job.stages[0];
 
@@ -148,7 +151,7 @@ export default function JobWorkspace() {
           <div className="text-sm text-[var(--text)]">
             {isBlocked ? (
               <span className="font-semibold text-[var(--error)]">
-                SS Sheet 3mm shortage halted Cutting stage. Upstream PO SPO-2024-002 overdue.
+                {blockers[0]?.description ?? 'Job is blocked.'}
               </span>
             ) : (
               <span>
@@ -244,10 +247,12 @@ export default function JobWorkspace() {
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div className="p-3.5 rounded-xl bg-[var(--surface)] border border-[var(--border)]">
               <div className="text-xs text-[var(--text-3)] font-medium">1. Materials</div>
-              <div className="text-sm font-bold text-[var(--text)] mt-1">
-                {job.materialReadiness === 'ready' ? 'All BOM Reserved' : 'Shortage Alert'}
+              <div className={clsx('text-sm font-bold mt-1', job.materialReadiness === 'shortage' ? 'text-[var(--error)]' : 'text-[var(--text)]')}>
+                {job.materialReadiness === 'ready' ? 'All BOM Reserved' : job.materialReadiness === 'shortage' ? 'Shortage Alert' : 'Partially Reserved'}
               </div>
-              <div className="text-xs text-[var(--text-3)] mt-0.5">MS Plate 8mm (320kg)</div>
+              <div className="text-xs text-[var(--text-3)] mt-0.5">
+                {jobReqs[0] ? `${jobReqs[0].materialName} (${jobReqs[0].reservedQty}/${jobReqs[0].requiredQty} ${jobReqs[0].uom})` : 'No BOM captured'}
+              </div>
             </div>
 
             <div className="p-3.5 rounded-xl bg-[var(--surface)] border border-[var(--border)]">
@@ -295,42 +300,62 @@ export default function JobWorkspace() {
                 <span className="text-[var(--text-3)] block">Priority:</span>
                 <span className="capitalize font-semibold text-[var(--brand)]">{job.priority}</span>
               </div>
+              <div>
+                <span className="text-[var(--text-3)] block">Production Route:</span>
+                <span className="font-medium text-[var(--text)]">{job.stageTemplateName || 'Custom (not from template)'}</span>
+              </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* ── Tab: Materials BOM ── */}
+      {/* ── Tab: Materials BOM & Feasibility ── */}
       {tab === 'Materials' && (
-        <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] overflow-hidden">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-[var(--surface-2)] text-xs text-[var(--text-3)] font-mono border-b border-[var(--border)]">
-              <tr>
-                <th className="py-3 px-4">Material</th>
-                <th className="py-3 px-4">Stage</th>
-                <th className="py-3 px-4">Required</th>
-                <th className="py-3 px-4">Reserved</th>
-                <th className="py-3 px-4">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[var(--border)]">
-              {JOB_MATERIAL_REQS.filter(r => r.jobId === job.id).map(r => (
-                <tr key={r.id}>
-                  <td className="py-3 px-4 font-medium text-[var(--text)]">{r.materialName}</td>
-                  <td className="py-3 px-4 text-xs text-[var(--text-3)]">{r.stageName}</td>
-                  <td className="py-3 px-4 font-mono">{r.requiredQty} {r.uom}</td>
-                  <td className="py-3 px-4 font-mono font-bold text-emerald-400">{r.reservedQty} {r.uom}</td>
-                  <td className="py-3 px-4">
-                    {r.shortage ? (
-                      <span className="text-xs font-bold text-[var(--error)]">Shortage ({r.requiredQty - r.reservedQty} {r.uom})</span>
-                    ) : (
-                      <span className="text-xs font-bold text-emerald-400">Allocated</span>
-                    )}
-                  </td>
+        <div className="space-y-4">
+          <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] overflow-hidden">
+            <table className="w-full text-left text-sm">
+              <thead className="bg-[var(--surface-2)] text-xs text-[var(--text-3)] font-mono border-b border-[var(--border)]">
+                <tr>
+                  <th className="py-3 px-4">Material</th>
+                  <th className="py-3 px-4">Stage</th>
+                  <th className="py-3 px-4">Required</th>
+                  <th className="py-3 px-4">Reserved</th>
+                  <th className="py-3 px-4">Status</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-[var(--border)]">
+                {jobReqs.map(r => (
+                  <tr key={r.id}>
+                    <td className="py-3 px-4 font-medium text-[var(--text)]">{r.materialName}</td>
+                    <td className="py-3 px-4 text-xs text-[var(--text-3)]">{r.stageName}</td>
+                    <td className="py-3 px-4 font-mono">{r.requiredQty} {r.uom}</td>
+                    <td className="py-3 px-4 font-mono font-bold text-emerald-400">{r.reservedQty} {r.uom}</td>
+                    <td className="py-3 px-4">
+                      {r.shortage ? (
+                        <span className="text-xs font-bold text-[var(--error)]">Shortage ({r.requiredQty - r.reservedQty} {r.uom})</span>
+                      ) : (
+                        <span className="text-xs font-bold text-emerald-400">Allocated</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+                {jobReqs.length === 0 && (
+                  <tr><td colSpan={5} className="text-center py-6 text-xs text-[var(--text-3)]">No material requirements captured for this job yet.</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {jobReqs.filter(r => r.shortage).map(r => (
+            <MaterialFeasibilityPanel
+              key={r.id}
+              materialItemId={r.materialItemId}
+              materialName={r.materialName}
+              uom={r.uom}
+              requiredQty={r.requiredQty}
+              assignedSiteId={job.siteId}
+            />
+          ))}
         </div>
       )}
 

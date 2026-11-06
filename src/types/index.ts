@@ -94,6 +94,11 @@ export interface MaterialItem {
   trackingMode: 'none' | 'lot' | 'heat' | 'serial';
   reorderPoint: number;
   standardGrade?: string;
+  dimensions?: string;
+  preferredSupplierIds?: ID[];
+  leadTimeDays?: number;
+  certRequired?: boolean;
+  active?: boolean;
 }
 
 export interface MaterialLot {
@@ -244,6 +249,9 @@ export interface Job {
   materialReadiness: 'ready' | 'partial' | 'shortage' | 'pending';
   hasBlocker: boolean;
   value?: number;
+  stageTemplateId?: ID;
+  stageTemplateName?: string;
+  poLineId?: ID;
 }
 
 export interface JobStage {
@@ -393,25 +401,89 @@ export interface MaterialCertificate {
   linkedLots: ID[];
 }
 
+export interface InspectionMeasurement {
+  parameter: string;
+  description?: string;
+  unit?: string;
+  acceptanceCriteria: string;
+  actual: string;
+  passed: boolean;
+}
+
 export interface Inspection {
   id: ID;
   inspectionNumber: string;
-  type: 'Incoming' | 'In-Process' | 'Final';
+  type: 'Incoming' | 'In-Process' | 'Final' | 'Dispatch-Readiness';
+  origin?: 'internal' | 'external';
   lotId?: ID;
   jobId?: ID;
   jobNumber?: string;
+  poId?: ID;
+  poLineId?: ID;
   stageId?: ID;
   stageName?: string;
+  productDescription?: string;
+  quantityInspected?: number;
+  uom?: string;
   inspectorId: ID;
   inspectorName: string;
+  externalOrgName?: string;
+  externalScope?: string;
+  reportRef?: string;
   date: string;
+  templateId?: ID;
   templateName: string;
+  checklistVersion?: string;
+  measurements?: InspectionMeasurement[];
   sampleQty: number;
   acceptedQty: number;
   rejectedQty: number;
-  result: 'pass' | 'fail' | 'hold' | 'pending';
+  result: 'pass' | 'fail' | 'hold' | 'pending' | 'partial';
   ncrId?: ID;
   ncrNumber?: string;
+  reworkOfInspectionId?: ID;
+  remarks?: string;
+}
+
+// ── Inspection Templates (configurable checklists) ──
+export interface InspectionTemplateParameter {
+  parameter: string;
+  description?: string;
+  acceptanceCriteria: string;
+  unit?: string;
+  min?: number;
+  max?: number;
+  method?: string;
+  mandatory: boolean;
+}
+
+export interface InspectionTemplate {
+  id: ID;
+  name: string;
+  appliesTo: 'Product' | 'Material' | 'Job Stage' | 'Final' | 'Dispatch Readiness';
+  productOrCategory?: string;
+  drawingRef?: string;
+  stageName?: string;
+  version: string;
+  parameters: InspectionTemplateParameter[];
+}
+
+// ── Production Stage Templates (configurable routes) ──
+export interface StageTemplateStage {
+  sequence: number;
+  name: string;
+  workCentre: string;
+  plannedDurationDays: number;
+  inspectionRequired: boolean;
+  dependsOnSequence?: number;
+}
+
+export interface StageTemplate {
+  id: ID;
+  name: string;
+  appliesToCategory: string;
+  description?: string;
+  stages: StageTemplateStage[];
 }
 
 export interface NCR {
@@ -465,7 +537,49 @@ export interface Asset {
   serialNumber?: string;
   meterType?: 'hours' | 'cycles' | 'none';
   pmFrequencyHours?: number;
+  pmFrequencyDays?: number;
+  lastServiceReading?: number;
   currentReading?: number;
+  responsiblePerson?: string;
+  installationDate?: string;
+  commissioningDate?: string;
+}
+
+// ── Meter Readings (manual running-hour log) ──
+export interface MeterReading {
+  id: ID;
+  assetId: ID;
+  assetCode: string;
+  reading: number;
+  readingDate: string;
+  recordedByEmployeeId?: ID;
+  recordedBy: string;
+  readingType: 'routine' | 'shift-end' | 'post-maintenance' | 'correction';
+  notes?: string;
+}
+
+// ── Maintenance Work Orders (scheduled → due → assigned → in progress → completed) ──
+export interface MaintenanceWorkOrder {
+  id: ID;
+  woNumber: string;
+  assetId: ID;
+  assetCode: string;
+  assetName: string;
+  triggerType: 'calendar' | 'hours' | 'manual';
+  status: 'scheduled' | 'due' | 'assigned' | 'in_progress' | 'completed';
+  assignedTechnicianId?: ID;
+  assignedTechnicianName?: string;
+  dueDate?: string;
+  dueReading?: number;
+  startedAt?: string;
+  completedAt?: string;
+  readingAtCompletion?: number;
+  workPerformed?: string;
+  downtimeMinutes?: number;
+  observations?: string;
+  sparesConsumed?: { materialName: string; qty: number; uom: string }[];
+  nextDueDate?: string;
+  nextDueReading?: number;
 }
 
 export interface MaintenanceEvent {
@@ -492,21 +606,53 @@ export interface MaintenanceEvent {
 }
 
 // ── Dispatch ──
+export interface DispatchPackage {
+  id: ID;
+  dispatchId: ID;
+  packageCode: string;
+  packageType: 'Crate' | 'Pallet' | 'Box' | 'Bundle' | 'Loose';
+  lengthMm?: number;
+  widthMm?: number;
+  heightMm?: number;
+  weightKg?: number;
+  productDescription: string;
+  qty: number;
+  uom: string;
+  lotIds?: ID[];
+  packingDate?: string;
+  packingNotes?: string;
+}
+
 export interface Dispatch {
   id: ID;
   dispatchNumber: string;
   customerId: ID;
   customerName: string;
+  customerPoId?: ID;
+  customerPoNumber?: string;
+  poLineId?: ID;
+  jobId?: ID;
+  jobNumber?: string;
+  qualityReleaseId?: ID;
+  sourceSiteId?: ID;
+  sourceStoreLocationName?: string;
+  destination?: string;
   dispatchDate: string;
   carrier?: string;
   vehicleNumber?: string;
+  driverName?: string;
   lrNumber?: string;
   expectedDelivery?: string;
-  status: 'draft' | 'pending_docs' | 'dispatched' | 'delivered' | 'short_delivery';
+  actualDeliveryDate?: string;
+  receivedByName?: string;
+  status: 'draft' | 'ready' | 'pending_docs' | 'dispatched' | 'in_transit' | 'delivered' | 'delivery_confirmed' | 'short_delivery' | 'damaged' | 'delayed' | 'discrepancy';
   lineCount: number;
   totalQty: number;
+  dispatchedQty?: number;
   hasPoD: boolean;
   jobs: string[];
+  packages?: DispatchPackage[];
+  discrepancyNotes?: string;
 }
 
 // ── Documents ──
@@ -526,6 +672,8 @@ export interface VaultDocument {
   certStatus?: 'ai_extracted' | 'verified' | 'pending';
   aiClassification?: string;
   obligation?: { renewalDue: string; responsible: string };
+  supersedesDocId?: ID;
+  status?: 'active' | 'superseded' | 'expired';
 }
 
 // ── Approval Requests ──

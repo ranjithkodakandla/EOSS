@@ -1,16 +1,22 @@
 import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, ArrowRightLeft, ArrowUpDown, ArrowUp, ArrowDown, ShieldAlert } from 'lucide-react';
+import { Search, ArrowRightLeft, ArrowUpDown, ArrowUp, ArrowDown, ShieldAlert, Plus, Pencil, X } from 'lucide-react';
 import { useStore } from '../../store';
 import { STORE_LOCATIONS } from '../../data/seed';
+import type { MaterialItem } from '../../types';
 import StatusChip from '../../components/layout/StatusChip';
 import clsx from 'clsx';
 
 type SortKey = 'materialCode' | 'materialName' | 'locationName' | 'onHandQty' | 'reservedQty' | 'qcHoldQty' | 'inTransitQty' | 'availableQty' | 'reorderPoint';
 type SortDir = 'asc' | 'desc';
 
+const emptyMaterialForm = {
+  itemCode: '', name: '', categoryName: '', primaryUom: 'kg', standardGrade: '',
+  dimensions: '', reorderPoint: 0, leadTimeDays: '', trackingMode: 'lot' as MaterialItem['trackingMode'],
+};
+
 export default function Inventory() {
-  const { inventory, lots, currentUser } = useStore();
+  const { inventory, lots, currentUser, materials, addMaterial, updateMaterial, showToast } = useStore();
   const navigate = useNavigate();
 
   const [search, setSearch] = useState('');
@@ -19,7 +25,52 @@ export default function Inventory() {
   const [sortDir, setSortDir] = useState<SortDir>('asc');
 
   const shortageCount = inventory.filter(i => i.shortage).length;
-  const shortageValue = inventory.filter(i => i.shortage).length;
+
+  // Material Add/Edit Modal State
+  const [materialModalOpen, setMaterialModalOpen] = useState(false);
+  const [editingMaterialId, setEditingMaterialId] = useState<string | null>(null);
+  const [materialForm, setMaterialForm] = useState(emptyMaterialForm);
+
+  const openAddMaterial = () => {
+    setEditingMaterialId(null);
+    setMaterialForm(emptyMaterialForm);
+    setMaterialModalOpen(true);
+  };
+
+  const openEditMaterial = (m: MaterialItem, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    setEditingMaterialId(m.id);
+    setMaterialForm({
+      itemCode: m.itemCode, name: m.name, categoryName: m.categoryName, primaryUom: m.primaryUom,
+      standardGrade: m.standardGrade ?? '', dimensions: m.dimensions ?? '', reorderPoint: m.reorderPoint,
+      leadTimeDays: m.leadTimeDays != null ? String(m.leadTimeDays) : '', trackingMode: m.trackingMode,
+    });
+    setMaterialModalOpen(true);
+  };
+
+  const handleSaveMaterial = () => {
+    if (editingMaterialId) {
+      updateMaterial(editingMaterialId, {
+        name: materialForm.name, categoryName: materialForm.categoryName, primaryUom: materialForm.primaryUom,
+        standardGrade: materialForm.standardGrade || undefined, dimensions: materialForm.dimensions || undefined,
+        reorderPoint: Number(materialForm.reorderPoint), leadTimeDays: materialForm.leadTimeDays ? Number(materialForm.leadTimeDays) : undefined,
+        trackingMode: materialForm.trackingMode,
+      });
+      showToast({ type: 'success', title: 'Material updated', body: `${materialForm.name} saved.` });
+    } else {
+      const newMaterial: MaterialItem = {
+        id: `mat-${Date.now()}`, itemCode: materialForm.itemCode || `MAT-${Date.now().toString().slice(-6)}`,
+        name: materialForm.name, categoryId: `cat-${materialForm.categoryName.toLowerCase().replace(/\s+/g, '-')}`,
+        categoryName: materialForm.categoryName, primaryUom: materialForm.primaryUom, trackingMode: materialForm.trackingMode,
+        reorderPoint: Number(materialForm.reorderPoint) || 0, standardGrade: materialForm.standardGrade || undefined,
+        dimensions: materialForm.dimensions || undefined, leadTimeDays: materialForm.leadTimeDays ? Number(materialForm.leadTimeDays) : undefined,
+        active: true,
+      };
+      addMaterial(newMaterial);
+      showToast({ type: 'success', title: 'Material added', body: `${newMaterial.name} (${newMaterial.itemCode}) created.` });
+    }
+    setMaterialModalOpen(false);
+  };
 
   const handleSort = (key: SortKey) => {
     if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
@@ -117,6 +168,16 @@ export default function Inventory() {
             <ArrowRightLeft size={13} /> Transfer
           </button>
         )}
+
+        {currentUser.role !== 'operator' && (
+          <button
+            onClick={openAddMaterial}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white"
+            style={{ background: 'var(--brand)' }}
+          >
+            <Plus size={13} /> Add Material
+          </button>
+        )}
       </div>
 
       {/* Store tiles summary row */}
@@ -199,6 +260,7 @@ export default function Inventory() {
             ) : (
               filtered.map((item, idx) => {
                 const isLow = item.shortage || item.availableQty <= item.reorderPoint * 0.5;
+                const seedMaterial = materials.find(m => m.itemCode === item.materialCode);
                 return (
                   <tr
                     key={item.id}
@@ -219,7 +281,10 @@ export default function Inventory() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="text-sm font-medium" style={{ color: 'var(--text)' }}>{item.materialName}</div>
-                      <div className="text-xs mt-0.5" style={{ color: 'var(--text-3)' }}>{item.categoryName}</div>
+                      <div className="text-xs mt-0.5" style={{ color: 'var(--text-3)' }}>
+                        {item.categoryName}
+                        {seedMaterial?.standardGrade && <span className="ml-1.5 font-mono">· {seedMaterial.standardGrade}</span>}
+                      </div>
                     </td>
                     <td className="px-4 py-3">
                       <span className="text-xs px-2 py-0.5 rounded-md border" style={{ borderColor: 'var(--border)', color: 'var(--text-2)', background: 'var(--surface)' }}>
@@ -241,10 +306,15 @@ export default function Inventory() {
                         <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ background: 'var(--success-bg,#F0FDF4)', color: 'var(--success,#16A34A)' }}>OK</span>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-right">
+                    <td className="px-4 py-3 text-right" onClick={e => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1.5">
                         {item.lotCount > 0 && (
                           <span className="text-xs" style={{ color: 'var(--text-3)' }}>{item.lotCount} lot{item.lotCount !== 1 ? 's' : ''}</span>
+                        )}
+                        {seedMaterial && currentUser.role !== 'operator' && (
+                          <button onClick={e => openEditMaterial(seedMaterial, e)} className="p-1 rounded hover:bg-[var(--surface-2)]" title="Edit material master">
+                            <Pencil size={12} style={{ color: 'var(--text-3)' }} />
+                          </button>
                         )}
                       </div>
                     </td>
@@ -271,6 +341,67 @@ export default function Inventory() {
           </>
         )}
       </div>
+
+      {/* Material Add/Edit Modal */}
+      {materialModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+          <div className="w-full max-w-lg rounded-xl p-5 space-y-4 bg-[var(--surface)] border border-[var(--border)]">
+            <div className="flex items-center justify-between border-b border-[var(--border)] pb-3">
+              <h3 className="text-sm font-bold text-[var(--text)]">{editingMaterialId ? 'Edit Material' : 'Add Material'}</h3>
+              <button onClick={() => setMaterialModalOpen(false)} className="text-[var(--text-3)] hover:text-[var(--text)]">
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="grid sm:grid-cols-2 gap-3 text-xs">
+              <Field2 label="Item Code" value={materialForm.itemCode} onChange={v => setMaterialForm(f => ({ ...f, itemCode: v }))} disabled={!!editingMaterialId} placeholder="e.g. FRG-42CD4-RND" />
+              <Field2 label="Material Name *" value={materialForm.name} onChange={v => setMaterialForm(f => ({ ...f, name: v }))} placeholder="e.g. Steel Grade 42CrMo4 Billet" />
+              <Field2 label="Category" value={materialForm.categoryName} onChange={v => setMaterialForm(f => ({ ...f, categoryName: v }))} placeholder="e.g. Alloy Steel Forgings" />
+              <Field2 label="Grade / Specification" value={materialForm.standardGrade} onChange={v => setMaterialForm(f => ({ ...f, standardGrade: v }))} placeholder="e.g. EN 10083-3 42CrMo4" />
+              <Field2 label="Dimensions" value={materialForm.dimensions} onChange={v => setMaterialForm(f => ({ ...f, dimensions: v }))} placeholder="e.g. Ø280mm x 650mm" />
+              <Field2 label="UOM" value={materialForm.primaryUom} onChange={v => setMaterialForm(f => ({ ...f, primaryUom: v }))} placeholder="kg / pcs / m" />
+              <Field2 label="Reorder Level" value={String(materialForm.reorderPoint)} onChange={v => setMaterialForm(f => ({ ...f, reorderPoint: Number(v) || 0 }))} type="number" />
+              <Field2 label="Lead Time (days)" value={materialForm.leadTimeDays} onChange={v => setMaterialForm(f => ({ ...f, leadTimeDays: v }))} type="number" />
+              <div>
+                <label className="block text-[11px] font-mono uppercase text-[var(--text-3)] mb-1">Tracking Mode</label>
+                <select
+                  value={materialForm.trackingMode}
+                  onChange={e => setMaterialForm(f => ({ ...f, trackingMode: e.target.value as MaterialItem['trackingMode'] }))}
+                  className="w-full p-2 rounded-lg bg-[var(--surface-2)] border border-[var(--border)] text-[var(--text)]"
+                >
+                  <option value="none">None</option>
+                  <option value="lot">Lot</option>
+                  <option value="heat">Heat</option>
+                  <option value="serial">Serial</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-[var(--border)]">
+              <button onClick={() => setMaterialModalOpen(false)} className="btn-ghost text-xs py-1.5 px-3">Cancel</button>
+              <button disabled={!materialForm.name} onClick={handleSaveMaterial} className="btn-primary text-xs py-1.5 px-4 disabled:opacity-50">
+                {editingMaterialId ? 'Save Changes' : 'Create Material'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Field2({ label, value, onChange, placeholder, type = 'text', disabled }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string; type?: string; disabled?: boolean }) {
+  return (
+    <div>
+      <label className="block text-[11px] font-mono uppercase text-[var(--text-3)] mb-1">{label}</label>
+      <input
+        type={type}
+        value={value}
+        disabled={disabled}
+        onChange={e => onChange(e.target.value)}
+        placeholder={placeholder}
+        className="w-full p-2 rounded-lg bg-[var(--surface-2)] border border-[var(--border)] text-[var(--text)] disabled:opacity-50"
+      />
     </div>
   );
 }

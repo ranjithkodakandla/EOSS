@@ -1,20 +1,40 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Wrench, AlertTriangle, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Wrench, AlertTriangle, ChevronRight, Gauge, X } from 'lucide-react';
 import { useStore } from '../../store';
+import { computeMaintenanceDue } from '../../domain/maintenanceDue';
+import { DEMO_NOW } from '../../data/seed';
 import StatusChip from '../../components/layout/StatusChip';
 import clsx from 'clsx';
 
 export default function AssetDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { assets, maintenanceEvents } = useStore();
-  const [tab, setTab] = useState<'info' | 'history'>('info');
+  const { assets, maintenanceEvents, meterReadings, addMeterReading, currentUser, showToast } = useStore();
+  const [tab, setTab] = useState<'info' | 'history' | 'readings'>('info');
+  const [readingModalOpen, setReadingModalOpen] = useState(false);
+  const [readingValue, setReadingValue] = useState<string>('');
+  const [readingType, setReadingType] = useState<'routine' | 'shift-end' | 'post-maintenance' | 'correction'>('routine');
+  const [readingNotes, setReadingNotes] = useState('');
 
   const asset = assets.find(a => a.id === id);
   if (!asset) return <div className="p-6 text-[var(--text-2)]">Asset not found</div>;
 
   const events = maintenanceEvents.filter(m => m.assetId === id);
+  const readings = meterReadings.filter(r => r.assetId === id).slice().sort((a, b) => b.readingDate.localeCompare(a.readingDate));
+  const due = computeMaintenanceDue(asset, meterReadings, new Date(DEMO_NOW));
+
+  const handleLogReading = () => {
+    if (!readingValue) return;
+    addMeterReading({
+      id: `mr-${Date.now()}`, assetId: asset.id, assetCode: asset.assetCode, reading: Number(readingValue),
+      readingDate: DEMO_NOW, recordedBy: currentUser.name, readingType, notes: readingNotes || undefined,
+    });
+    showToast({ type: 'success', title: 'Meter reading logged', body: `${asset.assetCode}: ${readingValue} ${asset.meterType}.` });
+    setReadingModalOpen(false);
+    setReadingValue('');
+    setReadingNotes('');
+  };
 
   return (
     <div className="max-w-4xl mx-auto p-4 md:p-6">
@@ -48,8 +68,24 @@ export default function AssetDetail() {
         </div>
       )}
 
+      {(due.status === 'due' || due.status === 'overdue' || due.status === 'upcoming') && (
+        <div className={clsx('mb-4 rounded-xl p-3 flex items-center gap-2 border', {
+          'bg-[var(--error-bg)] border-[var(--error)]': due.status === 'overdue',
+          'bg-[var(--warning-bg)] border-[var(--warning)]': due.status === 'due',
+          'bg-[var(--surface)] border-[var(--border)]': due.status === 'upcoming',
+        })}>
+          <Gauge size={16} className={clsx('flex-shrink-0', due.status === 'overdue' ? 'text-[var(--error)]' : due.status === 'due' ? 'text-[var(--warning)]' : 'text-[var(--text-2)]')} />
+          <p className={clsx('text-sm font-medium', due.status === 'overdue' ? 'text-[var(--error)]' : due.status === 'due' ? 'text-[var(--warning)]' : 'text-[var(--text-2)]')}>
+            {due.summary}
+          </p>
+        </div>
+      )}
+
       <div className="flex gap-2 mb-4">
         <button onClick={() => setTab('info')} className={clsx('px-4 py-2 rounded-lg text-sm transition-colors', tab === 'info' ? 'bg-[var(--brand)] text-white' : 'border border-[var(--border)] text-[var(--text-2)]')}>Asset Info</button>
+        <button onClick={() => setTab('readings')} className={clsx('px-4 py-2 rounded-lg text-sm transition-colors', tab === 'readings' ? 'bg-[var(--brand)] text-white' : 'border border-[var(--border)] text-[var(--text-2)]')}>
+          Running Hours ({readings.length})
+        </button>
         <button onClick={() => setTab('history')} className={clsx('px-4 py-2 rounded-lg text-sm transition-colors', tab === 'history' ? 'bg-[var(--brand)] text-white' : 'border border-[var(--border)] text-[var(--text-2)]')}>
           Maintenance History ({events.length})
         </button>
@@ -92,6 +128,11 @@ export default function AssetDetail() {
             <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
               <h3 className="font-semibold text-sm text-[var(--text)] mb-3">Actions</h3>
               <div className="space-y-2">
+                {asset.meterType && asset.meterType !== 'none' && (
+                  <button onClick={() => setReadingModalOpen(true)} className="w-full py-2 border border-[var(--border)] text-[var(--text)] rounded-lg text-sm hover:bg-[var(--surface-2)] transition-colors flex items-center justify-center gap-2">
+                    <Gauge size={14} /> Log Meter Reading
+                  </button>
+                )}
                 <button onClick={() => navigate('/assets')} className="w-full py-2 border border-[var(--border)] text-[var(--text)] rounded-lg text-sm hover:bg-[var(--surface-2)] transition-colors flex items-center justify-center gap-2">
                   <Wrench size={14} /> Log Maintenance Event
                 </button>
@@ -103,6 +144,21 @@ export default function AssetDetail() {
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {tab === 'readings' && (
+        <div className="space-y-3">
+          {readings.length === 0 && <div className="text-center py-10 text-sm text-[var(--text-3)]">No meter readings logged for this asset</div>}
+          {readings.map(r => (
+            <div key={r.id} className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 flex items-center justify-between gap-3">
+              <div>
+                <div className="font-mono text-base font-bold text-[var(--text)]">{r.reading.toLocaleString()} {asset.meterType}</div>
+                <div className="text-xs text-[var(--text-3)] mt-0.5">{r.recordedBy} · {new Date(r.readingDate).toLocaleDateString('en-IN')} · <span className="capitalize">{r.readingType.replace('-', ' ')}</span></div>
+                {r.notes && <div className="text-xs text-[var(--text-2)] mt-1">{r.notes}</div>}
+              </div>
+            </div>
+          ))}
         </div>
       )}
 
@@ -130,6 +186,40 @@ export default function AssetDetail() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {readingModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-xl p-5 space-y-4 bg-[var(--surface)] border border-[var(--border)]">
+            <div className="flex items-center justify-between border-b border-[var(--border)] pb-3">
+              <h3 className="text-sm font-bold text-[var(--text)]">Log Meter Reading — {asset.assetCode}</h3>
+              <button onClick={() => setReadingModalOpen(false)} className="text-[var(--text-3)] hover:text-[var(--text)]"><X size={16} /></button>
+            </div>
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Reading ({asset.meterType})</label>
+                <input type="number" value={readingValue} onChange={e => setReadingValue(e.target.value)} placeholder={String(asset.currentReading ?? 0)} className="w-full p-2.5 rounded-lg bg-[var(--surface-2)] border border-[var(--border)] font-mono text-base font-bold text-[var(--text)]" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Reading Type</label>
+                <select value={readingType} onChange={e => setReadingType(e.target.value as any)} className="w-full p-2.5 rounded-lg bg-[var(--surface-2)] border border-[var(--border)] text-[var(--text)]">
+                  <option value="routine">Routine</option>
+                  <option value="shift-end">Shift-end</option>
+                  <option value="post-maintenance">Post-maintenance</option>
+                  <option value="correction">Correction</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Notes</label>
+                <input value={readingNotes} onChange={e => setReadingNotes(e.target.value)} className="w-full p-2.5 rounded-lg bg-[var(--surface-2)] border border-[var(--border)] text-[var(--text)]" />
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-[var(--border)]">
+              <button onClick={() => setReadingModalOpen(false)} className="btn-ghost text-xs py-1.5 px-3">Cancel</button>
+              <button disabled={!readingValue} onClick={handleLogReading} className="btn-primary text-xs py-1.5 px-4 disabled:opacity-50">Save Reading</button>
+            </div>
+          </div>
         </div>
       )}
     </div>

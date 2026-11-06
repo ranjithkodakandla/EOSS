@@ -3,17 +3,19 @@ import { useNavigate } from 'react-router-dom';
 import { Plus, ChevronRight, Search, X, PackageCheck, Trash2 } from 'lucide-react';
 import { useStore, CUSTOMERS } from '../../store';
 import type { Dispatch } from '../../types';
+import { checkDispatchEligibility } from '../../domain/dispatchEligibility';
 import StatusChip from '../../components/layout/StatusChip';
 
 let dspSeq = 100;
 
 export default function DispatchWorkspace() {
-  const { dispatches, invoices, currentUser, addDispatch, recordPoD, showToast } = useStore();
+  const { dispatches, invoices, currentUser, addDispatch, recordPoD, showToast, jobs, qualityReleases, inspections } = useStore();
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [podDispatchId, setPodDispatchId] = useState<string | null>(null);
   const [deletedDispatchIds, setDeletedDispatchIds] = useState<Set<string>>(new Set());
+  const [selectedJobId, setSelectedJobId] = useState('');
   const canManage = ['owner', 'dispatch'].includes(currentUser.role);
 
   const handleDeleteDispatch = (id: string, e: React.MouseEvent) => {
@@ -28,6 +30,9 @@ export default function DispatchWorkspace() {
     vehicleNumber: '', lrNumber: '', dispatchDate: '', jobs: '',
   });
 
+  const eligibleJob = jobs.find(j => j.id === selectedJobId);
+  const eligibility = eligibleJob ? checkDispatchEligibility({ job: eligibleJob, qualityReleases, inspections }) : null;
+
   const pendingDocs = dispatches.filter(d => d.status === 'pending_docs').length;
   const dispatched  = dispatches.filter(d => d.status === 'dispatched').length;
   const delivered   = dispatches.filter(d => d.status === 'delivered').length;
@@ -40,12 +45,19 @@ export default function DispatchWorkspace() {
   );
 
   function handleCreate() {
+    if (eligibleJob && eligibility && !eligibility.eligible) {
+      showToast({ type: 'error', title: 'Not dispatch-eligible', body: eligibility.reason });
+      return;
+    }
     const customer = CUSTOMERS.find(c => c.id === form.customerId);
     const newDispatch: Dispatch = {
       id: `dsp-new-${++dspSeq}`,
       dispatchNumber: `DSP-2024-${String(100 + dspSeq).slice(-3)}`,
       customerId: form.customerId,
       customerName: customer?.tradingName ?? form.customerName,
+      jobId: eligibleJob?.id, jobNumber: eligibleJob?.jobNumber,
+      customerPoId: eligibleJob?.customerPoId, customerPoNumber: eligibleJob?.customerPoNumber,
+      qualityReleaseId: eligibility?.qualityReleaseId,
       dispatchDate: form.dispatchDate,
       carrier: form.carrier || undefined,
       vehicleNumber: form.vehicleNumber || undefined,
@@ -54,10 +66,11 @@ export default function DispatchWorkspace() {
       lineCount: 0,
       totalQty: 0,
       hasPoD: false,
-      jobs: form.jobs ? form.jobs.split(',').map(s => s.trim()).filter(Boolean) : [],
+      jobs: eligibleJob ? [eligibleJob.jobNumber] : (form.jobs ? form.jobs.split(',').map(s => s.trim()).filter(Boolean) : []),
     };
     addDispatch(newDispatch);
     setShowModal(false);
+    setSelectedJobId('');
     setForm({ customerId: '', customerName: '', carrier: '', vehicleNumber: '', lrNumber: '', dispatchDate: '', jobs: '' });
   }
 
@@ -158,8 +171,20 @@ export default function DispatchWorkspace() {
                 </select>
               </div>
               <div>
-                <label className="text-xs text-[var(--text-3)] block mb-1">Jobs (comma separated job numbers)</label>
-                <input value={form.jobs} onChange={e => setForm(f => ({ ...f, jobs: e.target.value }))} placeholder="J-101, J-105" className="w-full px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--surface)] text-sm text-[var(--text)] focus:outline-none focus:border-[var(--brand)]" />
+                <label className="text-xs text-[var(--text-3)] block mb-1">Job (checks quality release before dispatch)</label>
+                <select
+                  value={selectedJobId}
+                  onChange={e => setSelectedJobId(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--surface)] text-sm text-[var(--text)] focus:outline-none focus:border-[var(--brand)]"
+                >
+                  <option value="">No specific job (free dispatch)</option>
+                  {jobs.map(j => <option key={j.id} value={j.id}>{j.jobNumber} — {j.description}</option>)}
+                </select>
+                {eligibility && (
+                  <p className={`text-xs mt-1.5 ${eligibility.eligible ? 'text-[var(--success)]' : 'text-[var(--error)]'}`}>
+                    {eligibility.eligible ? `✓ Dispatch-eligible — ${eligibility.reason}` : `✗ Not eligible — ${eligibility.reason}`}
+                  </p>
+                )}
               </div>
               <div>
                 <label className="text-xs text-[var(--text-3)] block mb-1">Carrier</label>
@@ -183,7 +208,7 @@ export default function DispatchWorkspace() {
             <div className="flex gap-2 mt-5">
               <button onClick={() => setShowModal(false)} className="flex-1 py-2 border border-[var(--border)] text-[var(--text)] rounded-lg text-sm">Cancel</button>
               <button
-                disabled={!form.customerId || !form.dispatchDate}
+                disabled={!form.customerId || !form.dispatchDate || (!!eligibility && !eligibility.eligible)}
                 onClick={handleCreate}
                 className="flex-1 py-2 bg-[var(--brand)] text-white rounded-lg text-sm font-medium disabled:opacity-50"
               >

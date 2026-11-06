@@ -7,6 +7,7 @@ import OrderToDeliveryFlow from '../../components/home/OrderToDeliveryFlow';
 import YourPrioritiesCard from '../../components/home/YourPrioritiesCard';
 import ProductionProgressCard from '../../components/home/ProductionProgressCard';
 import BusinessHealthCard from '../../components/home/BusinessHealthCard';
+import OperationalAttentionCard from '../../components/home/OperationalAttentionCard';
 import CopilotPanel from '../../components/copilot/CopilotPanel';
 
 const QUICK_ACTIONS = [
@@ -99,6 +100,9 @@ export default function Home() {
             <ProductionProgressCard />
             <BusinessHealthCard />
           </div>
+
+          {/* Row 3b: Operational Attention — live counts from real records (PRD §10) */}
+          <OperationalAttentionCard />
 
           {/* Quick Actions Strip — role-filtered, no filler */}
           {(() => {

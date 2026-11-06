@@ -9,7 +9,9 @@ import type {
   CustomerInvoice, SupplierInvoice, PaymentRecord, OnboardingState,
   Invoice, InvoiceLine, Payment, PaymentAllocation, CollectionActivity,
   FinishedProduct, SiteAllocation, CustomerQuotation, CustomerQuotationLine, POLine,
-  PurchaseRequisition
+  PurchaseRequisition, Site, MaterialItem,
+  MeterReading, QualityRelease, InspectionTemplate, StageTemplate,
+  JobMaterialReq, JobBlocker, SupplierPOLine
 } from '../types';
 import {
   DEMO_USERS, JOBS, MATERIAL_LOTS, INVENTORY, STOCK_MOVEMENTS,
@@ -25,6 +27,13 @@ import {
   FLAGSHIP_INSPECTIONS, FLAGSHIP_NCRS,
   SITES, FLAGSHIP_QUOTATION, FLAGSHIP_QUOTATION_LINES, FLAGSHIP_PO_LINES,
   FLAGSHIP_GRNS, FLAGSHIP_SUPPLIER_RFQS, FLAGSHIP_PURCHASE_REQS,
+  MATERIALS, QUALITY_RELEASES, JOB_MATERIAL_REQS,
+  STAGE_TEMPLATES, INSPECTION_TEMPLATES,
+  CUSTOMER_POS_DEMO, JOBS_DEMO, MATERIAL_LOTS_DEMO, INVENTORY_DEMO,
+  SUPPLIER_POS_DEMO, SUPPLIER_PO_LINES_DEMO, JOB_MATERIAL_REQS_DEMO,
+  JOB_BLOCKERS_DEMO, ASSETS_DEMO, METER_READINGS_DEMO, MAINTENANCE_EVENTS_DEMO,
+  INSPECTIONS_DEMO, NCRS_DEMO, QUALITY_RELEASES_DEMO, DISPATCHES_DEMO,
+  VAULT_DOCUMENTS_DEMO, AUDIT_EVENTS_DEMO,
 } from '../data/seed';
 
 // ── App State ──
@@ -55,6 +64,7 @@ interface EOSSState {
   pulseExceptions: PulseException[];
   customerPos: CustomerPO[];
   supplierPos: SupplierPO[];
+  supplierPoLines: SupplierPOLine[];
   rfqs: CustomerRFQ[];
   quotations: CustomerQuotation[];
   quotationLines: CustomerQuotationLine[];
@@ -68,6 +78,14 @@ interface EOSSState {
   supplierQuotations: SupplierQuotation[];
   auditEvents: AuditEvent[];
   approvalPolicies: ApprovalPolicy[];
+  sites: Site[];
+  materials: MaterialItem[];
+  meterReadings: MeterReading[];
+  qualityReleases: QualityRelease[];
+  inspectionTemplates: InspectionTemplate[];
+  stageTemplates: StageTemplate[];
+  jobMaterialReqs: JobMaterialReq[];
+  jobBlockers: JobBlocker[];
 
   // Toast
   toasts: Toast[];
@@ -86,6 +104,18 @@ interface EOSSState {
   addJobUpdate: (jobId: string, update: JobUpdate) => void;
   setJobStatus: (jobId: string, status: Job['status']) => void;
   resolveBlocker: (blockerId: string) => void;
+  addJobBlocker: (blocker: JobBlocker) => void;
+
+  // Material master actions
+  addMaterial: (material: MaterialItem) => void;
+  updateMaterial: (id: string, update: Partial<MaterialItem>) => void;
+
+  // Maintenance actions
+  addMeterReading: (reading: MeterReading) => void;
+
+  // Quality release action
+  addQualityRelease: (release: QualityRelease) => void;
+  addInspection: (inspection: Inspection) => void;
 
   // Inventory actions
   issueMaterial: (lotId: string, qty: number, jobId: string, jobNumber: string, by: string) => void;
@@ -108,6 +138,7 @@ interface EOSSState {
   // Document actions
   addDocument: (doc: VaultDocument) => void;
   updateCertStatus: (certId: string, status: MaterialCertificate['verificationStatus']) => void;
+  addDocumentVersion: (previousDocId: string, newDoc: VaultDocument) => void;
 
   // Dispatch actions
   setDispatchStatus: (dspId: string, status: Dispatch['status']) => void;
@@ -209,31 +240,32 @@ export const useStore = create<EOSSState>((set, get) => ({
   notifications: [...NOTIFICATIONS],
   unreadCount: NOTIFICATIONS.filter(n => !n.read).length,
 
-  jobs: [...JOBS.map(j => ({ ...j, stages: [...j.stages] })), ...FLAGSHIP_JOBS.map(j => ({ ...j, stages: [...j.stages] }))],
-  lots: [...MATERIAL_LOTS],
-  inventory: [...INVENTORY],
+  jobs: [...JOBS, ...FLAGSHIP_JOBS, ...JOBS_DEMO].map(j => ({ ...j, stages: [...j.stages] })),
+  lots: [...MATERIAL_LOTS, ...MATERIAL_LOTS_DEMO],
+  inventory: [...INVENTORY, ...INVENTORY_DEMO],
   movements: [...STOCK_MOVEMENTS],
-  assets: [...ASSETS],
-  maintenanceEvents: [...MAINTENANCE_EVENTS],
-  dispatches: [...DISPATCHES, ...FLAGSHIP_DISPATCHES],
-  documents: [...VAULT_DOCUMENTS],
+  assets: [...ASSETS, ...ASSETS_DEMO],
+  maintenanceEvents: [...MAINTENANCE_EVENTS, ...MAINTENANCE_EVENTS_DEMO],
+  dispatches: [...DISPATCHES, ...FLAGSHIP_DISPATCHES, ...DISPATCHES_DEMO],
+  documents: [...VAULT_DOCUMENTS, ...VAULT_DOCUMENTS_DEMO],
   approvalRequests: [...APPROVAL_REQUESTS],
   pulseExceptions: [...PULSE_EXCEPTIONS],
-  customerPos: [...CUSTOMER_POS, FLAGSHIP_PO],
-  supplierPos: [...SUPPLIER_POS],
+  customerPos: [...CUSTOMER_POS, FLAGSHIP_PO, ...CUSTOMER_POS_DEMO],
+  supplierPos: [...SUPPLIER_POS, ...SUPPLIER_POS_DEMO],
+  supplierPoLines: [...SUPPLIER_PO_LINES, ...SUPPLIER_PO_LINES_DEMO],
   purchaseReqs: [...PURCHASE_REQS, ...FLAGSHIP_PURCHASE_REQS],
   rfqs: [...RFQS, FLAGSHIP_RFQ, ADDITIONAL_RFQ],
   quotations: [FLAGSHIP_QUOTATION],
   quotationLines: [...FLAGSHIP_QUOTATION_LINES],
   poLines: [...FLAGSHIP_PO_LINES],
   grns: [...GRNS, ...FLAGSHIP_GRNS],
-  inspections: [...INSPECTIONS, ...FLAGSHIP_INSPECTIONS],
-  ncrs: [...NCRS, ...FLAGSHIP_NCRS],
+  inspections: [...INSPECTIONS, ...FLAGSHIP_INSPECTIONS, ...INSPECTIONS_DEMO],
+  ncrs: [...NCRS, ...FLAGSHIP_NCRS, ...NCRS_DEMO],
   certificates: [...CERTIFICATES],
   employees: [...EMPLOYEES],
   storeLocations: [...STORE_LOCATIONS],
   supplierQuotations: [...SUPPLIER_QUOTATIONS, ...FLAGSHIP_SUPPLIER_RFQS],
-  auditEvents: [...AUDIT_EVENTS],
+  auditEvents: [...AUDIT_EVENTS, ...AUDIT_EVENTS_DEMO],
   approvalPolicies: [...APPROVAL_POLICIES],
   customerInvoices: [...CUSTOMER_INVOICES],
   supplierInvoices: [...SUPPLIER_INVOICES],
@@ -247,6 +279,14 @@ export const useStore = create<EOSSState>((set, get) => ({
   siteAllocations: [...FLAGSHIP_SITE_ALLOCATIONS],
   onboarding: { status: 'complete', completedSteps: [1, 2, 3, 4, 5, 6, 7] },
   companyConfig: { ...COMPANY_CONFIG },
+  sites: [...SITES],
+  materials: [...MATERIALS],
+  meterReadings: [...METER_READINGS_DEMO],
+  qualityReleases: [...QUALITY_RELEASES, ...QUALITY_RELEASES_DEMO],
+  inspectionTemplates: [...INSPECTION_TEMPLATES],
+  stageTemplates: [...STAGE_TEMPLATES],
+  jobMaterialReqs: [...JOB_MATERIAL_REQS, ...JOB_MATERIAL_REQS_DEMO],
+  jobBlockers: [...JOB_BLOCKERS, ...JOB_BLOCKERS_DEMO],
   toasts: [],
 
   // ── Session Actions ──
@@ -315,11 +355,43 @@ export const useStore = create<EOSSState>((set, get) => ({
   })),
 
   resolveBlocker: (blockerId) => {
-    // Find which job this blocker belongs to and clear hasBlocker flag if no other open blockers
-    const { showToast } = get();
-    // In prototype: just show toast
-    showToast({ type: 'success', title: 'Blocker resolved', body: `Blocker ${blockerId} marked as resolved.` });
+    set(s => {
+      const blocker = s.jobBlockers.find(b => b.id === blockerId);
+      if (!blocker) return s;
+      const resolvedAt = new Date().toISOString();
+      const jobBlockers = s.jobBlockers.map(b => b.id === blockerId ? { ...b, status: 'resolved' as const, resolvedAt } : b);
+      const stillOpenForJob = jobBlockers.some(b => b.jobId === blocker.jobId && b.status === 'open');
+      const jobs = s.jobs.map(j => j.id === blocker.jobId ? { ...j, hasBlocker: stillOpenForJob } : j);
+      return { jobBlockers, jobs };
+    });
+    get().showToast({ type: 'success', title: 'Blocker resolved', body: `Blocker ${blockerId} marked as resolved.` });
   },
+
+  addJobBlocker: (blocker) => set(s => ({
+    jobBlockers: [...s.jobBlockers, blocker],
+    jobs: s.jobs.map(j => j.id === blocker.jobId ? { ...j, hasBlocker: true } : j),
+  })),
+
+  // ── Material Master Actions ──
+  addMaterial: (material) => set(s => ({ materials: [...s.materials, material] })),
+
+  updateMaterial: (id, update) => set(s => ({
+    materials: s.materials.map(m => m.id !== id ? m : { ...m, ...update }),
+  })),
+
+  // ── Maintenance Actions ──
+  addMeterReading: (reading) => set(s => ({
+    meterReadings: [...s.meterReadings, reading],
+    assets: s.assets.map(a => a.id !== reading.assetId ? a : { ...a, currentReading: reading.reading }),
+  })),
+
+  // ── Quality Release / Inspection Actions ──
+  addQualityRelease: (release) => {
+    set(s => ({ qualityReleases: [...s.qualityReleases, release] }));
+    get().showToast({ type: 'success', title: 'Quality release issued', body: `${release.jobNumber} cleared for dispatch.` });
+  },
+
+  addInspection: (inspection) => set(s => ({ inspections: [...s.inspections, inspection] })),
 
   // ── Inventory Actions ──
   issueMaterial: (lotId, qty, jobId, jobNumber, by) => {
@@ -400,6 +472,16 @@ export const useStore = create<EOSSState>((set, get) => ({
 
   // ── Document Actions ──
   addDocument: (doc) => set(s => ({ documents: [doc, ...s.documents] })),
+
+  addDocumentVersion: (previousDocId, newDoc) => {
+    set(s => ({
+      documents: [
+        { ...newDoc, supersedesDocId: previousDocId, status: 'active' as const },
+        ...s.documents.map(d => d.id === previousDocId ? { ...d, status: 'superseded' as const } : d),
+      ],
+    }));
+    get().showToast({ type: 'success', title: 'New version uploaded', body: `${newDoc.title} — v${newDoc.version}. Previous version preserved.` });
+  },
 
   updateCertStatus: (certId, status) => set(s => ({
     certificates: s.certificates.map(c => c.id !== certId ? c : { ...c, verificationStatus: status }),
@@ -547,3 +629,5 @@ export {
 };
 export const CUSTOMERS = [...CUSTOMERS_BASE, GERMAN_CUSTOMER];
 export { FLAGSHIP_PO_LINES, FLAGSHIP_QUOTATION_LINES } from '../data/seed';
+export const selectInspectionTemplate = (id: string) => (s: EOSSState) => s.inspectionTemplates.find(t => t.id === id);
+export const selectStageTemplate = (id: string) => (s: EOSSState) => s.stageTemplates.find(t => t.id === id);

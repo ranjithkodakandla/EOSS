@@ -1,22 +1,42 @@
 import React, { useRef, useState } from 'react';
-import { FileText, Download, Search, Plus, X } from 'lucide-react';
+import { FileText, Download, Search, Plus, X, RefreshCw } from 'lucide-react';
 import { useStore } from '../../store';
+import { computeDocumentExpiry, listExpiringDocuments } from '../../domain/documentExpiry';
+import { DEMO_NOW } from '../../data/seed';
 import StatusChip from '../../components/layout/StatusChip';
 import type { VaultDocument } from '../../types';
 
 const CATEGORIES = ['All', 'Job Documents', 'Quality Documents', 'Material Certificates', 'Supplier Documents', 'Company Certificates', 'Asset Documents'];
 
 export default function Documents() {
-  const { documents: vaultDocuments, currentUser, addDocument, showToast } = useStore();
+  const { documents: vaultDocuments, currentUser, addDocument, addDocumentVersion, showToast } = useStore();
   const [search, setSearch] = useState('');
   const [cat, setCat] = useState('All');
   const [showUpload, setShowUpload] = useState(false);
+  const now = new Date(DEMO_NOW);
 
-  const filtered = vaultDocuments.filter(d => {
+  const visibleDocs = vaultDocuments.filter(d => d.status !== 'superseded');
+  const filtered = visibleDocs.filter(d => {
     const matchSearch = !search || d.title.toLowerCase().includes(search.toLowerCase()) || d.docType.toLowerCase().includes(search.toLowerCase());
     const matchCat = cat === 'All' || d.category === cat;
     return matchSearch && matchCat;
   });
+
+  const expiring = listExpiringDocuments(visibleDocs, now);
+  const expiredCount = expiring.filter(x => x.info.status === 'expired').length;
+  const expiringCount = expiring.filter(x => x.info.status === 'expiring').length;
+
+  const handleRenew = (docId: string) => {
+    const doc = vaultDocuments.find(d => d.id === docId);
+    if (!doc) return;
+    const newExpiry = doc.expiryDate ? new Date(doc.expiryDate) : new Date(now);
+    newExpiry.setFullYear(newExpiry.getFullYear() + 1);
+    addDocumentVersion(docId, {
+      ...doc, id: `doc-${Date.now()}`, version: doc.version + 1, uploadedBy: currentUser.name, uploadedAt: DEMO_NOW,
+      issueDate: DEMO_NOW, expiryDate: newExpiry.toISOString().slice(0, 10),
+      obligation: doc.obligation ? { ...doc.obligation, renewalDue: newExpiry.toISOString().slice(0, 10) } : undefined,
+    });
+  };
 
   return (
     <div className="flex flex-col h-full">
@@ -42,6 +62,8 @@ export default function Documents() {
           ))}
         </div>
         <div className="flex-1" />
+        {expiringCount > 0 && <span className="px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ background: 'var(--warning-bg,#FFFBEB)', color: 'var(--warning,#D97706)' }}>{expiringCount} expiring</span>}
+        {expiredCount > 0 && <span className="px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ background: 'var(--error-bg,#FEF2F2)', color: 'var(--error,#DC2626)' }}>{expiredCount} expired</span>}
         {['owner', 'buyer', 'qc'].includes(currentUser.role) && (
           <button onClick={() => setShowUpload(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white" style={{ background: 'var(--brand)' }}>
             <Plus size={13} /> Upload
@@ -51,36 +73,47 @@ export default function Documents() {
 
       <div className="flex-1 overflow-auto p-5">
         <div className="space-y-2 max-w-4xl">
-          {filtered.map(doc => (
-            <div key={doc.id} className="rounded-xl border p-4 flex items-center gap-3 cursor-pointer hover:opacity-90 transition-opacity"
-              style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
-              <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: 'var(--surface-2)' }}>
-                <FileText size={16} style={{ color: 'var(--brand)' }} />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-sm font-medium truncate" style={{ color: 'var(--text)' }}>{doc.title}</span>
-                  <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded" style={{ background: 'var(--surface-2)', color: 'var(--text-3)' }}>{doc.category}</span>
-                  {doc.obligation && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded" style={{ background: 'var(--warning-bg,#FFFBEB)', color: 'var(--warning,#D97706)' }}>RENEWAL DUE</span>}
+          {filtered.map(doc => {
+            const expiry = computeDocumentExpiry(doc, now);
+            return (
+              <div key={doc.id} className="rounded-xl border p-4 flex items-center gap-3 hover:opacity-90 transition-opacity"
+                style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
+                <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: 'var(--surface-2)' }}>
+                  <FileText size={16} style={{ color: 'var(--brand)' }} />
                 </div>
-                <div className="flex items-center gap-3 mt-0.5 text-xs" style={{ color: 'var(--text-3)' }}>
-                  <span>{doc.docType}</span><span>·</span>
-                  <span>v{doc.version}</span><span>·</span>
-                  <span>{new Date(doc.uploadedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</span><span>·</span>
-                  <span>{doc.uploadedBy}</span>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-sm font-medium truncate" style={{ color: 'var(--text)' }}>{doc.title}</span>
+                    <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded" style={{ background: 'var(--surface-2)', color: 'var(--text-3)' }}>{doc.category}</span>
+                    {expiry.status === 'expired' && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded" style={{ background: 'var(--error-bg,#FEF2F2)', color: 'var(--error,#DC2626)' }}>EXPIRED</span>}
+                    {expiry.status === 'expiring' && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded" style={{ background: 'var(--warning-bg,#FFFBEB)', color: 'var(--warning,#D97706)' }}>EXPIRES IN {expiry.daysToExpiry}D</span>}
+                    {doc.linkedEntities.length > 0 && <span className="text-[10px]" style={{ color: 'var(--text-3)' }}>→ {doc.linkedEntities.map(e => e.ref).join(', ')}</span>}
+                  </div>
+                  <div className="flex items-center gap-3 mt-0.5 text-xs flex-wrap" style={{ color: 'var(--text-3)' }}>
+                    <span>{doc.docType}</span><span>·</span>
+                    <span>v{doc.version}</span><span>·</span>
+                    <span>{new Date(doc.uploadedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</span><span>·</span>
+                    <span>{doc.uploadedBy}</span>
+                    {doc.obligation && <><span>·</span><span>Owner: {doc.obligation.responsible}</span></>}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  {doc.certStatus && <StatusChip status={doc.certStatus} size="sm" />}
+                  {doc.expiryDate && (
+                    <span className="text-[10px]" style={{ color: 'var(--text-3)' }}>
+                      exp {new Date(doc.expiryDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' })}
+                    </span>
+                  )}
+                  {(expiry.status === 'expiring' || expiry.status === 'expired') && (
+                    <button onClick={() => handleRenew(doc.id)} className="flex items-center gap-1 text-xs font-medium" style={{ color: 'var(--brand)' }}>
+                      <RefreshCw size={12} /> Renew
+                    </button>
+                  )}
+                  <Download size={14} style={{ color: 'var(--text-3)' }} />
                 </div>
               </div>
-              <div className="flex items-center gap-2 flex-shrink-0">
-                {doc.certStatus && <StatusChip status={doc.certStatus} size="sm" />}
-                {doc.expiryDate && (
-                  <span className="text-[10px]" style={{ color: 'var(--text-3)' }}>
-                    exp {new Date(doc.expiryDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' })}
-                  </span>
-                )}
-                <Download size={14} style={{ color: 'var(--text-3)' }} />
-              </div>
-            </div>
-          ))}
+            );
+          })}
           {filtered.length === 0 && <div className="text-center py-10 text-sm" style={{ color: 'var(--text-3)' }}>No documents found</div>}
         </div>
       </div>

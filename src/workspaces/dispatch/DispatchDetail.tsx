@@ -1,16 +1,17 @@
 import React from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Truck, Package, CheckCircle } from 'lucide-react';
+import { ArrowLeft, Truck, Package, CheckCircle, Box } from 'lucide-react';
 import { useStore } from '../../store';
 import StatusChip from '../../components/layout/StatusChip';
 
 export default function DispatchDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { dispatches, currentUser, setDispatchStatus, recordPoD } = useStore();
+  const { dispatches, currentUser, setDispatchStatus, recordPoD, qualityReleases } = useStore();
 
   const dispatch = dispatches.find(d => d.id === id);
   if (!dispatch) return <div className="p-6 text-[var(--text-2)]">Dispatch not found</div>;
+  const release = dispatch.qualityReleaseId ? qualityReleases.find(r => r.id === dispatch.qualityReleaseId) : null;
 
   const canDispatch = ['owner', 'dispatch'].includes(currentUser.role);
 
@@ -40,9 +41,14 @@ export default function DispatchDetail() {
                   <dd className="text-sm text-[var(--text)] mt-0.5 font-mono">{(dispatch.jobs ?? []).join(', ')}</dd>
                 </div>
               )}
+              {dispatch.customerPoNumber && <Field label="Customer PO" value={dispatch.customerPoNumber} mono />}
+              {dispatch.jobNumber && <Field label="Job" value={dispatch.jobNumber} mono />}
+              {dispatch.destination && <Field label="Destination" value={dispatch.destination} />}
+              {dispatch.sourceStoreLocationName && <Field label="Source Location" value={dispatch.sourceStoreLocationName} />}
               {dispatch.carrier && <Field label="Carrier" value={dispatch.carrier} />}
               {dispatch.vehicleNumber && <Field label="Vehicle" value={dispatch.vehicleNumber} mono />}
-              {dispatch.lrNumber && <Field label="LR Number" value={dispatch.lrNumber} mono />}
+              {dispatch.driverName && <Field label="Driver" value={dispatch.driverName} />}
+              {dispatch.lrNumber && <Field label="LR / Consignment No." value={dispatch.lrNumber} mono />}
               {dispatch.dispatchDate && <Field label="Dispatch Date" value={new Date(dispatch.dispatchDate).toLocaleDateString('en-IN')} />}
               {dispatch.expectedDelivery && <Field label="Expected Delivery" value={new Date(dispatch.expectedDelivery).toLocaleDateString('en-IN')} />}
             </dl>
@@ -56,6 +62,14 @@ export default function DispatchDetail() {
               {dispatch.totalQty != null && <Field label="Total Qty" value={String(dispatch.totalQty)} />}
               {dispatch.lineCount != null && <Field label="Line Count" value={String(dispatch.lineCount)} />}
               <div>
+                <dt className="text-xs text-[var(--text-3)]">Quality Release</dt>
+                <dd className="text-sm mt-0.5">
+                  {release
+                    ? <button onClick={() => navigate(`/quality/inspection/${release.inspectionId}`)} className="text-[var(--success)] font-medium flex items-center gap-1 hover:underline"><CheckCircle size={12} /> {release.id} — released by {release.releasedBy}</button>
+                    : <span className="text-[var(--text-3)]">No linked release</span>}
+                </dd>
+              </div>
+              <div>
                 <dt className="text-xs text-[var(--text-3)]">Proof of Delivery</dt>
                 <dd className="text-sm mt-0.5">
                   {dispatch.hasPoD
@@ -65,6 +79,31 @@ export default function DispatchDetail() {
               </div>
             </dl>
           </div>
+
+          {dispatch.packages && dispatch.packages.length > 0 && (
+            <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
+              <h3 className="font-semibold text-sm text-[var(--text)] mb-3 flex items-center gap-2">
+                <Box size={14} /> Packages ({dispatch.packages.length})
+              </h3>
+              <div className="space-y-2">
+                {dispatch.packages.map(p => (
+                  <div key={p.id} className="p-3 rounded-lg bg-[var(--surface-muted)] border border-[var(--border)] text-xs space-y-1">
+                    <div className="flex items-center justify-between font-semibold text-[var(--text)]">
+                      <span className="font-mono">{p.packageCode}</span>
+                      <span>{p.packageType}</span>
+                    </div>
+                    <div className="text-[var(--text-2)]">{p.productDescription}</div>
+                    <div className="flex items-center gap-3 text-[var(--text-3)]">
+                      <span>Qty: {p.qty} {p.uom}</span>
+                      {p.weightKg != null && <span>Weight: {p.weightKg} kg</span>}
+                      {p.lengthMm && <span>{p.lengthMm}×{p.widthMm}×{p.heightMm} mm</span>}
+                    </div>
+                    {p.packingNotes && <div className="text-[var(--text-3)] italic">{p.packingNotes}</div>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="space-y-4">
@@ -99,15 +138,39 @@ export default function DispatchDetail() {
             </div>
           )}
 
-          {/* Dispatched → Delivered */}
+          {/* Dispatched → In Transit → Delivered */}
           {canDispatch && dispatch.status === 'dispatched' && (
             <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
               <h3 className="font-semibold text-sm text-[var(--text)] mb-3">Transit Actions</h3>
+              <button
+                onClick={() => setDispatchStatus(dispatch.id, 'in_transit')}
+                className="w-full py-2.5 border border-[var(--border)] text-[var(--text)] rounded-lg text-sm font-medium mb-2"
+              >
+                Mark In Transit
+              </button>
               <button
                 onClick={() => setDispatchStatus(dispatch.id, 'delivered')}
                 className="w-full py-2.5 bg-[var(--success)] text-white rounded-lg text-sm font-medium"
               >
                 Confirm Delivery
+              </button>
+            </div>
+          )}
+
+          {canDispatch && dispatch.status === 'in_transit' && (
+            <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
+              <h3 className="font-semibold text-sm text-[var(--text)] mb-3">Transit Actions</h3>
+              <button
+                onClick={() => setDispatchStatus(dispatch.id, 'delivered')}
+                className="w-full py-2.5 bg-[var(--success)] text-white rounded-lg text-sm font-medium mb-2"
+              >
+                Confirm Delivery
+              </button>
+              <button
+                onClick={() => setDispatchStatus(dispatch.id, 'delayed')}
+                className="w-full py-2 border border-[var(--warning)] text-[var(--warning)] rounded-lg text-sm"
+              >
+                Report Delay
               </button>
             </div>
           )}

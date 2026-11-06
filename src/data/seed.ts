@@ -10,7 +10,8 @@ import type {
   Dispatch, VaultDocument, ApprovalRequest, AppNotification, PulseException,
   Employee, SupplierQuotation, AuditEvent, ApprovalPolicy,
   FinishedProduct, CustomerQuotation, CustomerQuotationLine, SiteAllocation,
-  Invoice, InvoiceLine, Payment, PaymentAllocation, CollectionActivity
+  Invoice, InvoiceLine, Payment, PaymentAllocation, CollectionActivity,
+  MeterReading, InspectionTemplate, StageTemplate, DispatchPackage
 } from '../types';
 
 // ── Users ──
@@ -110,6 +111,8 @@ export const SUPPLIERS: Party[] = [
   { id: 'supp-sct', partyType: 'Supplier', legalName: 'SteelCraft Tubes Pvt Ltd', tradingName: 'SteelCraft', panNumber: 'AABCS6666F', gstin: '29AABCS6666F1ZV', state: 'Karnataka', paymentTerms: 'Net 30', currency: 'INR', category: 'Raw Material', rating: 4, status: 'active', contactPerson: 'Suresh CT', phone: '9845007890', email: 'sales@steelcrafttubes.com', city: 'Bengaluru', since: '2021' },
   { id: 'supp-pcl', partyType: 'Supplier', legalName: 'Precision Components Ltd', tradingName: 'Precision Components', panNumber: 'AABCP7777G', gstin: '36AABCP7777G1ZW', state: 'Telangana', paymentTerms: 'Net 45', currency: 'INR', category: 'Subcontractor', rating: 4, status: 'active', contactPerson: 'Prakash N', phone: '9100002345', email: 'subcontract@precisioncomp.com', city: 'Hyderabad', since: '2020' },
   { id: 'supp-msd', partyType: 'Supplier', legalName: 'Metro Scrap Dealers', tradingName: 'Metro Scrap', panNumber: 'AABCM8888H', gstin: '36AABCM8888H1ZX', state: 'Telangana', paymentTerms: 'Advance', currency: 'INR', category: 'Scrap', rating: 3, status: 'active', contactPerson: 'Metro Admin', phone: '9100006789', email: 'metro@scrap.com', city: 'Hyderabad', since: '2022' },
+  { id: 'supp-sfa', partyType: 'Supplier', legalName: 'SteelForge Alloys Pvt Ltd', tradingName: 'SteelForge Alloys', panNumber: 'AABCS9999J', gstin: '27AABCS9999J1ZY', state: 'Maharashtra', paymentTerms: 'Net 30', currency: 'INR', category: 'Forgings', rating: 4, status: 'active', contactPerson: 'Vikram Deshmukh', phone: '9820012345', email: 'sales@steelforgealloys.com', city: 'Pune', since: '2019' },
+  { id: 'supp-krn', partyType: 'Supplier', legalName: 'Krishna Forgings Ltd', tradingName: 'Krishna Forgings', panNumber: 'AABCK1010K', gstin: '36AABCK1010K1ZZ', state: 'Telangana', paymentTerms: 'Net 45', currency: 'INR', category: 'Forgings', rating: 4, status: 'active', contactPerson: 'Lakshmi Narayana', phone: '9100098765', email: 'sales@krishnaforgings.com', city: 'Hyderabad', since: '2021' },
 ];
 
 // ── Materials ──
@@ -129,6 +132,7 @@ export const MATERIALS: MaterialItem[] = [
   { id: 'mat-prm', itemCode: 'PNT-PRM-RO', name: 'Primer Paint Red Oxide', categoryId: 'cat-paint', categoryName: 'Paints', primaryUom: 'ltr', trackingMode: 'none', reorderPoint: 20 },
   { id: 'mat-asp', itemCode: 'WLD-SPR-AS', name: 'Anti-spatter Spray', categoryId: 'cat-con', categoryName: 'Consumables', primaryUom: 'can', trackingMode: 'none', reorderPoint: 10 },
   { id: 'mat-eho', itemCode: 'SPR-EHO-WM', name: 'Electrode Holder Spare', categoryId: 'cat-spr', categoryName: 'Spares', primaryUom: 'pcs', trackingMode: 'none', reorderPoint: 2 },
+  { id: 'mat-42crmo4', itemCode: 'FRG-42CD4-RND', name: 'Steel Grade 42CrMo4 Forged Round Billet', categoryId: 'cat-alloy', categoryName: 'Alloy Steel Forgings', primaryUom: 'kg', trackingMode: 'heat', reorderPoint: 400, standardGrade: 'EN 10083-3 42CrMo4', dimensions: 'Ø280mm × 650mm billet', leadTimeDays: 18, certRequired: true, preferredSupplierIds: ['supp-sfa', 'supp-krn'], active: true },
 ];
 
 // ── Lots ──
@@ -694,3 +698,212 @@ export const COMPANY_CONFIG = {
   gstin: '36AABCS1234F1Z5',
   onboardingComplete: true,
 };
+
+// ── Demonstration Scenario: Apex Precision Engineering ×
+//    RheinWerk Turbinenanlagen GmbH (PRD §12) ──
+// Added additively — does not alter any existing seed records above.
+// ═══════════════════════════════════════════════════════════════════
+
+// ── Production Stage Templates (configurable routes) ──
+export const STAGE_TEMPLATES: StageTemplate[] = [
+  {
+    id: 'tmpl-heavy-fab', name: 'Heavy Forged Component Route', appliesToCategory: 'Heavy Forgings / Pressure Parts',
+    description: 'For large forged/machined pressure-boundary components requiring NDT and final inspection before dispatch.',
+    stages: [
+      { sequence: 1, name: 'Billet Cutting & Prep', workCentre: 'Cutting Bay', plannedDurationDays: 4, inspectionRequired: false },
+      { sequence: 2, name: 'Rough Machining (Lathe)', workCentre: 'Machining Bay', plannedDurationDays: 8, inspectionRequired: false, dependsOnSequence: 1 },
+      { sequence: 3, name: 'CNC Finish Machining', workCentre: 'CNC Bay', plannedDurationDays: 10, inspectionRequired: false, dependsOnSequence: 2 },
+      { sequence: 4, name: 'NDT (Ultrasonic Test)', workCentre: 'QC Bay', plannedDurationDays: 3, inspectionRequired: true, dependsOnSequence: 3 },
+      { sequence: 5, name: 'Final Inspection', workCentre: 'QC Bay', plannedDurationDays: 2, inspectionRequired: true, dependsOnSequence: 4 },
+      { sequence: 6, name: 'Painting & Dispatch Prep', workCentre: 'Paint Bay', plannedDurationDays: 3, inspectionRequired: false, dependsOnSequence: 5 },
+    ],
+  },
+  {
+    id: 'tmpl-structural-express', name: 'Express Machined Component Route', appliesToCategory: 'Small Machined Components',
+    description: 'For smaller machined parts with a single final-inspection gate before dispatch.',
+    stages: [
+      { sequence: 1, name: 'Machining', workCentre: 'Machining Bay', plannedDurationDays: 6, inspectionRequired: false },
+      { sequence: 2, name: 'Final Inspection', workCentre: 'QC Bay', plannedDurationDays: 2, inspectionRequired: true, dependsOnSequence: 1 },
+      { sequence: 3, name: 'Dispatch Prep', workCentre: 'Dispatch Bay', plannedDurationDays: 2, inspectionRequired: false, dependsOnSequence: 2 },
+    ],
+  },
+];
+
+// ── Inspection Templates (configurable checklists) ──
+export const INSPECTION_TEMPLATES: InspectionTemplate[] = [
+  {
+    id: 'tmpl-insp-casing', name: 'Turbine Casing – Final Dimensional & NDT Checklist', appliesTo: 'Final',
+    productOrCategory: 'Turbine Casing', drawingRef: 'RHW-DWG-TC-2024-REV2', stageName: 'Final Inspection', version: 'v2',
+    parameters: [
+      { parameter: 'Bore Diameter', description: 'Inner bore diameter at mounting face', acceptanceCriteria: 'Ø420.00 +0.05/-0.00 mm', unit: 'mm', min: 420.00, max: 420.05, method: 'CMM', mandatory: true },
+      { parameter: 'Flatness – Mounting Face', acceptanceCriteria: '≤ 0.05mm over 600mm', unit: 'mm', max: 0.05, method: 'Surface Plate + Dial Gauge', mandatory: true },
+      { parameter: 'Surface Hardness', acceptanceCriteria: '280–320 HB', unit: 'HB', min: 280, max: 320, method: 'Brinell Hardness Tester', mandatory: true },
+      { parameter: 'Ultrasonic Flaw Detection', acceptanceCriteria: 'No indications > 3mm equivalent per ASME SA-388', method: 'UT Scan', mandatory: true },
+      { parameter: 'Visual & Dimensional – Overall', acceptanceCriteria: 'Per drawing RHW-DWG-TC-2024-REV2, all critical dimensions within tolerance', method: 'Visual + CMM', mandatory: true },
+    ],
+  },
+  {
+    id: 'tmpl-insp-weld-visual', name: 'Weld Visual Inspection', appliesTo: 'Job Stage', stageName: 'Welding', version: 'v1',
+    parameters: [
+      { parameter: 'Weld Undercut', acceptanceCriteria: '≤ 0.5mm per AWS D1.1', unit: 'mm', max: 0.5, method: 'Visual + Gauge', mandatory: true },
+      { parameter: 'Porosity', acceptanceCriteria: 'No visible porosity > 1.5mm', method: 'Visual', mandatory: true },
+    ],
+  },
+];
+
+// ── Customer PO: RheinWerk Turbinenanlagen (2 product lines, 2 different routes) ──
+export const CUSTOMER_POS_DEMO: CustomerPO[] = [
+  { id: 'cpo-200', poNumber: 'CPO-2024-200', customerId: 'cust-rw', customerName: 'RheinWerk Turbinenanlagen GmbH', acceptedDate: '2024-10-20', paymentTerms: 'Net 45 (LC)', status: 'active', totalValue: 3400000, currency: 'INR', lineCount: 2, deliveryTerms: 'CIF Chennai Port', quotationRef: 'QT-2024-RHW-01' },
+];
+
+// ── Jobs: two product lines on the same PO, two different stage-template routes ──
+export const JOBS_DEMO: Job[] = [
+  {
+    id: 'job-200', jobNumber: 'J-200', customerId: 'cust-rw', customerName: 'RheinWerk Turbinenanlagen GmbH', customerPoId: 'cpo-200', customerPoNumber: 'CPO-2024-200', poLineId: 'cpo-200-l1',
+    drawingRef: 'RHW-DWG-TC-2024-REV2', description: 'Turbine Casing – Lower Half (Steam Turbine Housing)', siteId: 'site-hyd', siteName: 'Hyderabad Plant 1',
+    status: 'active', priority: 'urgent', plannedStart: '2024-10-22', plannedEnd: '2024-11-22', actualStart: '2024-10-22', owner: 'Suresh Kumar',
+    currentStage: 'CNC Finish Machining', materialReadiness: 'shortage', hasBlocker: true, value: 2800000,
+    stageTemplateId: 'tmpl-heavy-fab', stageTemplateName: 'Heavy Forged Component Route',
+    stages: [
+      { id: 'stg-200-1', jobId: 'job-200', sequence: 1, name: 'Billet Cutting & Prep', status: 'complete', plannedStart: '2024-10-22', plannedEnd: '2024-10-26', actualStart: '2024-10-22', actualEnd: '2024-10-26', owner: 'Mohan Das', workCentre: 'Cutting Bay', inputQty: 1, completedGoodQty: 1, rejectedQty: 0, reworkQty: 0, scrapQty: 0, uom: 'unit' },
+      { id: 'stg-200-2', jobId: 'job-200', sequence: 2, name: 'Rough Machining (Lathe)', status: 'complete', plannedStart: '2024-10-27', plannedEnd: '2024-11-04', actualStart: '2024-10-27', actualEnd: '2024-11-03', owner: 'Mohan Das', workCentre: 'Machining Bay', inputQty: 1, completedGoodQty: 1, rejectedQty: 0, reworkQty: 0, scrapQty: 0, uom: 'unit' },
+      { id: 'stg-200-3', jobId: 'job-200', sequence: 3, name: 'CNC Finish Machining', status: 'in_progress', plannedStart: '2024-11-04', plannedEnd: '2024-11-14', actualStart: '2024-11-04', owner: 'Mohan Das', workCentre: 'CNC Bay', inputQty: 1, completedGoodQty: 0, rejectedQty: 0, reworkQty: 1, scrapQty: 0, uom: 'unit' },
+      { id: 'stg-200-4', jobId: 'job-200', sequence: 4, name: 'NDT (Ultrasonic Test)', status: 'pending', plannedStart: '2024-11-15', plannedEnd: '2024-11-17', owner: '', workCentre: 'QC Bay', inputQty: 1, completedGoodQty: 0, rejectedQty: 0, reworkQty: 0, scrapQty: 0, uom: 'unit' },
+      { id: 'stg-200-5', jobId: 'job-200', sequence: 5, name: 'Final Inspection', status: 'pending', plannedStart: '2024-11-18', plannedEnd: '2024-11-19', owner: '', workCentre: 'QC Bay', inputQty: 1, completedGoodQty: 0, rejectedQty: 0, reworkQty: 0, scrapQty: 0, uom: 'unit' },
+      { id: 'stg-200-6', jobId: 'job-200', sequence: 6, name: 'Painting & Dispatch Prep', status: 'pending', plannedStart: '2024-11-20', plannedEnd: '2024-11-22', owner: '', workCentre: 'Paint Bay', inputQty: 1, completedGoodQty: 0, rejectedQty: 0, reworkQty: 0, scrapQty: 0, uom: 'unit' },
+    ],
+  },
+  {
+    id: 'job-201', jobNumber: 'J-201', customerId: 'cust-rw', customerName: 'RheinWerk Turbinenanlagen GmbH', customerPoId: 'cpo-200', customerPoNumber: 'CPO-2024-200', poLineId: 'cpo-200-l2',
+    drawingRef: 'RHW-DWG-RSC-2024-REV1', description: 'Rotor Shaft Coupling Flange Set (6 units)', siteId: 'site-hyd', siteName: 'Hyderabad Plant 1',
+    status: 'active', priority: 'normal', plannedStart: '2024-10-25', plannedEnd: '2024-11-20', actualStart: '2024-10-25', owner: 'Suresh Kumar',
+    currentStage: 'Final Inspection', materialReadiness: 'ready', hasBlocker: false, value: 600000,
+    stageTemplateId: 'tmpl-structural-express', stageTemplateName: 'Express Machined Component Route',
+    stages: [
+      { id: 'stg-201-1', jobId: 'job-201', sequence: 1, name: 'Machining', status: 'complete', plannedStart: '2024-10-25', plannedEnd: '2024-10-31', actualStart: '2024-10-25', actualEnd: '2024-10-30', owner: 'Mohan Das', workCentre: 'Machining Bay', inputQty: 6, completedGoodQty: 6, rejectedQty: 0, reworkQty: 0, scrapQty: 0, uom: 'pcs' },
+      { id: 'stg-201-2', jobId: 'job-201', sequence: 2, name: 'Final Inspection', status: 'in_progress', plannedStart: '2024-11-01', plannedEnd: '2024-11-03', actualStart: '2024-11-01', owner: 'Priya Patel', workCentre: 'QC Bay', inputQty: 6, completedGoodQty: 0, rejectedQty: 0, reworkQty: 0, scrapQty: 0, uom: 'pcs' },
+      { id: 'stg-201-3', jobId: 'job-201', sequence: 3, name: 'Dispatch Prep', status: 'pending', plannedStart: '2024-11-04', plannedEnd: '2024-11-06', owner: '', workCentre: 'Dispatch Bay', inputQty: 6, completedGoodQty: 0, rejectedQty: 0, reworkQty: 0, scrapQty: 0, uom: 'pcs' },
+    ],
+  },
+];
+
+// ── Material shortage demonstration: 42CrMo4 forged billet (PRD §3.6) ──
+export const MATERIAL_LOTS_DEMO: MaterialLot[] = [
+  { id: 'lot-301', lotNumber: 'LOT-2024-301', heatNumber: 'HT-KRN-7701', materialItemId: 'mat-42crmo4', materialName: 'Steel Grade 42CrMo4 Forged Round Billet', supplierId: 'supp-krn', supplierName: 'Krishna Forgings', receivedDate: '2024-10-05', grade: 'EN 10083-3 42CrMo4', status: 'reserved', storeLocationId: 'loc-rm', storeLocationName: 'Raw Material Store', primaryQty: 320, primaryUom: 'kg', certStatus: 'verified' },
+  { id: 'lot-302', lotNumber: 'LOT-2024-302', heatNumber: 'HT-SFA-2209', materialItemId: 'mat-42crmo4', materialName: 'Steel Grade 42CrMo4 Forged Round Billet', supplierId: 'supp-sfa', supplierName: 'SteelForge Alloys', receivedDate: '2024-10-12', grade: 'EN 10083-3 42CrMo4', status: 'available', storeLocationId: 'loc-pun-rm', storeLocationName: 'Pune Raw Material Store', primaryQty: 600, primaryUom: 'kg', certStatus: 'verified' },
+];
+
+export const INVENTORY_DEMO: InventoryItem[] = [
+  { id: 'inv-101', materialItemId: 'mat-42crmo4', materialCode: 'FRG-42CD4-RND', materialName: 'Steel Grade 42CrMo4 Forged Round Billet', categoryName: 'Alloy Steel Forgings', locationId: 'loc-rm', locationName: 'Raw Material Store', onHandQty: 320, availableQty: 0, reservedQty: 320, qcHoldQty: 0, inTransitQty: 200, primaryUom: 'kg', reorderPoint: 400, shortage: true, lotCount: 1 },
+  { id: 'inv-102', materialItemId: 'mat-42crmo4', materialCode: 'FRG-42CD4-RND', materialName: 'Steel Grade 42CrMo4 Forged Round Billet', categoryName: 'Alloy Steel Forgings', locationId: 'loc-pun-rm', locationName: 'Pune Raw Material Store', onHandQty: 600, availableQty: 600, reservedQty: 0, qcHoldQty: 0, inTransitQty: 0, primaryUom: 'kg', reorderPoint: 400, shortage: false, lotCount: 1 },
+];
+
+// Incoming Supplier PO (confirmed, not yet received — "incoming" ≠ on-hand) + historical evidence for supplier recommendation
+export const SUPPLIER_POS_DEMO: SupplierPO[] = [
+  { id: 'spo-200', poNumber: 'SPO-2024-200', supplierId: 'supp-krn', supplierName: 'Krishna Forgings', raisedDate: '2024-10-25', committedDate: '2024-11-12', status: 'confirmed', totalValue: 176000, currency: 'INR', paymentTerms: 'Net 45', jobRef: 'J-200', lineCount: 1 },
+  { id: 'spo-199', poNumber: 'SPO-2024-199', supplierId: 'supp-sfa', supplierName: 'SteelForge Alloys', raisedDate: '2024-08-01', committedDate: '2024-08-16', status: 'received', totalValue: 492000, currency: 'INR', paymentTerms: 'Net 30', lineCount: 1 },
+  { id: 'spo-198', poNumber: 'SPO-2024-198', supplierId: 'supp-krn', supplierName: 'Krishna Forgings', raisedDate: '2024-06-01', committedDate: '2024-06-25', status: 'received', totalValue: 270000, currency: 'INR', paymentTerms: 'Net 45', lineCount: 1 },
+];
+
+export const SUPPLIER_PO_LINES_DEMO: SupplierPOLine[] = [
+  { id: 'spl-200a', spoId: 'spo-200', materialItemId: 'mat-42crmo4', materialName: 'Steel Grade 42CrMo4 Forged Round Billet', orderedQty: 200, uom: 'kg', rate: 880, value: 176000, committedDate: '2024-11-12', receivedQty: 0, acceptedQty: 0, rejectedQty: 0, tolerancePct: 5, status: 'pending' },
+  { id: 'spl-199a', spoId: 'spo-199', materialItemId: 'mat-42crmo4', materialName: 'Steel Grade 42CrMo4 Forged Round Billet', orderedQty: 600, uom: 'kg', rate: 820, value: 492000, committedDate: '2024-08-16', receivedQty: 600, acceptedQty: 595, rejectedQty: 5, tolerancePct: 5, status: 'received' },
+  { id: 'spl-198a', spoId: 'spo-198', materialItemId: 'mat-42crmo4', materialName: 'Steel Grade 42CrMo4 Forged Round Billet', orderedQty: 300, uom: 'kg', rate: 900, value: 270000, committedDate: '2024-06-25', receivedQty: 300, acceptedQty: 300, rejectedQty: 0, tolerancePct: 5, status: 'received' },
+];
+
+export const JOB_MATERIAL_REQS_DEMO: JobMaterialReq[] = [
+  { id: 'jmr-200', jobId: 'job-200', stageId: 'stg-200-3', stageName: 'CNC Finish Machining', materialItemId: 'mat-42crmo4', materialName: 'Steel Grade 42CrMo4 Forged Round Billet', requiredQty: 500, reservedQty: 320, issuedQty: 0, uom: 'kg', shortage: true, lotIds: ['lot-301'] },
+];
+
+export const JOB_BLOCKERS_DEMO: JobBlocker[] = [
+  { id: 'blk-200', jobId: 'job-200', stageId: 'stg-200-3', type: 'Material', description: 'Forged billet 42CrMo4 shortage: 320kg reserved vs 500kg required for the second casing billet. SPO-2024-200 (Krishna Forgings) confirms 200kg by 12 Nov; 600kg additional stock is available at the Pune Plant pending transfer approval.', raisedBy: 'Suresh Kumar', raisedAt: '2024-11-04T09:00:00', status: 'open' },
+];
+
+// ── Asset: CNC Machine 04, calendar + running-hour maintenance schedule ──
+export const ASSETS_DEMO: Asset[] = [
+  { id: 'ast-cnc04', assetCode: 'CNC-04', name: 'CNC Vertical Machining Centre 04', category: 'Machining Equipment', siteId: 'site-hyd', workCentre: 'CNC Bay', criticality: 'Critical', status: 'operational', manufacturer: 'DMG MORI', model: 'DMU 50', serialNumber: 'DMG-50-88213', meterType: 'hours', currentReading: 2850, lastServiceReading: 2400, pmFrequencyHours: 600, pmFrequencyDays: 90, lastServiceDate: '2024-09-10', nextServiceDate: '2024-12-09', purchaseDate: '2021-05-15', installationDate: '2021-06-01', commissioningDate: '2021-06-10', responsiblePerson: 'Venkat Rao' },
+];
+
+export const METER_READINGS_DEMO: MeterReading[] = [
+  { id: 'mr-001', assetId: 'ast-cnc04', assetCode: 'CNC-04', reading: 2400, readingDate: '2024-09-10', recordedBy: 'Venkat Rao', readingType: 'post-maintenance', notes: 'Reading at last 600-hour service.' },
+  { id: 'mr-002', assetId: 'ast-cnc04', assetCode: 'CNC-04', reading: 2620, readingDate: '2024-10-05', recordedBy: 'Mohan Das', readingType: 'routine' },
+  { id: 'mr-003', assetId: 'ast-cnc04', assetCode: 'CNC-04', reading: 2850, readingDate: '2024-11-04', recordedBy: 'Mohan Das', readingType: 'routine', notes: 'Shift-end reading.' },
+];
+
+export const MAINTENANCE_EVENTS_DEMO: MaintenanceEvent[] = [
+  { id: 'me-020', eventNumber: 'ME-2024-020', type: 'Preventive', assetId: 'ast-cnc04', assetName: 'CNC Vertical Machining Centre 04', assetCode: 'CNC-04', symptom: 'Scheduled 600-hour preventive service', technicianId: 'u-maint', technicianName: 'Venkat Rao', downtimeStart: '2024-09-10T07:00:00', downtimeEnd: '2024-09-10T15:00:00', diagnosis: 'Spindle bearing inspected, coolant filter replaced, ways lubricated.', workDone: 'Full 600-hour preventive maintenance checklist completed per DMG MORI schedule.', status: 'closed', affectedJobs: [], sparesUsed: [{ materialName: 'Coolant Filter', qty: 1, uom: 'pcs' }, { materialName: 'Way Lube', qty: 2, uom: 'ltr' }] },
+];
+
+// ── Inspections: internal fail → rework → internal pass, plus external witness inspection ──
+export const INSPECTIONS_DEMO: Inspection[] = [
+  {
+    id: 'ins-200', inspectionNumber: 'INS-2024-200', type: 'In-Process', origin: 'internal', jobId: 'job-200', jobNumber: 'J-200', stageId: 'stg-200-3', stageName: 'CNC Finish Machining',
+    productDescription: 'Turbine Casing – Lower Half', quantityInspected: 1, uom: 'unit',
+    inspectorId: 'u-qc', inspectorName: 'Priya Patel', date: '2024-11-01', templateId: 'tmpl-insp-casing', templateName: 'Turbine Casing – Final Dimensional & NDT Checklist', checklistVersion: 'v2',
+    measurements: [
+      { parameter: 'Bore Diameter', unit: 'mm', acceptanceCriteria: 'Ø420.00 +0.05/-0.00 mm', actual: '420.08 mm', passed: false },
+      { parameter: 'Surface Hardness', unit: 'HB', acceptanceCriteria: '280–320 HB', actual: '302 HB', passed: true },
+    ],
+    sampleQty: 1, acceptedQty: 0, rejectedQty: 1, result: 'fail', ncrId: 'ncr-200', ncrNumber: 'NCR-2024-200',
+  },
+  {
+    id: 'ins-201', inspectionNumber: 'INS-2024-201', type: 'Final', origin: 'internal', jobId: 'job-200', jobNumber: 'J-200', stageId: 'stg-200-5', stageName: 'Final Inspection',
+    productDescription: 'Turbine Casing – Lower Half', quantityInspected: 1, uom: 'unit',
+    inspectorId: 'u-qc', inspectorName: 'Priya Patel', date: '2024-11-03', templateId: 'tmpl-insp-casing', templateName: 'Turbine Casing – Final Dimensional & NDT Checklist', checklistVersion: 'v2',
+    measurements: [
+      { parameter: 'Bore Diameter', unit: 'mm', acceptanceCriteria: 'Ø420.00 +0.05/-0.00 mm', actual: '420.03 mm', passed: true },
+      { parameter: 'Flatness – Mounting Face', unit: 'mm', acceptanceCriteria: '≤ 0.05mm over 600mm', actual: '0.02 mm', passed: true },
+      { parameter: 'Surface Hardness', unit: 'HB', acceptanceCriteria: '280–320 HB', actual: '302 HB', passed: true },
+      { parameter: 'Ultrasonic Flaw Detection', acceptanceCriteria: 'No indications > 3mm equivalent', actual: 'No indications detected', passed: true },
+    ],
+    sampleQty: 1, acceptedQty: 1, rejectedQty: 0, result: 'pass', reworkOfInspectionId: 'ins-200',
+  },
+  {
+    id: 'ins-202', inspectionNumber: 'INS-2024-202', type: 'Final', origin: 'external', jobId: 'job-200', jobNumber: 'J-200',
+    productDescription: 'Turbine Casing – Lower Half', quantityInspected: 1, uom: 'unit',
+    inspectorId: 'ext-tuv', inspectorName: 'Markus Weber', externalOrgName: 'TÜV SÜD Industrie Service GmbH (witnessing on behalf of RheinWerk QA)', externalScope: 'Third-party witness inspection of turbine casing lower half per RheinWerk QAP-2024-07', reportRef: 'TUV-WPR-2024-1187',
+    date: '2024-11-04', templateId: 'tmpl-insp-casing', templateName: 'Turbine Casing – Final Dimensional & NDT Checklist', checklistVersion: 'v2',
+    sampleQty: 1, acceptedQty: 1, rejectedQty: 0, result: 'pass',
+    remarks: 'Witnessed CMM dimensional check and UT scan. All results conform to RheinWerk QAP-2024-07. Release recommended.',
+  },
+];
+
+export const NCRS_DEMO: NCR[] = [
+  { id: 'ncr-200', ncrNumber: 'NCR-2024-200', inspectionId: 'ins-200', sourceType: 'In-Process', severity: 'Major', description: 'Bore diameter measured 420.08mm against drawing tolerance Ø420.00 +0.05/-0.00mm (0.03mm oversize). Root cause: CNC finishing pass undersized by one micro-pass.', affectedQty: 1, disposition: 'Rework', raisedBy: 'Priya Patel', raisedAt: '2024-11-01T15:00:00', status: 'closed', jobId: 'job-200' },
+];
+
+export const QUALITY_RELEASES_DEMO: QualityRelease[] = [
+  { id: 'qr-200', jobId: 'job-200', jobNumber: 'J-200', inspectionId: 'ins-202', releasedBy: 'Priya Patel', releasedAt: '2024-11-04T16:00:00', certDossierComplete: true, notes: 'Rework re-inspection (INS-2024-201) and external witness inspection (INS-2024-202 / TUV-WPR-2024-1187) both passed. Cleared for partial dispatch.' },
+];
+
+// ── Dispatch: partial shipment with package-level and transport detail ──
+export const DISPATCHES_DEMO: Dispatch[] = [
+  {
+    id: 'dsp-200', dispatchNumber: 'DSP-2024-200', customerId: 'cust-rw', customerName: 'RheinWerk Turbinenanlagen GmbH', customerPoId: 'cpo-200', customerPoNumber: 'CPO-2024-200',
+    jobId: 'job-200', jobNumber: 'J-200', qualityReleaseId: 'qr-200', sourceSiteId: 'site-hyd', sourceStoreLocationName: 'Finished Goods Store',
+    destination: 'RheinWerk Turbinenanlagen GmbH, Cologne, Germany (via Chennai Port)', dispatchDate: '2024-11-05',
+    carrier: 'DHL Global Forwarding (Ocean Freight)', vehicleNumber: 'TS09EF7788', driverName: 'Md. Yusuf', lrNumber: 'DHL-OFR-88213',
+    expectedDelivery: '2024-12-02', status: 'dispatched', lineCount: 1, totalQty: 1, dispatchedQty: 1, hasPoD: false, jobs: ['J-200'],
+    packages: [
+      { id: 'pkg-200a', dispatchId: 'dsp-200', packageCode: 'CR-2024-200-01', packageType: 'Crate', lengthMm: 1800, widthMm: 1200, heightMm: 1100, weightKg: 1850, productDescription: 'Turbine Casing – Lower Half (machined, 42CrMo4)', qty: 1, uom: 'unit', lotIds: ['lot-301'], packingDate: '2024-11-05', packingNotes: 'Export crate, desiccant + vapour barrier, CE-marked lifting points.' },
+      { id: 'pkg-200b', dispatchId: 'dsp-200', packageCode: 'CR-2024-200-02', packageType: 'Box', weightKg: 45, productDescription: 'Mill certs, inspection reports & TÜV witness report dossier', qty: 1, uom: 'set', packingDate: '2024-11-05' },
+    ],
+  },
+];
+
+// ── Documents: external inspection report + an asset calibration certificate nearing expiry ──
+export const VAULT_DOCUMENTS_DEMO: VaultDocument[] = [
+  { id: 'doc-011', title: 'TÜV Witness Inspection Report – J-200', docType: 'Inspection Report', category: 'Quality Documents', uploadedBy: 'Priya Patel', uploadedAt: '2024-11-04', issueDate: '2024-11-04', version: 1, fileSize: '3.4 MB', linkedEntities: [{ type: 'Job', ref: 'J-200' }, { type: 'Inspection', ref: 'INS-2024-202' }], certStatus: 'verified', status: 'active' },
+  { id: 'doc-012', title: 'CNC-04 Calibration Certificate', docType: 'Calibration Certificate', category: 'Asset Documents', uploadedBy: 'Venkat Rao', uploadedAt: '2024-09-10', issueDate: '2024-09-10', expiryDate: '2024-11-20', version: 1, fileSize: '0.5 MB', linkedEntities: [{ type: 'Asset', ref: 'CNC-04' }], obligation: { renewalDue: '2024-11-10', responsible: 'Venkat Rao' }, status: 'active' },
+];
+
+export const AUDIT_EVENTS_DEMO: AuditEvent[] = [
+  { id: 'ae-101', actor: 'Anita Mehta', actorId: 'u-sales', scope: 'CustomerPO', action: 'create', entityId: 'cpo-200', entityRef: 'CPO-2024-200', timestamp: '2024-10-20T10:00:00', source: 'ui' },
+  { id: 'ae-102', actor: 'Suresh Kumar', actorId: 'u-super', scope: 'Job', action: 'create', entityId: 'job-200', entityRef: 'J-200', timestamp: '2024-10-22T08:00:00', source: 'ui', after: { stageTemplateId: 'tmpl-heavy-fab' } },
+  { id: 'ae-103', actor: 'Priya Patel', actorId: 'u-qc', scope: 'Inspection', action: 'fail', entityId: 'ins-200', entityRef: 'INS-2024-200', timestamp: '2024-11-01T15:00:00', source: 'ui', after: { result: 'fail' } },
+  { id: 'ae-104', actor: 'Priya Patel', actorId: 'u-qc', scope: 'NCR', action: 'create', entityId: 'ncr-200', entityRef: 'NCR-2024-200', timestamp: '2024-11-01T15:05:00', source: 'ui', reason: 'Bore diameter oversize; disposition: rework.' },
+  { id: 'ae-105', actor: 'Priya Patel', actorId: 'u-qc', scope: 'Inspection', action: 'pass', entityId: 'ins-201', entityRef: 'INS-2024-201', timestamp: '2024-11-03T12:00:00', source: 'ui', after: { result: 'pass' } },
+  { id: 'ae-106', actor: 'Markus Weber', actorId: 'ext-tuv', scope: 'Inspection', action: 'pass', entityId: 'ins-202', entityRef: 'INS-2024-202', timestamp: '2024-11-04T14:00:00', source: 'ui', after: { result: 'pass' } },
+  { id: 'ae-107', actor: 'Priya Patel', actorId: 'u-qc', scope: 'QualityRelease', action: 'create', entityId: 'qr-200', entityRef: 'J-200', timestamp: '2024-11-04T16:00:00', source: 'ui' },
+  { id: 'ae-108', actor: 'Deepa Singh', actorId: 'u-dispatch', scope: 'Dispatch', action: 'create', entityId: 'dsp-200', entityRef: 'DSP-2024-200', timestamp: '2024-11-05T09:00:00', source: 'ui', reason: 'Partial dispatch — only J-200 released; J-201 still in final inspection.' },
+];
