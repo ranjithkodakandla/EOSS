@@ -1,17 +1,21 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ShoppingCart, FileInput, PackagePlus, Wrench, ClipboardCheck, Truck } from 'lucide-react';
 import { useStore } from '../../store';
 import FinancialKpis from '../../components/home/FinancialKpis';
 import OrderToDeliveryFlow from '../../components/home/OrderToDeliveryFlow';
 import OperationalAttentionCard from '../../components/home/OperationalAttentionCard';
 import CopilotPanel from '../../components/copilot/CopilotPanel';
+import HomeStrip, { type HomeStripMode } from '../../components/home/HomeStrip';
 
 export default function Home() {
   const {
     currentUser, eossTheme, customerPos, jobs, inspections, supplierPos, qualityReleases,
   } = useStore();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const stripParam = searchParams.get('homeStrip');
+  const homeStrip: HomeStripMode = stripParam === 'machines' || stripParam === 'activity' ? stripParam : 'week';
   const [copilotDrawerOpen, setCopilotDrawerOpen] = useState(false);
 
   const copilotBtnBg =
@@ -68,10 +72,10 @@ export default function Home() {
       </div>
 
       <div className="xl:flex-1 xl:min-h-0 grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_360px] gap-3 items-stretch">
-        <div className="min-w-0 xl:min-h-0 flex flex-col gap-3">
+        <div className="min-w-0 xl:min-h-0 xl:h-full flex flex-col gap-3">
           <FinancialKpis />
           <OrderToDeliveryFlow />
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 items-start">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 items-start shrink-0">
             <OperationalAttentionCard />
             <div
               className="rounded-2xl border p-4 flex flex-col min-h-0"
@@ -97,6 +101,9 @@ export default function Home() {
                 </div>
               )}
             </div>
+          </div>
+          <div className="xl:flex-1 xl:min-h-0 min-h-[148px]">
+            <HomeStrip mode={homeStrip} />
           </div>
         </div>
 
