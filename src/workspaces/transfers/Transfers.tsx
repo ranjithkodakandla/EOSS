@@ -45,19 +45,19 @@ const ORDER: TransferStatus[] = ['in_transit', 'pending', 'received'];
 export default function Transfers() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
-  const { currentUser, showToast, inventory } = useStore();
+  const { currentUser, showToast, storeLocations, sites } = useStore();
   const [rows, setRows] = useState<Transfer[]>(SEED);
   const [open, setOpen] = useState(Boolean(params.get('material')));
   const [form, setForm] = useState({
     material: params.get('material') || '',
-    fromLocation: params.get('from') || '',
-    toLocation: params.get('to') || '',
+    fromLocation: params.get('from') || 'Hyderabad Plant 1 · Raw Material Store',
+    toLocation: params.get('to') || 'Hyderabad Plant 1 · WIP Store',
     qty: params.get('qty') || '',
     uom: params.get('uom') || 'kg',
     jobNumber: params.get('job') || '',
   });
 
-  const locations = Array.from(new Set(inventory.map(i => i.locationName))).sort();
+  const locations = storeLocations.map(l => `${sites.find(s => s.id === l.siteId)?.name ?? 'Site'} · ${l.name}`);
   const canCreate = ['owner', 'storekeeper', 'supervisor'].includes(currentUser.role);
   const sorted = [...rows].sort((a, b) => ORDER.indexOf(a.status) - ORDER.indexOf(b.status));
 

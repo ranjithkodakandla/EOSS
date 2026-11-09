@@ -25,7 +25,7 @@ interface Props {
 
 export default function CopilotPanel({ isDrawer, onClose }: Props) {
   const navigate = useNavigate();
-  const { jobs, inventory, eossTheme } = useStore();
+  const { eossTheme } = useStore();
 
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
@@ -80,28 +80,28 @@ sendBtnBg: isGraphite
       id: 'plan-prod',
       icon: <Zap size={17} style={{ color: themeConfig.iconColorZap }} strokeWidth={2.5} />,
       text: 'Plan production for pending orders',
-      response: `Analyzing 4 in-progress orders. SO-1245 (60%) is approaching CNC Lathe NL-2500 turn, while SO-1246 (35%) is waiting on SS 304 round bar inspection. Recommended action: Allocate Machine NL-2500 to SO-1245 finishing passes.`,
+      response: `Look at the active jobs and stage the next machine slot for the one already on the lathe. I can open that job so you can record the stage yourself.`,
       action: { label: 'Open Job J-101', path: '/jobs/job-101' },
     },
     {
       id: 'suggest-po',
       icon: <Package size={17} style={{ color: themeConfig.iconColorBox }} strokeWidth={2.5} />,
       text: 'Suggest material purchase',
-      response: `Current stock of SS 304 Rod 25mm is 45 kg (below reorder threshold of 100 kg). Projected stockout in 5 days based on SO-1245 & SO-1246 consumption. Recommended PO: 250 kg from Stainless Source India.`,
+      response: `A raw-material line is sitting under its reorder point. Open procurement and raise a supplier order from the preferred vendor — I will not place it for you.`,
       action: { label: 'Create Supplier PO', path: '/procurement' },
     },
     {
       id: 'check-status',
       icon: <BarChart3 size={17} style={{ color: themeConfig.iconColorChart }} strokeWidth={2.5} />,
       text: 'Check order status',
-      response: `Overall shop floor status: 12 open sales orders, 4 jobs active in production, 2 batches in quarantine awaiting QC release, and 6 dispatches staged and ready for pickup.`,
+      response: `Open production to see which jobs are moving and which stage each one is on. I can take you to the job list — the counts on Home already match those lists.`,
       action: { label: 'View All Jobs', path: '/jobs' },
     },
     {
       id: 'stock-risk',
       icon: <AlertTriangle size={17} style={{ color: themeConfig.iconColorWarn }} strokeWidth={2.5} />,
       text: 'Show stock at risk',
-      response: `2 items at risk: 1) SS 304 Rod 25mm (depleting in 5 days), 2) EN8 Round Bar 50mm (reserved for Job J-103, no buffer stock). Suggested reorder initiated for approval.`,
+      response: `A couple of grades are tight against open jobs. Open inventory and raise a purchase request from the row if you want more stock in.`,
       action: { label: 'View Inventory Alerts', path: '/inventory' },
     },
   ];
@@ -125,7 +125,7 @@ sendBtnBg: isGraphite
       const matched = suggestions.find(s => s.text.toLowerCase() === query.toLowerCase());
       const replyText = matched
         ? matched.response
-        : `Based on current shop floor telemetry and ERP ledger records, plant health score is 92%. We are tracking ${jobs.length} jobs with ${inventory.filter(i => i.shortage).length} material shortage alerts. Let me know if you want me to draft a purchase order or reassign machine schedules.`;
+        : `I can open a job, a purchase request, or the inventory list. I won't repeat the attention board — use Home for what is blocked, short, or overdue.`;
 
       const aiMsg: Message = {
         id: `a-${Date.now()}`,
@@ -335,10 +335,9 @@ sendBtnBg: isGraphite
         <div ref={chatBottomRef} />
       </div>
 
-      {/* ── Guardrails disclaimer ── */}
-      <div className="px-4 py-1.5 flex items-center gap-1.5 border-t border-white/10 bg-black/10 flex-shrink-0">
-        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-white/10 text-white/60">⚠ Guardrails active</span>
-        <span className="text-[9px] text-white/40 truncate">AI suggestions are advisory — verify before acting · Simulated, no data sent externally</span>
+      <div className="h-8 px-3 flex items-center gap-2 border-t border-white/10 bg-black/15 flex-shrink-0">
+        <span className="inline-flex items-center h-5 px-2 rounded-full bg-white/10 text-[10px] font-semibold leading-none text-white/80 whitespace-nowrap">Guardrails active</span>
+        <span className="text-[10px] leading-none text-white/55 truncate">Advisory only · Simulated · Nothing leaves this browser</span>
       </div>
 
       {/* ── Bottom composer ── */}

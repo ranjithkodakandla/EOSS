@@ -3,6 +3,8 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Plus, Trash2 } from 'lucide-react';
 import { useStore } from '../../store';
 import type { PurchaseRequisition } from '../../types';
+import SiteStoreField from '../../components/forms/SiteStoreField';
+import { DEFAULT_SITE_ID, DEFAULT_SITE_NAME, DEFAULT_STORE_ID, DEFAULT_STORE_NAME } from '../../domain/recordLists';
 
 type Step = 1 | 2 | 3;
 
@@ -38,6 +40,10 @@ export default function PRCreate() {
     priority: (prefillName ? 'high' : 'normal') as PurchaseRequisition['priority'],
     purpose: prefillName ? `Cover shortage of ${prefillName}` : '',
     notes: '',
+    deliverToSiteId: DEFAULT_SITE_ID,
+    deliverToSiteName: DEFAULT_SITE_NAME,
+    deliverToStoreId: DEFAULT_STORE_ID,
+    deliverToStoreName: DEFAULT_STORE_NAME,
   });
 
   // Step 2 — Lines
@@ -86,6 +92,10 @@ export default function PRCreate() {
       lineCount: lines.length,
       totalQty: lines.reduce((s, l) => s + l.requiredQty, 0),
       priority: header.priority,
+      deliverToSiteId: header.deliverToSiteId,
+      deliverToSiteName: header.deliverToSiteName,
+      deliverToStoreId: header.deliverToStoreId,
+      deliverToStoreName: header.deliverToStoreName,
       lines,
       purpose: header.purpose,
       notes: header.notes,
@@ -110,7 +120,7 @@ export default function PRCreate() {
         </button>
         <div>
           <h1 className="text-lg font-bold text-[var(--text)]">New Purchase Requisition</h1>
-          <p className="text-xs text-[var(--text-2)]">Raise a material requirement for production</p>
+          <p className="text-xs text-[var(--text-2)]">Deliver to {header.deliverToSiteName} · {header.deliverToStoreName}</p>
         </div>
         {/* Step indicator */}
         <div className="ml-auto flex items-center gap-1">
@@ -158,6 +168,21 @@ export default function PRCreate() {
                     <option value="">— Not linked to a job —</option>
                     {activeJobs.map(j => <option key={j.id} value={j.id}>{j.jobNumber} · {j.description}</option>)}
                   </select>
+                </div>
+                <div className="md:col-span-2">
+                  <SiteStoreField
+                    siteId={header.deliverToSiteId}
+                    storeId={header.deliverToStoreId}
+                    label="Deliver-to site"
+                    storeLabel="Deliver-to store"
+                    onChange={next => setHeader(h => ({
+                      ...h,
+                      deliverToSiteId: next.siteId,
+                      deliverToSiteName: next.siteName,
+                      deliverToStoreId: next.storeId,
+                      deliverToStoreName: next.storeName,
+                    }))}
+                  />
                 </div>
                 <div className="md:col-span-2">
                   <label className="block text-xs font-medium text-[var(--text-3)] mb-1">Purpose</label>

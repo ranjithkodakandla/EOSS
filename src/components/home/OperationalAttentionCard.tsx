@@ -1,73 +1,103 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AlertTriangle, Wrench, ClipboardCheck, FileWarning, PackageX, Ban } from 'lucide-react';
 import { useStore } from '../../store';
-import { computeProductionStatus } from '../../domain/productionStatus';
-import { computeMaintenanceDue } from '../../domain/maintenanceDue';
-import { listExpiringDocuments } from '../../domain/documentExpiry';
-import { DEMO_NOW } from '../../data/seed';
+import {
+  shortageItems, jobsShortOfMaterial, jobsAtRisk, jobsBlocked,
+  openInspections, maintenanceOverdue, maintenanceDueSoon, documentsDue, DEMO_DATE,
+} from '../../domain/recordLists';
 
-// Every value here is derived live from store state — nothing is hardcoded.
+type Tone = 'critical' | 'watch' | 'calm';
+
+interface Item {
+  id: string;
+  label: string;
+  short: string;
+  value: number;
+  path: string;
+  tone: Tone;
+  group: string;
+}
+
+const TONE = {
+  critical: { color: 'var(--error, #DC2626)', wash: 'rgba(220, 38, 38, 0.08)', bar: '#DC2626' },
+  watch: { color: 'var(--warning, #D97706)', wash: 'rgba(217, 119, 6, 0.1)', bar: '#D97706' },
+  calm: { color: 'var(--text-2)', wash: 'var(--surface-2)', bar: 'var(--border)' },
+};
+
 export default function OperationalAttentionCard() {
   const navigate = useNavigate();
   const { jobs, inventory, assets, meterReadings, inspections, documents } = useStore();
-  const now = new Date(DEMO_NOW);
+  const now = DEMO_DATE();
 
-  const criticalShortages = inventory.filter(i => i.shortage).length;
-  const jobsAffectedByShortage = jobs.filter(j => j.materialReadiness === 'shortage').length;
+  const items: Item[] = [
+    { id: 'blocked', group: 'Floor', label: 'Blocked jobs', short: 'Blocked', value: jobsBlocked(jobs, now).length, path: '/jobs?risk=blocked', tone: 'critical' },
+    { id: 'overdue', group: 'Machines', label: 'Overdue maintenance', short: 'Overdue', value: maintenanceOverdue(assets, meterReadings, now).length, path: '/assets?focus=overdue', tone: 'critical' },
+    { id: 'short', group: 'Material', label: 'Material shortages', short: 'Shortages', value: shortageItems(inventory).length, path: '/inventory?focus=shortage', tone: 'critical' },
+    { id: 'jobs-short', group: 'Material', label: 'Jobs short of material', short: 'Jobs short', value: jobsShortOfMaterial(jobs).length, path: '/jobs?focus=shortage', tone: 'critical' },
+    { id: 'risk', group: 'Floor', label: 'Jobs at risk', short: 'At risk', value: jobsAtRisk(jobs, now).length, path: '/jobs?risk=watch', tone: 'watch' },
+    { id: 'inspect', group: 'Release', label: 'Open inspections', short: 'Inspections', value: openInspections(inspections).length, path: '/quality?result=open', tone: 'watch' },
+    { id: 'docs', group: 'Release', label: 'Documents due', short: 'Documents', value: documentsDue(documents, now).length, path: '/documents?attention=due', tone: 'watch' },
+    { id: 'due', group: 'Machines', label: 'Maintenance due', short: 'Due soon', value: maintenanceDueSoon(assets, meterReadings, now).length, path: '/assets?focus=due', tone: 'watch' },
+  ];
 
-  const dueInfos = assets.map(a => computeMaintenanceDue(a, meterReadings, now));
-  const maintenanceDue = dueInfos.filter(d => d.status === 'due' || d.status === 'upcoming').length;
-  const maintenanceOverdue = dueInfos.filter(d => d.status === 'overdue').length + assets.filter(a => a.status === 'pm_overdue').length;
-
-  const jobStatuses = jobs.map(j => computeProductionStatus(j, now));
-  const jobsAtRisk = jobStatuses.filter(s => s.risk === 'at_risk' || s.risk === 'delayed').length;
-  const jobsBlocked = jobStatuses.filter(s => s.risk === 'blocked').length;
-
-  const inspectionsPending = inspections.filter(i => i.result === 'pending' || i.result === 'fail').length;
-
-  const docsExpiring = listExpiringDocuments(documents, now).length;
-
-  const metrics = [
-    { icon: PackageX, label: 'Critical Material Shortages', value: criticalShortages, path: '/inventory?focus=shortage', accent: 'error' },
-    { icon: AlertTriangle, label: 'Jobs Affected by Shortage', value: jobsAffectedByShortage, path: '/jobs?focus=shortage', accent: 'error' },
-    { icon: Wrench, label: 'Maintenance Due', value: maintenanceDue, path: '/assets?focus=due', accent: 'warning' },
-    { icon: Wrench, label: 'Maintenance Overdue', value: maintenanceOverdue, path: '/assets?focus=overdue', accent: 'error' },
-    { icon: Ban, label: 'Jobs At Risk / Delayed', value: jobsAtRisk, path: '/jobs?risk=watch', accent: 'warning' },
-    { icon: Ban, label: 'Jobs Blocked', value: jobsBlocked, path: '/jobs?risk=blocked', accent: 'error' },
-    { icon: ClipboardCheck, label: 'Inspections Pending', value: inspectionsPending, path: '/quality?result=open', accent: 'warning' },
-    { icon: FileWarning, label: 'Documents Expiring/Expired', value: docsExpiring, path: '/documents?attention=due', accent: 'warning' },
-  ] as const;
-
-  const colorFor = (accent: string) => accent === 'error' ? 'var(--error)' : 'var(--warning)';
-  const visible = metrics.filter(m => m.value > 0);
+  const open = items.filter(i => i.value > 0);
+  const urgent = open[0];
+  const groups = ['Material', 'Machines', 'Floor', 'Release'];
 
   return (
     <div
-      className="p-4 rounded-2xl border h-full flex flex-col min-h-0"
-      style={{
-        background: 'var(--card-gradient, linear-gradient(180deg, #FFFFFF 0%, #FAF9FE 100%))',
-        borderColor: 'var(--border, #E5E0F5)',
-        boxShadow: '0 4px 20px -2px rgba(24, 27, 65, 0.06)',
-      }}
+      className="p-3 rounded-2xl border h-full flex flex-col min-h-0"
+      style={{ background: 'var(--card-gradient, var(--surface))', borderColor: 'var(--border)' }}
     >
-      <h3 className="text-base font-bold text-[var(--text)] tracking-tight mb-1">Needs attention</h3>
-      {visible.length === 0 ? (
-        <p className="text-sm text-[var(--text-2)] py-2">Nothing is waiting on you right now.</p>
+      <div className="flex items-baseline justify-between gap-2 mb-2 shrink-0">
+        <h3 className="text-base font-bold text-[var(--text)] tracking-tight">Needs attention</h3>
+        <span className="text-[11px] font-semibold text-[var(--text-3)]">{open.length === 0 ? 'Clear' : `${open.reduce((s, i) => s + i.value, 0)} items`}</span>
+      </div>
+
+      {open.length === 0 ? (
+        <p className="text-sm text-[var(--text-2)]">Nothing is waiting on you right now.</p>
       ) : (
-        <div className="flex-1 flex flex-col justify-evenly min-h-0">
-          {visible.map(m => (
+        <>
+          {urgent && (
             <button
-              key={m.label}
-              onClick={() => navigate(m.path)}
-              className="w-full flex items-center gap-3 py-1.5 text-left"
+              type="button"
+              onClick={() => navigate(urgent.path)}
+              className="w-full text-left rounded-xl px-3 py-2 mb-2 shrink-0 flex items-center gap-3"
+              style={{ background: TONE[urgent.tone].wash, boxShadow: `inset 3px 0 0 ${TONE[urgent.tone].bar}` }}
             >
-              <m.icon size={15} style={{ color: colorFor(m.accent) }} />
-              <span className="flex-1 text-[13px] font-medium text-[var(--text)]">{m.label}</span>
-              <span className="text-sm font-bold tabular-nums" style={{ color: colorFor(m.accent) }}>{m.value}</span>
+              <div className="min-w-0 flex-1">
+                <div className="text-[10px] font-bold uppercase tracking-wider" style={{ color: TONE[urgent.tone].color }}>
+                  Most urgent · {urgent.group}
+                </div>
+                <div className="text-sm font-semibold text-[var(--text)] truncate">{urgent.label}</div>
+              </div>
+              <div className="text-xl font-extrabold tabular-nums leading-none" style={{ color: TONE[urgent.tone].color }}>{urgent.value}</div>
             </button>
-          ))}
-        </div>
+          )}
+          <div className="grid grid-cols-2 gap-1.5 flex-1 min-h-0 content-start">
+            {groups.map(group => {
+              const rows = items.filter(i => i.group === group);
+              return (
+                <div key={group} className="rounded-xl border px-2.5 py-1.5 min-w-0" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-3)] mb-0.5">{group}</div>
+                  {rows.map(item => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => item.value > 0 && navigate(item.path)}
+                      disabled={item.value === 0}
+                      className="w-full flex items-center gap-1.5 py-0.5 text-left disabled:opacity-40"
+                    >
+                      <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: item.value > 0 ? TONE[item.tone].bar : 'var(--border)' }} />
+                      <span className="flex-1 text-[12px] text-[var(--text)] truncate">{item.short}</span>
+                      <span className="text-xs font-bold tabular-nums" style={{ color: item.value > 0 ? TONE[item.tone].color : 'var(--text-3)' }}>{item.value}</span>
+                    </button>
+                  ))}
+                </div>
+              );
+            })}
+          </div>
+        </>
       )}
     </div>
   );

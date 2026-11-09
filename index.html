@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" data-theme="dark">
+<html lang="en" class="theme-aurora" data-theme="light">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
@@ -11,13 +11,15 @@
     <script>
       (function() {
         try {
-          var t = localStorage.getItem('eoss-theme') || 'dark';
-          if (t === 'light' || t === 'dark') {
-            document.documentElement.setAttribute('data-theme', t);
-          } else {
-            document.documentElement.setAttribute('data-theme', 'dark');
-          }
-        } catch(e) {}
+          var palette = localStorage.getItem('eoss-palette');
+          if (palette !== 'aurora' && palette !== 'ocean' && palette !== 'graphite') palette = 'aurora';
+          var mode = localStorage.getItem('eoss-theme');
+          if (mode !== 'light' && mode !== 'dark') mode = 'light';
+          var root = document.documentElement;
+          root.classList.remove('theme-aurora', 'theme-ocean', 'theme-graphite');
+          root.classList.add('theme-' + palette);
+          root.setAttribute('data-theme', mode);
+        } catch (e) {}
       })();
     </script>
   </head>

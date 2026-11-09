@@ -4,12 +4,15 @@ import { Plus, ChevronRight, Search, X, PackageCheck, Trash2 } from 'lucide-reac
 import { useStore, CUSTOMERS } from '../../store';
 import type { Dispatch } from '../../types';
 import { checkDispatchEligibility } from '../../domain/dispatchEligibility';
+import { dispatchesReady, isReadyToShip, DEFAULT_SITE_ID, DEFAULT_SITE_NAME, SHIP_STORE_ID, SHIP_STORE_NAME } from '../../domain/recordLists';
+import SiteStoreField from '../../components/forms/SiteStoreField';
+import { placeLabel } from '../../domain/places';
 import StatusChip from '../../components/layout/StatusChip';
 
 let dspSeq = 100;
 
 export default function DispatchWorkspace() {
-  const { dispatches, invoices, currentUser, addDispatch, recordPoD, showToast, jobs, qualityReleases, inspections } = useStore();
+  const { dispatches, invoices, sites, currentUser, addDispatch, recordPoD, showToast, jobs, qualityReleases, inspections } = useStore();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [search, setSearch] = useState('');
@@ -29,6 +32,8 @@ export default function DispatchWorkspace() {
   const [form, setForm] = useState({
     customerId: '', customerName: '', carrier: '',
     vehicleNumber: '', lrNumber: '', dispatchDate: '', jobs: '',
+    sourceSiteId: DEFAULT_SITE_ID, sourceSiteName: DEFAULT_SITE_NAME,
+    sourceStoreLocationId: SHIP_STORE_ID, sourceStoreLocationName: SHIP_STORE_NAME,
   });
 
   useEffect(() => {
@@ -51,14 +56,17 @@ export default function DispatchWorkspace() {
   const eligibleJob = jobs.find(j => j.id === selectedJobId);
   const eligibility = eligibleJob ? checkDispatchEligibility({ job: eligibleJob, qualityReleases, inspections }) : null;
 
-  const pendingDocs = dispatches.filter(d => d.status === 'pending_docs').length;
-  const dispatched  = dispatches.filter(d => d.status === 'dispatched').length;
-  const delivered   = dispatches.filter(d => d.status === 'delivered').length;
-
-  const [statusFocus, setStatusFocus] = useState<string | null>(null);
+  const [statusFocus, setStatusFocus] = useState<string | null>(searchParams.get('status'));
+  const [siteFilter, setSiteFilter] = useState('all');
+  const base = dispatches.filter(d => !deletedDispatchIds.has(d.id) && (siteFilter === 'all' || d.sourceSiteId === siteFilter) && (!search || d.dispatchNumber.toLowerCase().includes(search.toLowerCase()) || d.customerName.toLowerCase().includes(search.toLowerCase())));
+  const pendingDocs = base.filter(d => d.status === 'pending_docs').length;
+  const dispatched  = base.filter(d => d.status === 'dispatched').length;
+  const readyCount = dispatchesReady(base).length;
+  const passesStatus = (status: string, focus: string | null) => !focus || (focus === 'ready' ? isReadyToShip(status) : status === focus);
   const filtered = dispatches.filter(d =>
     !deletedDispatchIds.has(d.id) &&
-    (!statusFocus || d.status === statusFocus) &&
+    passesStatus(d.status, statusFocus) &&
+    (siteFilter === 'all' || d.sourceSiteId === siteFilter) &&
     (!search ||
     d.dispatchNumber.toLowerCase().includes(search.toLowerCase()) ||
     d.customerName.toLowerCase().includes(search.toLowerCase()))
@@ -81,6 +89,9 @@ export default function DispatchWorkspace() {
       jobId: eligibleJob?.id, jobNumber: eligibleJob?.jobNumber,
       customerPoId: eligibleJob?.customerPoId, customerPoNumber: eligibleJob?.customerPoNumber,
       qualityReleaseId: eligibility?.qualityReleaseId,
+      sourceSiteId: form.sourceSiteId,
+      sourceStoreLocationId: form.sourceStoreLocationId,
+      sourceStoreLocationName: form.sourceStoreLocationName,
       dispatchDate: form.dispatchDate,
       carrier: form.carrier || undefined,
       vehicleNumber: form.vehicleNumber || undefined,
@@ -94,7 +105,7 @@ export default function DispatchWorkspace() {
     addDispatch(newDispatch);
     setShowModal(false);
     setSelectedJobId('');
-    setForm({ customerId: '', customerName: '', carrier: '', vehicleNumber: '', lrNumber: '', dispatchDate: '', jobs: '' });
+    setForm({ customerId: '', customerName: '', carrier: '', vehicleNumber: '', lrNumber: '', dispatchDate: '', jobs: '', sourceSiteId: DEFAULT_SITE_ID, sourceSiteName: DEFAULT_SITE_NAME, sourceStoreLocationId: SHIP_STORE_ID, sourceStoreLocationName: SHIP_STORE_NAME });
   }
 
   return (
@@ -107,7 +118,12 @@ export default function DispatchWorkspace() {
             className="w-full pl-8 pr-3 py-1.5 text-sm rounded-lg border outline-none"
             style={{ borderColor: 'var(--border)', background: 'var(--surface)', color: 'var(--text)' }} />
         </div>
+        <select value={siteFilter} onChange={e => setSiteFilter(e.target.value)} className="eoss-input text-xs py-1.5 max-w-[11rem]" aria-label="Ship-from site">
+          <option value="all">All sites</option>
+          {sites.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+        </select>
         <div className="flex-1" />
+        {readyCount > 0 && <button type="button" onClick={() => setStatusFocus(statusFocus === 'ready' ? null : 'ready')} className="px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ background: 'var(--success-bg,#F0FDF4)', color: 'var(--success,#16A34A)' }}>{readyCount} ready</button>}
         {pendingDocs > 0 && <button type="button" onClick={() => setStatusFocus(statusFocus === 'pending_docs' ? null : 'pending_docs')} className="px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ background: 'var(--warning-bg,#FFFBEB)', color: 'var(--warning,#D97706)' }}>{pendingDocs} pending docs</button>}
         {dispatched > 0 && <button type="button" onClick={() => setStatusFocus(statusFocus === 'dispatched' ? null : 'dispatched')} className="px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ background: 'var(--info-bg,#EFF6FF)', color: 'var(--info,#2563EB)' }}>{dispatched} in transit</button>}
         {['owner', 'dispatch'].includes(currentUser.role) && (
@@ -128,7 +144,7 @@ export default function DispatchWorkspace() {
                 <StatusChip status={d.status} size="sm" />
               </div>
               <div className="text-sm font-semibold text-[var(--text)] mt-1">{d.customerName}</div>
-              <div className="text-xs text-[var(--text-2)] mt-1">{(d.jobs ?? []).join(', ') || 'No job'} · {d.carrier ?? 'Carrier not set'}</div>
+              <div className="text-xs text-[var(--text-2)] mt-1">{placeLabel(sites.find(s => s.id === d.sourceSiteId)?.name, d.sourceStoreLocationName)} · {(d.jobs ?? []).join(', ') || 'No job'}</div>
             </button>
           ))}
         </div>
@@ -147,7 +163,10 @@ export default function DispatchWorkspace() {
                 onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'var(--surface)'; }}
                 onClick={() => navigate(`/dispatch/${d.id}`)}>
                 <td className="px-4 py-3 font-mono text-xs font-bold" style={{ color: 'var(--brand)' }}>{d.dispatchNumber}</td>
-                <td className="px-4 py-3 text-sm font-medium" style={{ color: 'var(--text)' }}>{d.customerName}</td>
+                <td className="px-4 py-3 text-sm font-medium" style={{ color: 'var(--text)' }}>
+                  {d.customerName}
+                  <div className="text-[11px] font-normal text-[var(--text-3)]">{placeLabel(sites.find(s => s.id === d.sourceSiteId)?.name, d.sourceStoreLocationName)}</div>
+                </td>
                 <td className="px-4 py-3 font-mono text-xs" style={{ color: 'var(--text-2)' }}>{(d.jobs ?? []).join(', ') || '—'}</td>
                 <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-2)' }}>{d.carrier ?? d.vehicleNumber ?? '—'}</td>
                 <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-2)' }}>{d.dispatchDate ? new Date(d.dispatchDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '—'}</td>
@@ -192,6 +211,13 @@ export default function DispatchWorkspace() {
               <button onClick={() => setShowModal(false)} className="text-[var(--text-3)] hover:text-[var(--text)]"><X size={18} /></button>
             </div>
             <div className="space-y-3">
+              <SiteStoreField
+                siteId={form.sourceSiteId}
+                storeId={form.sourceStoreLocationId}
+                label="Ship-from site"
+                storeLabel="Ship-from store"
+                onChange={next => setForm(f => ({ ...f, sourceSiteId: next.siteId, sourceSiteName: next.siteName, sourceStoreLocationId: next.storeId, sourceStoreLocationName: next.storeName }))}
+              />
               <div>
                 <label className="text-xs text-[var(--text-3)] block mb-1">Customer *</label>
                 <select

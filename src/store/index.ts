@@ -14,6 +14,7 @@ import type {
   MeterReading, QualityRelease, InspectionTemplate, StageTemplate,
   JobMaterialReq, JobBlocker, SupplierPOLine
 } from '../types';
+import { stampPlaces } from '../domain/places';
 import {
   DEMO_USERS, JOBS, MATERIAL_LOTS, INVENTORY, STOCK_MOVEMENTS,
   ASSETS, MAINTENANCE_EVENTS, DISPATCHES, VAULT_DOCUMENTS,
@@ -119,6 +120,8 @@ interface EOSSState {
 
   // Inventory actions
   issueMaterial: (lotId: string, qty: number, jobId: string, jobNumber: string, by: string) => void;
+  updateInventoryItem: (id: string, partial: Partial<InventoryItem>) => void;
+  addInventoryItem: (item: InventoryItem) => void;
   transferLot: (lotId: string, toLocation: string, by: string) => void;
   setLotStatus: (lotId: string, status: MaterialLot['status']) => void;
 
@@ -238,6 +241,11 @@ let toastSeq = 0;
 // explicit "Reset Demo Data". Kept as one function so both call sites can
 // never drift apart.
 function buildInitialData() {
+  const raw = buildSeed();
+  return stampPlaces(raw);
+}
+
+function buildSeed() {
   return {
     currentUser: DEMO_USERS[0], // owner by default
     notifications: [...NOTIFICATIONS],
@@ -296,7 +304,7 @@ function buildInitialData() {
 
 export const useStore = create<EOSSState>()(persist((set, get) => ({
   // ── Initial State ──
-  theme: (typeof window !== 'undefined' && (localStorage.getItem('eoss-theme') as ThemeMode)) || 'light',
+  theme: (typeof window !== 'undefined' && localStorage.getItem('eoss-theme') === 'dark' ? 'dark' : 'light'),
   eossTheme: (typeof window !== 'undefined' && (localStorage.getItem('eoss-palette') as EOSSTheme)) || 'aurora',
   sidebarCollapsed: false,
   ...buildInitialData(),
@@ -310,20 +318,18 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
   },
 
   setTheme: (theme) => {
-    set({ theme });
     const root = document.documentElement;
-    if (theme === 'system') {
-      root.removeAttribute('data-theme');
-      try { localStorage.removeItem('eoss-theme'); } catch (_) {}
-    } else {
-      root.setAttribute('data-theme', theme);
-      try { localStorage.setItem('eoss-theme', theme); } catch (_) {}
-    }
+    lockThemeTransition(root);
+    const mode = theme === 'dark' ? 'dark' : 'light';
+    set({ theme: mode });
+    root.setAttribute('data-theme', mode);
+    try { localStorage.setItem('eoss-theme', mode); } catch (_) {}
   },
 
   setEOSSTheme: (eossTheme) => {
-    set({ eossTheme });
     const root = document.documentElement;
+    lockThemeTransition(root);
+    set({ eossTheme });
     root.classList.remove('theme-aurora', 'theme-ocean', 'theme-graphite');
     root.classList.add(`theme-${eossTheme}`);
     try { localStorage.setItem('eoss-palette', eossTheme); } catch (_) {}
@@ -404,6 +410,12 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
   },
 
   // ── Inventory Actions ──
+  updateInventoryItem: (id, partial) => set(s => ({
+    inventory: s.inventory.map(i => i.id === id ? { ...i, ...partial } : i),
+  })),
+
+  addInventoryItem: (item) => set(s => ({ inventory: [item, ...s.inventory] })),
+
   issueMaterial: (lotId, qty, jobId, jobNumber, by) => {
     const timestamp = new Date().toISOString();
     set(s => {
@@ -634,7 +646,16 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
     const { toasts, theme, eossTheme, sidebarCollapsed, ...demoData } = state;
     return demoData;
   },
+  onRehydrateStorage: () => (state) => {
+    if (!state) return;
+    useStore.setState(stampPlaces(state));
+  },
 }));
+
+function lockThemeTransition(root: HTMLElement) {
+  root.classList.add('theme-switching');
+  window.setTimeout(() => root.classList.remove('theme-switching'), 80);
+}
 
 // ── Selectors ──
 export const selectJob = (id: string) => (s: EOSSState) => s.jobs.find(j => j.id === id);

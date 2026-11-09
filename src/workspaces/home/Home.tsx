@@ -51,7 +51,7 @@ export default function Home() {
   ].filter(a => a.roles.includes(currentUser.role));
 
   return (
-    <div className="p-3 md:p-4 xl:h-[calc(100vh-70px)] xl:overflow-hidden xl:flex xl:flex-col">
+    <div className="p-3 pb-24 md:p-4 md:pb-24 xl:h-[calc(100vh-70px)] xl:overflow-hidden xl:flex xl:flex-col xl:pb-4">
       <div className="mb-3 shrink-0">
         <h1 className="text-xl md:text-2xl font-extrabold tracking-tight text-[var(--text)] flex items-center gap-2">
           <span>{`Good Evening, ${firstName}`}</span>

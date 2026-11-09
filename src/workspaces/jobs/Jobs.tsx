@@ -1,9 +1,12 @@
 import React, { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Plus, AlertTriangle, Search, ChevronRight, X, Trash2 } from 'lucide-react';
+import { Plus, AlertTriangle, Search, ChevronRight, Trash2 } from 'lucide-react';
 import { useStore, CUSTOMERS } from '../../store';
 import { computeProductionStatus } from '../../domain/productionStatus';
+import { jobsBlocked, DEFAULT_SITE_ID, DEFAULT_SITE_NAME } from '../../domain/recordLists';
 import { DEMO_NOW } from '../../data/seed';
+import RecordSheet from '../../components/layout/RecordSheet';
+import SiteStoreField from '../../components/forms/SiteStoreField';
 import StatusChip from '../../components/layout/StatusChip';
 import type { Job, JobStage } from '../../types';
 
@@ -19,15 +22,16 @@ const RISK_COLOR: Record<string, string> = {
 };
 
 export default function Jobs() {
-  const { jobs, dispatches, currentUser, addJob, showToast } = useStore();
+  const { jobs, dispatches, sites, currentUser, addJob, showToast } = useStore();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const focusParam = searchParams.get('focus');
   const riskParam = searchParams.get('risk');
   const guided = focusParam === 'shortage' || !!riskParam;
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [riskFilter, setRiskFilter] = useState<string | null>(riskParam && riskParam !== 'watch' ? riskParam : null);
+  const [statusFilter, setStatusFilter] = useState(searchParams.get('status') ?? 'all');
+  const [riskFilter, setRiskFilter] = useState<string | null>(riskParam);
+  const [siteFilter, setSiteFilter] = useState(searchParams.get('site') ?? 'all');
   const [showNewJob, setShowNewJob] = useState(false);
   const [deletedJobIds, setDeletedJobIds] = useState<Set<string>>(new Set());
   const canManage = ['owner', 'supervisor'].includes(currentUser.role);
@@ -46,34 +50,37 @@ export default function Jobs() {
     showToast({ type: 'success', title: 'Job removed' });
   };
 
-  const filtered = jobs.filter(j => {
+  const matchJob = (j: Job, status: string) => {
     if (deletedJobIds.has(j.id)) return false;
-    const matchSearch = !search || j.jobNumber.toLowerCase().includes(search.toLowerCase()) ||
-      j.customerName.toLowerCase().includes(search.toLowerCase()) ||
-      j.description.toLowerCase().includes(search.toLowerCase());
-    const matchStatus = statusFilter === 'all' || j.status === statusFilter;
+    const q = search.toLowerCase();
+    const matchSearch = !q || j.jobNumber.toLowerCase().includes(q) ||
+      j.customerName.toLowerCase().includes(q) ||
+      j.description.toLowerCase().includes(q);
     const risk = statusByJob[j.id].risk;
-    const matchRisk = riskParam === 'watch'
+    const matchRisk = riskFilter === 'watch'
       ? risk === 'at_risk' || risk === 'delayed'
       : (!riskFilter || risk === riskFilter);
     const matchFocus = focusParam !== 'shortage' || j.materialReadiness === 'shortage';
-    return matchSearch && matchStatus && matchRisk && matchFocus;
-  });
+    const matchSite = siteFilter === 'all' || j.siteId === siteFilter;
+    const matchStatus = status === 'all' || j.status === status;
+    return matchSearch && matchStatus && matchRisk && matchFocus && matchSite;
+  };
+  const filtered = jobs.filter(j => matchJob(j, statusFilter));
 
   const statusCounts = {
-    all: jobs.length,
-    active: jobs.filter(j => j.status === 'active').length,
-    hold: jobs.filter(j => j.status === 'hold').length,
-    complete: jobs.filter(j => j.status === 'complete').length,
+    all: jobs.filter(j => matchJob(j, 'all')).length,
+    active: jobs.filter(j => matchJob(j, 'active')).length,
+    hold: jobs.filter(j => matchJob(j, 'hold')).length,
+    complete: jobs.filter(j => matchJob(j, 'complete')).length,
   };
 
+  const scoped = jobs.filter(j => matchJob(j, 'all'));
   const riskCounts = {
-    at_risk: jobs.filter(j => statusByJob[j.id].risk === 'at_risk').length,
-    delayed: jobs.filter(j => statusByJob[j.id].risk === 'delayed').length,
-    blocked: jobs.filter(j => statusByJob[j.id].risk === 'blocked').length,
-    awaiting_material: jobs.filter(j => statusByJob[j.id].risk === 'awaiting_material').length,
+    at_risk: scoped.filter(j => statusByJob[j.id].risk === 'at_risk').length,
+    delayed: scoped.filter(j => statusByJob[j.id].risk === 'delayed').length,
+    blocked: jobsBlocked(scoped, now).length,
+    awaiting_material: scoped.filter(j => statusByJob[j.id].risk === 'awaiting_material').length,
   };
-
   const daysLeft = (end: string) => {
     const diff = new Date(end).getTime() - now.getTime();
     return Math.ceil(diff / 86400000);
@@ -97,6 +104,10 @@ export default function Jobs() {
             className="w-full pl-8 pr-3 py-1.5 text-sm rounded-lg border outline-none"
             style={{ borderColor: 'var(--border)', background: 'var(--surface)', color: 'var(--text)' }} />
         </div>
+        <select value={siteFilter} onChange={e => setSiteFilter(e.target.value)} className="eoss-input text-xs py-1.5 max-w-[11rem]" aria-label="Filter by site">
+          <option value="all">All sites</option>
+          {sites.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+        </select>
         <div className="flex gap-1.5 overflow-x-auto">
           {Object.entries(statusCounts).map(([s, count]) => (
             <button key={s} onClick={() => setStatusFilter(s)}
@@ -170,6 +181,7 @@ export default function Jobs() {
                 <span className="text-xs font-semibold" style={{ color: RISK_COLOR[status.risk] }}>{RISK_LABEL[status.risk]}</span>
               </div>
               <div className="text-sm font-semibold text-[var(--text)] mt-1">{j.customerName}</div>
+              <div className="text-[11px] text-[var(--text-3)]">{j.siteName}</div>
               <div className="text-xs text-[var(--text-2)] mt-0.5 line-clamp-2">{j.description}</div>
               <div className="mt-2 flex items-center justify-between gap-2">
                 <span className="text-[11px] text-[var(--text-3)]">{j.currentStage} · due {new Date(j.plannedEnd).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</span>
@@ -212,7 +224,10 @@ export default function Jobs() {
                       <span className="font-mono text-xs font-bold" style={{ color: 'var(--brand)' }}>{j.jobNumber}</span>
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-sm font-medium" style={{ color: 'var(--text)' }}>{j.customerName}</td>
+                  <td className="px-4 py-3 text-sm font-medium" style={{ color: 'var(--text)' }}>
+                    {j.customerName}
+                    <div className="text-[11px] font-normal text-[var(--text-3)]">{j.siteName}</div>
+                  </td>
                   <td className="px-4 py-3 text-xs max-w-[200px] truncate" style={{ color: 'var(--text-2)' }}>{j.description}</td>
                   <td className="px-4 py-3"><StatusChip status={j.status} size="sm" /></td>
                   <td className="px-4 py-3">
@@ -280,7 +295,11 @@ export default function Jobs() {
 
 function NewJobModal({ onClose, onSave }: { onClose: () => void; onSave: (j: Job) => void }) {
   const { customerPos } = useStore();
-  const [form, setForm] = useState({ customerId: '', customerName: '', description: '', plannedEnd: '', priority: 'normal' as Job['priority'], linkedPoRef: '', orderedQty: '', bufferPct: '5' });
+  const [form, setForm] = useState({
+    customerId: '', customerName: '', description: '', plannedEnd: '', priority: 'normal' as Job['priority'],
+    linkedPoRef: '', orderedQty: '', bufferPct: '5',
+    siteId: DEFAULT_SITE_ID, siteName: DEFAULT_SITE_NAME,
+  });
   const [err, setErr] = useState('');
   const orderedQtyNum = Number(form.orderedQty) || 0;
   const bufferPctNum = Number(form.bufferPct) || 5;
@@ -294,15 +313,16 @@ function NewJobModal({ onClose, onSave }: { onClose: () => void; onSave: (j: Job
       { id: `${id}-s2`, jobId: id, name: 'Fabrication', sequence: 2, status: 'pending', plannedStart: DEMO_NOW, plannedEnd: form.plannedEnd, inputQty: plannedQty || 0, completedGoodQty: 0, rejectedQty: 0, reworkQty: 0, scrapQty: 0, uom: 'pcs' },
       { id: `${id}-s3`, jobId: id, name: 'QC Inspection', sequence: 3, status: 'pending', plannedStart: DEMO_NOW, plannedEnd: form.plannedEnd, inputQty: plannedQty || 0, completedGoodQty: 0, rejectedQty: 0, reworkQty: 0, scrapQty: 0, uom: 'pcs' },
     ];
-    onSave({ id, jobNumber: num, customerId: form.customerId, customerName: form.customerName, description: form.description, status: 'active', priority: form.priority, plannedStart: DEMO_NOW, plannedEnd: form.plannedEnd, siteId: 'site-1', siteName: 'Main Plant', owner: 'Owner', stages: defaultStages, currentStage: 'Material Preparation', materialReadiness: 'pending', hasBlocker: false });
+    onSave({ id, jobNumber: num, customerId: form.customerId, customerName: form.customerName, description: form.description, status: 'active', priority: form.priority, plannedStart: DEMO_NOW, plannedEnd: form.plannedEnd, siteId: form.siteId, siteName: form.siteName, owner: 'Owner', stages: defaultStages, currentStage: 'Material Preparation', materialReadiness: 'pending', hasBlocker: false });
   };
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl w-full max-w-sm p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="font-bold text-[var(--text)]">New Job</h3>
-          <button onClick={onClose}><X size={16} className="text-[var(--text-3)]" /></button>
-        </div>
+    <RecordSheet
+      title="New job"
+      subtitle="Opens on the selected site"
+      onClose={onClose}
+      secondary={{ label: 'Cancel', onClick: onClose }}
+      primary={{ label: 'Create job', onClick: save }}
+    >
         <div className="space-y-3">
           <div>
             <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Customer *</label>
@@ -321,6 +341,13 @@ function NewJobModal({ onClose, onSave }: { onClose: () => void; onSave: (j: Job
               {customerPos.map(po => <option key={po.id} value={po.poNumber}>{po.poNumber} — {po.customerName}</option>)}
             </select>
           </div>
+          <SiteStoreField
+            siteId={form.siteId}
+            storeId={DEFAULT_SITE_ID === form.siteId ? 'loc-wip' : ''}
+            label="Site"
+            storeLabel="Floor store"
+            onChange={next => setForm(f => ({ ...f, siteId: next.siteId, siteName: next.siteName }))}
+          />
           <div>
             <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Job Description *</label>
             <input className="eoss-input w-full" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="e.g. Fabrication of 10 MS Frames" />
@@ -354,12 +381,7 @@ function NewJobModal({ onClose, onSave }: { onClose: () => void; onSave: (j: Job
           </div>
         </div>
         {err && <p className="text-xs text-[var(--danger)] mt-2">{err}</p>}
-        <div className="flex gap-3 mt-5">
-          <button onClick={onClose} className="flex-1 py-2.5 border border-[var(--border)] rounded-xl text-sm text-[var(--text-2)]">Cancel</button>
-          <button onClick={save} className="flex-1 py-2.5 bg-[var(--brand)] text-white rounded-xl text-sm font-medium">Create Job</button>
-        </div>
-      </div>
-    </div>
+    </RecordSheet>
   );
 }
 

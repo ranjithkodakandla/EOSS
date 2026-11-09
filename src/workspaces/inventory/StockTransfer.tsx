@@ -5,7 +5,8 @@ import { useStore } from '../../store';
 
 export default function StockTransfer() {
   const navigate = useNavigate();
-  const { lots, storeLocations, transferLot, currentUser } = useStore();
+  const { lots, storeLocations, sites, transferLot, currentUser } = useStore();
+  const placeOf = (siteId: string, name: string) => `${sites.find(s => s.id === siteId)?.name ?? 'Site'} · ${name}`;
 
   const [selectedLot, setSelectedLot] = useState('');
   const [toLocation, setToLocation] = useState('');
@@ -86,13 +87,13 @@ export default function StockTransfer() {
           >
             <div className="text-center">
               <div className="text-[11px] text-[var(--text-2)] mb-1">From</div>
-              <div className="font-semibold text-[var(--text)] text-xs">{lotObj.storeLocationName}</div>
+              <div className="font-semibold text-[var(--text)] text-xs">{placeOf(lotObj.storeLocationId ? storeLocations.find(s => s.id === lotObj.storeLocationId)?.siteId ?? '' : '', lotObj.storeLocationName)}</div>
             </div>
             <ArrowRight size={16} className="text-[var(--brand)] flex-shrink-0 mx-auto" />
             <div className="text-center flex-1">
               <div className="text-[11px] text-[var(--text-2)] mb-1">To</div>
               {toLocation
-                ? <div className="font-semibold text-[var(--brand)] text-xs">{storeLocations.find(sl => sl.id === toLocation)?.name ?? '—'}</div>
+                ? <div className="font-semibold text-[var(--brand)] text-xs">{(() => { const sl = storeLocations.find(s => s.id === toLocation); return sl ? placeOf(sl.siteId, sl.name) : '—'; })()}</div>
                 : <div className="text-xs text-[var(--text-2)]">Select below</div>
               }
             </div>
@@ -113,7 +114,7 @@ export default function StockTransfer() {
               .filter(sl => !lotObj || sl.name !== lotObj.storeLocationName)
               .map(sl => (
                 <option key={sl.id} value={sl.id}>
-                  {sl.name} ({sl.locationType})
+                  {placeOf(sl.siteId, sl.name)} ({sl.locationType})
                 </option>
               ))}
           </select>

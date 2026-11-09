@@ -2,6 +2,8 @@ import React, { useState, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Search, ArrowRightLeft, ArrowUpDown, ArrowUp, ArrowDown, ShieldAlert, Plus, Pencil, X } from 'lucide-react';
 import { useStore } from '../../store';
+import SiteStoreField from '../../components/forms/SiteStoreField';
+import { placeLabel } from '../../domain/places';
 import { SITES, STORE_LOCATIONS } from '../../data/seed';
 import type { MaterialItem } from '../../types';
 import StatusChip from '../../components/layout/StatusChip';
@@ -14,10 +16,12 @@ type SortDir = 'asc' | 'desc';
 const emptyMaterialForm = {
   itemCode: '', name: '', categoryName: '', primaryUom: 'kg', standardGrade: '',
   dimensions: '', reorderPoint: 0, leadTimeDays: '', trackingMode: 'lot' as MaterialItem['trackingMode'],
+  siteId: 'site-hyd', siteName: 'Hyderabad Plant 1', storeId: 'loc-rm', storeName: 'Raw Material Store',
+  inventoryId: '' as string,
 };
 
 export default function Inventory() {
-  const { inventory, lots, currentUser, materials, addMaterial, updateMaterial, showToast } = useStore();
+  const { inventory, lots, sites, currentUser, materials, addMaterial, updateMaterial, addInventoryItem, updateInventoryItem, showToast } = useStore();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const shortageFocus = searchParams.get('focus') === 'shortage';
@@ -28,7 +32,12 @@ export default function Inventory() {
   const [sortKey, setSortKey] = useState<SortKey>('materialCode');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
 
-  const shortageCount = inventory.filter(i => i.shortage).length;
+  const shortageCount = inventory.filter(i => {
+    if (!i.shortage) return false;
+    if (selectedLocation !== 'all' && i.locationId !== selectedLocation) return false;
+    const q = search.toLowerCase();
+    return !q || i.materialCode.toLowerCase().includes(q) || i.materialName.toLowerCase().includes(q) || i.categoryName.toLowerCase().includes(q) || i.locationName.toLowerCase().includes(q);
+  }).length;
 
   // Material Add/Edit Modal State
   const [materialModalOpen, setMaterialModalOpen] = useState(false);
@@ -41,13 +50,19 @@ export default function Inventory() {
     setMaterialModalOpen(true);
   };
 
-  const openEditMaterial = (m: MaterialItem, e?: React.MouseEvent) => {
+  const openEditMaterial = (m: MaterialItem, inventoryId?: string, e?: React.MouseEvent) => {
     e?.stopPropagation();
+    const row = inventory.find(i => i.id === inventoryId);
+    const loc = STORE_LOCATIONS.find(l => l.id === row?.locationId);
+    const site = SITES.find(s => s.id === loc?.siteId);
     setEditingMaterialId(m.id);
     setMaterialForm({
       itemCode: m.itemCode, name: m.name, categoryName: m.categoryName, primaryUom: m.primaryUom,
       standardGrade: m.standardGrade ?? '', dimensions: m.dimensions ?? '', reorderPoint: m.reorderPoint,
       leadTimeDays: m.leadTimeDays != null ? String(m.leadTimeDays) : '', trackingMode: m.trackingMode,
+      siteId: site?.id ?? 'site-hyd', siteName: site?.name ?? 'Hyderabad Plant 1',
+      storeId: loc?.id ?? 'loc-rm', storeName: loc?.name ?? row?.locationName ?? 'Raw Material Store',
+      inventoryId: inventoryId ?? '',
     });
     setMaterialModalOpen(true);
   };
@@ -60,7 +75,10 @@ export default function Inventory() {
         reorderPoint: Number(materialForm.reorderPoint), leadTimeDays: materialForm.leadTimeDays ? Number(materialForm.leadTimeDays) : undefined,
         trackingMode: materialForm.trackingMode,
       });
-      showToast({ type: 'success', title: 'Material updated', body: `${materialForm.name} saved.` });
+      if (materialForm.inventoryId) {
+        updateInventoryItem(materialForm.inventoryId, { locationId: materialForm.storeId, locationName: materialForm.storeName });
+      }
+      showToast({ type: 'success', title: 'Material updated', body: `${materialForm.name} saved at ${materialForm.storeName}.` });
     } else {
       const newMaterial: MaterialItem = {
         id: `mat-${Date.now()}`, itemCode: materialForm.itemCode || `MAT-${Date.now().toString().slice(-6)}`,
@@ -71,7 +89,13 @@ export default function Inventory() {
         active: true,
       };
       addMaterial(newMaterial);
-      showToast({ type: 'success', title: 'Material added', body: `${newMaterial.name} (${newMaterial.itemCode}) created.` });
+      addInventoryItem({
+        id: `inv-${Date.now()}`, materialItemId: newMaterial.id, materialCode: newMaterial.itemCode, materialName: newMaterial.name,
+        categoryName: newMaterial.categoryName, locationId: materialForm.storeId, locationName: materialForm.storeName,
+        onHandQty: 0, availableQty: 0, reservedQty: 0, qcHoldQty: 0, inTransitQty: 0, primaryUom: newMaterial.primaryUom,
+        reorderPoint: newMaterial.reorderPoint, shortage: newMaterial.reorderPoint > 0, lotCount: 0,
+      });
+      showToast({ type: 'success', title: 'Material added', body: `${newMaterial.name} is stocked at ${materialForm.storeName}.` });
     }
     setMaterialModalOpen(false);
   };
@@ -354,7 +378,7 @@ export default function Inventory() {
                     </td>
                     <td className="px-4 py-3">
                       <span className="text-xs px-2 py-0.5 rounded-md border" style={{ borderColor: 'var(--border)', color: 'var(--text-2)', background: 'var(--surface)' }}>
-                        {item.locationName}
+                        {placeLabel(SITES.find(s => s.id === STORE_LOCATIONS.find(l => l.id === item.locationId)?.siteId)?.code, item.locationName)}
                       </span>
                     </td>
                     <QtyCell qty={item.onHandQty} uom={item.primaryUom} />
@@ -386,7 +410,7 @@ export default function Inventory() {
                           </>
                         )}
                         {seedMaterial && currentUser.role !== 'operator' && (
-                          <button onClick={e => openEditMaterial(seedMaterial, e)} className="p-1 rounded hover:bg-[var(--surface-2)]" title="Edit material master">
+                          <button onClick={e => openEditMaterial(seedMaterial, item.id, e)} className="p-1 rounded hover:bg-[var(--surface-2)]" title="Edit material master">
                             <Pencil size={12} style={{ color: 'var(--text-3)' }} />
                           </button>
                         )}
@@ -436,6 +460,15 @@ export default function Inventory() {
               <Field2 label="UOM" value={materialForm.primaryUom} onChange={v => setMaterialForm(f => ({ ...f, primaryUom: v }))} placeholder="kg / pcs / m" />
               <Field2 label="Reorder Level" value={String(materialForm.reorderPoint)} onChange={v => setMaterialForm(f => ({ ...f, reorderPoint: Number(v) || 0 }))} type="number" />
               <Field2 label="Lead Time (days)" value={materialForm.leadTimeDays} onChange={v => setMaterialForm(f => ({ ...f, leadTimeDays: v }))} type="number" />
+              <div className="sm:col-span-2">
+                <SiteStoreField
+                  siteId={materialForm.siteId}
+                  storeId={materialForm.storeId}
+                  label="Site"
+                  storeLabel="Store"
+                  onChange={next => setMaterialForm(f => ({ ...f, siteId: next.siteId, siteName: next.siteName, storeId: next.storeId, storeName: next.storeName }))}
+                />
+              </div>
               <div>
                 <label className="block text-[11px] font-mono uppercase text-[var(--text-3)] mb-1">Tracking Mode</label>
                 <select

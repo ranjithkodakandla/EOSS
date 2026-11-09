@@ -4,6 +4,7 @@ import {
   TrendingUp, ShoppingCart, Box, Users, FileText, Coins
 } from 'lucide-react';
 import { useStore } from '../../store';
+import { openReceivables, openPayables, payablesDueWithinDays } from '../../domain/recordLists';
 
 interface KpiItem {
   id: string;
@@ -26,13 +27,15 @@ function fmt(n: number) {
 
 export default function FinancialKpis() {
   const navigate = useNavigate();
-  const { customerInvoices, supplierInvoices, inventory } = useStore();
+  const { customerInvoices, supplierInvoices, invoices, inventory } = useStore();
 
-  const totalSales = customerInvoices.reduce((s, i) => s + i.amount, 0);
+  const totalSales = customerInvoices.reduce((s, i) => s + i.amount, 0) + invoices.reduce((s, i) => s + i.totalAmount, 0);
   const totalPurchases = supplierInvoices.reduce((s, i) => s + i.amount, 0);
-  const totalReceivables = customerInvoices.filter(i => i.status !== 'paid').reduce((s, i) => s + (i.amount - i.amountPaid), 0);
-  const totalPayables = supplierInvoices.filter(i => i.status !== 'paid').reduce((s, i) => s + (i.amount - i.amountPaid), 0);
-  const dueInWeek = supplierInvoices.filter(i => i.status !== 'paid' && new Date(i.dueDate) <= new Date(Date.now() + 7 * 86400000)).length;
+  const unpaidIn = openReceivables(customerInvoices, invoices);
+  const unpaidOut = openPayables(supplierInvoices);
+  const totalReceivables = unpaidIn.reduce((s, i) => s + i.outstanding, 0);
+  const totalPayables = unpaidOut.reduce((s, i) => s + (i.amount - i.amountPaid), 0);
+  const dueInWeek = payablesDueWithinDays(supplierInvoices, 7).length;
   const stockValue = inventory.reduce((s, m) => s + (m.onHandQty * (m.unitCost ?? 120)), 0);
   const profit = totalSales - totalPurchases;
 
@@ -73,12 +76,12 @@ export default function FinancialKpis() {
       id: 'receivables',
       label: 'Receivables',
       value: fmt(totalReceivables),
-      subtext: `(${customerInvoices.filter(i => i.status !== 'paid').length} invoices)`,
+      subtext: `(${unpaidIn.length} invoices)`,
       icon: <Users size={15} strokeWidth={2.5} />,
       iconBg: 'linear-gradient(135deg, #DBEAFE 0%, #BFDBFE 100%)',
       iconColor: '#2563EB',
       iconGlow: 'rgba(37, 99, 235, 0.25)',
-      path: '/sales',
+      path: '/finance?tab=receivables&open=1',
     },
     {
       id: 'payables',
@@ -89,7 +92,7 @@ export default function FinancialKpis() {
       iconBg: 'linear-gradient(135deg, #FEE2E2 0%, #FECACA 100%)',
       iconColor: '#DC2626',
       iconGlow: 'rgba(220, 38, 38, 0.25)',
-      path: '/procurement',
+      path: dueInWeek > 0 ? '/finance?tab=payables&due=week' : '/finance?tab=payables&open=1',
     },
     {
       id: 'profit',
@@ -132,11 +135,11 @@ export default function FinancialKpis() {
 
           {/* Right Text Block with Perfect Proportions */}
           <div className="flex-1 min-w-0">
-            <div className="text-[10.5px] font-semibold text-gray-500 tracking-tight leading-tight whitespace-nowrap">
+            <div className="text-[10.5px] font-semibold text-[var(--text-2)] tracking-tight leading-tight whitespace-nowrap">
               {kpi.label}
             </div>
 
-            <div className="text-[15px] xl:text-[16px] font-extrabold text-gray-900 tracking-tight whitespace-nowrap mt-0.5 leading-tight">
+            <div className="text-[15px] xl:text-[16px] font-extrabold text-[var(--text)] tracking-tight whitespace-nowrap mt-0.5 leading-tight">
               {kpi.value}
             </div>
 
@@ -146,7 +149,7 @@ export default function FinancialKpis() {
                   {kpi.trend}
                 </span>
               ) : kpi.subtext ? (
-                <span className="font-medium text-gray-400 whitespace-nowrap">
+                <span className="font-medium text-[var(--text-3)] whitespace-nowrap">
                   {kpi.subtext}
                 </span>
               ) : null}

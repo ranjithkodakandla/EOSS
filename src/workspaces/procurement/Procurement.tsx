@@ -4,11 +4,14 @@ import { Plus, AlertTriangle, Search, ChevronRight, X, Pencil, Trash2, Send } fr
 import { useStore } from '../../store';
 import StatusChip from '../../components/layout/StatusChip';
 import type { GoodsReceipt, SupplierPO, SupplierPOLine, SupplierQuotation } from '../../types';
+import { DEFAULT_SITE_ID, DEFAULT_SITE_NAME, DEFAULT_STORE_ID, DEFAULT_STORE_NAME, GRN_STORE_ID, GRN_STORE_NAME } from '../../domain/recordLists';
+import { placeLabel } from '../../domain/places';
+import SiteStoreField from '../../components/forms/SiteStoreField';
 
 type ProcTab = 'spo' | 'pr' | 'grn' | 'approvals' | 'quotes';
 
 export default function Procurement() {
-  const { supplierPos, grns, approvalRequests, supplierQuotations, purchaseReqs, currentUser, showToast, addSupplierPO, resolveApproval, updateSupplierPo, addGRN, supplierPoLines } = useStore();
+  const { supplierPos, grns, approvalRequests, supplierQuotations, purchaseReqs, sites, currentUser, showToast, addSupplierPO, resolveApproval, updateSupplierPo, addGRN, supplierPoLines } = useStore();
   const [searchParams] = useSearchParams();
   const receiveParam = searchParams.get('receive');
   const [editSpo, setEditSpo] = useState<SupplierPO | null>(null);
@@ -23,34 +26,40 @@ export default function Procurement() {
   const [tab, setTab] = useState<ProcTab>(receiveParam ? 'grn' : ((searchParams.get('tab') as ProcTab) ?? 'spo'));
   const [search, setSearch] = useState('');
   const [showNewPO, setShowNewPO] = useState(false);
+  const [siteFilter, setSiteFilter] = useState('all');
+  const [overdueOnly, setOverdueOnly] = useState(false);
   const receivablePos = supplierPos.filter(p => ['confirmed', 'partial', 'overdue', 'sent'].includes(p.status));
   const [receivePoId, setReceivePoId] = useState<string | null>(
     receiveParam ? (supplierPos.find(p => p.id === receiveParam)?.id ?? receivablePos[0]?.id ?? null) : null
   );
 
-  const overduePOs = supplierPos.filter(p => p.status === 'overdue').length;
   const pendingApprovals = approvalRequests.filter(a => a.status === 'pending').length;
   const canCreate = ['owner', 'buyer'].includes(currentUser.role);
 
   const q = search.toLowerCase();
+  const matchSite = (siteId?: string) => siteFilter === 'all' || siteId === siteFilter;
   const filteredSpo = supplierPos.filter(p =>
-    !q || p.poNumber.toLowerCase().includes(q) || p.supplierName.toLowerCase().includes(q)
+    matchSite(p.deliverToSiteId) && (!overdueOnly || p.status === 'overdue') &&
+    (!q || p.poNumber.toLowerCase().includes(q) || p.supplierName.toLowerCase().includes(q))
   );
   const filteredPrs = purchaseReqs.filter(pr =>
-    !q || pr.prNumber.toLowerCase().includes(q) || pr.raisedBy.toLowerCase().includes(q) || (pr.jobNumber ?? '').toLowerCase().includes(q)
+    matchSite(pr.deliverToSiteId) &&
+    (!q || pr.prNumber.toLowerCase().includes(q) || pr.raisedBy.toLowerCase().includes(q) || (pr.jobNumber ?? '').toLowerCase().includes(q))
   );
   const filteredGrns = grns.filter(g =>
-    !q || g.grnNumber.toLowerCase().includes(q) || g.supplierName.toLowerCase().includes(q)
+    matchSite(g.siteId) &&
+    (!q || g.grnNumber.toLowerCase().includes(q) || g.supplierName.toLowerCase().includes(q))
   );
   const filteredQuotes = supplierQuotations.filter(qt =>
     !q || qt.quoteNumber.toLowerCase().includes(q) || qt.supplierName.toLowerCase().includes(q)
   );
+  const overduePOs = supplierPos.filter(p => p.status === 'overdue' && matchSite(p.deliverToSiteId) && (!q || p.poNumber.toLowerCase().includes(q) || p.supplierName.toLowerCase().includes(q))).length;
 
   const TABS = [
-    { id: 'spo' as ProcTab, label: `Supplier POs (${supplierPos.length})` },
-    { id: 'pr' as ProcTab, label: `PRs (${purchaseReqs.length})` },
-    { id: 'grn' as ProcTab, label: `GRNs (${grns.length})` },
-    { id: 'quotes' as ProcTab, label: `Quotations (${supplierQuotations.length})` },
+    { id: 'spo' as ProcTab, label: `Supplier POs (${filteredSpo.length})` },
+    { id: 'pr' as ProcTab, label: `PRs (${filteredPrs.length})` },
+    { id: 'grn' as ProcTab, label: `GRNs (${filteredGrns.length})` },
+    { id: 'quotes' as ProcTab, label: `Quotations (${filteredQuotes.length})` },
     { id: 'approvals' as ProcTab, label: `Approvals${pendingApprovals > 0 ? ` · ${pendingApprovals}` : ''}` },
   ];
   const [compareQuotes, setCompareQuotes] = useState<SupplierQuotation[] | null>(null);
@@ -66,9 +75,13 @@ export default function Procurement() {
             className="w-full pl-8 pr-3 py-1.5 text-sm rounded-lg border outline-none"
             style={{ borderColor: 'var(--border)', background: 'var(--surface)', color: 'var(--text)' }} />
         </div>
+        <select value={siteFilter} onChange={e => setSiteFilter(e.target.value)} className="eoss-input text-xs py-1.5 max-w-[11rem]" aria-label="Deliver-to site">
+          <option value="all">All sites</option>
+          {sites.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+        </select>
         <div className="flex-1" />
         {overduePOs > 0 && (
-          <button type="button" onClick={() => setTab('spo')}
+          <button type="button" onClick={() => { setTab('spo'); setOverdueOnly(v => !v); }}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
             style={{ background: 'var(--error-bg,#FEF2F2)', color: 'var(--error,#DC2626)' }}>
             <AlertTriangle size={13} /> {overduePOs} overdue
@@ -161,7 +174,10 @@ export default function Procurement() {
                     <div className="font-mono text-xs font-bold" style={{ color: 'var(--brand)' }}>{p.poNumber}</div>
                     {p.hasAmendment && <div className="text-[11px]" style={{ color: 'var(--warning,#D97706)' }}>Amendment</div>}
                   </td>
-                  <td className="px-4 py-3 text-sm font-medium" style={{ color: 'var(--text)' }}>{p.supplierName}</td>
+                  <td className="px-4 py-3 text-sm font-medium" style={{ color: 'var(--text)' }}>
+                    {p.supplierName}
+                    <div className="text-[11px] font-normal text-[var(--text-3)]">{placeLabel(p.deliverToSiteName, p.deliverToStoreName)}</div>
+                  </td>
                   <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-2)' }}>{new Date(p.raisedDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</td>
                   <td className="px-4 py-3 text-xs" style={{ color: p.status === 'overdue' ? 'var(--error,#DC2626)' : 'var(--text-2)', fontWeight: p.status === 'overdue' ? 600 : undefined }}>
                     {p.committedDate ? new Date(p.committedDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '—'}
@@ -207,7 +223,10 @@ export default function Procurement() {
                   onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'var(--surface)'; }}
                   onClick={() => navigate(`/procurement/pr/${pr.id}`)}>
                   <td className="px-4 py-3 font-mono text-xs font-bold" style={{ color: 'var(--brand)' }}>{pr.prNumber}</td>
-                  <td className="px-4 py-3 text-sm" style={{ color: 'var(--text)' }}>{pr.raisedBy}</td>
+                  <td className="px-4 py-3 text-sm" style={{ color: 'var(--text)' }}>
+                    {pr.raisedBy}
+                    <div className="text-[11px] text-[var(--text-3)]">{placeLabel(pr.deliverToSiteName, pr.deliverToStoreName)}</div>
+                  </td>
                   <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-2)' }}>{new Date(pr.raisedDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</td>
                   <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-2)' }}>{new Date(pr.requiredBy).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</td>
                   <td className="px-4 py-3 font-mono text-xs" style={{ color: 'var(--text-2)' }}>{pr.jobNumber ?? '—'}</td>
@@ -246,7 +265,10 @@ export default function Procurement() {
                   onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'var(--surface)'; }}
                   onClick={() => navigate(`/procurement/grn/${g.id}`)}>
                   <td className="px-4 py-3 font-mono text-xs font-bold" style={{ color: 'var(--brand)' }}>{g.grnNumber}</td>
-                  <td className="px-4 py-3 text-sm font-medium" style={{ color: 'var(--text)' }}>{g.supplierName}</td>
+                  <td className="px-4 py-3 text-sm font-medium" style={{ color: 'var(--text)' }}>
+                    {g.supplierName}
+                    <div className="text-[11px] font-normal text-[var(--text-3)]">{placeLabel(g.siteName, g.storeLocationName)}</div>
+                  </td>
                   <td className="px-4 py-3 font-mono text-xs" style={{ color: 'var(--text-2)' }}>{g.spoNumber}</td>
                   <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-2)' }}>{new Date(g.receivedDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</td>
                   <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-2)' }}>{g.receivedBy}</td>
@@ -488,6 +510,7 @@ function ReceiveStockModal({ poId, pos, lines, receivedBy, onClose, onSave }: {
   const [selectedId, setSelectedId] = useState(poId);
   const [challan, setChallan] = useState('');
   const [date, setDate] = useState('2026-11-09');
+  const [place, setPlace] = useState({ siteId: DEFAULT_SITE_ID, siteName: DEFAULT_SITE_NAME, storeId: GRN_STORE_ID, storeName: GRN_STORE_NAME });
   const po = pos.find(p => p.id === selectedId) ?? pos[0];
   const poLines = lines.filter(l => l.spoId === po?.id);
   const save = () => {
@@ -503,6 +526,10 @@ function ReceiveStockModal({ poId, pos, lines, receivedBy, onClose, onSave }: {
       receivedDate: date,
       receivedBy,
       deliveryChallan: challan,
+      siteId: place.siteId,
+      siteName: place.siteName,
+      storeLocationId: place.storeId,
+      storeLocationName: place.storeName,
       status: 'pending_qc',
       lineCount: poLines.length || po.lineCount,
     });
@@ -534,6 +561,13 @@ function ReceiveStockModal({ poId, pos, lines, receivedBy, onClose, onSave }: {
               ))}
             </div>
           )}
+          <SiteStoreField
+            siteId={place.siteId}
+            storeId={place.storeId}
+            label="Receiving site"
+            storeLabel="Receiving store"
+            onChange={next => setPlace({ siteId: next.siteId, siteName: next.siteName, storeId: next.storeId, storeName: next.storeName })}
+          />
           <div>
             <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Delivery challan *</label>
             <input className="eoss-input w-full" value={challan} onChange={e => setChallan(e.target.value)} placeholder="DC-1042" />
@@ -556,13 +590,22 @@ function ReceiveStockModal({ poId, pos, lines, receivedBy, onClose, onSave }: {
 import { SUPPLIERS } from '../../store';
 
 function NewSupplierPOModal({ onClose, onSave }: { onClose: () => void; onSave: (po: SupplierPO) => void }) {
-  const [form, setForm] = useState({ supplierId: '', supplierName: '', committedDate: '', paymentTerms: 'Net 30', notes: '' });
+  const [form, setForm] = useState({
+    supplierId: '', supplierName: '', committedDate: '', paymentTerms: 'Net 30', notes: '',
+    deliverToSiteId: DEFAULT_SITE_ID, deliverToSiteName: DEFAULT_SITE_NAME,
+    deliverToStoreId: DEFAULT_STORE_ID, deliverToStoreName: DEFAULT_STORE_NAME,
+  });
   const [err, setErr] = useState('');
   const save = () => {
     if (!form.supplierId || !form.committedDate) { setErr('Supplier and committed delivery date required'); return; }
     const id = `spo-${Date.now()}`;
     const num = `SPO-2026-${String(Math.floor(Math.random() * 900 + 100))}`;
-    onSave({ id, poNumber: num, supplierId: form.supplierId, supplierName: form.supplierName, raisedDate: '2026-11-05', committedDate: form.committedDate, status: 'draft', totalValue: 0, currency: 'INR', paymentTerms: form.paymentTerms, lineCount: 0 });
+    onSave({
+      id, poNumber: num, supplierId: form.supplierId, supplierName: form.supplierName, raisedDate: '2026-11-05',
+      committedDate: form.committedDate, status: 'draft', totalValue: 0, currency: 'INR', paymentTerms: form.paymentTerms, lineCount: 0,
+      deliverToSiteId: form.deliverToSiteId, deliverToSiteName: form.deliverToSiteName,
+      deliverToStoreId: form.deliverToStoreId, deliverToStoreName: form.deliverToStoreName,
+    });
   };
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
@@ -572,6 +615,13 @@ function NewSupplierPOModal({ onClose, onSave }: { onClose: () => void; onSave: 
           <button onClick={onClose}><X size={16} className="text-[var(--text-3)]" /></button>
         </div>
         <div className="space-y-3">
+          <SiteStoreField
+            siteId={form.deliverToSiteId}
+            storeId={form.deliverToStoreId}
+            label="Deliver-to site"
+            storeLabel="Deliver-to store"
+            onChange={next => setForm(f => ({ ...f, deliverToSiteId: next.siteId, deliverToSiteName: next.siteName, deliverToStoreId: next.storeId, deliverToStoreName: next.storeName }))}
+          />
           <div>
             <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Supplier *</label>
             <select className="eoss-input w-full" value={form.supplierId} onChange={e => {

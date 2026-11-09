@@ -73,7 +73,10 @@ export default function Sales() {
         <div>
           <h1 className="text-lg font-bold" style={{ color: 'var(--text)' }}>Sales</h1>
           <p className="text-xs mt-0.5" style={{ color: 'var(--text-2)' }}>
-            {customerPos.filter(p => p.status === 'active').length} active POs · ₹{(totalActive / 100000).toFixed(1)}L in progress
+            <button type="button" onClick={() => { setTab('pos'); setStatusFilter('active'); }} className="font-semibold" style={{ color: 'var(--brand)' }}>
+              {customerPos.filter(p => p.status === 'active').length} active POs
+            </button>
+            {' '}· ₹{(totalActive / 100000).toFixed(1)}L in progress
           </p>
         </div>
         {canCreate && (
@@ -93,8 +96,8 @@ export default function Sales() {
         style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
       >
         {([
-          { id: 'pos', label: `Customer POs (${customerPos.length})` },
-          { id: 'rfqs', label: `RFQs (${rfqs.length})` },
+          { id: 'pos', label: `Customer POs (${filteredPos.length})` },
+          { id: 'rfqs', label: `RFQs (${filteredRfqs.length})` },
           { id: 'customers', label: 'Customer Directory' },
         ] as { id: POTab; label: string }[]).map(t => (
           <button
@@ -151,7 +154,7 @@ export default function Sales() {
                     : { background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text-2)' }
                 }
               >
-                {s === 'all' ? 'All' : s}
+                {s === 'all' ? `All (${customerPos.filter(p => !search || p.poNumber.toLowerCase().includes(search.toLowerCase()) || p.customerName.toLowerCase().includes(search.toLowerCase())).length})` : `${s} (${customerPos.filter(p => p.status === s && (!search || p.poNumber.toLowerCase().includes(search.toLowerCase()) || p.customerName.toLowerCase().includes(search.toLowerCase()))).length})`}
               </button>
             ))}
           </div>

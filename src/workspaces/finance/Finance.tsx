@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { TrendingUp, TrendingDown, AlertCircle, Plus, ArrowUpRight, ArrowDownLeft, Clock, Check, Building2 } from 'lucide-react';
 import { useStore, CUSTOMERS } from '../../store';
+import { DEMO_NOW } from '../../data/seed';
 import StatusChip from '../../components/layout/StatusChip';
 
 const fmt = (n: number) =>
@@ -65,10 +66,20 @@ export default function Finance() {
 
   const isReadOnly = currentUser.role === 'auditor';
 
+  const openOnly = searchParams.get('open') === '1';
+  const dueWeek = searchParams.get('due') === 'week';
+  const weekLimit = new Date(DEMO_NOW).getTime() + 7 * 86400000;
+  const visibleReceivables = openOnly ? allReceivables.filter(i => i.status !== 'paid') : allReceivables;
+  const visiblePayables = supplierInvoices.filter(i => {
+    if (dueWeek) return i.status !== 'paid' && new Date(i.dueDate).getTime() <= weekLimit;
+    if (openOnly) return i.status !== 'paid';
+    return true;
+  });
+
   const TABS: { key: Tab; label: string }[] = [
     { key: 'overview', label: 'Overview' },
-    { key: 'receivables', label: `Receivables (${allReceivables.length})` },
-    { key: 'payables', label: `Payables (${supplierInvoices.length})` },
+    { key: 'receivables', label: `Receivables (${visibleReceivables.length})` },
+    { key: 'payables', label: `Payables (${visiblePayables.length})` },
     { key: 'payments', label: `Payments (${allPayments.length})` },
     { key: 'collections', label: `Collections (${collectionActivities.length})` },
   ];
@@ -187,7 +198,7 @@ export default function Finance() {
       {tab === 'receivables' && (
         <>
         <div className="md:hidden space-y-2">
-          {allReceivables.map(inv => (
+          {visibleReceivables.map(inv => (
             <button key={inv.id} type="button" onClick={() => navigate(`/finance/invoice/${inv.id}`)}
               className="w-full text-left rounded-xl border p-3" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
               <div className="flex items-center justify-between gap-2">
@@ -209,7 +220,7 @@ export default function Finance() {
               </tr>
             </thead>
             <tbody>
-              {allReceivables.map((inv, i) => (
+              {visibleReceivables.map((inv) => (
                 <tr key={inv.id} className="border-b transition-colors hover:bg-[var(--surface-2)] cursor-pointer" style={{ borderColor: 'var(--border)' }} onClick={() => navigate(`/finance/invoice/${inv.id}`)}>
                   <td className="px-3 py-2.5 font-mono text-[var(--brand)] font-medium text-xs">{inv.number}</td>
                   <td className="px-3 py-2.5 text-[var(--text)] text-xs font-medium">{inv.customer}</td>
@@ -239,7 +250,7 @@ export default function Finance() {
               </tr>
             </thead>
             <tbody>
-              {supplierInvoices.map((inv, i) => (
+              {visiblePayables.map((inv) => (
                 <tr key={inv.id} className="border-b transition-colors hover:bg-[var(--surface-2)]" style={{ borderColor: 'var(--border)' }}>
                   <td className="px-3 py-2.5 font-mono text-[var(--brand)] font-medium text-xs">{inv.invoiceNumber}</td>
                   <td className="px-3 py-2.5 text-[var(--text)] text-xs font-medium">{inv.supplierName}</td>

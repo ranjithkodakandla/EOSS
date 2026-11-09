@@ -187,6 +187,10 @@ export interface SupplierPO {
   jobRef?: string;
   lineCount: number;
   hasAmendment?: boolean;
+  deliverToSiteId?: ID;
+  deliverToSiteName?: string;
+  deliverToStoreId?: ID;
+  deliverToStoreName?: string;
 }
 
 export interface SupplierPOLine {
@@ -220,6 +224,10 @@ export interface PurchaseRequisition {
   lineCount: number;
   totalQty: number;
   priority: 'low' | 'normal' | 'high' | 'urgent';
+  deliverToSiteId?: ID;
+  deliverToSiteName?: string;
+  deliverToStoreId?: ID;
+  deliverToStoreName?: string;
 }
 
 // ── Jobs ──
@@ -334,6 +342,10 @@ export interface GoodsReceipt {
   status: 'draft' | 'pending_qc' | 'qc_hold' | 'accepted' | 'partial';
   lineCount: number;
   hasOfflineDraft?: boolean;
+  siteId?: ID;
+  siteName?: string;
+  storeLocationId?: ID;
+  storeLocationName?: string;
 }
 
 // ── Stock Movements ──
@@ -635,6 +647,7 @@ export interface Dispatch {
   jobNumber?: string;
   qualityReleaseId?: ID;
   sourceSiteId?: ID;
+  sourceStoreLocationId?: ID;
   sourceStoreLocationName?: string;
   destination?: string;
   dispatchDate: string;
