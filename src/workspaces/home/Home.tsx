@@ -58,9 +58,10 @@ export default function Home() {
         <button
           type="button"
           onClick={() => setCopilotDrawerOpen(true)}
-          className="xl:hidden flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold text-white"
+          className="xl:hidden flex-shrink-0 flex items-center gap-1.5 pl-1 pr-3 py-1 rounded-full text-xs font-semibold text-white"
           style={{ background: copilotBtnBg }}
         >
+          <img src={`/assets/copilot/robot_${eossTheme}.png`} alt="" className="w-7 h-7 object-contain" />
           Copilot
         </button>
       </div>

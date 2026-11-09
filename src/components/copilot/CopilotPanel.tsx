@@ -1,10 +1,13 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Sparkles, Zap, Package, BarChart3, AlertTriangle, Send,
+  Zap, Package, BarChart3, AlertTriangle, Send,
   ArrowRight, X, ChevronRight, Bot, RefreshCw
 } from 'lucide-react';
 import { useStore } from '../../store';
+import { computeProductionStatus } from '../../domain/productionStatus';
+import { computeMaintenanceDue } from '../../domain/maintenanceDue';
+import { DEMO_NOW } from '../../data/seed';
 import clsx from 'clsx';
 
 interface Message {
@@ -25,7 +28,7 @@ interface Props {
 
 export default function CopilotPanel({ isDrawer, onClose }: Props) {
   const navigate = useNavigate();
-  const { jobs, inventory, eossTheme } = useStore();
+  const { jobs, inventory, eossTheme, assets, meterReadings, inspections } = useStore();
 
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
@@ -75,34 +78,52 @@ sendBtnBg: isGraphite
     iconColorWarn: isGraphite ? '#E58A36' : '#EA580C',
   };
 
+  const now = new Date(DEMO_NOW);
+  const shortageCount = inventory.filter(i => i.shortage).length;
+  const blockedCount = jobs.filter(j => computeProductionStatus(j, now).risk === 'blocked').length;
+  const overdueCount = assets.filter(a => computeMaintenanceDue(a, meterReadings, now).status === 'overdue').length
+    + assets.filter(a => a.status === 'pm_overdue').length;
+  const pendingChecks = inspections.filter(i => i.result === 'pending' || i.result === 'fail').length;
+  const updateJob = jobs.find(j => j.status === 'active' && !j.hasBlocker);
+
   const suggestions = [
+    {
+      id: 'stock-risk',
+      icon: <AlertTriangle size={17} style={{ color: themeConfig.iconColorWarn }} strokeWidth={2.5} />,
+      text: shortageCount ? `${shortageCount} materials are short` : 'Any material shortages?',
+      response: shortageCount
+        ? `${shortageCount} materials are below what the shop needs. The shortage list can raise a purchase request or move stock from another store.`
+        : 'No material is flagged short right now.',
+      action: { label: 'Open shortages', path: '/inventory?focus=shortage' },
+    },
     {
       id: 'plan-prod',
       icon: <Zap size={17} style={{ color: themeConfig.iconColorZap }} strokeWidth={2.5} />,
-      text: 'Plan production for pending orders',
-      response: `Analyzing 4 in-progress orders. SO-1245 (60%) is approaching CNC Lathe NL-2500 turn, while SO-1246 (35%) is waiting on SS 304 round bar inspection. Recommended action: Allocate Machine NL-2500 to SO-1245 finishing passes.`,
-      action: { label: 'Open Job J-101', path: '/jobs/J-101' },
+      text: blockedCount ? `${blockedCount} jobs are blocked` : 'Which jobs need an update?',
+      response: blockedCount
+        ? `${blockedCount} jobs are blocked. Open one to clear the blocker, or update the active stage on ${updateJob?.jobNumber ?? 'a running job'}.`
+        : `${jobs.filter(j => j.status === 'active').length} jobs are active. Update the current stage from the job.`,
+      action: blockedCount
+        ? { label: 'Open blocked jobs', path: '/jobs?risk=blocked' }
+        : { label: updateJob ? `Update ${updateJob.jobNumber}` : 'Open jobs', path: updateJob ? `/jobs/${updateJob.id}?update=1` : '/jobs' },
     },
     {
       id: 'suggest-po',
       icon: <Package size={17} style={{ color: themeConfig.iconColorBox }} strokeWidth={2.5} />,
-      text: 'Suggest material purchase',
-      response: `Current stock of SS 304 Rod 25mm is 45 kg (below reorder threshold of 100 kg). Projected stockout in 5 days based on SO-1245 & SO-1246 consumption. Recommended PO: 250 kg from Stainless Source India.`,
-      action: { label: 'Create Supplier PO', path: '/procurement' },
+      text: overdueCount ? `${overdueCount} machines are overdue` : 'Is maintenance overdue?',
+      response: overdueCount
+        ? `${overdueCount} assets are past their service point. Schedule the work, or complete a work order that is already open.`
+        : 'No asset is marked overdue.',
+      action: { label: 'Open overdue assets', path: '/assets?focus=overdue' },
     },
     {
       id: 'check-status',
       icon: <BarChart3 size={17} style={{ color: themeConfig.iconColorChart }} strokeWidth={2.5} />,
-      text: 'Check order status',
-      response: `Overall shop floor status: 12 open sales orders, 4 jobs active in production, 2 batches in quarantine awaiting QC release, and 6 dispatches staged and ready for pickup.`,
-      action: { label: 'View All Jobs', path: '/jobs' },
-    },
-    {
-      id: 'stock-risk',
-      icon: <AlertTriangle size={17} style={{ color: themeConfig.iconColorWarn }} strokeWidth={2.5} />,
-      text: 'Show stock at risk',
-      response: `2 items at risk: 1) SS 304 Rod 25mm (depleting in 5 days), 2) EN8 Round Bar 50mm (reserved for Job J-103, no buffer stock). Suggested reorder initiated for approval.`,
-      action: { label: 'View Inventory Alerts', path: '/inventory' },
+      text: pendingChecks ? `${pendingChecks} inspections need a result` : 'Any inspections waiting?',
+      response: pendingChecks
+        ? `${pendingChecks} inspections are pending or failed. Record the result, or raise an NCR where one already failed.`
+        : 'No inspection is waiting on a result.',
+      action: { label: 'Open inspections', path: '/quality?result=open' },
     },
   ];
 
@@ -160,13 +181,20 @@ sendBtnBg: isGraphite
         boxShadow: themeConfig.panelShadow,
       }}
     >
-      <div className="flex items-center gap-2 px-4 py-3 border-b border-white/10 flex-shrink-0">
-        <Sparkles size={15} style={{ color: themeConfig.sparkleColor }} />
-        <div className="font-bold text-white text-sm">Copilot</div>
+      <div className="flex items-center gap-2 px-3 py-2 border-b border-white/10 flex-shrink-0">
+        <img
+          src={`/assets/copilot/robot_${eossTheme}.png`}
+          alt=""
+          className="w-[84px] h-[84px] object-contain flex-shrink-0"
+        />
+        <div className="min-w-0 flex-1">
+          <div className="font-bold text-white text-sm leading-tight">EOSS Copilot</div>
+          <div className="text-[12px] text-white/70 leading-snug mt-0.5">Questions from what needs attention.</div>
+        </div>
         {isDrawer && onClose && (
           <button
             onClick={onClose}
-            className="ml-auto p-1.5 rounded-full bg-white/10 hover:bg-white/20 text-white"
+            className="p-1.5 rounded-full bg-white/10 hover:bg-white/20 text-white flex-shrink-0"
             aria-label="Close Copilot"
           >
             <X size={16} />
@@ -175,16 +203,16 @@ sendBtnBg: isGraphite
       </div>
 
       {/* ── Content area below hero ── */}
-      <div className="flex-1 overflow-y-auto scrollbar-none flex flex-col">
+      <div className="flex-1 min-h-0 overflow-y-auto scrollbar-none flex flex-col">
 
         {/* Welcome state: suggestion pills */}
         {messages.length === 0 && (
-          <div className="p-3.5 md:p-4 space-y-2">
+          <div className="flex-1 min-h-0 flex flex-col gap-2 p-3">
             {suggestions.map(s => (
               <button
                 key={s.id}
                 onClick={() => handleSend(s.text)}
-                className="w-full flex items-center justify-between px-4 py-2.5 rounded-full transition-all text-left text-xs md:text-[13px] font-semibold group cursor-pointer hover:-translate-y-0.5"
+                className="flex-1 min-h-[44px] w-full flex items-center justify-between px-3 py-2 rounded-xl transition-all text-left text-[13px] font-semibold group cursor-pointer"
                 style={{
                   background: 'linear-gradient(180deg, #FFFFFF 0%, #F9FAFB 100%)',
                   boxShadow: '0 4px 14px -2px rgba(0,0,0,0.08), inset 0 1px 1px #FFFFFF',
