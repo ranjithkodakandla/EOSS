@@ -34,7 +34,7 @@ export default function PRCreate() {
 
   // Step 1 — Header
   const [header, setHeader] = useState({
-    jobId: '',
+    jobId: searchParams.get('job') ?? '',
     raisedBy: currentUser.name,
     requiredBy: prefillName ? '2026-11-12' : '',
     priority: (prefillName ? 'high' : 'normal') as PurchaseRequisition['priority'],
@@ -200,7 +200,7 @@ export default function PRCreate() {
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <h2 className="text-sm font-bold text-[var(--text)]">Material Lines</h2>
-                <button onClick={addLine} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white" style={{ background: 'var(--brand)' }}>
+                <button onClick={addLine} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white" style={{ background: 'var(--brand-fill)' }}>
                   <Plus size={13} /> Add Line
                 </button>
               </div>
@@ -327,7 +327,7 @@ export default function PRCreate() {
           onClick={() => step < 3 ? setStep((step + 1) as Step) : handleSubmit()}
           disabled={!canNext[step]}
           className="px-5 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-40"
-          style={{ background: 'var(--brand)' }}>
+          style={{ background: 'var(--brand-fill)' }}>
           {step < 3 ? 'Next →' : 'Submit PR'}
         </button>
       </div>

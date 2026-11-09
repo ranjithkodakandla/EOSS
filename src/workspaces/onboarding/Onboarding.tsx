@@ -113,7 +113,7 @@ export default function Onboarding() {
           {STEPS.map((s, i) => (
             <React.Fragment key={s.id}>
               <div className={`flex flex-col items-center gap-1 cursor-pointer transition-all ${step === s.id ? 'opacity-100' : step > s.id ? 'opacity-70' : 'opacity-30'}`} onClick={() => step > s.id && setStep(s.id)}>
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border-2 transition-all ${step === s.id ? 'bg-[var(--brand)] border-[var(--brand)] text-white' : step > s.id ? 'bg-[var(--success)] border-[var(--success)] text-white' : 'border-[var(--border)] text-[var(--text-3)]'}`}>
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border-2 transition-all ${step === s.id ? 'bg-[var(--brand-fill)] border-[var(--brand)] text-white' : step > s.id ? 'bg-[var(--success)] border-[var(--success)] text-white' : 'border-[var(--border)] text-[var(--text-3)]'}`}>
                   {step > s.id ? <CheckCircle size={14} /> : s.id}
                 </div>
                 <span className="text-[10px] text-[var(--text-3)] whitespace-nowrap hidden sm:block">{s.label}</span>
@@ -147,7 +147,7 @@ export default function Onboarding() {
                   { key: 'mixed', label: 'Mixed Operations', desc: 'Manufacturing + trading combined', icon: Building2 },
                 ] as const).map(opt => (
                   <button key={opt.key} onClick={() => setStep1({ businessType: opt.key })}
-                    className={`text-left p-4 rounded-xl border-2 transition-all ${step1.businessType === opt.key ? 'border-[var(--brand)] bg-[var(--brand)]/5' : 'border-[var(--border)] hover:border-[var(--brand)]/40'}`}>
+                    className={`text-left p-4 rounded-xl border-2 transition-all ${step1.businessType === opt.key ? 'border-[var(--brand)] bg-[var(--brand-fill)]/5' : 'border-[var(--border)] hover:border-[var(--brand)]/40'}`}>
                     <opt.icon size={20} className={step1.businessType === opt.key ? 'text-[var(--brand)]' : 'text-[var(--text-3)]'} />
                     <div className="mt-2 font-semibold text-sm text-[var(--text)]">{opt.label}</div>
                     <div className="text-xs text-[var(--text-3)] mt-0.5">{opt.desc}</div>
@@ -366,7 +366,7 @@ export default function Onboarding() {
               </button>
             )}
             {step < 7 ? (
-              <button onClick={next} className="ml-auto flex items-center gap-2 px-5 py-2.5 bg-[var(--brand)] text-white rounded-xl text-sm font-semibold hover:opacity-90 transition-opacity">
+              <button onClick={next} className="ml-auto flex items-center gap-2 px-5 py-2.5 bg-[var(--brand-fill)] text-white rounded-xl text-sm font-semibold hover:opacity-90 transition-opacity">
                 Save & Continue <ChevronRight size={16} />
               </button>
             ) : (
@@ -431,7 +431,7 @@ function Step6Users() {
             </select>
           </div>
           <div className="flex gap-2">
-            <button onClick={() => { if (form.name && form.email) { setUsers(u => [...u, { name: form.name, email: form.email, role: form.role, access: ROLE_CAPS.find(r => r.role === form.role)?.access.split(';')[0] ?? 'Read/Write' }]); setForm({ name: '', email: '', role: 'Sales Manager' }); setShowAdd(false); } }} className="px-3 py-1.5 bg-[var(--brand)] text-white rounded-lg text-xs font-medium">Add</button>
+            <button onClick={() => { if (form.name && form.email) { setUsers(u => [...u, { name: form.name, email: form.email, role: form.role, access: ROLE_CAPS.find(r => r.role === form.role)?.access.split(';')[0] ?? 'Read/Write' }]); setForm({ name: '', email: '', role: 'Sales Manager' }); setShowAdd(false); } }} className="px-3 py-1.5 bg-[var(--brand-fill)] text-white rounded-lg text-xs font-medium">Add</button>
             <button onClick={() => setShowAdd(false)} className="px-3 py-1.5 border border-[var(--border)] text-[var(--text-2)] rounded-lg text-xs">Cancel</button>
           </div>
         </div>

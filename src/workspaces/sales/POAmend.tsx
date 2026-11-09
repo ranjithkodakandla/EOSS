@@ -122,7 +122,7 @@ export default function POAmend() {
             type="submit"
             disabled={submitted || !reason || !changeNote.trim()}
             className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white cursor-pointer hover:opacity-90 transition disabled:opacity-40"
-            style={{ background: 'var(--brand)' }}
+            style={{ background: 'var(--brand-fill)' }}
           >
             <Save size={14} />
             {submitted ? 'Submitted…' : 'Submit for Approval'}

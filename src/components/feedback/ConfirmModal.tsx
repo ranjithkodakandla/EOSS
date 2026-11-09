@@ -32,7 +32,7 @@ export default function ConfirmModal({ open, title, body, confirmLabel = 'Confir
           </button>
           <button
             onClick={onConfirm}
-            className={`px-4 py-2 rounded-lg text-sm font-medium text-white transition-colors ${variant === 'danger' ? 'bg-[var(--error)] hover:opacity-90' : 'bg-[var(--brand)] hover:bg-[var(--brand-700)]'}`}
+            className={`px-4 py-2 rounded-lg text-sm font-medium text-white transition-colors ${variant === 'danger' ? 'bg-[var(--error)] hover:opacity-90' : 'bg-[var(--brand-fill)] hover:bg-[var(--brand-700)]'}`}
           >
             {confirmLabel}
           </button>

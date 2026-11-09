@@ -91,7 +91,7 @@ export default function Products() {
                 const qty = short ? Math.max(short.requiredQty - short.reservedQty, 1) : 1;
                 const q = new URLSearchParams({ name: context.stock[0]?.materialName || product.materialSpec, code: context.stock[0]?.materialCode || product.productCode, qty: String(qty), uom: context.stock[0]?.primaryUom || product.primaryUom });
                 navigate(`/procurement/pr/new?${q.toString()}`);
-              }} className="px-3 py-2 rounded-lg text-sm font-semibold text-white" style={{ background: 'var(--brand)' }}>
+              }} className="px-3 py-2 rounded-lg text-sm font-semibold text-white" style={{ background: 'var(--brand-fill)' }}>
                 Create purchase request
               </button>
               <button type="button" onClick={() => {

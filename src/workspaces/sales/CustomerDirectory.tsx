@@ -33,7 +33,7 @@ export default function CustomerDirectory() {
         <button
           onClick={() => setShowAdd(true)}
           className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white cursor-pointer hover:opacity-90 transition-opacity"
-          style={{ background: 'var(--brand)' }}
+          style={{ background: 'var(--brand-fill)' }}
         >
           <Plus size={15} />
           Add Customer
@@ -58,7 +58,7 @@ export default function CustomerDirectory() {
             key={s}
             onClick={() => setStatusFilter(s)}
             className={`px-3 py-1.5 rounded-lg text-xs font-semibold capitalize border transition-colors cursor-pointer ${statusFilter === s ? 'text-white border-transparent' : 'border-transparent bg-transparent'}`}
-            style={statusFilter === s ? { background: 'var(--brand)' } : { color: 'var(--text-2)' }}
+            style={statusFilter === s ? { background: 'var(--brand-fill)' } : { color: 'var(--text-2)' }}
           >
             {s === 'all' ? 'All' : s.charAt(0).toUpperCase() + s.slice(1)}
           </button>
@@ -197,7 +197,7 @@ function AddCustomerModal({ onClose, onSave, initialValues, editMode }: { onClos
         {err && <p className="text-xs text-[var(--danger)] mt-2">{err}</p>}
         <div className="flex gap-3 mt-5">
           <button onClick={onClose} className="flex-1 py-2.5 border border-[var(--border)] rounded-xl text-sm text-[var(--text-2)]">Cancel</button>
-          <button onClick={save} className="flex-1 py-2.5 bg-[var(--brand)] text-white rounded-xl text-sm font-medium">Save Customer</button>
+          <button onClick={save} className="flex-1 py-2.5 bg-[var(--brand-fill)] text-white rounded-xl text-sm font-medium">Save Customer</button>
         </div>
       </div>
     </div>

@@ -59,10 +59,10 @@ export default function CopilotPanel({ isDrawer, onClose }: Props) {
       : '0 16px 40px -8px rgba(112,72,245,0.45)',
     sparkleColor: isGraphite ? '#F59E0B' : isOcean ? '#22D3EE' : '#FCD34D',
 sendBtnBg: isGraphite
-      ? 'linear-gradient(135deg, #E58A36, #F59E0B)'
+      ? '#9A3412'
       : isOcean
-      ? 'linear-gradient(135deg, #087F8C, #0EA5A5)'
-      : 'linear-gradient(135deg, #7048F5, #A855F7)',
+      ? '#155E75'
+      : '#5B21B6',
     sendBtnShadow: isGraphite
       ? '0 4px 14px rgba(229,138,54,0.4)'
       : isOcean
@@ -164,31 +164,22 @@ sendBtnBg: isGraphite
         className="relative flex-shrink-0 overflow-hidden"
         style={{ height: 200, background: themeConfig.panelBg }}
       >
-        {/* All 3 hero images pre-rendered; opacity switch avoids flicker on theme change */}
-        {([
-          { theme: 'aurora', src: '/assets/copilot/hero_aurora.png', right: 0, mask: '38%' },
-          { theme: 'ocean',  src: '/assets/copilot/hero_ocean.png',  right: 0, mask: '46%' },
-          { theme: 'graphite', src: '/assets/copilot/hero_graphite.png', right: 14, mask: '28%' },
-        ] as const).map(({ theme, src, right, mask }) => (
-          <img
-            key={theme}
-            src={src}
-            alt=""
-            aria-hidden
-            style={{
-              position: 'absolute',
-              right,
-              top: 20,
-              height: '108%',
-              width: 'auto',
-              WebkitMaskImage: `linear-gradient(to right, transparent 0%, black ${mask})`,
-              maskImage: `linear-gradient(to right, transparent 0%, black ${mask})`,
-              opacity: eossTheme === theme ? 1 : 0,
-              transition: 'opacity 0.2s ease',
-              pointerEvents: 'none',
-            }}
-          />
-        ))}
+        {/* One robot, always. Swapping themed artwork flashes the mascot. */}
+        <img
+          src="/assets/copilot/hero_aurora.png"
+          alt=""
+          aria-hidden
+          style={{
+            position: 'absolute',
+            right: 0,
+            top: 20,
+            height: '108%',
+            width: 'auto',
+            WebkitMaskImage: 'linear-gradient(to right, transparent 0%, black 38%)',
+            maskImage: 'linear-gradient(to right, transparent 0%, black 38%)',
+            pointerEvents: 'none',
+          }}
+        />
 
         {/* Bottom fade into panel bg */}
         <div style={{
@@ -209,7 +200,7 @@ sendBtnBg: isGraphite
             <div className="flex items-center gap-1 font-extrabold text-white text-[13px] leading-none whitespace-nowrap">
               EOSS Copilot
               <span style={{ color: themeConfig.sparkleColor }} className="text-xs mx-0.5">✦</span>
-              <span className="text-[10px] text-white/60 font-normal">Your intelligent partner</span>
+              <span className="text-[10px] font-medium" style={{ color: '#F5F3FF' }}>Your intelligent partner</span>
             </div>
           </div>
 
@@ -314,18 +305,18 @@ sendBtnBg: isGraphite
                   )}
                 </div>
 
-                <span className="text-[10px] text-white/60 px-1">{msg.timestamp}</span>
+                <span className="text-[10px] px-1" style={{ color: '#F5F3FF' }}>{msg.timestamp}</span>
               </div>
             ))}
 
             {isTyping && (
-              <div className="flex items-center gap-2 text-xs text-white/80 p-2">
+              <div className="flex items-center gap-2 text-xs p-2" style={{ color: '#F5F3FF' }}>
                 <Bot size={14} className="animate-bounce" />
                 <span className="italic">EOSS Copilot is analyzing telemetry...</span>
               </div>
             )}
 
-            <div className="p-2 rounded-lg bg-white/10 text-[10px] text-white/70 text-center flex items-center justify-center gap-1.5">
+            <div className="p-2 rounded-lg bg-white/10 text-[10px] text-center flex items-center justify-center gap-1.5" style={{ color: '#F5F3FF' }}>
               <RefreshCw size={10} className="text-amber-300" />
               <span>Simulated AI telemetry · Human sign-off required for PO release</span>
             </div>
@@ -336,8 +327,8 @@ sendBtnBg: isGraphite
       </div>
 
       <div className="h-8 px-3 flex items-center gap-2 border-t border-white/10 bg-black/15 flex-shrink-0">
-        <span className="inline-flex items-center h-5 px-2 rounded-full bg-white/10 text-[10px] font-semibold leading-none text-white/80 whitespace-nowrap">Guardrails active</span>
-        <span className="text-[10px] leading-none text-white/55 truncate">Advisory only · Simulated · Nothing leaves this browser</span>
+        <span className="inline-flex items-center h-5 px-2 rounded-full bg-black/25 text-[10px] font-semibold leading-none whitespace-nowrap" style={{ color: '#F5F3FF' }}>Guardrails active</span>
+        <span className="text-[10px] leading-none truncate" style={{ color: '#F5F3FF' }}>Advisory only · Simulated · Nothing leaves this browser</span>
       </div>
 
       {/* ── Bottom composer ── */}
@@ -349,7 +340,7 @@ sendBtnBg: isGraphite
             onChange={e => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Ask a question..."
-            className="w-full bg-white text-gray-900 placeholder-gray-400 text-xs md:text-sm rounded-full py-2.5 pl-4 pr-11 focus:outline-none focus:ring-2 focus:ring-white/80"
+            className="copilot-ask w-full bg-white text-xs md:text-sm rounded-full py-2.5 pl-4 pr-11 focus:outline-none focus:ring-2 focus:ring-white/80"
             style={{
               color: '#1A1F36',
               boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.08)',

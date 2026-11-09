@@ -71,7 +71,7 @@ export default function Home() {
         <div className="min-w-0 xl:min-h-0 flex flex-col gap-3">
           <FinancialKpis />
           <OrderToDeliveryFlow />
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 xl:flex-1 xl:min-h-0">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 items-start">
             <OperationalAttentionCard />
             <div
               className="rounded-2xl border p-4 flex flex-col min-h-0"
@@ -81,7 +81,7 @@ export default function Home() {
               {quickActions.length === 0 ? (
                 <p className="text-sm text-[var(--text-2)]">No actions for this role.</p>
               ) : (
-                <div className="grid grid-cols-2 gap-2 xl:flex-1">
+                <div className="grid grid-cols-2 gap-2">
                   {quickActions.map(({ icon: Icon, label, path }) => (
                     <button
                       key={label}
@@ -112,7 +112,7 @@ export default function Home() {
           className="flex items-center gap-2.5 px-4 py-2.5 rounded-full text-white"
           style={{ background: copilotBtnBg, border: copilotBtnBorder, boxShadow: copilotBtnShadow }}
         >
-          <img src={`/assets/copilot/robot_${eossTheme}.png`} alt="" className="w-7 h-7 object-contain" />
+          <img src="/assets/copilot/robot_aurora.png" alt="" className="w-7 h-7 object-contain" />
           <span className="text-xs font-bold tracking-wide">Copilot</span>
           <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
         </button>

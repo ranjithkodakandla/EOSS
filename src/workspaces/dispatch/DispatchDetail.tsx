@@ -113,7 +113,7 @@ export default function DispatchDetail() {
               <h3 className="font-semibold text-sm text-[var(--text)] mb-3">Dispatch Actions</h3>
               <button
                 onClick={() => setDispatchStatus(dispatch.id, 'pending_docs')}
-                className="w-full py-2.5 bg-[var(--brand)] text-white rounded-lg text-sm font-medium"
+                className="w-full py-2.5 bg-[var(--brand-fill)] text-white rounded-lg text-sm font-medium"
               >
                 Prepare Documents
               </button>
@@ -127,7 +127,7 @@ export default function DispatchDetail() {
               <div className="space-y-2">
                 <button
                   onClick={() => setDispatchStatus(dispatch.id, 'dispatched')}
-                  className="w-full py-2.5 bg-[var(--brand)] text-white rounded-lg text-sm font-medium flex items-center justify-center gap-2"
+                  className="w-full py-2.5 bg-[var(--brand-fill)] text-white rounded-lg text-sm font-medium flex items-center justify-center gap-2"
                 >
                   <Truck size={14} /> Mark Dispatched
                 </button>

@@ -79,7 +79,7 @@ export default function NotificationDropdown() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-start justify-between gap-2">
                     <span className="text-sm font-medium text-[var(--text)] line-clamp-1">{n.title}</span>
-                    {!n.read && <span className="w-2 h-2 rounded-full bg-[var(--brand)] flex-shrink-0 mt-1" />}
+                    {!n.read && <span className="w-2 h-2 rounded-full bg-[var(--brand-fill)] flex-shrink-0 mt-1" />}
                   </div>
                   <p className="text-xs text-[var(--text-2)] line-clamp-2 mt-0.5">{n.body}</p>
                   <p className="text-[11px] text-[var(--text-3)] mt-1">{n.entityRef} • {new Date(n.timestamp).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</p>

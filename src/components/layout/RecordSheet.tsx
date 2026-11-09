@@ -66,7 +66,7 @@ export default function RecordSheet({ title, subtitle, onClose, children, primar
                 onClick={primary.onClick}
                 disabled={primary.disabled}
                 className="px-4 py-2 rounded-xl text-sm font-semibold text-white disabled:opacity-50"
-                style={{ background: 'var(--brand)' }}
+                style={{ background: 'var(--brand-fill)' }}
               >
                 {primary.label}
               </button>

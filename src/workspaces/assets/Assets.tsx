@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Plus, AlertTriangle, ChevronRight, Wrench, Search, X, Trash2 } from 'lucide-react';
 import { useStore } from '../../store';
@@ -19,8 +19,14 @@ export default function Assets() {
   const [focus, setFocus] = useState<'all' | 'breakdown' | 'overdue' | 'due'>(
     focusParam === 'breakdown' || focusParam === 'overdue' || focusParam === 'due' ? focusParam : 'all'
   );
-  const [showLogEvent, setShowLogEvent] = useState(false);
-  const [logAssetId, setLogAssetId] = useState<string | undefined>(undefined);
+  const logParam = searchParams.get('log');
+  const [showLogEvent, setShowLogEvent] = useState(!!logParam);
+  const [logAssetId, setLogAssetId] = useState<string | undefined>(logParam ?? undefined);
+  useEffect(() => {
+    if (!logParam) return;
+    setLogAssetId(logParam);
+    setShowLogEvent(true);
+  }, [logParam]);
   const [deletedAssetIds, setDeletedAssetIds] = useState<Set<string>>(new Set());
   const canManage = ['owner', 'maintenance', 'supervisor'].includes(currentUser.role);
 
@@ -88,7 +94,7 @@ export default function Assets() {
           </button>
         )}
         {canCreate && (
-          <button onClick={() => setShowLogEvent(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white" style={{ background: 'var(--brand)' }}>
+          <button onClick={() => setShowLogEvent(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white" style={{ background: 'var(--brand-fill)' }}>
             <Plus size={13} /> Log Event
           </button>
         )}
@@ -101,7 +107,7 @@ export default function Assets() {
             className="relative px-4 py-3 text-sm font-medium transition-colors whitespace-nowrap"
             style={{ color: tab === id ? 'var(--brand)' : 'var(--text-2)' }}>
             {label}
-            {tab === id && <span className="absolute bottom-0 left-0 right-0 h-0.5 rounded-t-full" style={{ background: 'var(--brand)' }} />}
+            {tab === id && <span className="absolute bottom-0 left-0 right-0 h-0.5 rounded-t-full" style={{ background: 'var(--brand-fill)' }} />}
           </button>
         ))}
       </div>
@@ -274,14 +280,14 @@ function AssetAction({ asset, events, onSchedule, onComplete }: {
   if (open) {
     return (
       <button type="button" onClick={e => { e.stopPropagation(); onComplete(open.id); }}
-        className="px-2 py-1 rounded-lg text-xs font-semibold text-white" style={{ background: 'var(--brand)' }}>
+        className="px-2 py-1 rounded-lg text-xs font-semibold text-white" style={{ background: 'var(--brand-fill)' }}>
         Complete
       </button>
     );
   }
   return (
     <button type="button" onClick={e => { e.stopPropagation(); onSchedule(asset.id); }}
-      className="px-2 py-1 rounded-lg text-xs font-semibold text-white" style={{ background: 'var(--brand)' }}>
+      className="px-2 py-1 rounded-lg text-xs font-semibold text-white" style={{ background: 'var(--brand-fill)' }}>
       Schedule
     </button>
   );
@@ -351,7 +357,7 @@ function LogEventModal({ assets, initialAssetId, onClose, onSave }: { assets: { 
         {err && <p className="text-xs text-[var(--danger)] mt-2">{err}</p>}
         <div className="flex gap-3 mt-5">
           <button onClick={onClose} className="flex-1 py-2.5 border border-[var(--border)] rounded-xl text-sm text-[var(--text-2)]">Cancel</button>
-          <button onClick={save} className="flex-1 py-2.5 bg-[var(--brand)] text-white rounded-xl text-sm font-medium">Log Event</button>
+          <button onClick={save} className="flex-1 py-2.5 bg-[var(--brand-fill)] text-white rounded-xl text-sm font-medium">Log Event</button>
         </div>
       </div>
     </div>

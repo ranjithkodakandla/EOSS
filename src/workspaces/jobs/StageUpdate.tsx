@@ -55,7 +55,7 @@ export default function StageUpdate() {
         <h2 className="text-xl font-bold text-[var(--text)] mb-2">Update Recorded</h2>
         <p className="text-sm text-[var(--text-2)] mb-6">Stage update for <strong>{stage.name}</strong> has been saved.</p>
         <div className="flex gap-3 justify-center">
-          <button onClick={() => navigate(`/jobs/${job.id}`)} className="px-4 py-2 bg-[var(--brand)] text-white rounded-lg text-sm font-medium">
+          <button onClick={() => navigate(`/jobs/${job.id}`)} className="px-4 py-2 bg-[var(--brand-fill)] text-white rounded-lg text-sm font-medium">
             Back to Job
           </button>
           <button onClick={() => { setSubmitted(false); setForm({ action: 'continue', completedGoodQty: 0, rejectedQty: 0, reworkQty: 0, scrapQty: 0, notes: '' }); }} className="px-4 py-2 border border-[var(--border)] rounded-lg text-sm text-[var(--text-2)]">
@@ -99,7 +99,7 @@ export default function StageUpdate() {
                 type="button"
                 onClick={() => setForm(f => ({ ...f, action: a }))}
                 className={`py-2 rounded-lg border text-sm font-medium capitalize transition-colors ${
-                  form.action === a ? 'bg-[var(--brand)] border-[var(--brand)] text-white' : 'border-[var(--border)] text-[var(--text-2)] hover:bg-[var(--surface-2)]'
+                  form.action === a ? 'bg-[var(--brand-fill)] border-[var(--brand)] text-white' : 'border-[var(--border)] text-[var(--text-2)] hover:bg-[var(--surface-2)]'
                 }`}
               >
                 {a}
@@ -143,7 +143,7 @@ export default function StageUpdate() {
           <button type="button" onClick={() => navigate(`/jobs/${job.id}`)} className="flex-1 py-2.5 border border-[var(--border)] rounded-lg text-sm text-[var(--text-2)]">
             Cancel
           </button>
-          <button type="submit" className="flex-1 py-2.5 bg-[var(--brand)] text-white rounded-lg text-sm font-semibold hover:bg-[var(--brand-700)]">
+          <button type="submit" className="flex-1 py-2.5 bg-[var(--brand-fill)] text-white rounded-lg text-sm font-semibold hover:bg-[var(--brand-700)]">
             Save Update
           </button>
         </div>

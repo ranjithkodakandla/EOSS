@@ -134,7 +134,7 @@ export default function InspectionDetail() {
               <div className="font-semibold text-sm text-[var(--text)] mb-3">Record Inspection Result</div>
               {!recording ? (
                 <button onClick={() => { setRecForm({ accepted: ins.sampleQty, rejected: 0, notes: '' }); setRecording(true); }}
-                  className="w-full py-2 rounded-lg text-sm font-medium text-white" style={{ background: 'var(--brand)' }}>
+                  className="w-full py-2 rounded-lg text-sm font-medium text-white" style={{ background: 'var(--brand-fill)' }}>
                   Record Result
                 </button>
               ) : (

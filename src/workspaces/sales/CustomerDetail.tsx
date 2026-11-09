@@ -74,7 +74,7 @@ export default function CustomerDetail() {
             className="relative px-4 py-3 text-sm font-medium transition-colors whitespace-nowrap"
             style={{ color: tab === t.key ? 'var(--brand)' : 'var(--text-2)' }}>
             {t.label}
-            {tab === t.key && <span className="absolute bottom-0 left-0 right-0 h-0.5 rounded-t-full" style={{ background: 'var(--brand)' }} />}
+            {tab === t.key && <span className="absolute bottom-0 left-0 right-0 h-0.5 rounded-t-full" style={{ background: 'var(--brand-fill)' }} />}
           </button>
         ))}
       </div>
@@ -170,7 +170,7 @@ export default function CustomerDetail() {
           <div className="max-w-2xl">
             <Card title="Primary Contact">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-white text-sm flex-shrink-0" style={{ background: 'var(--brand)' }}>
+                <div className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-white text-sm flex-shrink-0" style={{ background: 'var(--brand-fill)' }}>
                   {customer.contactPerson.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
                 </div>
                 <div>
@@ -190,7 +190,7 @@ export default function CustomerDetail() {
             <Card title="Documents">
               <p className="text-sm text-center py-6" style={{ color: 'var(--text-3)' }}>Customer documents are managed in the Document Vault.</p>
               <div className="text-center">
-                <button onClick={() => navigate('/documents')} className="px-4 py-2 rounded-lg text-sm font-semibold text-white" style={{ background: 'var(--brand)' }}>
+                <button onClick={() => navigate('/documents')} className="px-4 py-2 rounded-lg text-sm font-semibold text-white" style={{ background: 'var(--brand-fill)' }}>
                   Open Document Vault
                 </button>
               </div>

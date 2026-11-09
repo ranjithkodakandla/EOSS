@@ -136,7 +136,7 @@ export default function TopBar({ onOpenMenu }: { onOpenMenu?: () => void }) {
                         onClick={() => setTheme(mode)}
                         className={clsx(
                           'px-2 py-1.5 rounded-lg text-xs font-semibold capitalize',
-                          theme === mode ? 'bg-[var(--brand)] text-white' : 'text-[var(--text)] hover:bg-[var(--surface-2)]'
+                          theme === mode ? 'bg-[var(--brand-fill)] text-white' : 'text-[var(--text)] hover:bg-[var(--surface-2)]'
                         )}
                       >
                         {mode}
@@ -295,7 +295,7 @@ function ProfileModal({ currentUser, eossTheme, themes, onThemeChange, onClose, 
         </div>
         <div className="px-6 pb-5 flex gap-3">
           <button onClick={onClose} className="flex-1 py-2.5 border border-[var(--border)] rounded-xl text-sm text-[var(--text-2)]">Cancel</button>
-          <button onClick={onSave} className="flex-1 py-2.5 bg-[var(--brand)] text-white rounded-xl text-sm font-medium">Save Preferences</button>
+          <button onClick={onSave} className="flex-1 py-2.5 bg-[var(--brand-fill)] text-white rounded-xl text-sm font-medium">Save Preferences</button>
         </div>
       </div>
     </div>

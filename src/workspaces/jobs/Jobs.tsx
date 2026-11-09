@@ -124,7 +124,7 @@ export default function Jobs() {
         <div className="flex-1" />
         {(currentUser.role === 'owner' || currentUser.role === 'supervisor' || currentUser.role === 'sales') && (
           <button onClick={() => setShowNewJob(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white"
-            style={{ background: 'var(--brand)' }}>
+            style={{ background: 'var(--brand-fill)' }}>
             <Plus size={13} /> New Job
           </button>
         )}
@@ -187,7 +187,7 @@ export default function Jobs() {
                 <span className="text-[11px] text-[var(--text-3)]">{j.currentStage} · due {new Date(j.plannedEnd).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</span>
                 {guided && (
                   <button type="button" onClick={e => { e.stopPropagation(); navigate(jobNext(j).path); }}
-                    className="px-2.5 py-1 rounded-lg text-xs font-semibold text-white" style={{ background: 'var(--brand)' }}>
+                    className="px-2.5 py-1 rounded-lg text-xs font-semibold text-white" style={{ background: 'var(--brand-fill)' }}>
                     {jobNext(j).label}
                   </button>
                 )}
@@ -258,7 +258,7 @@ export default function Jobs() {
                     <div className="flex items-center gap-1">
                       {guided && (
                         <button type="button" onClick={() => navigate(jobNext(j).path)}
-                          className="px-2 py-1 rounded-lg text-xs font-semibold text-white" style={{ background: 'var(--brand)' }}>
+                          className="px-2 py-1 rounded-lg text-xs font-semibold text-white" style={{ background: 'var(--brand-fill)' }}>
                           {jobNext(j).label}
                         </button>
                       )}

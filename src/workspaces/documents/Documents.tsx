@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { FileText, Search, Plus, X, RefreshCw } from 'lucide-react';
 import { useStore } from '../../store';
@@ -48,6 +48,16 @@ export default function Documents() {
     });
   };
 
+  const renewParam = searchParams.get('renew');
+  const renewed = useRef<string | null>(null);
+  useEffect(() => {
+    if (!renewParam || renewed.current === renewParam) return;
+    renewed.current = renewParam;
+    handleRenew(renewParam);
+    // Renew once when Home asks for this certificate.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [renewParam]);
+
   return (
     <div className="flex flex-col h-full">
       {/* Toolbar */}
@@ -95,7 +105,7 @@ export default function Documents() {
           </button>
         )}
         {['owner', 'buyer', 'qc'].includes(currentUser.role) && (
-          <button onClick={() => setShowUpload(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white" style={{ background: 'var(--brand)' }}>
+          <button onClick={() => setShowUpload(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white" style={{ background: 'var(--brand-fill)' }}>
             <Plus size={13} /> Upload
           </button>
         )}
@@ -208,7 +218,7 @@ function UploadModal({ currentUser, onClose, onSave }: { currentUser: { name: st
         {err && <p className="text-xs text-[var(--danger)] mt-2">{err}</p>}
         <div className="flex gap-3 mt-5">
           <button onClick={onClose} className="flex-1 py-2.5 border border-[var(--border)] rounded-xl text-sm text-[var(--text-2)]">Cancel</button>
-          <button onClick={save} className="flex-1 py-2.5 bg-[var(--brand)] text-white rounded-xl text-sm font-medium">Upload</button>
+          <button onClick={save} className="flex-1 py-2.5 bg-[var(--brand-fill)] text-white rounded-xl text-sm font-medium">Upload</button>
         </div>
       </div>
     </div>

@@ -1,103 +1,135 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../../store';
+import RecordSheet from '../layout/RecordSheet';
 import {
-  shortageItems, jobsShortOfMaterial, jobsAtRisk, jobsBlocked,
-  openInspections, maintenanceOverdue, maintenanceDueSoon, documentsDue, DEMO_DATE,
-} from '../../domain/recordLists';
+  buildAttentionItems, dismissAttention, isAttentionHidden, snoozeAttention,
+  type AttentionItem,
+} from '../../domain/attentionItems';
+import { DEMO_DATE } from '../../domain/recordLists';
 
-type Tone = 'critical' | 'watch' | 'calm';
+const PREVIEW = 4;
 
-interface Item {
-  id: string;
-  label: string;
-  short: string;
-  value: number;
-  path: string;
-  tone: Tone;
-  group: string;
-}
-
-const TONE = {
-  critical: { color: 'var(--error, #DC2626)', wash: 'rgba(220, 38, 38, 0.08)', bar: '#DC2626' },
-  watch: { color: 'var(--warning, #D97706)', wash: 'rgba(217, 119, 6, 0.1)', bar: '#D97706' },
-  calm: { color: 'var(--text-2)', wash: 'var(--surface-2)', bar: 'var(--border)' },
+const DOT = {
+  critical: 'var(--error, #DC2626)',
+  watch: 'var(--warning, #D97706)',
 };
 
-export default function OperationalAttentionCard() {
+function Row({ item, onHide }: { item: AttentionItem; onHide: () => void }) {
   const navigate = useNavigate();
-  const { jobs, inventory, assets, meterReadings, inspections, documents } = useStore();
+  return (
+    <div className="flex items-center gap-2 py-1.5 min-w-0">
+      <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: DOT[item.severity] }} />
+      <button
+        type="button"
+        onClick={() => navigate(item.recordPath)}
+        className="min-w-0 flex-1 text-left"
+      >
+        <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-3)]">{item.stage}</span>
+        <span className="block text-[13px] font-medium text-[var(--text)] leading-snug truncate">{item.text}</span>
+      </button>
+      <button
+        type="button"
+        onClick={() => navigate(item.actionPath)}
+        className="flex-shrink-0 px-2.5 py-1 rounded-lg text-xs font-semibold text-white"
+        style={{ background: 'var(--brand-fill)' }}
+      >
+        {item.actionLabel}
+      </button>
+      <button
+        type="button"
+        onClick={onHide}
+        className="flex-shrink-0 text-[10px] font-medium text-[var(--text-3)] hover:text-[var(--text)]"
+        title="Hide until tomorrow"
+      >
+        Later
+      </button>
+    </div>
+  );
+}
+
+export default function OperationalAttentionCard() {
+  const store = useStore();
   const now = DEMO_DATE();
+  const [hiddenTick, setHiddenTick] = useState(0);
+  const [showAll, setShowAll] = useState(false);
 
-  const items: Item[] = [
-    { id: 'blocked', group: 'Floor', label: 'Blocked jobs', short: 'Blocked', value: jobsBlocked(jobs, now).length, path: '/jobs?risk=blocked', tone: 'critical' },
-    { id: 'overdue', group: 'Machines', label: 'Overdue maintenance', short: 'Overdue', value: maintenanceOverdue(assets, meterReadings, now).length, path: '/assets?focus=overdue', tone: 'critical' },
-    { id: 'short', group: 'Material', label: 'Material shortages', short: 'Shortages', value: shortageItems(inventory).length, path: '/inventory?focus=shortage', tone: 'critical' },
-    { id: 'jobs-short', group: 'Material', label: 'Jobs short of material', short: 'Jobs short', value: jobsShortOfMaterial(jobs).length, path: '/jobs?focus=shortage', tone: 'critical' },
-    { id: 'risk', group: 'Floor', label: 'Jobs at risk', short: 'At risk', value: jobsAtRisk(jobs, now).length, path: '/jobs?risk=watch', tone: 'watch' },
-    { id: 'inspect', group: 'Release', label: 'Open inspections', short: 'Inspections', value: openInspections(inspections).length, path: '/quality?result=open', tone: 'watch' },
-    { id: 'docs', group: 'Release', label: 'Documents due', short: 'Documents', value: documentsDue(documents, now).length, path: '/documents?attention=due', tone: 'watch' },
-    { id: 'due', group: 'Machines', label: 'Maintenance due', short: 'Due soon', value: maintenanceDueSoon(assets, meterReadings, now).length, path: '/assets?focus=due', tone: 'watch' },
-  ];
+  const items = buildAttentionItems({
+    jobs: store.jobs,
+    jobBlockers: store.jobBlockers,
+    jobMaterialReqs: store.jobMaterialReqs,
+    inventory: store.inventory,
+    materials: store.materials,
+    assets: store.assets,
+    meterReadings: store.meterReadings,
+    maintenanceEvents: store.maintenanceEvents,
+    inspections: store.inspections,
+    ncrs: store.ncrs,
+    documents: store.documents,
+    qualityReleases: store.qualityReleases,
+    dispatches: store.dispatches,
+  }, now).filter(item => !isAttentionHidden(item.id, now));
+  void hiddenTick;
 
-  const open = items.filter(i => i.value > 0);
-  const urgent = open[0];
-  const groups = ['Material', 'Machines', 'Floor', 'Release'];
+  const hide = (id: string) => {
+    snoozeAttention(id, now);
+    setHiddenTick(n => n + 1);
+  };
+  const done = (id: string) => {
+    dismissAttention(id);
+    setHiddenTick(n => n + 1);
+  };
+
+  const preview = items.slice(0, PREVIEW);
 
   return (
     <div
-      className="p-3 rounded-2xl border h-full flex flex-col min-h-0"
+      className="p-3 rounded-2xl border flex flex-col"
       style={{ background: 'var(--card-gradient, var(--surface))', borderColor: 'var(--border)' }}
     >
-      <div className="flex items-baseline justify-between gap-2 mb-2 shrink-0">
-        <h3 className="text-base font-bold text-[var(--text)] tracking-tight">Needs attention</h3>
-        <span className="text-[11px] font-semibold text-[var(--text-3)]">{open.length === 0 ? 'Clear' : `${open.reduce((s, i) => s + i.value, 0)} items`}</span>
+      <div className="flex items-baseline justify-between gap-2 mb-1">
+        <h3 className="text-sm font-bold text-[var(--text)] tracking-tight">Needs attention</h3>
+        {items.length > PREVIEW && (
+          <button type="button" onClick={() => setShowAll(true)} className="text-[11px] font-semibold text-[var(--text-3)] hover:text-[var(--brand)]">
+            View all {items.length}
+          </button>
+        )}
       </div>
 
-      {open.length === 0 ? (
-        <p className="text-sm text-[var(--text-2)]">Nothing is waiting on you right now.</p>
+      {items.length === 0 ? (
+        <p className="text-sm text-[var(--text-2)] py-2">Nothing is waiting on you right now.</p>
       ) : (
-        <>
-          {urgent && (
-            <button
-              type="button"
-              onClick={() => navigate(urgent.path)}
-              className="w-full text-left rounded-xl px-3 py-2 mb-2 shrink-0 flex items-center gap-3"
-              style={{ background: TONE[urgent.tone].wash, boxShadow: `inset 3px 0 0 ${TONE[urgent.tone].bar}` }}
-            >
-              <div className="min-w-0 flex-1">
-                <div className="text-[10px] font-bold uppercase tracking-wider" style={{ color: TONE[urgent.tone].color }}>
-                  Most urgent · {urgent.group}
+        <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
+          {preview.map(item => (
+            <Row key={item.id} item={item} onHide={() => hide(item.id)} />
+          ))}
+        </div>
+      )}
+
+      {showAll && (
+        <RecordSheet
+          title="Needs attention"
+          subtitle={`${items.length} record${items.length === 1 ? '' : 's'} waiting on a next step`}
+          onClose={() => setShowAll(false)}
+          width="lg"
+        >
+          <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
+            {items.map(item => (
+              <div key={item.id} className="flex items-start gap-1">
+                <div className="flex-1 min-w-0">
+                  <Row item={item} onHide={() => hide(item.id)} />
                 </div>
-                <div className="text-sm font-semibold text-[var(--text)] truncate">{urgent.label}</div>
+                <button
+                  type="button"
+                  onClick={() => done(item.id)}
+                  className="mt-3 text-[10px] font-medium text-[var(--text-3)] hover:text-[var(--text)]"
+                >
+                  Done
+                </button>
               </div>
-              <div className="text-xl font-extrabold tabular-nums leading-none" style={{ color: TONE[urgent.tone].color }}>{urgent.value}</div>
-            </button>
-          )}
-          <div className="grid grid-cols-2 gap-1.5 flex-1 min-h-0 content-start">
-            {groups.map(group => {
-              const rows = items.filter(i => i.group === group);
-              return (
-                <div key={group} className="rounded-xl border px-2.5 py-1.5 min-w-0" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
-                  <div className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-3)] mb-0.5">{group}</div>
-                  {rows.map(item => (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => item.value > 0 && navigate(item.path)}
-                      disabled={item.value === 0}
-                      className="w-full flex items-center gap-1.5 py-0.5 text-left disabled:opacity-40"
-                    >
-                      <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: item.value > 0 ? TONE[item.tone].bar : 'var(--border)' }} />
-                      <span className="flex-1 text-[12px] text-[var(--text)] truncate">{item.short}</span>
-                      <span className="text-xs font-bold tabular-nums" style={{ color: item.value > 0 ? TONE[item.tone].color : 'var(--text-3)' }}>{item.value}</span>
-                    </button>
-                  ))}
-                </div>
-              );
-            })}
+            ))}
           </div>
-        </>
+        </RecordSheet>
       )}
     </div>
   );

@@ -123,7 +123,7 @@ export default function QuotationDetail() {
               </button>
             )}
             {canConvert && (
-              <button onClick={() => setConfirming('convert')} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white" style={{ background: 'var(--brand)' }}>
+              <button onClick={() => setConfirming('convert')} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white" style={{ background: 'var(--brand-fill)' }}>
                 <FileText size={14} /> Convert to Customer PO
               </button>
             )}

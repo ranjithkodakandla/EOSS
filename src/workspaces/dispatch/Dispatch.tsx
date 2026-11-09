@@ -127,7 +127,7 @@ export default function DispatchWorkspace() {
         {pendingDocs > 0 && <button type="button" onClick={() => setStatusFocus(statusFocus === 'pending_docs' ? null : 'pending_docs')} className="px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ background: 'var(--warning-bg,#FFFBEB)', color: 'var(--warning,#D97706)' }}>{pendingDocs} pending docs</button>}
         {dispatched > 0 && <button type="button" onClick={() => setStatusFocus(statusFocus === 'dispatched' ? null : 'dispatched')} className="px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ background: 'var(--info-bg,#EFF6FF)', color: 'var(--info,#2563EB)' }}>{dispatched} in transit</button>}
         {['owner', 'dispatch'].includes(currentUser.role) && (
-          <button onClick={() => setShowModal(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white" style={{ background: 'var(--brand)' }}>
+          <button onClick={() => setShowModal(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white" style={{ background: 'var(--brand-fill)' }}>
             <Plus size={13} /> New Dispatch
           </button>
         )}
@@ -272,7 +272,7 @@ export default function DispatchWorkspace() {
               <button
                 disabled={!form.customerId || !form.dispatchDate || (!!eligibility && !eligibility.eligible)}
                 onClick={handleCreate}
-                className="flex-1 py-2 bg-[var(--brand)] text-white rounded-lg text-sm font-medium disabled:opacity-50"
+                className="flex-1 py-2 bg-[var(--brand-fill)] text-white rounded-lg text-sm font-medium disabled:opacity-50"
               >
                 Create Dispatch
               </button>
@@ -327,7 +327,7 @@ function PodModal({ onClose, onSave }: { onClose: () => void; onSave: () => void
         </div>
         <div className="flex gap-3 mt-5">
           <button onClick={onClose} className="flex-1 py-2.5 border border-[var(--border)] rounded-xl text-sm text-[var(--text-2)]">Cancel</button>
-          <button onClick={() => { if (!form.receivedBy) return; onSave(); }} className="flex-1 py-2.5 bg-[var(--brand)] text-white rounded-xl text-sm font-medium">Confirm PoD</button>
+          <button onClick={() => { if (!form.receivedBy) return; onSave(); }} className="flex-1 py-2.5 bg-[var(--brand-fill)] text-white rounded-xl text-sm font-medium">Confirm PoD</button>
         </div>
       </div>
     </div>

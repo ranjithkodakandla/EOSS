@@ -104,20 +104,20 @@ export default function Procurement() {
         {canCreate && tab === 'pr' && (
           <button onClick={() => navigate('/procurement/pr/new')}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white"
-            style={{ background: 'var(--brand)' }}>
+            style={{ background: 'var(--brand-fill)' }}>
             <Plus size={13} /> New PR
           </button>
         )}
         {canCreate && tab === 'quotes' && (
           <button onClick={() => navigate('/procurement/supplier-rfq/new')}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white"
-            style={{ background: 'var(--brand)' }}>
+            style={{ background: 'var(--brand-fill)' }}>
             <Send size={13} /> Send enquiry
           </button>
         )}
         {canCreate && tab === 'spo' && (
           <button onClick={() => setShowNewPO(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white"
-            style={{ background: 'var(--brand)' }}>
+            style={{ background: 'var(--brand-fill)' }}>
             <Plus size={13} /> New PO
           </button>
         )}
@@ -131,7 +131,7 @@ export default function Procurement() {
             className="relative px-4 py-3 text-sm font-medium transition-colors whitespace-nowrap"
             style={{ color: tab === t.id ? 'var(--brand)' : 'var(--text-2)' }}>
             {t.label}
-            {tab === t.id && <span className="absolute bottom-0 left-0 right-0 h-0.5 rounded-t-full" style={{ background: 'var(--brand)' }} />}
+            {tab === t.id && <span className="absolute bottom-0 left-0 right-0 h-0.5 rounded-t-full" style={{ background: 'var(--brand-fill)' }} />}
           </button>
         ))}
       </div>
@@ -437,7 +437,7 @@ function EditSPOForm({ spo, onSave, onCancel }: { spo: SupplierPO; onSave: (p: P
       <div><label className="text-xs text-[var(--text-3)] block mb-1">PO Number</label><input value={form.poNumber} onChange={e => setForm(f => ({ ...f, poNumber: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--surface)] text-sm text-[var(--text)]" /></div>
       <div><label className="text-xs text-[var(--text-3)] block mb-1">Payment Terms</label><input value={form.paymentTerms} onChange={e => setForm(f => ({ ...f, paymentTerms: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--surface)] text-sm text-[var(--text)]" /></div>
       <div><label className="text-xs text-[var(--text-3)] block mb-1">Total Value (₹)</label><input type="number" value={form.totalValue} onChange={e => setForm(f => ({ ...f, totalValue: Number(e.target.value) }))} className="w-full px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--surface)] text-sm text-[var(--text)]" /></div>
-      <div className="flex gap-2 mt-4"><button onClick={onCancel} className="flex-1 py-2 border border-[var(--border)] text-[var(--text)] rounded-lg text-sm">Cancel</button><button onClick={() => onSave(form)} className="flex-1 py-2 bg-[var(--brand)] text-white rounded-lg text-sm font-medium">Save</button></div>
+      <div className="flex gap-2 mt-4"><button onClick={onCancel} className="flex-1 py-2 border border-[var(--border)] text-[var(--text)] rounded-lg text-sm">Cancel</button><button onClick={() => onSave(form)} className="flex-1 py-2 bg-[var(--brand-fill)] text-white rounded-lg text-sm font-medium">Save</button></div>
     </div>
   );
 }
@@ -580,7 +580,7 @@ function ReceiveStockModal({ poId, pos, lines, receivedBy, onClose, onSave }: {
         </div>
         <div className="flex gap-3 mt-5">
           <button onClick={onClose} className="flex-1 py-2.5 border border-[var(--border)] rounded-xl text-sm text-[var(--text-2)]">Cancel</button>
-          <button disabled={!challan || !po} onClick={save} className="flex-1 py-2.5 bg-[var(--brand)] text-white rounded-xl text-sm font-medium disabled:opacity-50">Record GRN</button>
+          <button disabled={!challan || !po} onClick={save} className="flex-1 py-2.5 bg-[var(--brand-fill)] text-white rounded-xl text-sm font-medium disabled:opacity-50">Record GRN</button>
         </div>
       </div>
     </div>
@@ -646,7 +646,7 @@ function NewSupplierPOModal({ onClose, onSave }: { onClose: () => void; onSave: 
         {err && <p className="text-xs text-[var(--danger)] mt-2">{err}</p>}
         <div className="flex gap-3 mt-5">
           <button onClick={onClose} className="flex-1 py-2.5 border border-[var(--border)] rounded-xl text-sm text-[var(--text-2)]">Cancel</button>
-          <button onClick={save} className="flex-1 py-2.5 bg-[var(--brand)] text-white rounded-xl text-sm font-medium">Create PO</button>
+          <button onClick={save} className="flex-1 py-2.5 bg-[var(--brand-fill)] text-white rounded-xl text-sm font-medium">Create PO</button>
         </div>
       </div>
     </div>

@@ -188,7 +188,7 @@ export default function Inventory() {
           <button
             onClick={openAddMaterial}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white"
-            style={{ background: 'var(--brand)' }}
+            style={{ background: 'var(--brand-fill)' }}
           >
             <Plus size={13} /> Add Material
           </button>
@@ -297,7 +297,7 @@ export default function Inventory() {
               {item.shortage && (
                 <div className="mt-2 flex gap-2">
                   <button type="button" onClick={e => { e.stopPropagation(); raisePr(item); }}
-                    className="px-2.5 py-1 rounded-lg text-xs font-semibold text-white" style={{ background: 'var(--brand)' }}>
+                    className="px-2.5 py-1 rounded-lg text-xs font-semibold text-white" style={{ background: 'var(--brand-fill)' }}>
                     Raise PR
                   </button>
                   <MoveStockButton item={item} inventory={inventory} navigate={navigate} />
@@ -403,7 +403,7 @@ export default function Inventory() {
                         )}
                         {item.shortage && (
                           <>
-                            <button type="button" onClick={() => raisePr(item)} className="px-2 py-1 rounded-lg text-xs font-semibold text-white" style={{ background: 'var(--brand)' }}>
+                            <button type="button" onClick={() => raisePr(item)} className="px-2 py-1 rounded-lg text-xs font-semibold text-white" style={{ background: 'var(--brand-fill)' }}>
                               Raise PR
                             </button>
                             <MoveStockButton item={item} inventory={inventory} navigate={navigate} />

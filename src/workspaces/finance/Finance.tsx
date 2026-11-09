@@ -96,7 +96,7 @@ export default function Finance() {
           <div className="flex gap-2">
             <button
               onClick={() => setShowAddInvoice(true)}
-              className="flex items-center gap-2 px-3.5 py-2 bg-[var(--brand)] text-white rounded-xl text-sm font-medium hover:opacity-90 transition-opacity"
+              className="flex items-center gap-2 px-3.5 py-2 bg-[var(--brand-fill)] text-white rounded-xl text-sm font-medium hover:opacity-90 transition-opacity"
             >
               <Plus size={15} /> Add Invoice
             </button>
@@ -400,7 +400,7 @@ function MoneyModal({ title, onClose, onSave }: { title: string; onClose: () => 
         <div className="flex gap-2 mt-4">
           <button type="button" onClick={onClose} className="flex-1 py-2 border border-[var(--border)] rounded-lg">Cancel</button>
           <button type="button" onClick={() => party && onSave(party.id, party.tradingName, Number(amount) || 0, date)}
-            className="flex-1 py-2 rounded-lg text-white font-semibold" style={{ background: 'var(--brand)' }}>Save</button>
+            className="flex-1 py-2 rounded-lg text-white font-semibold" style={{ background: 'var(--brand-fill)' }}>Save</button>
         </div>
       </div>
     </div>

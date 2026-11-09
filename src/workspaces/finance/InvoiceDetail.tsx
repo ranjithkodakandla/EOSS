@@ -49,7 +49,7 @@ export default function InvoiceDetail() {
             <button
               onClick={() => navigate(`/finance/payment/new?invoiceId=${invoice.id}`)}
               className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white"
-              style={{ background: 'var(--brand)' }}
+              style={{ background: 'var(--brand-fill)' }}
             >
               <CreditCard size={15} /> Record Payment
             </button>

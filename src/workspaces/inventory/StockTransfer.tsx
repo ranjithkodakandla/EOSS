@@ -145,7 +145,7 @@ export default function StockTransfer() {
             type="submit"
             disabled={submitted || !selectedLot || !toLocation}
             className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white cursor-pointer hover:opacity-90 transition disabled:opacity-40"
-            style={{ background: 'var(--brand)' }}
+            style={{ background: 'var(--brand-fill)' }}
           >
             {submitted ? <CheckCircle size={14} /> : <Layers size={14} />}
             {submitted ? 'Transferred' : 'Confirm Transfer'}

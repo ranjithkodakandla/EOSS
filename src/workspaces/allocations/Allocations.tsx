@@ -62,7 +62,7 @@ export default function Allocations() {
                 <div className="flex flex-wrap gap-2">
                   {gap > 0 && (
                     <button type="button" onClick={() => reserve(req.id, gap, source?.availableQty || gap)}
-                      className="px-3 py-1.5 rounded-lg text-sm font-semibold text-white" style={{ background: 'var(--brand)' }}>
+                      className="px-3 py-1.5 rounded-lg text-sm font-semibold text-white" style={{ background: 'var(--brand-fill)' }}>
                       Reserve
                     </button>
                   )}

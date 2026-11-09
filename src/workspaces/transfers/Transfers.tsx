@@ -98,7 +98,7 @@ export default function Transfers() {
           <p className="text-sm text-[var(--text-2)]">Open moves first. Receive when the material arrives.</p>
         </div>
         {canCreate && (
-          <button type="button" onClick={() => setOpen(true)} className="px-3 py-2 rounded-lg text-sm font-semibold text-white" style={{ background: 'var(--brand)' }}>
+          <button type="button" onClick={() => setOpen(true)} className="px-3 py-2 rounded-lg text-sm font-semibold text-white" style={{ background: 'var(--brand-fill)' }}>
             New move
           </button>
         )}
@@ -120,7 +120,7 @@ export default function Transfers() {
                 </button>
               )}
               {t.status !== 'received' && canCreate && (
-                <button type="button" onClick={() => receive(t.id)} className="px-3 py-1.5 rounded-lg text-sm font-semibold text-white" style={{ background: 'var(--brand)' }}>
+                <button type="button" onClick={() => receive(t.id)} className="px-3 py-1.5 rounded-lg text-sm font-semibold text-white" style={{ background: 'var(--brand-fill)' }}>
                   Receive
                 </button>
               )}
@@ -163,7 +163,7 @@ export default function Transfers() {
             </div>
             <div className="flex gap-2 mt-4">
               <button type="button" onClick={() => setOpen(false)} className="flex-1 py-2 border border-[var(--border)] rounded-lg text-sm">Cancel</button>
-              <button type="button" onClick={create} className="flex-1 py-2 rounded-lg text-sm font-semibold text-white" style={{ background: 'var(--brand)' }}>Create move</button>
+              <button type="button" onClick={create} className="flex-1 py-2 rounded-lg text-sm font-semibold text-white" style={{ background: 'var(--brand-fill)' }}>Create move</button>
             </div>
           </div>
         </div>

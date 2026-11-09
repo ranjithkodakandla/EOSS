@@ -73,7 +73,7 @@ export default function Quality() {
               style={{ borderColor: 'var(--error,#DC2626)', color: 'var(--error,#DC2626)' }}>
               <Plus size={12} className="inline -mt-0.5 mr-0.5" /> New NCR
             </button>
-            <button onClick={() => setShowNew(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white" style={{ background: 'var(--brand)' }}>
+            <button onClick={() => setShowNew(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white" style={{ background: 'var(--brand-fill)' }}>
               <Plus size={13} /> New Inspection
             </button>
           </>
@@ -87,7 +87,7 @@ export default function Quality() {
             className="relative px-4 py-3 text-sm font-medium transition-colors whitespace-nowrap"
             style={{ color: tab === id ? 'var(--brand)' : 'var(--text-2)' }}>
             {label}
-            {tab === id && <span className="absolute bottom-0 left-0 right-0 h-0.5 rounded-t-full" style={{ background: 'var(--brand)' }} />}
+            {tab === id && <span className="absolute bottom-0 left-0 right-0 h-0.5 rounded-t-full" style={{ background: 'var(--brand-fill)' }} />}
           </button>
         ))}
       </div>
@@ -147,7 +147,7 @@ export default function Quality() {
                     <div className="flex items-center gap-1">
                       {(i.result === 'pending' || i.result === 'fail') && (
                         <button type="button" onClick={() => navigate(i.result === 'pending' ? `/quality/inspection/${i.id}?record=1` : `/quality/inspection/${i.id}`)}
-                          className="px-2 py-1 rounded-lg text-xs font-semibold text-white" style={{ background: 'var(--brand)' }}>
+                          className="px-2 py-1 rounded-lg text-xs font-semibold text-white" style={{ background: 'var(--brand-fill)' }}>
                           {i.result === 'pending' ? 'Record' : 'Raise NCR'}
                         </button>
                       )}
@@ -310,7 +310,7 @@ function NewInspectionModal({ onClose, onSave, prefilledJobId, jobs }: {
         {err && <p className="text-xs text-red-500 mt-2">{err}</p>}
         <div className="flex gap-3 mt-5">
           <button onClick={onClose} className="flex-1 py-2.5 border border-[var(--border)] rounded-xl text-sm text-[var(--text-2)]">Cancel</button>
-          <button onClick={save} className="flex-1 py-2.5 bg-[var(--brand)] text-white rounded-xl text-sm font-medium">Create</button>
+          <button onClick={save} className="flex-1 py-2.5 bg-[var(--brand-fill)] text-white rounded-xl text-sm font-medium">Create</button>
         </div>
       </div>
     </div>

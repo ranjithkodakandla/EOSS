@@ -114,7 +114,7 @@ export default function PRDetail() {
             {pr.status === 'approved' && canApprove && !linkedSpo && (
               <button onClick={() => setConfirming('convert')}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white"
-                style={{ background: 'var(--brand)' }}>
+                style={{ background: 'var(--brand-fill)' }}>
                 <ChevronRight size={13} /> Convert to SPO
               </button>
             )}
@@ -233,7 +233,7 @@ export default function PRDetail() {
             <p className="text-xs text-[var(--text-3)] mb-5">Lines: {lines.length} · Est. value: {fmtMoney(totalEstValue)}</p>
             <div className="flex gap-3">
               <button onClick={() => setConfirming(null)} className="flex-1 py-2 border border-[var(--border)] text-[var(--text)] rounded-lg text-sm">Cancel</button>
-              <button onClick={handleConvert} className="flex-1 py-2 text-white rounded-lg text-sm font-semibold" style={{ background: 'var(--brand)' }}>Create SPO</button>
+              <button onClick={handleConvert} className="flex-1 py-2 text-white rounded-lg text-sm font-semibold" style={{ background: 'var(--brand-fill)' }}>Create SPO</button>
             </div>
           </div>
         </div>

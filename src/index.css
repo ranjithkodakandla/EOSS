@@ -57,12 +57,13 @@
   --text-2: #626A84;
   --text-3: #8C94A8;
   --brand: #7048F5;
+  --brand-fill: #5B21B6;
   --sidebar-bg: #191A4A;
   --sidebar-border: rgba(255, 255, 255, 0.08);
   --sidebar-text: rgba(255, 255, 255, 0.65);
   --sidebar-text-active: #FFFFFF;
   --sidebar-text-hover: #FFFFFF;
-  --sidebar-active-bg: linear-gradient(135deg, #7048F5, #A855F7);
+  --sidebar-active-bg: linear-gradient(135deg, #4C1D95, #5B21B6);
 }
 
 /* Theme B — Ocean Teal */
@@ -94,12 +95,13 @@
   --text-2: #557174;
   --text-3: #879EA1;
   --brand: #087F8C;
+  --brand-fill: #155E75;
   --sidebar-bg: #102D3A;
   --sidebar-border: rgba(255, 255, 255, 0.08);
   --sidebar-text: rgba(255, 255, 255, 0.65);
   --sidebar-text-active: #FFFFFF;
   --sidebar-text-hover: #FFFFFF;
-  --sidebar-active-bg: linear-gradient(135deg, #087F8C, #0EA5A5);
+  --sidebar-active-bg: linear-gradient(135deg, #0F4C5C, #155E75);
 }
 
 /* Theme C — Graphite Amber */
@@ -131,12 +133,13 @@
   --text-2: #667085;
   --text-3: #9CA3AF;
   --brand: #E58A36;
+  --brand-fill: #9A3412;
   --sidebar-bg: #1F222B;
   --sidebar-border: rgba(255, 255, 255, 0.08);
   --sidebar-text: rgba(255, 255, 255, 0.65);
   --sidebar-text-active: #FFFFFF;
   --sidebar-text-hover: #FFFFFF;
-  --sidebar-active-bg: linear-gradient(135deg, #E58A36, #F59E0B);
+  --sidebar-active-bg: linear-gradient(135deg, #7C2D12, #9A3412);
 }
 
 /* ── EOSS Design Tokens v3 — Dark-first Industrial Intelligence Platform ── */
@@ -692,6 +695,7 @@ select.eoss-input { cursor: pointer; }
 html.theme-aurora[data-theme="light"] {
   --brand: #7048F5;
   --brand-secondary: #A855F7;
+  --brand-fill: #5B21B6;
   --bg: #F7F6FE;
   --app-bg: #F7F6FE;
   --surface: #FFFFFF;
@@ -709,6 +713,7 @@ html.theme-aurora[data-theme="light"] {
 html.theme-ocean[data-theme="light"] {
   --brand: #087F8C;
   --brand-secondary: #0EA5A5;
+  --brand-fill: #155E75;
   --bg: #F2F9F9;
   --app-bg: #F2F9F9;
   --surface: #FFFFFF;
@@ -724,6 +729,7 @@ html.theme-ocean[data-theme="light"] {
 html.theme-graphite[data-theme="light"] {
   --brand: #E58A36;
   --brand-secondary: #F59E0B;
+  --brand-fill: #9A3412;
   --bg: #FAF8F5;
   --app-bg: #FAF8F5;
   --surface: #FFFFFF;
@@ -761,6 +767,8 @@ html[data-theme="dark"].theme-graphite {
 html[data-theme="dark"].theme-aurora:not(.theme-ocean) { --brand: #A78BFA; --brand-secondary: #C084FC; }
 html[data-theme="dark"].theme-ocean { --brand: #2DD4BF; --brand-secondary: #14B8A6; }
 html[data-theme="dark"].theme-graphite { --brand: #F59E0B; --brand-secondary: #FBBF24; }
+
+.copilot-ask::placeholder { color: #3F3F46; opacity: 1; }
 
 html.theme-switching, html.theme-switching *, html.theme-switching *::before, html.theme-switching *::after {
   transition: none !important;

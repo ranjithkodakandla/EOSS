@@ -39,7 +39,7 @@ export default function AuditTimeline() {
             key={s}
             onClick={() => setScopeFilter(s)}
             className={`px-3 py-1 rounded-lg text-xs font-semibold cursor-pointer transition ${scopeFilter === s ? 'text-white' : 'border'}`}
-            style={scopeFilter === s ? { background: 'var(--brand)' } : { borderColor: 'var(--border)', color: 'var(--text-2)' }}
+            style={scopeFilter === s ? { background: 'var(--brand-fill)' } : { borderColor: 'var(--border)', color: 'var(--text-2)' }}
           >
             {s === 'all' ? 'All' : s}
           </button>
