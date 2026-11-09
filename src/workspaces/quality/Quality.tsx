@@ -34,7 +34,13 @@ export default function Quality() {
     showToast({ type: 'success', title: 'NCR removed' });
   };
 
-  const visibleInspections = inspections.filter(i => !deletedInspectionIds.has(i.id));
+  const resultFilter = searchParams.get('result');
+  const visibleInspections = inspections.filter(i => {
+    if (deletedInspectionIds.has(i.id)) return false;
+    if (resultFilter === 'open') return i.result === 'pending' || i.result === 'fail';
+    if (resultFilter) return i.result === resultFilter;
+    return true;
+  });
   const visibleNcrs = ncrs.filter(n => !deletedNcrIds.has(n.id));
 
   const openNcrs = ncrs.filter(n => n.status === 'open' || n.status === 'in_progress').length;
@@ -74,9 +80,31 @@ export default function Quality() {
         ))}
       </div>
 
+      {resultFilter === 'open' && (
+        <div className="px-5 py-2 text-sm border-b" style={{ borderColor: 'var(--border)', background: 'var(--surface-2)' }}>
+          Inspections still waiting on a result. Record the pending ones, or raise an NCR where one already failed.
+        </div>
+      )}
+
       <div className="flex-1 overflow-auto">
         {tab === 'inspections' && (
-          <table className="w-full text-sm border-separate border-spacing-0" style={{ minWidth: 800 }}>
+          <>
+          <div className="md:hidden p-3 space-y-2">
+            {[...visibleInspections].sort((a, b) => (a.result === 'pending' || a.result === 'fail' ? 0 : 1) - (b.result === 'pending' || b.result === 'fail' ? 0 : 1)).map(i => (
+              <div key={i.id} onClick={() => navigate(i.result === 'pending' ? `/quality/inspection/${i.id}?record=1` : `/quality/inspection/${i.id}`)}
+                className="rounded-xl border p-3 cursor-pointer" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-mono text-xs font-bold" style={{ color: 'var(--brand)' }}>{i.inspectionNumber}</span>
+                  <StatusChip status={i.result} size="sm" />
+                </div>
+                <div className="text-sm text-[var(--text)] mt-1">{i.jobNumber ? `Job ${i.jobNumber}` : i.type}</div>
+                {(i.result === 'pending' || i.result === 'fail') && (
+                  <div className="mt-2 text-xs font-semibold text-[var(--brand)]">{i.result === 'pending' ? 'Record result' : 'Raise NCR'}</div>
+                )}
+              </div>
+            ))}
+          </div>
+          <table className="hidden md:table w-full text-sm border-separate border-spacing-0" style={{ minWidth: 800 }}>
             <thead style={{ position: 'sticky', top: 0, zIndex: 5 }}>
               <tr style={{ background: 'var(--surface-2)' }}>
                 {['Inspection #', 'Type', 'Subject', 'Date', 'Inspector', 'Sample', 'Accept', 'Reject', 'Result', ''].map(h => (
@@ -105,6 +133,12 @@ export default function Quality() {
                   <td className="px-4 py-3"><StatusChip status={i.result} size="sm" /></td>
                   <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                     <div className="flex items-center gap-1">
+                      {(i.result === 'pending' || i.result === 'fail') && (
+                        <button type="button" onClick={() => navigate(i.result === 'pending' ? `/quality/inspection/${i.id}?record=1` : `/quality/inspection/${i.id}`)}
+                          className="px-2 py-1 rounded-lg text-xs font-semibold text-white" style={{ background: 'var(--brand)' }}>
+                          {i.result === 'pending' ? 'Record' : 'Raise NCR'}
+                        </button>
+                      )}
                       {canManage && (
                         <button onClick={e => handleDeleteInspection(i.id, e)} className="p-1 rounded hover:bg-[var(--surface-2)]" title="Remove"><Trash2 size={12} style={{ color: 'var(--error,#DC2626)' }} /></button>
                       )}
@@ -118,6 +152,7 @@ export default function Quality() {
               )}
             </tbody>
           </table>
+          </>
         )}
 
         {tab === 'ncrs' && (

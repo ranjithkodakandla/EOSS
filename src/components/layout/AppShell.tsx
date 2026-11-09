@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import TopBar from './TopBar';
@@ -9,6 +9,7 @@ import clsx from 'clsx';
 
 export default function AppShell() {
   const { sidebarCollapsed, eossTheme } = useStore();
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -18,8 +19,16 @@ export default function AppShell() {
 
   return (
     <div className={clsx(`theme-${eossTheme}`, 'min-h-screen bg-[var(--app-bg,var(--bg))] text-[var(--text)]')}>
-      <Sidebar />
-      <TopBar />
+      {mobileNavOpen && (
+        <button
+          type="button"
+          aria-label="Close menu"
+          className="md:hidden fixed inset-0 z-40 bg-black/40"
+          onClick={() => setMobileNavOpen(false)}
+        />
+      )}
+      <Sidebar mobileOpen={mobileNavOpen} onClose={() => setMobileNavOpen(false)} />
+      <TopBar onOpenMenu={() => setMobileNavOpen(true)} />
       <main
         className={clsx(
           'pt-[var(--topbar-h)] pb-16 md:pb-0 min-h-screen transition-[margin] duration-200',

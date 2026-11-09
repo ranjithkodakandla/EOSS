@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { TrendingUp, TrendingDown, AlertCircle, Plus, ArrowUpRight, ArrowDownLeft, Clock, Check, Building2 } from 'lucide-react';
-import { useStore } from '../../store';
+import { useStore, CUSTOMERS } from '../../store';
 import StatusChip from '../../components/layout/StatusChip';
 
 const fmt = (n: number) =>
@@ -21,10 +21,6 @@ export default function Finance() {
   const [tab, setTab] = useState<Tab>((searchParams.get('tab') as Tab) ?? 'overview');
   const [showAddInvoice, setShowAddInvoice] = useState(false);
   const [showAddPayment, setShowAddPayment] = useState(false);
-  const [invoiceType, setInvoiceType] = useState<'customer' | 'supplier'>('customer');
-
-  // Suppress unused-variable warnings for modal state setters
-  void showAddInvoice; void showAddPayment; void invoiceType;
 
   // Combined receivables: old CustomerInvoice + new Invoice (rich flagship)
   const allReceivables = [
@@ -40,7 +36,10 @@ export default function Finance() {
       total: i.totalAmount, paid: i.paidAmount, outstanding: i.outstandingAmount,
       status: i.status as string,
     })),
-  ].sort((a, b) => b.date.localeCompare(a.date));
+  ].sort((a, b) => {
+    const rank = (s: string) => s === 'overdue' ? 0 : s === 'paid' ? 2 : 1;
+    return rank(a.status) - rank(b.status) || b.date.localeCompare(a.date);
+  });
 
   // Combined inbound payments: old PaymentRecord + new Payment
   const allPayments = [
@@ -85,13 +84,13 @@ export default function Finance() {
         {!isReadOnly && (
           <div className="flex gap-2">
             <button
-              onClick={() => { setInvoiceType('customer'); setShowAddInvoice(true); showToast({ type: 'info', title: 'Add Invoice', body: 'Invoice creation form coming soon.' }); }}
+              onClick={() => setShowAddInvoice(true)}
               className="flex items-center gap-2 px-3.5 py-2 bg-[var(--brand)] text-white rounded-xl text-sm font-medium hover:opacity-90 transition-opacity"
             >
               <Plus size={15} /> Add Invoice
             </button>
             <button
-              onClick={() => { setShowAddPayment(true); showToast({ type: 'info', title: 'Record Payment', body: 'Payment recording form coming soon.' }); }}
+              onClick={() => setShowAddPayment(true)}
               className="flex items-center gap-2 px-3.5 py-2 border border-[var(--border)] text-[var(--text-2)] rounded-xl text-sm font-medium hover:border-[var(--brand)] transition-colors"
             >
               <Plus size={15} /> Record Payment
@@ -101,28 +100,22 @@ export default function Finance() {
       </div>
 
       {/* Disclaimer */}
-      <div className="mb-4 px-3 py-2.5 rounded-xl border border-amber-500/30 bg-amber-500/5 flex items-start gap-2 text-xs text-[var(--text-2)]">
-        <AlertCircle size={14} className="mt-0.5 flex-shrink-0 text-amber-500" />
-        <span>Operational finance only — not an accounting ledger. No double-entry, no statutory tax calculations. Values come from recorded demo transactions.</span>
-      </div>
-
-      {/* KPI Row */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-5">
         {[
-          { label: 'Total Receivables', value: fmt(totalReceivables), icon: ArrowUpRight, color: 'text-emerald-500' },
-          { label: 'Overdue AR', value: fmt(overdueReceivables), icon: Clock, color: 'text-red-500' },
-          { label: 'Total Payables', value: fmt(totalPayables), icon: ArrowDownLeft, color: 'text-orange-500' },
-          { label: 'Overdue AP', value: fmt(overduePayables), icon: Clock, color: 'text-red-500' },
-          { label: 'Total Inflows', value: fmt(totalInflows), icon: TrendingUp, color: 'text-emerald-500' },
-          { label: 'Total Outflows', value: fmt(totalOutflows), icon: TrendingDown, color: 'text-orange-500' },
-        ].map(({ label, value, icon: Icon, color }) => (
-          <div key={label} className="rounded-xl border p-3" style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}>
+          { label: 'Total Receivables', value: fmt(totalReceivables), icon: ArrowUpRight, color: 'text-emerald-500', tab: 'receivables' as Tab },
+          { label: 'Overdue AR', value: fmt(overdueReceivables), icon: Clock, color: 'text-red-500', tab: 'receivables' as Tab },
+          { label: 'Total Payables', value: fmt(totalPayables), icon: ArrowDownLeft, color: 'text-orange-500', tab: 'payables' as Tab },
+          { label: 'Overdue AP', value: fmt(overduePayables), icon: Clock, color: 'text-red-500', tab: 'payables' as Tab },
+          { label: 'Total Inflows', value: fmt(totalInflows), icon: TrendingUp, color: 'text-emerald-500', tab: 'payments' as Tab },
+          { label: 'Total Outflows', value: fmt(totalOutflows), icon: TrendingDown, color: 'text-orange-500', tab: 'payments' as Tab },
+        ].map(({ label, value, icon: Icon, color, tab: next }) => (
+          <button key={label} type="button" onClick={() => setTab(next)} className="text-left rounded-xl border p-3" style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}>
             <div className="flex items-center gap-1.5 mb-1">
               <Icon size={13} className={color} />
               <span className="text-[11px] text-[var(--text-2)]">{label}</span>
             </div>
             <p className="text-base font-bold text-[var(--text)]">{value}</p>
-          </div>
+          </button>
         ))}
       </div>
 
@@ -188,32 +181,25 @@ export default function Finance() {
               </div>
             </div>
           </div>
-          {/* Flagship Order Summary */}
-          <div className="rounded-2xl border p-4" style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}>
-            <div className="flex items-center gap-2 mb-3">
-              <Building2 size={15} className="text-[var(--brand)]" />
-              <h3 className="text-sm font-semibold text-[var(--text)]">RheinWerk Turbinenanlagen GmbH — CPO-0001 (₹60,00,000)</h3>
-              <StatusChip status="complete" />
-            </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              {[
-                { label: 'PO Value', value: '₹60,00,000' },
-                { label: 'Invoiced', value: fmt(invoices.reduce((s, i) => s + i.totalAmount, 0)) },
-                { label: 'Collected', value: fmt(payments.reduce((s, p) => s + p.amount, 0)) },
-                { label: 'Outstanding', value: fmt(invoices.reduce((s, i) => s + i.outstandingAmount, 0)) },
-              ].map(({ label, value }) => (
-                <div key={label} className="rounded-lg p-3" style={{ background: 'var(--surface-2)' }}>
-                  <p className="text-[11px] text-[var(--text-2)]">{label}</p>
-                  <p className="text-sm font-bold text-[var(--text)] mt-0.5">{value}</p>
-                </div>
-              ))}
-            </div>
-          </div>
         </div>
       )}
 
       {tab === 'receivables' && (
-        <div className="rounded-2xl border overflow-x-auto" style={{ borderColor: 'var(--border)' }}>
+        <>
+        <div className="md:hidden space-y-2">
+          {allReceivables.map(inv => (
+            <button key={inv.id} type="button" onClick={() => navigate(`/finance/invoice/${inv.id}`)}
+              className="w-full text-left rounded-xl border p-3" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-mono text-xs font-bold text-[var(--brand)]">{inv.number}</span>
+                <StatusChip status={inv.status} size="sm" />
+              </div>
+              <div className="text-sm font-semibold text-[var(--text)] mt-1">{inv.customer}</div>
+              <div className="text-xs text-[var(--text-2)] mt-1">Due {inv.due} · outstanding {fmt(inv.outstanding)}</div>
+            </button>
+          ))}
+        </div>
+        <div className="hidden md:block rounded-2xl border overflow-x-auto" style={{ borderColor: 'var(--border)' }}>
           <table className="w-full text-sm min-w-[700px]">
             <thead>
               <tr className="border-b" style={{ background: 'var(--surface-2)', borderColor: 'var(--border)' }}>
@@ -239,6 +225,7 @@ export default function Finance() {
             </tbody>
           </table>
         </div>
+        </>
       )}
 
       {tab === 'payables' && (
@@ -347,6 +334,64 @@ export default function Finance() {
           )}
         </div>
       )}
+
+      {showAddInvoice && (
+        <MoneyModal title="Add customer invoice" onClose={() => setShowAddInvoice(false)}
+          onSave={(partyId, partyName, amount, date) => {
+            addCustomerInvoice({
+              id: `cinv-${Date.now()}`, invoiceNumber: `INV-2026-${String(Date.now()).slice(-3)}`,
+              customerId: partyId, customerName: partyName, invoiceDate: '2026-11-09', dueDate: date,
+              amount, amountPaid: 0, currency: 'INR', status: 'sent',
+            });
+            showToast({ type: 'success', title: 'Invoice added', body: `${partyName} · ${fmt(amount)}` });
+            setShowAddInvoice(false);
+            setTab('receivables');
+          }} />
+      )}
+      {showAddPayment && (
+        <MoneyModal title="Record payment" onClose={() => setShowAddPayment(false)}
+          onSave={(partyId, partyName, amount, date) => {
+            addPaymentRecord({
+              id: `pay-${Date.now()}`, direction: 'inbound', partyId, partyName, date, amount,
+              currency: 'INR', mode: 'NEFT', reference: `NEFT-${String(Date.now()).slice(-4)}`,
+            });
+            showToast({ type: 'success', title: 'Payment recorded', body: `${partyName} · ${fmt(amount)}` });
+            setShowAddPayment(false);
+            setTab('payments');
+          }} />
+      )}
+    </div>
+  );
+}
+
+function MoneyModal({ title, onClose, onSave }: { title: string; onClose: () => void; onSave: (id: string, name: string, amount: number, date: string) => void }) {
+  const [partyId, setPartyId] = useState(CUSTOMERS[0]?.id ?? '');
+  const [amount, setAmount] = useState('50000');
+  const [date, setDate] = useState('2026-12-09');
+  const party = CUSTOMERS.find(c => c.id === partyId);
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-5 w-full max-w-sm">
+        <h2 className="font-bold text-[var(--text)] mb-3">{title}</h2>
+        <div className="space-y-3 text-sm">
+          <label className="block">Customer
+            <select className="eoss-input w-full mt-1" value={partyId} onChange={e => setPartyId(e.target.value)}>
+              {CUSTOMERS.map(c => <option key={c.id} value={c.id}>{c.tradingName}</option>)}
+            </select>
+          </label>
+          <label className="block">Amount (₹)
+            <input className="eoss-input w-full mt-1" value={amount} onChange={e => setAmount(e.target.value)} />
+          </label>
+          <label className="block">Date
+            <input type="date" className="eoss-input w-full mt-1" value={date} onChange={e => setDate(e.target.value)} />
+          </label>
+        </div>
+        <div className="flex gap-2 mt-4">
+          <button type="button" onClick={onClose} className="flex-1 py-2 border border-[var(--border)] rounded-lg">Cancel</button>
+          <button type="button" onClick={() => party && onSave(party.id, party.tradingName, Number(amount) || 0, date)}
+            className="flex-1 py-2 rounded-lg text-white font-semibold" style={{ background: 'var(--brand)' }}>Save</button>
+        </div>
+      </div>
     </div>
   );
 }

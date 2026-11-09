@@ -5,7 +5,7 @@ import clsx from 'clsx';
 import { useStore } from '../../store';
 
 const MOBILE_NAV = [
-  { path: '/', label: 'Pulse', icon: <LayoutDashboard size={20} />, end: true },
+  { path: '/', label: 'Home', icon: <LayoutDashboard size={20} />, end: true },
   { path: '/jobs', label: 'Jobs', icon: <ClipboardCheck size={20} /> },
   { path: '/inventory', label: 'Stock', icon: <Package size={20} /> },
   { path: '/sales', label: 'Sales', icon: <Briefcase size={20} /> },

@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Plus, ChevronRight, Search, X, PackageCheck, Trash2 } from 'lucide-react';
 import { useStore, CUSTOMERS } from '../../store';
 import type { Dispatch } from '../../types';
@@ -11,6 +11,7 @@ let dspSeq = 100;
 export default function DispatchWorkspace() {
   const { dispatches, invoices, currentUser, addDispatch, recordPoD, showToast, jobs, qualityReleases, inspections } = useStore();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [search, setSearch] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [podDispatchId, setPodDispatchId] = useState<string | null>(null);
@@ -30,6 +31,23 @@ export default function DispatchWorkspace() {
     vehicleNumber: '', lrNumber: '', dispatchDate: '', jobs: '',
   });
 
+  useEffect(() => {
+    const plan = searchParams.get('plan');
+    if (!plan) return;
+    const job = jobs.find(j => j.id === plan) ?? jobs.find(j => qualityReleases.some(r => r.jobId === j.id));
+    if (!job) return;
+    setSelectedJobId(job.id);
+    setForm(f => ({
+      ...f,
+      customerId: job.customerId,
+      customerName: job.customerName,
+      dispatchDate: '2026-11-09',
+    }));
+    setShowModal(true);
+    // Prefill once from the Home action.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const eligibleJob = jobs.find(j => j.id === selectedJobId);
   const eligibility = eligibleJob ? checkDispatchEligibility({ job: eligibleJob, qualityReleases, inspections }) : null;
 
@@ -37,12 +55,17 @@ export default function DispatchWorkspace() {
   const dispatched  = dispatches.filter(d => d.status === 'dispatched').length;
   const delivered   = dispatches.filter(d => d.status === 'delivered').length;
 
+  const [statusFocus, setStatusFocus] = useState<string | null>(null);
   const filtered = dispatches.filter(d =>
     !deletedDispatchIds.has(d.id) &&
+    (!statusFocus || d.status === statusFocus) &&
     (!search ||
     d.dispatchNumber.toLowerCase().includes(search.toLowerCase()) ||
     d.customerName.toLowerCase().includes(search.toLowerCase()))
-  );
+  ).sort((a, b) => {
+    const rank = (s: string) => s === 'pending_docs' ? 0 : s === 'dispatched' ? 1 : 2;
+    return rank(a.status) - rank(b.status);
+  });
 
   function handleCreate() {
     if (eligibleJob && eligibility && !eligibility.eligible) {
@@ -85,8 +108,8 @@ export default function DispatchWorkspace() {
             style={{ borderColor: 'var(--border)', background: 'var(--surface)', color: 'var(--text)' }} />
         </div>
         <div className="flex-1" />
-        {pendingDocs > 0 && <span className="px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ background: 'var(--warning-bg,#FFFBEB)', color: 'var(--warning,#D97706)' }}>{pendingDocs} pending docs</span>}
-        {dispatched > 0 && <span className="px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ background: 'var(--info-bg,#EFF6FF)', color: 'var(--info,#2563EB)' }}>{dispatched} in transit</span>}
+        {pendingDocs > 0 && <button type="button" onClick={() => setStatusFocus(statusFocus === 'pending_docs' ? null : 'pending_docs')} className="px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ background: 'var(--warning-bg,#FFFBEB)', color: 'var(--warning,#D97706)' }}>{pendingDocs} pending docs</button>}
+        {dispatched > 0 && <button type="button" onClick={() => setStatusFocus(statusFocus === 'dispatched' ? null : 'dispatched')} className="px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ background: 'var(--info-bg,#EFF6FF)', color: 'var(--info,#2563EB)' }}>{dispatched} in transit</button>}
         {['owner', 'dispatch'].includes(currentUser.role) && (
           <button onClick={() => setShowModal(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white" style={{ background: 'var(--brand)' }}>
             <Plus size={13} /> New Dispatch
@@ -96,7 +119,20 @@ export default function DispatchWorkspace() {
 
       {/* Table */}
       <div className="flex-1 overflow-auto">
-        <table className="w-full text-sm border-separate border-spacing-0" style={{ minWidth: 800 }}>
+        <div className="md:hidden p-3 space-y-2">
+          {filtered.map(d => (
+            <button key={d.id} type="button" onClick={() => navigate(`/dispatch/${d.id}`)}
+              className="w-full text-left rounded-xl border p-3" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-mono text-xs font-bold" style={{ color: 'var(--brand)' }}>{d.dispatchNumber}</span>
+                <StatusChip status={d.status} size="sm" />
+              </div>
+              <div className="text-sm font-semibold text-[var(--text)] mt-1">{d.customerName}</div>
+              <div className="text-xs text-[var(--text-2)] mt-1">{(d.jobs ?? []).join(', ') || 'No job'} · {d.carrier ?? 'Carrier not set'}</div>
+            </button>
+          ))}
+        </div>
+        <table className="hidden md:table w-full text-sm border-separate border-spacing-0" style={{ minWidth: 800 }}>
           <thead style={{ position: 'sticky', top: 0, zIndex: 5 }}>
             <tr style={{ background: 'var(--surface-2)' }}>
               {['Dispatch #', 'Customer', 'Jobs', 'Carrier / Vehicle', 'Dispatch Date', 'Expected Delivery', 'Qty', 'Status', ''].map(h => (

@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
-import { Search, HelpCircle, ChevronDown, Check, X, User, Settings } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Search, HelpCircle, ChevronDown, Check, X, Menu, Settings } from 'lucide-react';
 import { useStore, type EOSSTheme } from '../../store';
 import NotificationDropdown from './NotificationDropdown';
 import GlobalSearchModal from '../search/GlobalSearchModal';
 import clsx from 'clsx';
 
-export default function TopBar() {
+export default function TopBar({ onOpenMenu }: { onOpenMenu?: () => void }) {
   const { sidebarCollapsed, currentUser, eossTheme, setEOSSTheme, showToast } = useStore();
   const [searchOpen, setSearchOpen] = useState(false);
   const [themeMenuOpen, setThemeMenuOpen] = useState(false);
@@ -32,13 +32,24 @@ export default function TopBar() {
         }}
       >
         {/* Left: Company Selector */}
-        <div className="flex items-center gap-1.5 sm:gap-3 flex-shrink-0">
+        <div className="flex items-center gap-1.5 sm:gap-3 flex-shrink-0 min-w-0">
+          {onOpenMenu && (
+            <button
+              type="button"
+              onClick={onOpenMenu}
+              className="md:hidden w-8 h-8 rounded-full border flex items-center justify-center text-[var(--text)] bg-[var(--surface)] flex-shrink-0"
+              style={{ borderColor: 'var(--border, #E5E0F5)' }}
+              aria-label="Open menu"
+            >
+              <Menu size={16} />
+            </button>
+          )}
           <button
             className="flex flex-col text-left group transition-opacity hover:opacity-90 cursor-pointer"
             title="Active Organization Profile"
           >
             <div className="flex items-center gap-1">
-              <span className="text-sm sm:text-base font-extrabold text-[var(--text)] tracking-tight whitespace-nowrap">
+              <span className="text-sm sm:text-base font-extrabold text-[var(--text)] tracking-tight whitespace-nowrap max-w-[7.5rem] sm:max-w-none truncate">
                 Apex Precision Engineering
               </span>
               <ChevronDown size={13} className="text-[var(--text-2)] hidden sm:inline" />
@@ -145,18 +156,6 @@ export default function TopBar() {
 
           {/* Notifications */}
           <NotificationDropdown />
-
-          {/* Admin & Settings Link */}
-          <NavLink
-            to="/admin"
-            className={({ isActive }) => clsx(
-              "p-1.5 rounded-full text-[var(--text-2)] hover:text-[var(--text)] hover:bg-[var(--surface-2)] transition-colors cursor-pointer flex items-center justify-center",
-              isActive && "text-[var(--brand)] bg-[var(--surface-2)]"
-            )}
-            title="Admin & Settings"
-          >
-            <Settings size={18} />
-          </NavLink>
 
           {/* Help Button */}
           <div className="relative hidden sm:block">

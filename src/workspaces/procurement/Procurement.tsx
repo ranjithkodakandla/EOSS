@@ -3,13 +3,14 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Plus, AlertTriangle, Search, ChevronRight, X, Pencil, Trash2, Send } from 'lucide-react';
 import { useStore } from '../../store';
 import StatusChip from '../../components/layout/StatusChip';
-import type { SupplierPO, SupplierQuotation } from '../../types';
+import type { GoodsReceipt, SupplierPO, SupplierPOLine, SupplierQuotation } from '../../types';
 
 type ProcTab = 'spo' | 'pr' | 'grn' | 'approvals' | 'quotes';
 
 export default function Procurement() {
-  const { supplierPos, grns, approvalRequests, supplierQuotations, purchaseReqs, currentUser, showToast, addSupplierPO, resolveApproval, updateSupplierPo } = useStore();
+  const { supplierPos, grns, approvalRequests, supplierQuotations, purchaseReqs, currentUser, showToast, addSupplierPO, resolveApproval, updateSupplierPo, addGRN, supplierPoLines } = useStore();
   const [searchParams] = useSearchParams();
+  const receiveParam = searchParams.get('receive');
   const [editSpo, setEditSpo] = useState<SupplierPO | null>(null);
 
   const handleDeleteSpo = (id: string) => {
@@ -19,17 +20,30 @@ export default function Procurement() {
     showToast({ type: 'success', title: 'Supplier PO cancelled' });
   };
   const navigate = useNavigate();
-  const [tab, setTab] = useState<ProcTab>((searchParams.get('tab') as ProcTab) ?? 'spo');
+  const [tab, setTab] = useState<ProcTab>(receiveParam ? 'grn' : ((searchParams.get('tab') as ProcTab) ?? 'spo'));
   const [search, setSearch] = useState('');
   const [showNewPO, setShowNewPO] = useState(false);
+  const receivablePos = supplierPos.filter(p => ['confirmed', 'partial', 'overdue', 'sent'].includes(p.status));
+  const [receivePoId, setReceivePoId] = useState<string | null>(
+    receiveParam ? (supplierPos.find(p => p.id === receiveParam)?.id ?? receivablePos[0]?.id ?? null) : null
+  );
 
   const overduePOs = supplierPos.filter(p => p.status === 'overdue').length;
   const pendingApprovals = approvalRequests.filter(a => a.status === 'pending').length;
   const canCreate = ['owner', 'buyer'].includes(currentUser.role);
 
+  const q = search.toLowerCase();
   const filteredSpo = supplierPos.filter(p =>
-    !search || p.poNumber.toLowerCase().includes(search.toLowerCase()) ||
-    p.supplierName.toLowerCase().includes(search.toLowerCase())
+    !q || p.poNumber.toLowerCase().includes(q) || p.supplierName.toLowerCase().includes(q)
+  );
+  const filteredPrs = purchaseReqs.filter(pr =>
+    !q || pr.prNumber.toLowerCase().includes(q) || pr.raisedBy.toLowerCase().includes(q) || (pr.jobNumber ?? '').toLowerCase().includes(q)
+  );
+  const filteredGrns = grns.filter(g =>
+    !q || g.grnNumber.toLowerCase().includes(q) || g.supplierName.toLowerCase().includes(q)
+  );
+  const filteredQuotes = supplierQuotations.filter(qt =>
+    !q || qt.quoteNumber.toLowerCase().includes(q) || qt.supplierName.toLowerCase().includes(q)
   );
 
   const TABS = [
@@ -48,45 +62,56 @@ export default function Procurement() {
         style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
         <div className="relative flex-1 min-w-[180px] max-w-xs">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-3)' }} />
-          <input type="text" placeholder="Search PO, supplier…" value={search} onChange={e => setSearch(e.target.value)}
+          <input type="text" placeholder="Search this list…" value={search} onChange={e => setSearch(e.target.value)}
             className="w-full pl-8 pr-3 py-1.5 text-sm rounded-lg border outline-none"
             style={{ borderColor: 'var(--border)', background: 'var(--surface)', color: 'var(--text)' }} />
         </div>
         <div className="flex-1" />
         {overduePOs > 0 && (
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
+          <button type="button" onClick={() => setTab('spo')}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
             style={{ background: 'var(--error-bg,#FEF2F2)', color: 'var(--error,#DC2626)' }}>
             <AlertTriangle size={13} /> {overduePOs} overdue
-          </div>
+          </button>
         )}
         {pendingApprovals > 0 && (
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
+          <button type="button" onClick={() => setTab('approvals')}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
             style={{ background: 'var(--warning-bg,#FFFBEB)', color: 'var(--warning,#D97706)' }}>
-            {pendingApprovals} pending approval
-          </div>
+            {pendingApprovals} to approve
+          </button>
         )}
-        {canCreate && (
-          <>
-            <button onClick={() => navigate('/procurement/supplier-return')}
-              className="px-3 py-1.5 rounded-lg border text-xs font-medium hover:opacity-80"
-              style={{ borderColor: 'var(--border)', color: 'var(--text-2)' }}>
-              Supplier Return
-            </button>
-            <button onClick={() => navigate('/procurement/pr/new')}
-              className="px-3 py-1.5 rounded-lg border text-xs font-medium hover:opacity-80"
-              style={{ borderColor: 'var(--border)', color: 'var(--text-2)' }}>
-              New PR
-            </button>
-            <button onClick={() => setShowNewPO(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white"
-              style={{ background: 'var(--brand)' }}>
-              <Plus size={13} /> New PO
-            </button>
-          </>
+        {canCreate && tab === 'spo' && (
+          <button onClick={() => navigate('/procurement/supplier-return')}
+            className="px-3 py-1.5 rounded-lg border text-xs font-medium"
+            style={{ borderColor: 'var(--border)', color: 'var(--text-2)' }}>
+            Return
+          </button>
+        )}
+        {canCreate && tab === 'pr' && (
+          <button onClick={() => navigate('/procurement/pr/new')}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white"
+            style={{ background: 'var(--brand)' }}>
+            <Plus size={13} /> New PR
+          </button>
+        )}
+        {canCreate && tab === 'quotes' && (
+          <button onClick={() => navigate('/procurement/supplier-rfq/new')}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white"
+            style={{ background: 'var(--brand)' }}>
+            <Send size={13} /> Send enquiry
+          </button>
+        )}
+        {canCreate && tab === 'spo' && (
+          <button onClick={() => setShowNewPO(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white"
+            style={{ background: 'var(--brand)' }}>
+            <Plus size={13} /> New PO
+          </button>
         )}
       </div>
 
       {/* Tabs */}
-      <div className="flex-shrink-0 flex items-center border-b px-5"
+      <div className="flex-shrink-0 flex items-center border-b px-3 overflow-x-auto"
         style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
         {TABS.map(t => (
           <button key={t.id} onClick={() => setTab(t.id)}
@@ -101,7 +126,21 @@ export default function Procurement() {
       {/* Content */}
       <div className="flex-1 overflow-auto">
         {tab === 'spo' && (
-          <table className="w-full text-sm border-separate border-spacing-0">
+          <>
+          <div className="md:hidden p-3 space-y-2">
+            {filteredSpo.map(p => (
+              <button key={p.id} type="button" onClick={() => navigate(`/procurement/spo/${p.id}`)}
+                className="w-full text-left rounded-xl border p-3" style={{ borderColor: 'var(--border)', background: p.status === 'overdue' ? 'var(--error-bg,#FEF2F2)' : 'var(--surface)' }}>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-mono text-xs font-bold" style={{ color: 'var(--brand)' }}>{p.poNumber}</span>
+                  <StatusChip status={p.status} size="sm" />
+                </div>
+                <div className="text-sm font-semibold text-[var(--text)] mt-1">{p.supplierName}</div>
+                <div className="text-xs text-[var(--text-2)] mt-1">₹{(p.totalValue / 1000).toFixed(1)}k{p.jobRef ? ` · ${p.jobRef}` : ''}</div>
+              </button>
+            ))}
+          </div>
+          <table className="hidden md:table w-full text-sm border-separate border-spacing-0">
             <thead style={{ position: 'sticky', top: 0, zIndex: 5 }}>
               <tr style={{ background: 'var(--surface-2)', borderBottom: '1px solid var(--border)' }}>
                 {['PO Number', 'Supplier', 'Raised', 'Committed', 'Lines', 'Value', 'Job Ref', 'Status', ''].map(h => (
@@ -146,6 +185,7 @@ export default function Procurement() {
               ))}
             </tbody>
           </table>
+          </>
         )}
 
         {tab === 'pr' && (
@@ -158,10 +198,10 @@ export default function Procurement() {
               </tr>
             </thead>
             <tbody>
-              {purchaseReqs.length === 0 && (
+              {filteredPrs.length === 0 && (
                 <tr><td colSpan={9} className="px-4 py-10 text-center text-sm" style={{ color: 'var(--text-3)' }}>No PRs found</td></tr>
               )}
-              {purchaseReqs.map(pr => (
+              {filteredPrs.map(pr => (
                 <tr key={pr.id} className="cursor-pointer" style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}
                   onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--surface-2)'; }}
                   onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'var(--surface)'; }}
@@ -200,7 +240,7 @@ export default function Procurement() {
               </tr>
             </thead>
             <tbody>
-              {grns.map(g => (
+              {filteredGrns.map(g => (
                 <tr key={g.id} className="cursor-pointer" style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}
                   onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--surface-2)'; }}
                   onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'var(--surface)'; }}
@@ -220,12 +260,38 @@ export default function Procurement() {
         )}
 
         {tab === 'quotes' && (
-          <div className="p-5">
-            <div className="overflow-x-auto">
+          <div className="p-3 md:p-5">
+            <div className="md:hidden space-y-2">
+              {filteredQuotes.map(qt => {
+                const total = qt.lines.reduce((s, l) => s + l.lineTotal, 0);
+                const grouped = supplierQuotations.filter(x => x.prId && x.prId === qt.prId);
+                return (
+                  <div key={qt.id} className="rounded-xl border p-3" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-mono text-xs font-bold" style={{ color: 'var(--brand)' }}>{qt.quoteNumber}</span>
+                      <StatusChip status={qt.status} size="sm" />
+                    </div>
+                    <div className="text-sm font-medium text-[var(--text)] mt-1">{qt.supplierName}</div>
+                    <div className="text-xs text-[var(--text-2)] mt-1">
+                      ₹{(total / 1000).toFixed(1)}k · {qt.deliveryDays} days · {qt.paymentTerms}
+                    </div>
+                    {grouped.length > 1 && grouped[0]?.id === qt.id && (
+                      <button onClick={() => setCompareQuotes(grouped)}
+                        className="mt-2 text-xs px-2 py-1 rounded-lg border font-medium"
+                        style={{ borderColor: 'var(--brand)', color: 'var(--brand)' }}>
+                        Compare {grouped.length} quotes
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+              {filteredQuotes.length === 0 && <p className="text-center py-10 text-sm" style={{ color: 'var(--text-3)' }}>No quotations received yet</p>}
+            </div>
+            <div className="hidden md:block overflow-x-auto">
               <table className="eoss-table">
                 <thead><tr><th>Quote #</th><th>Supplier</th><th>Date</th><th>Valid Until</th><th>Lead Time</th><th>Payment Terms</th><th>Total Value</th><th>Status</th><th></th></tr></thead>
                 <tbody>
-                  {supplierQuotations.map(q => {
+                  {filteredQuotes.map(q => {
                     const total = q.lines.reduce((s, l) => s + l.lineTotal, 0);
                     const grouped = supplierQuotations.filter(x => x.prId && x.prId === q.prId);
                     return (
@@ -239,7 +305,7 @@ export default function Procurement() {
                         <td className="font-mono text-sm font-semibold" style={{ color: 'var(--text)' }}>₹{(total / 1000).toFixed(1)}k</td>
                         <td><StatusChip status={q.status} size="sm" /></td>
                         <td>
-                          {grouped.length > 1 && (
+                          {grouped.length > 1 && grouped[0]?.id === q.id && (
                             <button onClick={() => setCompareQuotes(grouped)}
                               className="text-xs px-2 py-1 rounded-lg border font-medium transition-colors"
                               style={{ borderColor: 'var(--brand)', color: 'var(--brand)' }}>
@@ -250,7 +316,7 @@ export default function Procurement() {
                       </tr>
                     );
                   })}
-                  {supplierQuotations.length === 0 && <tr><td colSpan={9} className="text-center py-10 text-sm" style={{ color: 'var(--text-3)' }}>No quotations received yet</td></tr>}
+                  {filteredQuotes.length === 0 && <tr><td colSpan={9} className="text-center py-10 text-sm" style={{ color: 'var(--text-3)' }}>No quotations received yet</td></tr>}
                 </tbody>
               </table>
             </div>
@@ -259,9 +325,7 @@ export default function Procurement() {
 
         {tab === 'approvals' && (
           <div className="p-5">
-            <div className="mb-4 p-3 rounded-xl bg-[var(--surface-2)] border border-[var(--border)] text-xs text-[var(--text-2)]">
-              <strong className="text-[var(--text)]">Auto-Approval Rules:</strong> PRs &lt; ₹10,000 and repeat purchases from approved vendors are auto-approved <span className="font-bold text-green-600 bg-green-100 px-1.5 py-0.5 rounded ml-1">Auto</span>. Items above threshold or new vendors require manual approval <span className="font-bold text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded ml-1">Manual</span>.
-            </div>
+            <p className="mb-4 text-xs text-[var(--text-2)]">PRs under ₹10,000 from approved vendors are already approved. These still need a decision.</p>
             {approvalRequests.filter(a => a.status === 'pending').length === 0 ? (
               <div className="rounded-xl border p-10 text-center" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
                 <p className="text-sm" style={{ color: 'var(--text-3)' }}>No pending approvals.</p>
@@ -295,6 +359,22 @@ export default function Procurement() {
           </div>
         )}
       </div>
+
+      {receivePoId && (
+        <ReceiveStockModal
+          poId={receivePoId}
+          pos={receivablePos}
+          lines={supplierPoLines}
+          receivedBy={currentUser.name}
+          onClose={() => setReceivePoId(null)}
+          onSave={(grn) => {
+            addGRN(grn);
+            showToast({ type: 'success', title: 'Stock received', body: `${grn.grnNumber} recorded against ${grn.spoNumber}.` });
+            setReceivePoId(null);
+            setTab('grn');
+          }}
+        />
+      )}
 
       {showNewPO && (
         <NewSupplierPOModal
@@ -391,6 +471,82 @@ function QuoteCompareModal({ quotes, onClose, onSelect }: { quotes: SupplierQuot
               Select {q.supplierName}
             </button>
           ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ReceiveStockModal({ poId, pos, lines, receivedBy, onClose, onSave }: {
+  poId: string;
+  pos: SupplierPO[];
+  lines: SupplierPOLine[];
+  receivedBy: string;
+  onClose: () => void;
+  onSave: (grn: GoodsReceipt) => void;
+}) {
+  const [selectedId, setSelectedId] = useState(poId);
+  const [challan, setChallan] = useState('');
+  const [date, setDate] = useState('2026-11-09');
+  const po = pos.find(p => p.id === selectedId) ?? pos[0];
+  const poLines = lines.filter(l => l.spoId === po?.id);
+  const save = () => {
+    if (!po || !challan) return;
+    const seq = String(Date.now()).slice(-4);
+    onSave({
+      id: `grn-${Date.now()}`,
+      grnNumber: `GRN-2026-${seq}`,
+      supplierId: po.supplierId,
+      supplierName: po.supplierName,
+      spoId: po.id,
+      spoNumber: po.poNumber,
+      receivedDate: date,
+      receivedBy,
+      deliveryChallan: challan,
+      status: 'pending_qc',
+      lineCount: poLines.length || po.lineCount,
+    });
+  };
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl w-full max-w-md p-6 shadow-2xl">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="font-bold text-[var(--text)]">Receive stock</h3>
+          <button onClick={onClose}><X size={16} className="text-[var(--text-3)]" /></button>
+        </div>
+        <div className="space-y-3">
+          <div>
+            <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Supplier PO</label>
+            <select className="eoss-input w-full" value={po?.id ?? ''} onChange={e => setSelectedId(e.target.value)}>
+              {pos.map(p => <option key={p.id} value={p.id}>{p.poNumber} · {p.supplierName}</option>)}
+            </select>
+          </div>
+          {po && (
+            <div className="rounded-lg border p-3 text-xs space-y-1" style={{ borderColor: 'var(--border)', background: 'var(--surface-2)' }}>
+              <div className="font-semibold text-[var(--text)]">{po.supplierName}</div>
+              <div className="text-[var(--text-2)]">Committed {po.committedDate ? new Date(po.committedDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '—'}</div>
+              {poLines.length === 0 && <div className="text-[var(--text-2)]">{po.lineCount} lines on this PO</div>}
+              {poLines.map(l => (
+                <div key={l.id} className="flex justify-between gap-2 text-[var(--text)]">
+                  <span>{l.materialName}</span>
+                  <span className="font-mono">{Math.max(l.orderedQty - l.receivedQty, 0)} {l.uom} due</span>
+                </div>
+              ))}
+            </div>
+          )}
+          <div>
+            <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Delivery challan *</label>
+            <input className="eoss-input w-full" value={challan} onChange={e => setChallan(e.target.value)} placeholder="DC-1042" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Received date</label>
+            <input type="date" className="eoss-input w-full" value={date} onChange={e => setDate(e.target.value)} />
+          </div>
+          <div className="text-xs text-[var(--text-2)]">Received by {receivedBy}. Goods go to incoming QC.</div>
+        </div>
+        <div className="flex gap-3 mt-5">
+          <button onClick={onClose} className="flex-1 py-2.5 border border-[var(--border)] rounded-xl text-sm text-[var(--text-2)]">Cancel</button>
+          <button disabled={!challan || !po} onClick={save} className="flex-1 py-2.5 bg-[var(--brand)] text-white rounded-xl text-sm font-medium disabled:opacity-50">Record GRN</button>
         </div>
       </div>
     </div>

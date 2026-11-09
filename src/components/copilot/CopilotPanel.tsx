@@ -81,7 +81,7 @@ sendBtnBg: isGraphite
       icon: <Zap size={17} style={{ color: themeConfig.iconColorZap }} strokeWidth={2.5} />,
       text: 'Plan production for pending orders',
       response: `Analyzing 4 in-progress orders. SO-1245 (60%) is approaching CNC Lathe NL-2500 turn, while SO-1246 (35%) is waiting on SS 304 round bar inspection. Recommended action: Allocate Machine NL-2500 to SO-1245 finishing passes.`,
-      action: { label: 'Open Job J-101', path: '/jobs/J-101' },
+      action: { label: 'Open Job J-101', path: '/jobs/job-101' },
     },
     {
       id: 'suggest-po',

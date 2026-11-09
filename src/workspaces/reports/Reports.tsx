@@ -48,19 +48,13 @@ export default function Reports() {
         <KpiCard label="In-Progress Jobs" value={inProgressJobs} trend="flat" />
       </div>
 
-      {/* Report tiles */}
-      <h2 className="text-sm font-semibold text-[var(--text-2)] font-medium mb-3">Available Reports</h2>
-      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-3 mb-6">
+      <div className="flex flex-wrap gap-2 mb-4">
         {REPORT_TYPES.map(r => (
-          <div key={r.id} onClick={() => setActiveReport(r.id === activeReport ? null : r.id)} className={`bg-[var(--surface)] border rounded-xl p-4 cursor-pointer transition-colors ${activeReport === r.id ? 'border-[var(--brand)] ring-1 ring-[var(--brand)]' : 'border-[var(--border)] hover:border-[var(--brand)]'}`}>
-            <div className="text-2xl mb-2">{r.icon}</div>
-            <div className="font-semibold text-sm text-[var(--text)]">{r.label}</div>
-            <div className="text-xs text-[var(--text-3)] mt-1">{r.desc}</div>
-            <div className="mt-3 flex items-center gap-2">
-              <button onClick={e => { e.stopPropagation(); setActiveReport(r.id === activeReport ? null : r.id); }} className="text-xs text-[var(--brand)] font-medium hover:underline">View Report →</button>
-              <button onClick={e => { e.stopPropagation(); showToast({ type: 'info', title: 'Export queued', body: `${r.label} (${dateFrom} – ${dateTo}) will download shortly.` }); }} className="ml-auto text-[var(--text-3)] hover:text-[var(--brand)]"><Download size={13} /></button>
-            </div>
-          </div>
+          <button key={r.id} type="button" onClick={() => setActiveReport(r.id === activeReport ? null : r.id)}
+            className="px-3 py-2 rounded-lg text-sm font-medium border"
+            style={{ borderColor: activeReport === r.id ? 'var(--brand)' : 'var(--border)', color: activeReport === r.id ? 'var(--brand)' : 'var(--text)', background: 'var(--surface)' }}>
+            {r.label}
+          </button>
         ))}
       </div>
 

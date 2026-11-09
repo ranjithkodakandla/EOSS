@@ -44,6 +44,9 @@ export default function Sales() {
     const matchSearch = !q || p.poNumber.toLowerCase().includes(q) || p.customerName.toLowerCase().includes(q);
     const matchStatus = statusFilter === 'all' || p.status === statusFilter;
     return matchSearch && matchStatus;
+  }).sort((a, b) => {
+    const rank = (s: string) => s === 'on_hold' ? 0 : s === 'active' ? 1 : s === 'partial' ? 2 : s === 'complete' ? 3 : 4;
+    return rank(a.status) - rank(b.status);
   });
 
   const filteredRfqs = rfqs.filter(r => {
@@ -175,7 +178,21 @@ export default function Sales() {
           style={{ borderColor: 'var(--border)' }}
         >
           {tab === 'pos' && (
-            <table className="w-full text-sm border-collapse">
+            <>
+            <div className="md:hidden p-3 space-y-2">
+              {filteredPos.map(p => (
+                <button key={p.id} type="button" onClick={() => navigate(`/sales/po/${p.id}`)}
+                  className="w-full text-left rounded-xl border p-3" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-mono text-xs font-bold" style={{ color: 'var(--brand)' }}>{p.poNumber}</span>
+                    <StatusChip status={p.status} size="sm" />
+                  </div>
+                  <div className="text-sm font-semibold text-[var(--text)] mt-1">{p.customerName}</div>
+                  <div className="text-xs text-[var(--text-2)] mt-1">₹{(p.totalValue / 100000).toFixed(1)}L · {p.paymentTerms}</div>
+                </button>
+              ))}
+            </div>
+            <table className="hidden md:table w-full text-sm border-collapse">
               <thead className="sticky top-0 z-10" style={{ background: 'var(--surface-2)' }}>
                 <tr style={{ borderBottom: '1px solid var(--border)' }}>
                   {['PO Number', 'Customer', 'Date', 'Value', 'Lines', 'Terms', 'Status', ''].map(h => (
@@ -219,10 +236,9 @@ export default function Sales() {
                       </td>
                       <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                         <div className="flex items-center gap-1">
-                          <button
-                            onClick={() => showToast({ type: 'info', title: 'Attach Customer PO', body: `Upload scan/photo of customer PO for ${p.poNumber}. File picker coming in v1.1.` })}
-                            className="text-xs px-2 py-1 rounded-lg border border-[var(--border)] text-[var(--text-2)] hover:border-[var(--brand)] hover:text-[var(--brand)] transition-colors whitespace-nowrap">
-                            Attach PO
+                          <button type="button" onClick={() => navigate(`/sales/po/${p.id}`)}
+                            className="text-xs px-2 py-1 rounded-lg font-semibold text-white" style={{ background: 'var(--brand)' }}>
+                            Open
                           </button>
                           {canCreate && p.status !== 'cancelled' && (
                             <button onClick={() => setEditPo(p)} className="p-1 rounded hover:bg-[var(--surface-2)]" title="Edit PO"><Pencil size={12} style={{ color: 'var(--text-3)' }} /></button>
@@ -240,6 +256,7 @@ export default function Sales() {
                 )}
               </tbody>
             </table>
+            </>
           )}
 
           {tab === 'rfqs' && (
@@ -271,11 +288,10 @@ export default function Sales() {
                     <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-2)' }}>{r.owner}</td>
                     <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                       <div className="flex items-center gap-1">
-                        {canCreate && r.status !== 'cancelled' && r.status !== 'converted' && (
-                          <button onClick={e => { e.stopPropagation(); navigate(`/sales/rfq/${r.id}`); }}
-                            className="text-xs px-2 py-1 rounded-lg border font-medium transition-colors"
-                            style={{ borderColor: 'var(--brand)', color: 'var(--brand)', background: 'transparent' }}>
-                            View
+                        {canCreate && r.status === 'open' && (
+                          <button onClick={e => { e.stopPropagation(); navigate(`/sales/rfq/${r.id}/quotation/new`); }}
+                            className="text-xs px-2 py-1 rounded-lg font-semibold text-white" style={{ background: 'var(--brand)' }}>
+                            Quote
                           </button>
                         )}
                         {canCreate && r.status !== 'cancelled' && (

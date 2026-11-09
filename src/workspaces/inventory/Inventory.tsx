@@ -1,10 +1,11 @@
 import React, { useState, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Search, ArrowRightLeft, ArrowUpDown, ArrowUp, ArrowDown, ShieldAlert, Plus, Pencil, X } from 'lucide-react';
 import { useStore } from '../../store';
-import { STORE_LOCATIONS } from '../../data/seed';
+import { SITES, STORE_LOCATIONS } from '../../data/seed';
 import type { MaterialItem } from '../../types';
 import StatusChip from '../../components/layout/StatusChip';
+import StockWorkspaceNav from '../../components/layout/StockWorkspaceNav';
 import clsx from 'clsx';
 
 type SortKey = 'materialCode' | 'materialName' | 'locationName' | 'onHandQty' | 'reservedQty' | 'qcHoldQty' | 'inTransitQty' | 'availableQty' | 'reorderPoint';
@@ -18,9 +19,12 @@ const emptyMaterialForm = {
 export default function Inventory() {
   const { inventory, lots, currentUser, materials, addMaterial, updateMaterial, showToast } = useStore();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const shortageFocus = searchParams.get('focus') === 'shortage';
 
   const [search, setSearch] = useState('');
   const [selectedLocation, setSelectedLocation] = useState('all');
+  const [shortagesOnly, setShortagesOnly] = useState(shortageFocus);
   const [sortKey, setSortKey] = useState<SortKey>('materialCode');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
 
@@ -81,9 +85,10 @@ export default function Inventory() {
     const q = search.toLowerCase();
     return inventory
       .filter(i => {
-        const matchLoc = selectedLocation === 'all' || i.locationName === selectedLocation;
+        const matchLoc = selectedLocation === 'all' || i.locationId === selectedLocation;
         const matchSearch = !q || i.materialCode.toLowerCase().includes(q) || i.materialName.toLowerCase().includes(q) || i.categoryName.toLowerCase().includes(q) || i.locationName.toLowerCase().includes(q);
-        return matchLoc && matchSearch;
+        const matchShortage = !shortagesOnly || i.shortage;
+        return matchLoc && matchSearch && matchShortage;
       })
       .sort((a, b) => {
         let av: string | number = a[sortKey] ?? '';
@@ -93,7 +98,13 @@ export default function Inventory() {
         const cmp = av < bv ? -1 : av > bv ? 1 : 0;
         return sortDir === 'asc' ? cmp : -cmp;
       });
-  }, [inventory, search, selectedLocation, sortKey, sortDir]);
+  }, [inventory, search, selectedLocation, shortagesOnly, sortKey, sortDir]);
+
+  const raisePr = (item: { materialCode: string; materialName: string; primaryUom: string; reorderPoint: number; availableQty: number }) => {
+    const qty = Math.max(item.reorderPoint - item.availableQty, item.reorderPoint || 1);
+    const q = new URLSearchParams({ code: item.materialCode, name: item.materialName, qty: String(qty), uom: item.primaryUom });
+    navigate(`/procurement/pr/new?${q.toString()}`);
+  };
 
   const SortIcon = ({ k }: { k: SortKey }) => {
     if (sortKey !== k) return <ArrowUpDown size={12} className="opacity-40" />;
@@ -102,6 +113,7 @@ export default function Inventory() {
 
   return (
     <div className="flex flex-col h-full">
+      <StockWorkspaceNav />
       {/* Toolbar */}
       <div
         className="flex-shrink-0 flex items-center gap-3 px-5 py-3 border-b flex-wrap"
@@ -120,50 +132,29 @@ export default function Inventory() {
           />
         </div>
 
-        {/* Location filter chips */}
-        <div className="flex items-center gap-1.5 flex-wrap">
-          <button
-            onClick={() => setSelectedLocation('all')}
-            className="px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors"
-            style={{
-              background: selectedLocation === 'all' ? 'var(--brand)' : 'var(--surface)',
-              color: selectedLocation === 'all' ? '#fff' : 'var(--text-2)',
-              borderColor: selectedLocation === 'all' ? 'var(--brand)' : 'var(--border)',
-            }}
-          >
-            All Stores
-          </button>
-          {STORE_LOCATIONS.map(loc => (
-            <button
-              key={loc.id}
-              onClick={() => setSelectedLocation(loc.name)}
-              className="px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors whitespace-nowrap"
-              style={{
-                background: selectedLocation === loc.name ? 'var(--brand)' : 'var(--surface)',
-                color: selectedLocation === loc.name ? '#fff' : 'var(--text-2)',
-                borderColor: selectedLocation === loc.name ? 'var(--brand)' : 'var(--border)',
-              }}
-            >
-              {loc.code}
-            </button>
-          ))}
-        </div>
-
         <div className="flex-1" />
 
-        {/* Summary badges */}
         {shortageCount > 0 && (
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ background: 'var(--error-bg,#FEF2F2)', color: 'var(--error,#DC2626)' }}>
+          <button
+            type="button"
+            onClick={() => setShortagesOnly(v => !v)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border"
+            style={{
+              background: shortagesOnly ? 'var(--error-bg,#FEF2F2)' : 'var(--surface)',
+              color: 'var(--error,#DC2626)',
+              borderColor: shortagesOnly ? 'var(--error,#DC2626)' : 'var(--border)',
+            }}
+          >
             <ShieldAlert size={13} />
             {shortageCount} shortage{shortageCount !== 1 ? 's' : ''}
-          </div>
+          </button>
         )}
 
         {currentUser.role !== 'operator' && (
           <button
             onClick={() => navigate('/inventory/transfer')}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white"
-            style={{ background: 'var(--brand)' }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border"
+            style={{ borderColor: 'var(--border)', color: 'var(--text-2)', background: 'var(--surface)' }}
           >
             <ArrowRightLeft size={13} /> Transfer
           </button>
@@ -185,17 +176,30 @@ export default function Inventory() {
         className="flex-shrink-0 flex items-center gap-2 px-5 py-2.5 overflow-x-auto scrollbar-none border-b"
         style={{ borderColor: 'var(--border)', background: 'var(--surface-2)' }}
       >
-        {STORE_LOCATIONS.map(loc => {
-          const items = inventory.filter(i => i.locationName === loc.name);
+        <button
+          type="button"
+          onClick={() => setSelectedLocation('all')}
+          className="flex-shrink-0 px-3 py-2 rounded-xl border text-xs font-semibold"
+          style={{
+            borderColor: selectedLocation === 'all' ? 'var(--brand)' : 'var(--border)',
+            background: selectedLocation === 'all' ? 'var(--brand)' : 'var(--surface)',
+            color: selectedLocation === 'all' ? '#fff' : 'var(--text-2)',
+          }}
+        >
+          All stores
+        </button>
+        {STORE_LOCATIONS.filter(loc => inventory.some(i => i.locationId === loc.id)).map(loc => {
+          const items = inventory.filter(i => i.locationId === loc.id);
           const hasShortage = items.some(i => i.shortage);
-          const isSelected = selectedLocation === loc.name;
+          const isSelected = selectedLocation === loc.id;
+          const siteCode = SITES.find(s => s.id === loc.siteId)?.code;
           return (
             <button
               key={loc.id}
-              onClick={() => setSelectedLocation(isSelected ? 'all' : loc.name)}
+              onClick={() => setSelectedLocation(isSelected ? 'all' : loc.id)}
               className="flex-shrink-0 flex flex-col items-start px-3 py-2 rounded-xl border text-left transition-all hover:opacity-90"
               style={{
-                minWidth: 110,
+                minWidth: 120,
                 borderColor: isSelected ? 'var(--brand)' : 'var(--border)',
                 background: isSelected ? 'rgba(var(--brand-rgb,112,72,245),0.07)' : 'var(--surface)',
                 boxShadow: isSelected ? '0 0 0 1.5px var(--brand)' : undefined,
@@ -203,14 +207,14 @@ export default function Inventory() {
             >
               <div className="flex items-center justify-between w-full gap-1">
                 <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: isSelected ? 'var(--brand)' : 'var(--text-3)' }}>
-                  {loc.code}
+                  {siteCode ? `${siteCode} · ${loc.code}` : loc.code}
                 </span>
                 {hasShortage && <span className="w-1.5 h-1.5 rounded-full bg-red-500 flex-shrink-0" />}
               </div>
               <span className="text-xs font-semibold mt-0.5 leading-tight" style={{ color: 'var(--text)' }}>
-                {items.length} items
+                {items.length} item{items.length === 1 ? '' : 's'}
               </span>
-              <span className="text-[10px] mt-0.5 leading-tight truncate w-full" style={{ color: 'var(--text-3)', maxWidth: 100 }}>
+              <span className="text-[10px] mt-0.5 leading-tight truncate w-full" style={{ color: 'var(--text-3)', maxWidth: 120 }}>
                 {loc.name}
               </span>
             </button>
@@ -218,8 +222,70 @@ export default function Inventory() {
         })}
       </div>
 
+      {shortageFocus && (
+        <div className="px-4 py-2 text-sm border-b" style={{ borderColor: 'var(--border)', background: 'var(--surface-2)' }}>
+          Showing materials below what the shop needs. Raise a purchase request for the shortfall.
+        </div>
+      )}
+
+      <div className="md:hidden flex-1 overflow-auto p-3 space-y-2">
+        {filtered.length === 0 && (
+          <p className="px-2 py-8 text-center text-sm" style={{ color: 'var(--text-3)' }}>No inventory items match your filter.</p>
+        )}
+        {filtered.map(item => {
+          const isLow = item.shortage || item.availableQty <= item.reorderPoint * 0.5;
+          return (
+            <div
+              key={item.id}
+              role="link"
+              onClick={() => {
+                const firstLot = lots.find(l => l.materialItemId === item.materialItemId);
+                if (firstLot) navigate(`/inventory/lot/${firstLot.id}`);
+              }}
+              className="w-full text-left rounded-xl border p-3 cursor-pointer"
+              style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="text-sm font-semibold text-[var(--text)]">{item.materialName}</div>
+                  <div className="text-[11px] font-mono mt-0.5" style={{ color: 'var(--brand)' }}>{item.materialCode}</div>
+                </div>
+                <span className="text-xs font-semibold px-2 py-0.5 rounded-full flex-shrink-0" style={{
+                  background: item.shortage ? 'var(--error-bg,#FEF2F2)' : isLow ? 'var(--warning-bg,#FFFBEB)' : 'var(--success-bg,#F0FDF4)',
+                  color: item.shortage ? 'var(--error,#DC2626)' : isLow ? 'var(--warning,#D97706)' : 'var(--success,#16A34A)',
+                }}>
+                  {item.shortage ? 'Shortage' : isLow ? 'Low' : 'OK'}
+                </span>
+              </div>
+              <div className="mt-2 flex items-baseline justify-between gap-2">
+                <span className="text-xs" style={{ color: 'var(--text-2)' }}>{item.locationName}</span>
+                <span className="font-mono text-sm font-bold" style={{ color: item.shortage ? 'var(--error,#DC2626)' : 'var(--text)' }}>
+                  {item.availableQty.toLocaleString('en-IN')} <span className="text-[10px] font-medium" style={{ color: 'var(--text-3)' }}>{item.primaryUom} free</span>
+                </span>
+              </div>
+              {(item.reservedQty > 0 || item.qcHoldQty > 0) && (
+                <div className="mt-1 text-[11px]" style={{ color: 'var(--text-3)' }}>
+                  {item.onHandQty.toLocaleString('en-IN')} on hand
+                  {item.reservedQty > 0 && ` · ${item.reservedQty.toLocaleString('en-IN')} reserved`}
+                  {item.qcHoldQty > 0 && ` · ${item.qcHoldQty.toLocaleString('en-IN')} on QC hold`}
+                </div>
+              )}
+              {item.shortage && (
+                <div className="mt-2 flex gap-2">
+                  <button type="button" onClick={e => { e.stopPropagation(); raisePr(item); }}
+                    className="px-2.5 py-1 rounded-lg text-xs font-semibold text-white" style={{ background: 'var(--brand)' }}>
+                    Raise PR
+                  </button>
+                  <MoveStockButton item={item} inventory={inventory} navigate={navigate} />
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
       {/* Table */}
-      <div className="flex-1 overflow-auto">
+      <div className="hidden md:block flex-1 overflow-auto">
         <table className="w-full text-sm border-separate border-spacing-0" style={{ minWidth: 900 }}>
           <thead style={{ position: 'sticky', top: 0, zIndex: 10 }}>
             <tr style={{ background: 'var(--surface-2)', borderBottom: '2px solid var(--border)' }}>
@@ -310,6 +376,14 @@ export default function Inventory() {
                       <div className="flex items-center justify-end gap-1.5">
                         {item.lotCount > 0 && (
                           <span className="text-xs" style={{ color: 'var(--text-3)' }}>{item.lotCount} lot{item.lotCount !== 1 ? 's' : ''}</span>
+                        )}
+                        {item.shortage && (
+                          <>
+                            <button type="button" onClick={() => raisePr(item)} className="px-2 py-1 rounded-lg text-xs font-semibold text-white" style={{ background: 'var(--brand)' }}>
+                              Raise PR
+                            </button>
+                            <MoveStockButton item={item} inventory={inventory} navigate={navigate} />
+                          </>
                         )}
                         {seedMaterial && currentUser.role !== 'operator' && (
                           <button onClick={e => openEditMaterial(seedMaterial, e)} className="p-1 rounded hover:bg-[var(--surface-2)]" title="Edit material master">
@@ -403,6 +477,29 @@ function Field2({ label, value, onChange, placeholder, type = 'text', disabled }
         className="w-full p-2 rounded-lg bg-[var(--surface-2)] border border-[var(--border)] text-[var(--text)] disabled:opacity-50"
       />
     </div>
+  );
+}
+
+function MoveStockButton({ item, inventory, navigate }: {
+  item: { materialItemId: string; materialName: string; locationId: string; locationName: string; availableQty: number; reorderPoint: number; primaryUom: string };
+  inventory: { materialItemId: string; locationId: string; locationName: string; availableQty: number }[];
+  navigate: (path: string) => void;
+}) {
+  const source = inventory.find(o => o.materialItemId === item.materialItemId && o.locationId !== item.locationId && o.availableQty > 0);
+  if (!source) return null;
+  const qty = Math.min(source.availableQty, Math.max(item.reorderPoint - item.availableQty, 1));
+  const q = new URLSearchParams({
+    material: item.materialName,
+    from: source.locationName,
+    to: item.locationName,
+    qty: String(qty),
+    uom: item.primaryUom,
+  });
+  return (
+    <button type="button" onClick={e => { e.stopPropagation(); navigate(`/transfers?${q.toString()}`); }}
+      className="px-2 py-1 rounded-lg text-xs font-semibold border" style={{ borderColor: 'var(--brand)', color: 'var(--brand)' }}>
+      Move stock
+    </button>
   );
 }
 

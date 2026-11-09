@@ -1,11 +1,10 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Plus, AlertTriangle, Search, Filter, ChevronRight, X, Trash2 } from 'lucide-react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Plus, AlertTriangle, Search, ChevronRight, X, Trash2 } from 'lucide-react';
 import { useStore, CUSTOMERS } from '../../store';
 import { computeProductionStatus } from '../../domain/productionStatus';
 import { DEMO_NOW } from '../../data/seed';
 import StatusChip from '../../components/layout/StatusChip';
-import clsx from 'clsx';
 import type { Job, JobStage } from '../../types';
 
 const PRIORITY_COLOR: Record<string, string> = {
@@ -22,9 +21,13 @@ const RISK_COLOR: Record<string, string> = {
 export default function Jobs() {
   const { jobs, dispatches, currentUser, addJob, showToast } = useStore();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const focusParam = searchParams.get('focus');
+  const riskParam = searchParams.get('risk');
+  const guided = focusParam === 'shortage' || !!riskParam;
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [view, setView] = useState<'board' | 'list'>('list');
+  const [riskFilter, setRiskFilter] = useState<string | null>(riskParam && riskParam !== 'watch' ? riskParam : null);
   const [showNewJob, setShowNewJob] = useState(false);
   const [deletedJobIds, setDeletedJobIds] = useState<Set<string>>(new Set());
   const canManage = ['owner', 'supervisor'].includes(currentUser.role);
@@ -49,7 +52,12 @@ export default function Jobs() {
       j.customerName.toLowerCase().includes(search.toLowerCase()) ||
       j.description.toLowerCase().includes(search.toLowerCase());
     const matchStatus = statusFilter === 'all' || j.status === statusFilter;
-    return matchSearch && matchStatus;
+    const risk = statusByJob[j.id].risk;
+    const matchRisk = riskParam === 'watch'
+      ? risk === 'at_risk' || risk === 'delayed'
+      : (!riskFilter || risk === riskFilter);
+    const matchFocus = focusParam !== 'shortage' || j.materialReadiness === 'shortage';
+    return matchSearch && matchStatus && matchRisk && matchFocus;
   });
 
   const statusCounts = {
@@ -69,6 +77,13 @@ export default function Jobs() {
   const daysLeft = (end: string) => {
     const diff = new Date(end).getTime() - now.getTime();
     return Math.ceil(diff / 86400000);
+  };
+
+  const jobNext = (j: Job) => {
+    const risk = statusByJob[j.id]?.risk;
+    if (j.hasBlocker || risk === 'blocked') return { label: 'Resolve', path: `/jobs/${j.id}` };
+    if (j.materialReadiness === 'shortage') return { label: 'Review', path: `/jobs/${j.id}` };
+    return { label: 'Update', path: `/jobs/${j.id}?update=1` };
   };
 
   return (
@@ -104,16 +119,75 @@ export default function Jobs() {
         )}
       </div>
 
-      {/* Production Risk Overview */}
-      <div className="flex-shrink-0 grid grid-cols-2 sm:grid-cols-4 gap-3 px-5 py-4" style={{ background: 'var(--surface)' }}>
-        <RiskTile label="At Risk" value={riskCounts.at_risk} accent="warning" />
-        <RiskTile label="Delayed" value={riskCounts.delayed} accent="error" />
-        <RiskTile label="Blocked" value={riskCounts.blocked} accent="error" />
-        <RiskTile label="Awaiting Material" value={riskCounts.awaiting_material} accent="warning" />
+      <div className="flex-shrink-0 flex gap-2 px-4 py-2.5 overflow-x-auto border-b" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
+        {([
+          ['at_risk', 'At risk', riskCounts.at_risk, 'warning'],
+          ['delayed', 'Delayed', riskCounts.delayed, 'error'],
+          ['blocked', 'Blocked', riskCounts.blocked, 'error'],
+          ['awaiting_material', 'Awaiting material', riskCounts.awaiting_material, 'warning'],
+        ] as const).map(([key, label, value, accent]) => {
+          const active = riskFilter === key;
+          const color = accent === 'error' ? 'var(--error)' : 'var(--warning)';
+          return (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setRiskFilter(active ? null : key)}
+              className="flex-shrink-0 px-3 py-1.5 rounded-full border text-xs font-semibold"
+              style={{
+                borderColor: active ? color : 'var(--border)',
+                color: value > 0 ? color : 'var(--text-3)',
+                background: active ? 'var(--surface-2)' : 'var(--surface)',
+              }}
+            >
+              {value} {label}
+            </button>
+          );
+        })}
+      </div>
+
+      {guided && (
+        <div className="px-4 py-2 text-sm border-b" style={{ borderColor: 'var(--border)', background: 'var(--surface-2)', color: 'var(--text)' }}>
+          {focusParam === 'shortage' && 'These jobs are short of material. Open one to see what is missing.'}
+          {riskParam === 'blocked' && 'These jobs are blocked. Resolve is the next step on the job.'}
+          {riskParam === 'watch' && 'These jobs are at risk or delayed. Update progress on the current stage.'}
+        </div>
+      )}
+
+      <div className="md:hidden flex-1 overflow-auto p-3 space-y-2">
+        {filtered.map(j => {
+          const status = statusByJob[j.id];
+          return (
+            <div
+              key={j.id}
+              role="link"
+              onClick={() => navigate(jobNext(j).path)}
+              className="w-full text-left rounded-xl border p-3 cursor-pointer"
+              style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-mono text-xs font-bold" style={{ color: 'var(--brand)' }}>{j.jobNumber}</span>
+                <span className="text-xs font-semibold" style={{ color: RISK_COLOR[status.risk] }}>{RISK_LABEL[status.risk]}</span>
+              </div>
+              <div className="text-sm font-semibold text-[var(--text)] mt-1">{j.customerName}</div>
+              <div className="text-xs text-[var(--text-2)] mt-0.5 line-clamp-2">{j.description}</div>
+              <div className="mt-2 flex items-center justify-between gap-2">
+                <span className="text-[11px] text-[var(--text-3)]">{j.currentStage} · due {new Date(j.plannedEnd).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</span>
+                {guided && (
+                  <button type="button" onClick={e => { e.stopPropagation(); navigate(jobNext(j).path); }}
+                    className="px-2.5 py-1 rounded-lg text-xs font-semibold text-white" style={{ background: 'var(--brand)' }}>
+                    {jobNext(j).label}
+                  </button>
+                )}
+              </div>
+            </div>
+          );
+        })}
+        {filtered.length === 0 && <p className="text-center py-8 text-sm" style={{ color: 'var(--text-3)' }}>No jobs found</p>}
       </div>
 
       {/* Table */}
-      <div className="flex-1 overflow-auto">
+      <div className="hidden md:block flex-1 overflow-auto">
         <table className="w-full text-sm border-separate border-spacing-0" style={{ minWidth: 900 }}>
           <thead style={{ position: 'sticky', top: 0, zIndex: 5 }}>
             <tr style={{ background: 'var(--surface-2)' }}>
@@ -167,6 +241,12 @@ export default function Jobs() {
                   </td>
                   <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                     <div className="flex items-center gap-1">
+                      {guided && (
+                        <button type="button" onClick={() => navigate(jobNext(j).path)}
+                          className="px-2 py-1 rounded-lg text-xs font-semibold text-white" style={{ background: 'var(--brand)' }}>
+                          {jobNext(j).label}
+                        </button>
+                      )}
                       {canManage && j.status !== 'complete' && (
                         <button onClick={e => handleDeleteJob(j.id, e)} className="p-1 rounded hover:bg-[var(--surface-2)]" title="Remove job"><Trash2 size={12} style={{ color: 'var(--error,#DC2626)' }} /></button>
                       )}
@@ -283,12 +363,3 @@ function NewJobModal({ onClose, onSave }: { onClose: () => void; onSave: (j: Job
   );
 }
 
-function RiskTile({ label, value, accent }: { label: string; value: number; accent: 'warning' | 'error' }) {
-  const color = accent === 'error' ? 'var(--error)' : 'var(--warning)';
-  return (
-    <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
-      <div className="text-xl font-bold" style={{ color: value > 0 ? color : 'var(--text)' }}>{value}</div>
-      <div className="text-xs text-[var(--text-2)] mt-0.5">{label}</div>
-    </div>
-  );
-}
