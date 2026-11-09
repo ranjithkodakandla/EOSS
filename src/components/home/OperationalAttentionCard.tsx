@@ -84,7 +84,7 @@ export default function OperationalAttentionCard() {
 
   return (
     <div
-      className="p-3 rounded-2xl border flex flex-col"
+      className="p-3 rounded-2xl border flex flex-col h-full min-h-0"
       style={{ background: 'var(--card-gradient, var(--surface))', borderColor: 'var(--border)' }}
     >
       <div className="flex items-baseline justify-between gap-2 mb-1">

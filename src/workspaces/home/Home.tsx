@@ -1,21 +1,18 @@
 import React, { useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { ShoppingCart, FileInput, PackagePlus, Wrench, ClipboardCheck, Truck } from 'lucide-react';
 import { useStore } from '../../store';
 import FinancialKpis from '../../components/home/FinancialKpis';
 import OrderToDeliveryFlow from '../../components/home/OrderToDeliveryFlow';
 import OperationalAttentionCard from '../../components/home/OperationalAttentionCard';
 import CopilotPanel from '../../components/copilot/CopilotPanel';
-import HomeStrip, { type HomeStripMode } from '../../components/home/HomeStrip';
+import HomeStrip from '../../components/home/HomeStrip';
 
 export default function Home() {
   const {
     currentUser, eossTheme, customerPos, jobs, inspections, supplierPos, qualityReleases,
   } = useStore();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const stripParam = searchParams.get('homeStrip');
-  const homeStrip: HomeStripMode = stripParam === 'machines' || stripParam === 'activity' ? stripParam : 'week';
   const [copilotDrawerOpen, setCopilotDrawerOpen] = useState(false);
 
   const copilotBtnBg =
@@ -75,23 +72,23 @@ export default function Home() {
         <div className="min-w-0 xl:min-h-0 xl:h-full flex flex-col gap-3">
           <FinancialKpis />
           <OrderToDeliveryFlow />
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 items-start shrink-0">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 items-stretch shrink-0">
             <OperationalAttentionCard />
             <div
-              className="rounded-2xl border p-4 flex flex-col min-h-0"
-              style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}
+              className="rounded-2xl border p-3 flex flex-col h-full min-h-0"
+              style={{ background: 'var(--card-gradient, var(--surface))', borderColor: 'var(--border)' }}
             >
-              <p className="text-sm font-bold text-[var(--text)] mb-2 shrink-0">Quick actions</p>
+              <p className="text-sm font-bold text-[var(--text)] tracking-tight mb-1 shrink-0">Quick actions</p>
               {quickActions.length === 0 ? (
                 <p className="text-sm text-[var(--text-2)]">No actions for this role.</p>
               ) : (
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-2 gap-2 flex-1">
                   {quickActions.map(({ icon: Icon, label, path }) => (
                     <button
                       key={label}
                       type="button"
                       onClick={() => navigate(path)}
-                      className="flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-semibold border text-left min-h-[44px]"
+                      className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-semibold border text-left min-h-[40px] h-full"
                       style={{ background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--brand)' }}
                     >
                       <Icon size={16} className="flex-shrink-0" />
@@ -103,7 +100,7 @@ export default function Home() {
             </div>
           </div>
           <div className="xl:flex-1 xl:min-h-0 min-h-[148px]">
-            <HomeStrip mode={homeStrip} />
+            <HomeStrip />
           </div>
         </div>
 
