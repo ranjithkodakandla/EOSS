@@ -20,6 +20,18 @@ export default function Home() {
       : eossTheme === 'ocean'
       ? 'linear-gradient(135deg, #06404A 0%, #08606F 100%)'
       : 'linear-gradient(135deg, #1E0A4C 0%, #3B0764 100%)';
+  const copilotBtnBorder =
+    eossTheme === 'graphite'
+      ? '1px solid rgba(245, 158, 11, 0.4)'
+      : eossTheme === 'ocean'
+      ? '1px solid rgba(34, 211, 238, 0.35)'
+      : '1px solid rgba(168, 85, 247, 0.35)';
+  const copilotBtnShadow =
+    eossTheme === 'graphite'
+      ? '0 8px 24px -4px rgba(229,138,54,0.45), 0 2px 8px rgba(0,0,0,0.5)'
+      : eossTheme === 'ocean'
+      ? '0 8px 24px -4px rgba(8,127,140,0.5), 0 2px 8px rgba(0,0,0,0.5)'
+      : '0 8px 24px -4px rgba(112,72,245,0.5), 0 2px 8px rgba(0,0,0,0.5)';
 
   const nameParts = currentUser?.name ? currentUser.name.trim().split(' ') : ['Ranjith'];
   const firstName = nameParts[0] || 'Ranjith';
@@ -40,33 +52,22 @@ export default function Home() {
 
   return (
     <div className="p-3 md:p-4 xl:h-[calc(100vh-70px)] xl:overflow-hidden xl:flex xl:flex-col">
-      <div className="mb-3 flex items-start justify-between gap-3 shrink-0">
-        <div className="min-w-0">
-          <h1 className="text-xl md:text-2xl font-extrabold tracking-tight text-[var(--text)] flex items-center gap-2">
-            <span>{`Good Evening, ${firstName}`}</span>
-            <span>👋</span>
-          </h1>
-          <p className="text-sm text-[var(--text-2)] mt-0.5">
-            Here's how the shop is moving.
-            {customerPos.some(po => po.id === 'cpo-rw-001') && (
-              <button type="button" onClick={() => navigate('/sales/po/cpo-rw-001')} className="ml-2 text-[var(--brand)] font-medium">
-                RheinWerk CPO-0001 is paid
-              </button>
-            )}
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={() => setCopilotDrawerOpen(true)}
-          className="xl:hidden flex-shrink-0 flex items-center gap-1.5 pl-1 pr-3 py-1 rounded-full text-xs font-semibold text-white"
-          style={{ background: copilotBtnBg }}
-        >
-          <img src={`/assets/copilot/robot_${eossTheme}.png`} alt="" className="w-7 h-7 object-contain" />
-          Copilot
-        </button>
+      <div className="mb-3 shrink-0">
+        <h1 className="text-xl md:text-2xl font-extrabold tracking-tight text-[var(--text)] flex items-center gap-2">
+          <span>{`Good Evening, ${firstName}`}</span>
+          <span>👋</span>
+        </h1>
+        <p className="text-sm text-[var(--text-2)] mt-0.5">
+          Here's how the shop is moving.
+          {customerPos.some(po => po.id === 'cpo-rw-001') && (
+            <button type="button" onClick={() => navigate('/sales/po/cpo-rw-001')} className="ml-2 text-[var(--brand)] font-medium">
+              RheinWerk CPO-0001 is paid
+            </button>
+          )}
+        </p>
       </div>
 
-      <div className="xl:flex-1 xl:min-h-0 grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_300px] gap-3">
+      <div className="xl:flex-1 xl:min-h-0 grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_360px] gap-3 items-stretch">
         <div className="min-w-0 xl:min-h-0 flex flex-col gap-3">
           <FinancialKpis />
           <OrderToDeliveryFlow />
@@ -99,9 +100,22 @@ export default function Home() {
           </div>
         </div>
 
-        <div className="hidden xl:block min-h-0 h-full">
+        <div className="hidden xl:flex min-h-0 h-full">
           <CopilotPanel />
         </div>
+      </div>
+
+      <div className="xl:hidden fixed bottom-[72px] right-4 z-40">
+        <button
+          type="button"
+          onClick={() => setCopilotDrawerOpen(true)}
+          className="flex items-center gap-2.5 px-4 py-2.5 rounded-full text-white"
+          style={{ background: copilotBtnBg, border: copilotBtnBorder, boxShadow: copilotBtnShadow }}
+        >
+          <img src={`/assets/copilot/robot_${eossTheme}.png`} alt="" className="w-7 h-7 object-contain" />
+          <span className="text-xs font-bold tracking-wide">Copilot</span>
+          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+        </button>
       </div>
 
       {copilotDrawerOpen && (
