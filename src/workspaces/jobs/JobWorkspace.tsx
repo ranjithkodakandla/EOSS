@@ -161,21 +161,6 @@ export default function JobWorkspace() {
           </div>
         </div>
 
-        {isBlocked ? (
-          <button
-            onClick={() => blockers[0] && handleResolveJobBlocker(blockers[0].id)}
-            className="text-xs text-[var(--error)] hover:underline font-bold whitespace-nowrap self-start sm:self-auto"
-          >
-            Clear Blocker →
-          </button>
-        ) : (
-          <button
-            onClick={() => openStageUpdate(activeStage.id)}
-            className="text-xs text-[var(--brand)] hover:underline font-bold whitespace-nowrap self-start sm:self-auto"
-          >
-            Record Next Output →
-          </button>
-        )}
       </div>
 
       {/* ── 3. Production Stage Progression Stepper (Calm & Linear) ── */}
@@ -244,43 +229,32 @@ export default function JobWorkspace() {
       {/* ── 5. Tab Content: Overview (Crisp 4-Pillar Readiness) ── */}
       {tab === 'Overview' && (
         <div className="space-y-4">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             <div className="p-3.5 rounded-xl bg-[var(--surface)] border border-[var(--border)]">
-              <div className="text-xs text-[var(--text-3)] font-medium">1. Materials</div>
-              <div className={clsx('text-sm font-bold mt-1', job.materialReadiness === 'shortage' ? 'text-[var(--error)]' : 'text-[var(--text)]')}>
-                {job.materialReadiness === 'ready' ? 'All BOM Reserved' : job.materialReadiness === 'shortage' ? 'Shortage Alert' : 'Partially Reserved'}
+              <div className="text-xs text-[var(--text-3)] font-medium">Materials</div>
+              <div className={clsx('text-sm font-bold mt-1 capitalize', job.materialReadiness === 'shortage' ? 'text-[var(--error)]' : 'text-[var(--text)]')}>
+                {job.materialReadiness}
               </div>
               <div className="text-xs text-[var(--text-3)] mt-0.5">
                 {jobReqs[0] ? `${jobReqs[0].materialName} (${jobReqs[0].reservedQty}/${jobReqs[0].requiredQty} ${jobReqs[0].uom})` : 'No BOM captured'}
               </div>
             </div>
-
             <div className="p-3.5 rounded-xl bg-[var(--surface)] border border-[var(--border)]">
-              <div className="text-xs text-[var(--text-3)] font-medium">2. Machinery</div>
-              <div className="text-sm font-bold text-emerald-400 mt-1">Bays Online</div>
-              <div className="text-xs text-[var(--text-3)] mt-0.5">Lincoln WM-01 nominal</div>
+              <div className="text-xs text-[var(--text-3)] font-medium">Current stage</div>
+              <div className="text-sm font-bold text-[var(--text)] mt-1">{activeStage?.name ?? job.currentStage}</div>
+              <div className="text-xs text-[var(--text-3)] mt-0.5">
+                {activeStage ? `${activeStage.completedGoodQty}/${activeStage.inputQty} ${activeStage.uom}` : '—'}
+              </div>
             </div>
-
             <div className="p-3.5 rounded-xl bg-[var(--surface)] border border-[var(--border)]">
-              <div className="text-xs text-[var(--text-3)] font-medium">3. Quality</div>
-              <div className="text-sm font-bold text-emerald-400 mt-1">100% Passed</div>
-              <div className="text-xs text-[var(--text-3)] mt-0.5">Weld visual check passed</div>
-            </div>
-
-            <div className="p-3.5 rounded-xl bg-[var(--surface)] border border-[var(--border)]">
-              <div className="text-xs text-[var(--text-3)] font-medium">4. Dispatch</div>
-              <div className="text-sm font-bold text-[var(--text)] mt-1">Target 18 Nov</div>
-              <div className="text-xs text-[var(--text-3)] mt-0.5">Bengaluru Plant</div>
+              <div className="text-xs text-[var(--text-3)] font-medium">Open inspections</div>
+              <div className="text-sm font-bold text-[var(--text)] mt-1">
+                {inspections.filter(i => i.jobId === job.id && (i.result === 'pending' || i.result === 'fail')).length}
+              </div>
+              <button type="button" onClick={() => setTab('Quality')} className="text-xs text-[var(--brand)] mt-0.5">Open quality</button>
             </div>
           </div>
 
-          {/* AI Insight (1 Sentence) */}
-          <div className="p-3 rounded-lg bg-[var(--surface)] border border-[var(--border)] text-xs text-[var(--text-2)] flex items-center gap-2">
-            <span className="text-[var(--cyan-bright)] font-bold">💡 AI Note:</span>
-            <span>Production tracking nominally. Next planned handover is Stage 3 Welding on 6 Nov.</span>
-          </div>
-
-          {/* Commercial & Drawing Metadata */}
           <div className="p-4 rounded-xl bg-[var(--surface)] border border-[var(--border)] space-y-2 text-xs">
             <div className="font-bold text-[var(--text)]">Engineering & Commercial Specifications</div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs pt-1">

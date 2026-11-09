@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Sparkles, ShoppingCart, FileInput, PackagePlus, Wrench, ClipboardCheck, Truck } from 'lucide-react';
+import { ShoppingCart, FileInput, PackagePlus, Wrench, ClipboardCheck, Truck } from 'lucide-react';
 import { useStore } from '../../store';
 import FinancialKpis from '../../components/home/FinancialKpis';
 import OrderToDeliveryFlow from '../../components/home/OrderToDeliveryFlow';
@@ -12,15 +12,15 @@ import CopilotPanel from '../../components/copilot/CopilotPanel';
 
 const QUICK_ACTIONS = [
   { icon: ShoppingCart, label: 'New Customer RFQ', path: '/sales/rfq/new', roles: ['owner', 'sales'] },
-  { icon: FileInput, label: 'Create Purchase Request', path: '/procurement', roles: ['owner', 'buyer'] },
-  { icon: PackagePlus, label: 'Receive Stock', path: '/procurement', roles: ['owner', 'storekeeper', 'buyer'] },
+  { icon: FileInput, label: 'Create Purchase Request', path: '/procurement/pr/new', roles: ['owner', 'buyer'] },
+  { icon: PackagePlus, label: 'Receive Stock', path: '/procurement?tab=grn', roles: ['owner', 'storekeeper', 'buyer'] },
   { icon: Wrench, label: 'Update Job', path: '/jobs', roles: ['owner', 'supervisor', 'operator'] },
   { icon: ClipboardCheck, label: 'Record Inspection', path: '/quality', roles: ['owner', 'qc', 'supervisor'] },
   { icon: Truck, label: 'Plan Dispatch', path: '/dispatch', roles: ['owner', 'dispatch', 'sales'] },
 ];
 
 export default function Home() {
-  const { currentUser, eossTheme, customerPos, jobs, dispatches, invoices, payments } = useStore();
+  const { currentUser, eossTheme, customerPos } = useStore();
   const navigate = useNavigate();
   const [copilotDrawerOpen, setCopilotDrawerOpen] = useState(false);
 
@@ -31,20 +31,6 @@ export default function Home() {
       ? 'linear-gradient(135deg, #06404A 0%, #08606F 100%)'
       : 'linear-gradient(135deg, #1E0A4C 0%, #3B0764 100%)';
 
-  const copilotBtnBorder =
-    eossTheme === 'graphite'
-      ? '1px solid rgba(245, 158, 11, 0.4)'
-      : eossTheme === 'ocean'
-      ? '1px solid rgba(34, 211, 238, 0.35)'
-      : '1px solid rgba(168, 85, 247, 0.35)';
-
-  const copilotBtnShadow =
-    eossTheme === 'graphite'
-      ? '0 8px 24px -4px rgba(229,138,54,0.45), 0 2px 8px rgba(0,0,0,0.5)'
-      : eossTheme === 'ocean'
-      ? '0 8px 24px -4px rgba(8,127,140,0.5), 0 2px 8px rgba(0,0,0,0.5)'
-      : '0 8px 24px -4px rgba(112,72,245,0.5), 0 2px 8px rgba(0,0,0,0.5)';
-
   // Fallback to 'Ranjith' if owner demo or display name
   const nameParts = currentUser?.name ? currentUser.name.trim().split(' ') : ['Ranjith'];
   const firstName = nameParts[0] || 'Ranjith';
@@ -52,37 +38,38 @@ export default function Home() {
   return (
     <div className="p-4 md:p-6 lg:p-7 max-w-[1720px] mx-auto select-none">
       {/* Top Greeting */}
-      <div className="mb-4 md:mb-5">
-        <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight text-[var(--text)] flex items-center gap-2">
-          <span>{`Good Evening, ${firstName}`}</span>
-          <span className="text-2xl">👋</span>
-        </h1>
-        <p className="text-sm md:text-base text-[var(--text-2)] mt-1 font-normal">
-          Here's how your business is doing this month.
-        </p>
+      <div className="mb-4 md:mb-5 flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight text-[var(--text)] flex items-center gap-2">
+            <span>{`Good Evening, ${firstName}`}</span>
+            <span className="text-2xl">👋</span>
+          </h1>
+          <p className="text-sm md:text-base text-[var(--text-2)] mt-1 font-normal">
+            Here's how your business is doing this month.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setCopilotDrawerOpen(true)}
+          className="xl:hidden flex-shrink-0 mt-1 px-3 py-1.5 rounded-full text-xs font-semibold text-white"
+          style={{ background: copilotBtnBg }}
+        >
+          Copilot
+        </button>
       </div>
 
-      {/* RheinWerk Business Pulse */}
-      {(() => {
-        const rwPO = customerPos.find(po => po.id === 'cpo-rw-001');
-        if (!rwPO) return null;
-        const rwJobs = jobs.filter(j => j.customerPoId === 'cpo-rw-001');
-        const doneJobs = rwJobs.filter(j => j.status === 'complete').length;
-        const rwJobIds = new Set(rwJobs.map(j => j.id));
-        const rwDispatches = dispatches.filter(d => Array.isArray(d.jobs) && d.jobs.some(jid => rwJobIds.has(jid)));
-        const collected = payments.reduce((s, p) => s + p.amount, 0);
-        return (
-          <div className="mb-4 px-4 py-3 rounded-2xl border flex flex-wrap gap-4 items-center text-xs"
-            style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}>
-            <span className="font-semibold text-[var(--text)]">🇩🇪 RheinWerk — CPO-0001</span>
-            <span className="text-[var(--text-2)]">PO Value: <strong className="text-[var(--text)]">₹60,00,000</strong></span>
-            <span className="text-[var(--text-2)]">Jobs: <strong className="text-emerald-600">{doneJobs}/{rwJobs.length} complete</strong></span>
-            <span className="text-[var(--text-2)]">Dispatches: <strong className="text-[var(--text)]">{rwDispatches.length} delivered</strong></span>
-            <span className="text-[var(--text-2)]">Collected: <strong className="text-emerald-600">₹{(collected / 100000).toFixed(0)}L / ₹60L</strong></span>
-            <span className="text-emerald-600 font-semibold">✓ Fully Invoiced & Paid</span>
-          </div>
-        );
-      })()}
+      {customerPos.some(po => po.id === 'cpo-rw-001') && (
+        <button
+          type="button"
+          onClick={() => navigate('/sales/po/cpo-rw-001')}
+          className="mb-4 w-full text-left px-4 py-2.5 rounded-2xl border text-sm"
+          style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}
+        >
+          <span className="font-semibold text-[var(--text)]">RheinWerk CPO-0001</span>
+          <span className="text-[var(--text-2)]"> is fully invoiced and paid. </span>
+          <span className="text-[var(--brand)] font-medium">Open order</span>
+        </button>
+      )}
 
       {/* Main Two-Zone Responsive Split */}
       <div className="grid grid-cols-1 xl:grid-cols-[1fr_360px] 2xl:grid-cols-[1fr_380px] gap-5 items-stretch">
@@ -141,31 +128,9 @@ export default function Home() {
         </div>
 
         {/* Right Column: EOSS Copilot (Desktop Persistent) */}
-        <div className="hidden xl:flex flex-col h-full min-h-[480px]">
+        <div className="hidden xl:block self-start sticky top-[86px]">
           <CopilotPanel />
         </div>
-      </div>
-
-      {/* Floating Copilot Button for Mobile and Tablet (< 1280px) positioned cleanly above bottom nav */}
-      <div className="xl:hidden fixed bottom-[72px] right-4 md:bottom-6 md:right-6 z-40">
-        <button
-          onClick={() => setCopilotDrawerOpen(true)}
-          className="flex items-center gap-2.5 px-4 py-2.5 rounded-full text-white transition-all hover:scale-105 active:scale-95 cursor-pointer"
-          style={{
-            background: copilotBtnBg,
-            border: copilotBtnBorder,
-            boxShadow: copilotBtnShadow,
-          }}
-          title="Open EOSS Copilot"
-        >
-          <img
-            src={`/assets/copilot/robot_${eossTheme}.png`}
-            alt="Copilot Mascot"
-            className="w-7 h-7 object-contain drop-shadow"
-          />
-          <span className="text-xs font-bold tracking-wide">Copilot</span>
-          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse -ml-0.5" />
-        </button>
       </div>
 
       {/* Mobile/Tablet Copilot Slide-Over Sheet */}

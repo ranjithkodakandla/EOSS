@@ -1,117 +1,39 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Target, ChevronRight } from 'lucide-react';
-import { useStore } from '../../store';
+import { ChevronRight } from 'lucide-react';
 
-interface PriorityItem {
-  id: string;
-  title: string;
-  completed: boolean;
-  path: string;
-}
+const PRIORITIES = [
+  { id: 'pr-1', title: 'Approve 2 purchase requests (₹4.1 L)', path: '/procurement?tab=approvals' },
+  { id: 'prod-release', title: 'Release production for SO-1245', path: '/jobs/job-101' },
+  { id: 'qc-pending', title: 'QC approval pending — 2 batches', path: '/quality' },
+];
 
 export default function YourPrioritiesCard() {
   const navigate = useNavigate();
-  const { showToast } = useStore();
-
-  const [items, setItems] = useState<PriorityItem[]>([
-    {
-      id: 'pr-1',
-      title: 'Approve 2 purchase requests (₹4.1 L)',
-      completed: true,
-      path: '/procurement',
-    },
-    {
-      id: 'prod-release',
-      title: 'Release production for SO-1245',
-      completed: false,
-      path: '/jobs/J-101',
-    },
-    {
-      id: 'qc-pending',
-      title: 'QC approval pending — 2 batches',
-      completed: false,
-      path: '/quality',
-    },
-  ]);
-
-  const toggleCheck = (e: React.MouseEvent, id: string) => {
-    e.stopPropagation();
-    setItems(prev =>
-      prev.map(item => {
-        if (item.id === id) {
-          const next = !item.completed;
-          showToast({
-            type: next ? 'success' : 'info',
-            title: next ? 'Priority Completed' : 'Priority Reopened',
-            body: item.title,
-          });
-          return { ...item, completed: next };
-        }
-        return item;
-      })
-    );
-  };
 
   return (
     <div
-      className="p-5 rounded-2xl border flex flex-col justify-between"
+      className="p-4 rounded-2xl border flex flex-col"
       style={{
         background: 'var(--card-gradient, linear-gradient(180deg, #FFFFFF 0%, #FAF9FE 100%))',
         borderColor: 'var(--border, #E5E0F5)',
-        boxShadow: '0 4px 20px -2px rgba(24, 27, 65, 0.06), 0 2px 6px -1px rgba(24, 27, 65, 0.04), inset 0 1px 1px #FFFFFF',
+        boxShadow: '0 4px 20px -2px rgba(24, 27, 65, 0.06)',
       }}
     >
-      {/* Header — Distinct Red Bullseye Target directly beside text (No Box) strictly matching reference */}
-      <div className="flex items-center gap-2 mb-3.5">
-        <div className="text-red-500 flex items-center justify-center">
-          <Target size={19} strokeWidth={2.5} />
-        </div>
-        <h3 className="text-base font-bold text-[var(--text)] tracking-tight">
-          Your Priorities (3)
-        </h3>
-      </div>
-
-      {/* Checklist */}
-      <div className="space-y-2.5 flex-1 flex flex-col justify-center">
-        {items.map(item => (
-          <div
+      <h3 className="text-base font-bold text-[var(--text)] tracking-tight mb-2">
+        Your Priorities
+      </h3>
+      <div className="space-y-1">
+        {PRIORITIES.map(item => (
+          <button
             key={item.id}
+            type="button"
             onClick={() => navigate(item.path)}
-            className="flex items-center justify-between p-2 rounded-xl hover:bg-[var(--surface-2)] hover:shadow-2xs transition-all cursor-pointer group"
+            className="w-full flex items-center justify-between gap-2 px-2 py-2 rounded-xl hover:bg-[var(--surface-2)] text-left"
           >
-            <div className="flex items-center gap-2.5 min-w-0 pr-2">
-              <button
-                type="button"
-                onClick={e => toggleCheck(e, item.id)}
-                className="flex-shrink-0 text-left transition-transform hover:scale-105 cursor-pointer"
-                title={item.completed ? 'Mark incomplete' : 'Mark complete'}
-              >
-                {item.completed ? (
-                  <div className="w-4 h-4 rounded-md bg-emerald-500 text-white flex items-center justify-center text-[10px] font-bold shadow-2xs">
-                    ✓
-                  </div>
-                ) : (
-                  <div className="w-4 h-4 rounded-md border-2 border-gray-300 bg-[var(--surface)] hover:border-[var(--brand)] transition-colors" />
-                )}
-              </button>
-
-              <span
-                className={`text-[13px] font-semibold truncate transition-all ${
-                  item.completed
-                    ? 'text-gray-800'
-                    : 'text-[var(--text)] group-hover:text-[var(--brand)]'
-                }`}
-              >
-                {item.title}
-              </span>
-            </div>
-
-            <ChevronRight
-              size={15}
-              className="text-gray-400 group-hover:text-[var(--brand)] group-hover:translate-x-0.5 transition-all flex-shrink-0"
-            />
-          </div>
+            <span className="text-[13px] font-semibold text-[var(--text)]">{item.title}</span>
+            <ChevronRight size={15} className="text-[var(--text-3)] flex-shrink-0" />
+          </button>
         ))}
       </div>
     </div>

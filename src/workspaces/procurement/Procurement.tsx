@@ -27,9 +27,18 @@ export default function Procurement() {
   const pendingApprovals = approvalRequests.filter(a => a.status === 'pending').length;
   const canCreate = ['owner', 'buyer'].includes(currentUser.role);
 
+  const q = search.toLowerCase();
   const filteredSpo = supplierPos.filter(p =>
-    !search || p.poNumber.toLowerCase().includes(search.toLowerCase()) ||
-    p.supplierName.toLowerCase().includes(search.toLowerCase())
+    !q || p.poNumber.toLowerCase().includes(q) || p.supplierName.toLowerCase().includes(q)
+  );
+  const filteredPrs = purchaseReqs.filter(pr =>
+    !q || pr.prNumber.toLowerCase().includes(q) || pr.raisedBy.toLowerCase().includes(q) || (pr.jobNumber ?? '').toLowerCase().includes(q)
+  );
+  const filteredGrns = grns.filter(g =>
+    !q || g.grnNumber.toLowerCase().includes(q) || g.supplierName.toLowerCase().includes(q)
+  );
+  const filteredQuotes = supplierQuotations.filter(qt =>
+    !q || qt.quoteNumber.toLowerCase().includes(q) || qt.supplierName.toLowerCase().includes(q)
   );
 
   const TABS = [
@@ -48,45 +57,56 @@ export default function Procurement() {
         style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
         <div className="relative flex-1 min-w-[180px] max-w-xs">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-3)' }} />
-          <input type="text" placeholder="Search PO, supplier…" value={search} onChange={e => setSearch(e.target.value)}
+          <input type="text" placeholder="Search this list…" value={search} onChange={e => setSearch(e.target.value)}
             className="w-full pl-8 pr-3 py-1.5 text-sm rounded-lg border outline-none"
             style={{ borderColor: 'var(--border)', background: 'var(--surface)', color: 'var(--text)' }} />
         </div>
         <div className="flex-1" />
         {overduePOs > 0 && (
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
+          <button type="button" onClick={() => setTab('spo')}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
             style={{ background: 'var(--error-bg,#FEF2F2)', color: 'var(--error,#DC2626)' }}>
             <AlertTriangle size={13} /> {overduePOs} overdue
-          </div>
+          </button>
         )}
         {pendingApprovals > 0 && (
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
+          <button type="button" onClick={() => setTab('approvals')}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
             style={{ background: 'var(--warning-bg,#FFFBEB)', color: 'var(--warning,#D97706)' }}>
-            {pendingApprovals} pending approval
-          </div>
+            {pendingApprovals} to approve
+          </button>
         )}
-        {canCreate && (
-          <>
-            <button onClick={() => navigate('/procurement/supplier-return')}
-              className="px-3 py-1.5 rounded-lg border text-xs font-medium hover:opacity-80"
-              style={{ borderColor: 'var(--border)', color: 'var(--text-2)' }}>
-              Supplier Return
-            </button>
-            <button onClick={() => navigate('/procurement/pr/new')}
-              className="px-3 py-1.5 rounded-lg border text-xs font-medium hover:opacity-80"
-              style={{ borderColor: 'var(--border)', color: 'var(--text-2)' }}>
-              New PR
-            </button>
-            <button onClick={() => setShowNewPO(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white"
-              style={{ background: 'var(--brand)' }}>
-              <Plus size={13} /> New PO
-            </button>
-          </>
+        {canCreate && tab === 'spo' && (
+          <button onClick={() => navigate('/procurement/supplier-return')}
+            className="px-3 py-1.5 rounded-lg border text-xs font-medium"
+            style={{ borderColor: 'var(--border)', color: 'var(--text-2)' }}>
+            Return
+          </button>
+        )}
+        {canCreate && tab === 'pr' && (
+          <button onClick={() => navigate('/procurement/pr/new')}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white"
+            style={{ background: 'var(--brand)' }}>
+            <Plus size={13} /> New PR
+          </button>
+        )}
+        {canCreate && tab === 'quotes' && (
+          <button onClick={() => navigate('/procurement/supplier-rfq/new')}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white"
+            style={{ background: 'var(--brand)' }}>
+            <Send size={13} /> Send enquiry
+          </button>
+        )}
+        {canCreate && tab === 'spo' && (
+          <button onClick={() => setShowNewPO(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white"
+            style={{ background: 'var(--brand)' }}>
+            <Plus size={13} /> New PO
+          </button>
         )}
       </div>
 
       {/* Tabs */}
-      <div className="flex-shrink-0 flex items-center border-b px-5"
+      <div className="flex-shrink-0 flex items-center border-b px-3 overflow-x-auto"
         style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
         {TABS.map(t => (
           <button key={t.id} onClick={() => setTab(t.id)}
@@ -158,10 +178,10 @@ export default function Procurement() {
               </tr>
             </thead>
             <tbody>
-              {purchaseReqs.length === 0 && (
+              {filteredPrs.length === 0 && (
                 <tr><td colSpan={9} className="px-4 py-10 text-center text-sm" style={{ color: 'var(--text-3)' }}>No PRs found</td></tr>
               )}
-              {purchaseReqs.map(pr => (
+              {filteredPrs.map(pr => (
                 <tr key={pr.id} className="cursor-pointer" style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}
                   onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--surface-2)'; }}
                   onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'var(--surface)'; }}
@@ -200,7 +220,7 @@ export default function Procurement() {
               </tr>
             </thead>
             <tbody>
-              {grns.map(g => (
+              {filteredGrns.map(g => (
                 <tr key={g.id} className="cursor-pointer" style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}
                   onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--surface-2)'; }}
                   onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'var(--surface)'; }}
@@ -220,12 +240,38 @@ export default function Procurement() {
         )}
 
         {tab === 'quotes' && (
-          <div className="p-5">
-            <div className="overflow-x-auto">
+          <div className="p-3 md:p-5">
+            <div className="md:hidden space-y-2">
+              {filteredQuotes.map(qt => {
+                const total = qt.lines.reduce((s, l) => s + l.lineTotal, 0);
+                const grouped = supplierQuotations.filter(x => x.prId && x.prId === qt.prId);
+                return (
+                  <div key={qt.id} className="rounded-xl border p-3" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-mono text-xs font-bold" style={{ color: 'var(--brand)' }}>{qt.quoteNumber}</span>
+                      <StatusChip status={qt.status} size="sm" />
+                    </div>
+                    <div className="text-sm font-medium text-[var(--text)] mt-1">{qt.supplierName}</div>
+                    <div className="text-xs text-[var(--text-2)] mt-1">
+                      ₹{(total / 1000).toFixed(1)}k · {qt.deliveryDays} days · {qt.paymentTerms}
+                    </div>
+                    {grouped.length > 1 && grouped[0]?.id === qt.id && (
+                      <button onClick={() => setCompareQuotes(grouped)}
+                        className="mt-2 text-xs px-2 py-1 rounded-lg border font-medium"
+                        style={{ borderColor: 'var(--brand)', color: 'var(--brand)' }}>
+                        Compare {grouped.length} quotes
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+              {filteredQuotes.length === 0 && <p className="text-center py-10 text-sm" style={{ color: 'var(--text-3)' }}>No quotations received yet</p>}
+            </div>
+            <div className="hidden md:block overflow-x-auto">
               <table className="eoss-table">
                 <thead><tr><th>Quote #</th><th>Supplier</th><th>Date</th><th>Valid Until</th><th>Lead Time</th><th>Payment Terms</th><th>Total Value</th><th>Status</th><th></th></tr></thead>
                 <tbody>
-                  {supplierQuotations.map(q => {
+                  {filteredQuotes.map(q => {
                     const total = q.lines.reduce((s, l) => s + l.lineTotal, 0);
                     const grouped = supplierQuotations.filter(x => x.prId && x.prId === q.prId);
                     return (
@@ -239,7 +285,7 @@ export default function Procurement() {
                         <td className="font-mono text-sm font-semibold" style={{ color: 'var(--text)' }}>₹{(total / 1000).toFixed(1)}k</td>
                         <td><StatusChip status={q.status} size="sm" /></td>
                         <td>
-                          {grouped.length > 1 && (
+                          {grouped.length > 1 && grouped[0]?.id === q.id && (
                             <button onClick={() => setCompareQuotes(grouped)}
                               className="text-xs px-2 py-1 rounded-lg border font-medium transition-colors"
                               style={{ borderColor: 'var(--brand)', color: 'var(--brand)' }}>
@@ -250,7 +296,7 @@ export default function Procurement() {
                       </tr>
                     );
                   })}
-                  {supplierQuotations.length === 0 && <tr><td colSpan={9} className="text-center py-10 text-sm" style={{ color: 'var(--text-3)' }}>No quotations received yet</td></tr>}
+                  {filteredQuotes.length === 0 && <tr><td colSpan={9} className="text-center py-10 text-sm" style={{ color: 'var(--text-3)' }}>No quotations received yet</td></tr>}
                 </tbody>
               </table>
             </div>
@@ -259,9 +305,7 @@ export default function Procurement() {
 
         {tab === 'approvals' && (
           <div className="p-5">
-            <div className="mb-4 p-3 rounded-xl bg-[var(--surface-2)] border border-[var(--border)] text-xs text-[var(--text-2)]">
-              <strong className="text-[var(--text)]">Auto-Approval Rules:</strong> PRs &lt; ₹10,000 and repeat purchases from approved vendors are auto-approved <span className="font-bold text-green-600 bg-green-100 px-1.5 py-0.5 rounded ml-1">Auto</span>. Items above threshold or new vendors require manual approval <span className="font-bold text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded ml-1">Manual</span>.
-            </div>
+            <p className="mb-4 text-xs text-[var(--text-2)]">PRs under ₹10,000 from approved vendors are already approved. These still need a decision.</p>
             {approvalRequests.filter(a => a.status === 'pending').length === 0 ? (
               <div className="rounded-xl border p-10 text-center" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
                 <p className="text-sm" style={{ color: 'var(--text-3)' }}>No pending approvals.</p>

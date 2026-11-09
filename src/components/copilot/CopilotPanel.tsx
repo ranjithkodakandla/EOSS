@@ -150,7 +150,8 @@ sendBtnBg: isGraphite
   return (
     <div
       className={clsx(
-        'flex flex-col h-full rounded-3xl overflow-hidden relative select-none',
+        'flex flex-col rounded-3xl overflow-hidden relative select-none',
+        isDrawer ? 'h-full' : 'h-auto',
         isDrawer ? 'w-full max-w-md' : 'w-full'
       )}
       style={{
@@ -159,80 +160,14 @@ sendBtnBg: isGraphite
         boxShadow: themeConfig.panelShadow,
       }}
     >
-      {/* ── Hero ── */}
-      <div
-        className="relative flex-shrink-0 overflow-hidden"
-        style={{ height: 200, background: themeConfig.panelBg }}
-      >
-        {/* All 3 hero images pre-rendered; opacity switch avoids flicker on theme change */}
-        {([
-          { theme: 'aurora', src: '/assets/copilot/hero_aurora.png', right: 0, mask: '38%' },
-          { theme: 'ocean',  src: '/assets/copilot/hero_ocean.png',  right: 0, mask: '46%' },
-          { theme: 'graphite', src: '/assets/copilot/hero_graphite.png', right: 14, mask: '28%' },
-        ] as const).map(({ theme, src, right, mask }) => (
-          <img
-            key={theme}
-            src={src}
-            alt=""
-            aria-hidden
-            style={{
-              position: 'absolute',
-              right,
-              top: 20,
-              height: '108%',
-              width: 'auto',
-              WebkitMaskImage: `linear-gradient(to right, transparent 0%, black ${mask})`,
-              maskImage: `linear-gradient(to right, transparent 0%, black ${mask})`,
-              opacity: eossTheme === theme ? 1 : 0,
-              transition: 'opacity 0.2s ease',
-              pointerEvents: 'none',
-            }}
-          />
-        ))}
-
-        {/* Bottom fade into panel bg */}
-        <div style={{
-          position: 'absolute', bottom: 0, left: 0, right: 0, height: 48,
-          background: `linear-gradient(to bottom, transparent, ${themeConfig.panelBg})`,
-          zIndex: 2,
-        }} />
-
-        {/* Left content column — header at top, bubble at bottom */}
-        <div
-          className="relative flex flex-col justify-between p-4"
-          style={{ width: '54%', height: '100%', zIndex: 3 }}
-        >
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-white/20 backdrop-blur-md flex items-center justify-center flex-shrink-0">
-              <Sparkles size={15} style={{ color: themeConfig.sparkleColor }} />
-            </div>
-            <div className="flex items-center gap-1 font-extrabold text-white text-[13px] leading-none whitespace-nowrap">
-              EOSS Copilot
-              <span style={{ color: themeConfig.sparkleColor }} className="text-xs mx-0.5">✦</span>
-              <span className="text-[10px] text-white/60 font-normal">Your intelligent partner</span>
-            </div>
-          </div>
-
-          {messages.length === 0 && (
-            <div
-              className="px-3 py-2.5 rounded-2xl text-[13px] font-bold leading-snug"
-              style={{
-                background: 'linear-gradient(180deg, #FFFFFF 0%, #F8FAFC 100%)',
-                color: '#1A1F36',
-                boxShadow: '0 6px 20px -4px rgba(0,0,0,0.20), inset 0 1px 1px #FFFFFF',
-                border: '1px solid rgba(255,255,255,0.9)',
-              }}
-            >
-              How can I help your<br />business today?
-            </div>
-          )}
-        </div>
-
-        {/* Close button */}
+      <div className="flex items-center gap-2 px-4 py-3 border-b border-white/10 flex-shrink-0">
+        <Sparkles size={15} style={{ color: themeConfig.sparkleColor }} />
+        <div className="font-bold text-white text-sm">Copilot</div>
         {isDrawer && onClose && (
           <button
             onClick={onClose}
-            className="absolute top-3 right-3 z-10 p-1.5 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer"
+            className="ml-auto p-1.5 rounded-full bg-white/10 hover:bg-white/20 text-white"
+            aria-label="Close Copilot"
           >
             <X size={16} />
           </button>

@@ -71,9 +71,9 @@ function AuroraWave({ theme }: { theme: string }) {
   );
 }
 
-export default function Sidebar() {
+export default function Sidebar({ mobileOpen = false, onClose }: { mobileOpen?: boolean; onClose?: () => void }) {
   const { sidebarCollapsed, toggleSidebar, eossTheme } = useStore();
-  const collapsed = sidebarCollapsed;
+  const collapsed = sidebarCollapsed && !mobileOpen;
 
   const sidebarBg = eossTheme === 'graphite'
     ? 'linear-gradient(185deg, #232630 0%, #1F222B 40%, #13151C 100%)'
@@ -84,7 +84,8 @@ export default function Sidebar() {
   return (
     <aside
       className={clsx(
-        'fixed left-0 top-0 bottom-0 z-40 flex flex-col sidebar-transition hidden md:flex select-none',
+        'fixed left-0 top-0 bottom-0 z-50 flex flex-col sidebar-transition select-none',
+        mobileOpen ? 'flex' : 'hidden md:flex',
         collapsed ? 'w-[var(--sidebar-w-collapsed,64px)]' : 'w-[var(--sidebar-width,216px)]'
       )}
       style={{
@@ -133,6 +134,7 @@ export default function Sidebar() {
             to={item.path}
             end={item.path === '/'}
             title={collapsed ? item.label : undefined}
+            onClick={onClose}
             className={({ isActive }) => clsx(
               'flex items-center gap-3 rounded-xl transition-all duration-150 text-[13px] font-medium',
               collapsed ? 'justify-center p-2 mx-auto w-9 h-9' : 'px-3 py-2',
@@ -173,6 +175,7 @@ export default function Sidebar() {
         <NavLink
           to="/admin"
           title={collapsed ? 'Admin & Settings' : undefined}
+          onClick={onClose}
           className={({ isActive }) => clsx(
             'flex items-center gap-3 rounded-xl transition-all duration-150 text-[13px] font-medium mb-1',
             collapsed ? 'justify-center p-2 mx-auto w-9 h-9' : 'px-3 py-2',
@@ -196,6 +199,7 @@ export default function Sidebar() {
         <button
           onClick={toggleSidebar}
           className={clsx(
+            mobileOpen && 'hidden',
             'flex items-center gap-2 w-full rounded-lg px-2.5 py-1.5 text-xs font-medium text-white/60 hover:text-white hover:bg-white/10 transition-colors',
             collapsed ? 'justify-center' : ''
           )}

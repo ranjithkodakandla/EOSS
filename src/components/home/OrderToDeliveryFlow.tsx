@@ -1,10 +1,9 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   FileText, ShoppingCart, Settings, ShieldCheck,
-  Truck, ArrowRight, ChevronDown, Workflow
+  Truck, ArrowRight, Workflow
 } from 'lucide-react';
-import { useStore } from '../../store';
 
 interface ProcessStep {
   id: string;
@@ -25,9 +24,6 @@ interface ProcessStep {
 
 export default function OrderToDeliveryFlow() {
   const navigate = useNavigate();
-  const { eossTheme } = useStore();
-  const [timeRange, setTimeRange] = useState('This Week');
-  const [timeMenuOpen, setTimeMenuOpen] = useState(false);
 
   // Operational metrics matching reference specification
   const openSales = 12;
@@ -35,21 +31,6 @@ export default function OrderToDeliveryFlow() {
   const inProgressJobs = 4;
   const pendingQC = 2;
   const readyDispatch = 6;
-
-  // Badge gradient adapting precisely by active theme
-  const flowBadgeBg =
-    eossTheme === 'graphite'
-      ? 'linear-gradient(135deg, #E58A36 0%, #F59E0B 100%)'
-      : eossTheme === 'ocean'
-      ? 'linear-gradient(135deg, #0284C7 0%, #0D9488 100%)'
-      : 'linear-gradient(135deg, #7048F5 0%, #845EF7 100%)';
-
-  const flowBadgeShadow =
-    eossTheme === 'graphite'
-      ? '0 2px 8px -1px rgba(229, 138, 54, 0.4), inset 0 1px 1px rgba(255, 255, 255, 0.5)'
-      : eossTheme === 'ocean'
-      ? '0 2px 8px -1px rgba(8, 127, 140, 0.4), inset 0 1px 1px rgba(255, 255, 255, 0.5)'
-      : '0 2px 8px -1px rgba(112, 72, 245, 0.4), inset 0 1px 1px rgba(255, 255, 255, 0.5)';
 
   const steps: ProcessStep[] = [
     {
@@ -140,73 +121,32 @@ export default function OrderToDeliveryFlow() {
       }}
     >
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-3.5">
-        <div className="flex items-center gap-2">
-          {/* Distinct Purple Workflow / Spiral Icon (No Box) */}
-          <div className="text-[var(--brand)] flex items-center justify-center">
-            <Workflow size={20} strokeWidth={2.5} />
-          </div>
-          <div>
-            <h2 className="text-base sm:text-lg font-bold text-[var(--text)] tracking-tight">
-              Order to Delivery
-            </h2>
-            <div className="text-[11px] text-[var(--text-2)]">
-              Operational shop floor sequence & throughput
-            </div>
-          </div>
+      <div className="flex items-center gap-2 mb-3">
+        <div className="text-[var(--brand)] flex items-center justify-center">
+          <Workflow size={18} strokeWidth={2.5} />
         </div>
-
-        <div className="flex items-center gap-2">
-          {/* Orders in Flow Pill with Glossy Style */}
-          <span
-            className="text-xs font-bold text-white px-3.5 py-1.5 rounded-full select-none"
-            style={{
-              background: flowBadgeBg,
-              boxShadow: flowBadgeShadow,
-            }}
-          >
-            Orders in Flow ({openSales})
-          </span>
-
-          {/* Time Filter Dropdown */}
-          <div className="relative">
-            <button
-              onClick={() => setTimeMenuOpen(o => !o)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-semibold bg-white text-[var(--text)] hover:border-[var(--brand)] transition-colors shadow-2xs cursor-pointer"
-              style={{ borderColor: 'var(--border)' }}
-            >
-              <span>{timeRange}</span>
-              <ChevronDown size={12} className="text-[var(--text-2)]" />
-            </button>
-
-            {timeMenuOpen && (
-              <>
-                <div className="fixed inset-0 z-30" onClick={() => setTimeMenuOpen(false)} />
-                <div
-                  className="absolute right-0 mt-1.5 w-36 rounded-xl border bg-[var(--surface)] shadow-lg z-40 p-1 text-xs"
-                  style={{ borderColor: 'var(--border)' }}
-                >
-                  {['Today', 'This Week', 'This Month', 'All Active'].map(range => (
-                    <button
-                      key={range}
-                      onClick={() => {
-                        setTimeRange(range);
-                        setTimeMenuOpen(false);
-                      }}
-                      className="w-full text-left px-3 py-1.5 rounded-lg hover:bg-[var(--surface-2)] font-medium text-[var(--text)] cursor-pointer"
-                    >
-                      {range}
-                    </button>
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
-        </div>
+        <h2 className="text-base font-bold text-[var(--text)] tracking-tight">
+          Order to Delivery
+        </h2>
       </div>
 
-      {/* Process Boxes: Responsive Row (Swipeable on mobile, natural flex grid on desktop) */}
-      <div className="w-full flex items-center justify-start sm:justify-between gap-1.5 sm:gap-2 overflow-x-auto sm:overflow-visible pb-1.5 sm:pb-0 no-scrollbar">
+      <div className="sm:hidden space-y-1.5">
+        {steps.map(step => (
+          <button
+            key={step.id}
+            type="button"
+            onClick={() => navigate(step.path)}
+            className="w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl border text-left"
+            style={{ background: step.bg, borderColor: step.borderColor }}
+          >
+            <span className="text-sm font-medium text-[var(--text)]">{step.name}</span>
+            <span className="text-sm font-bold whitespace-nowrap" style={{ color: step.countColor }}>{step.count}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* Process Boxes: desktop flow */}
+      <div className="hidden sm:flex w-full items-center justify-between gap-2">
         {steps.map((step, idx) => (
           <React.Fragment key={step.id}>
             {/* Step Card: 105px on mobile to prevent squishing, flex-1 on tablet/desktop */}

@@ -13,6 +13,7 @@ export default function Assets() {
   const navigate = useNavigate();
   const [tab, setTab] = useState<'assets' | 'maintenance'>('assets');
   const [search, setSearch] = useState('');
+  const [focus, setFocus] = useState<'all' | 'breakdown' | 'overdue' | 'due'>('all');
   const [showLogEvent, setShowLogEvent] = useState(false);
   const [deletedAssetIds, setDeletedAssetIds] = useState<Set<string>>(new Set());
   const canManage = ['owner', 'maintenance', 'supervisor'].includes(currentUser.role);
@@ -34,7 +35,15 @@ export default function Assets() {
   const inMaint = assets.filter(a => a.status === 'in_maintenance').length;
   const openEvents = maintenanceEvents.filter(m => m.status !== 'closed').length;
 
-  const filteredAssets = assets.filter(a => !deletedAssetIds.has(a.id) && (!search || a.name.toLowerCase().includes(search.toLowerCase()) || a.assetCode.toLowerCase().includes(search.toLowerCase())));
+  const filteredAssets = assets.filter(a => {
+    if (deletedAssetIds.has(a.id)) return false;
+    if (search && !a.name.toLowerCase().includes(search.toLowerCase()) && !a.assetCode.toLowerCase().includes(search.toLowerCase())) return false;
+    const due = dueByAsset[a.id];
+    if (focus === 'breakdown') return a.status === 'breakdown';
+    if (focus === 'overdue') return a.status === 'pm_overdue' || due?.status === 'overdue';
+    if (focus === 'due') return due?.status === 'due' || due?.status === 'upcoming';
+    return true;
+  });
   const filteredME = maintenanceEvents.filter(m => !search || m.eventNumber.toLowerCase().includes(search.toLowerCase()) || m.assetName.toLowerCase().includes(search.toLowerCase()));
 
   const canCreate = ['owner', 'maintenance', 'supervisor'].includes(currentUser.role);
@@ -50,9 +59,27 @@ export default function Assets() {
             style={{ borderColor: 'var(--border)', background: 'var(--surface)', color: 'var(--text)' }} />
         </div>
         <div className="flex-1" />
-        {breakdowns > 0 && <span className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ background: 'var(--error-bg,#FEF2F2)', color: 'var(--error,#DC2626)' }}><AlertTriangle size={12} /> {breakdowns} breakdown</span>}
-        {pmOverdue > 0 && <span className="px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ background: 'var(--warning-bg,#FFFBEB)', color: 'var(--warning,#D97706)' }}>{pmOverdue} PM overdue</span>}
-        {upcoming > 0 && <span className="px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ background: 'var(--warning-bg,#FFFBEB)', color: 'var(--warning,#D97706)' }}>{upcoming} due soon</span>}
+        {breakdowns > 0 && (
+          <button type="button" onClick={() => { setTab('assets'); setFocus(focus === 'breakdown' ? 'all' : 'breakdown'); }}
+            className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold border"
+            style={{ background: 'var(--error-bg,#FEF2F2)', color: 'var(--error,#DC2626)', borderColor: focus === 'breakdown' ? 'var(--error,#DC2626)' : 'transparent' }}>
+            <AlertTriangle size={12} /> {breakdowns} breakdown
+          </button>
+        )}
+        {pmOverdue > 0 && (
+          <button type="button" onClick={() => { setTab('assets'); setFocus(focus === 'overdue' ? 'all' : 'overdue'); }}
+            className="px-3 py-1.5 rounded-lg text-xs font-semibold border"
+            style={{ background: 'var(--warning-bg,#FFFBEB)', color: 'var(--warning,#D97706)', borderColor: focus === 'overdue' ? 'var(--warning,#D97706)' : 'transparent' }}>
+            {pmOverdue} overdue
+          </button>
+        )}
+        {upcoming > 0 && (
+          <button type="button" onClick={() => { setTab('assets'); setFocus(focus === 'due' ? 'all' : 'due'); }}
+            className="px-3 py-1.5 rounded-lg text-xs font-semibold border"
+            style={{ background: 'var(--surface)', color: 'var(--text-2)', borderColor: focus === 'due' ? 'var(--brand)' : 'var(--border)' }}>
+            {upcoming} due soon
+          </button>
+        )}
         {canCreate && (
           <button onClick={() => setShowLogEvent(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white" style={{ background: 'var(--brand)' }}>
             <Plus size={13} /> Log Event
@@ -74,7 +101,31 @@ export default function Assets() {
 
       <div className="flex-1 overflow-auto">
       {tab === 'assets' && (
-        <table className="w-full text-sm border-separate border-spacing-0" style={{ minWidth: 900 }}>
+        <>
+        <div className="md:hidden p-3 space-y-2">
+          {filteredAssets.map(a => {
+            const due = dueByAsset[a.id];
+            const next = due?.drivingCondition === 'hours' && due.remainingHours != null
+              ? `${due.remainingHours} hrs left`
+              : a.nextServiceDate
+                ? new Date(a.nextServiceDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+                : 'No service date';
+            return (
+              <button key={a.id} type="button" onClick={() => navigate(`/assets/${a.id}`)}
+                className="w-full text-left rounded-xl border p-3"
+                style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-mono text-xs font-bold" style={{ color: 'var(--brand)' }}>{a.assetCode}</span>
+                  <StatusChip status={a.status} size="sm" />
+                </div>
+                <div className="text-sm font-semibold text-[var(--text)] mt-1">{a.name}</div>
+                <div className="text-xs text-[var(--text-2)] mt-0.5">{a.workCentre ?? a.category} · next {next}</div>
+              </button>
+            );
+          })}
+          {filteredAssets.length === 0 && <p className="text-center py-8 text-sm" style={{ color: 'var(--text-3)' }}>No assets match</p>}
+        </div>
+        <table className="hidden md:table w-full text-sm border-separate border-spacing-0" style={{ minWidth: 900 }}>
           <thead style={{ position: 'sticky', top: 0, zIndex: 5 }}>
             <tr style={{ background: 'var(--surface-2)' }}>
               {['Code', 'Asset', 'Category', 'Work Centre', 'Criticality', 'Meter', 'Last Service', 'Next Service', 'Status', ''].map(h => (
@@ -143,6 +194,7 @@ export default function Assets() {
             ))}
           </tbody>
         </table>
+        </>
       )}
 
       {tab === 'maintenance' && (

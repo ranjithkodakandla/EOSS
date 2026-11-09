@@ -40,33 +40,35 @@ export default function OperationalAttentionCard() {
   ] as const;
 
   const colorFor = (accent: string) => accent === 'error' ? 'var(--error)' : 'var(--warning)';
+  const visible = metrics.filter(m => m.value > 0);
 
   return (
     <div
-      className="p-5 rounded-2xl border"
+      className="p-4 rounded-2xl border"
       style={{
         background: 'var(--card-gradient, linear-gradient(180deg, #FFFFFF 0%, #FAF9FE 100%))',
         borderColor: 'var(--border, #E5E0F5)',
-        boxShadow: '0 4px 20px -2px rgba(24, 27, 65, 0.06), 0 2px 6px -1px rgba(24, 27, 65, 0.04)',
+        boxShadow: '0 4px 20px -2px rgba(24, 27, 65, 0.06)',
       }}
     >
-      <h3 className="text-base font-bold text-[var(--text-primary, #1A1F36)] tracking-tight mb-3.5">Operational Attention</h3>
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-        {metrics.map(m => (
-          <button
-            key={m.label}
-            onClick={() => navigate(m.path)}
-            className="text-left p-3 rounded-xl border hover:-translate-y-0.5 hover:shadow-sm transition-all"
-            style={{ borderColor: 'var(--border, #E5E7EB)', background: m.value > 0 ? 'var(--surface-muted, #F8F9FC)' : 'transparent' }}
-          >
-            <div className="flex items-center justify-between">
-              <m.icon size={14} style={{ color: m.value > 0 ? colorFor(m.accent) : 'var(--text-secondary, #9094A6)' }} />
-              <span className="text-lg font-bold" style={{ color: m.value > 0 ? colorFor(m.accent) : 'var(--text-primary, #1A1F36)' }}>{m.value}</span>
-            </div>
-            <div className="text-[11px] font-medium text-[var(--text-secondary, #626A84)] mt-1 leading-tight">{m.label}</div>
-          </button>
-        ))}
-      </div>
+      <h3 className="text-base font-bold text-[var(--text)] tracking-tight mb-1">Needs attention</h3>
+      {visible.length === 0 ? (
+        <p className="text-sm text-[var(--text-2)] py-2">Nothing is waiting on you right now.</p>
+      ) : (
+        <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
+          {visible.map(m => (
+            <button
+              key={m.label}
+              onClick={() => navigate(m.path)}
+              className="w-full flex items-center gap-3 py-2 text-left"
+            >
+              <m.icon size={15} style={{ color: colorFor(m.accent) }} />
+              <span className="flex-1 text-[13px] font-medium text-[var(--text)]">{m.label}</span>
+              <span className="text-sm font-bold tabular-nums" style={{ color: colorFor(m.accent) }}>{m.value}</span>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
