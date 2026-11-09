@@ -77,8 +77,8 @@ export default function AdminSecurity() {
     <div className="p-4 md:p-6 max-w-[1400px] mx-auto">
       {/* Header */}
       <div className="mb-5">
-        <h1 className="text-xl font-bold text-[var(--text)]">Admin & Security</h1>
-        <p className="text-sm text-[var(--text-2)] mt-0.5">Company configuration, users, roles, integrations and audit</p>
+        <h1 className="text-xl font-bold text-[var(--text)]">Admin & Settings</h1>
+        <p className="text-sm text-[var(--text-2)] mt-0.5">Company, people, and the audit trail. Edit is on the open tab.</p>
       </div>
 
       {/* Tabs */}

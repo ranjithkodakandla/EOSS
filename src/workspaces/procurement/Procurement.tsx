@@ -126,7 +126,21 @@ export default function Procurement() {
       {/* Content */}
       <div className="flex-1 overflow-auto">
         {tab === 'spo' && (
-          <table className="w-full text-sm border-separate border-spacing-0">
+          <>
+          <div className="md:hidden p-3 space-y-2">
+            {filteredSpo.map(p => (
+              <button key={p.id} type="button" onClick={() => navigate(`/procurement/spo/${p.id}`)}
+                className="w-full text-left rounded-xl border p-3" style={{ borderColor: 'var(--border)', background: p.status === 'overdue' ? 'var(--error-bg,#FEF2F2)' : 'var(--surface)' }}>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-mono text-xs font-bold" style={{ color: 'var(--brand)' }}>{p.poNumber}</span>
+                  <StatusChip status={p.status} size="sm" />
+                </div>
+                <div className="text-sm font-semibold text-[var(--text)] mt-1">{p.supplierName}</div>
+                <div className="text-xs text-[var(--text-2)] mt-1">₹{(p.totalValue / 1000).toFixed(1)}k{p.jobRef ? ` · ${p.jobRef}` : ''}</div>
+              </button>
+            ))}
+          </div>
+          <table className="hidden md:table w-full text-sm border-separate border-spacing-0">
             <thead style={{ position: 'sticky', top: 0, zIndex: 5 }}>
               <tr style={{ background: 'var(--surface-2)', borderBottom: '1px solid var(--border)' }}>
                 {['PO Number', 'Supplier', 'Raised', 'Committed', 'Lines', 'Value', 'Job Ref', 'Status', ''].map(h => (
@@ -171,6 +185,7 @@ export default function Procurement() {
               ))}
             </tbody>
           </table>
+          </>
         )}
 
         {tab === 'pr' && (

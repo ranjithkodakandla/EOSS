@@ -88,7 +88,23 @@ export default function Quality() {
 
       <div className="flex-1 overflow-auto">
         {tab === 'inspections' && (
-          <table className="w-full text-sm border-separate border-spacing-0" style={{ minWidth: 800 }}>
+          <>
+          <div className="md:hidden p-3 space-y-2">
+            {[...visibleInspections].sort((a, b) => (a.result === 'pending' || a.result === 'fail' ? 0 : 1) - (b.result === 'pending' || b.result === 'fail' ? 0 : 1)).map(i => (
+              <div key={i.id} onClick={() => navigate(i.result === 'pending' ? `/quality/inspection/${i.id}?record=1` : `/quality/inspection/${i.id}`)}
+                className="rounded-xl border p-3 cursor-pointer" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-mono text-xs font-bold" style={{ color: 'var(--brand)' }}>{i.inspectionNumber}</span>
+                  <StatusChip status={i.result} size="sm" />
+                </div>
+                <div className="text-sm text-[var(--text)] mt-1">{i.jobNumber ? `Job ${i.jobNumber}` : i.type}</div>
+                {(i.result === 'pending' || i.result === 'fail') && (
+                  <div className="mt-2 text-xs font-semibold text-[var(--brand)]">{i.result === 'pending' ? 'Record result' : 'Raise NCR'}</div>
+                )}
+              </div>
+            ))}
+          </div>
+          <table className="hidden md:table w-full text-sm border-separate border-spacing-0" style={{ minWidth: 800 }}>
             <thead style={{ position: 'sticky', top: 0, zIndex: 5 }}>
               <tr style={{ background: 'var(--surface-2)' }}>
                 {['Inspection #', 'Type', 'Subject', 'Date', 'Inspector', 'Sample', 'Accept', 'Reject', 'Result', ''].map(h => (
@@ -136,6 +152,7 @@ export default function Quality() {
               )}
             </tbody>
           </table>
+          </>
         )}
 
         {tab === 'ncrs' && (
