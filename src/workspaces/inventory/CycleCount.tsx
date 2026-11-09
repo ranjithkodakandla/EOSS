@@ -100,7 +100,7 @@ export default function CycleCount() {
           <button
             onClick={handleStart}
             className="w-full px-4 py-2.5 rounded-lg text-sm font-semibold text-white cursor-pointer hover:opacity-90 transition"
-            style={{ background: 'var(--brand)' }}
+            style={{ background: 'var(--brand-fill)' }}
           >
             Begin Count
           </button>
@@ -200,7 +200,7 @@ export default function CycleCount() {
               onClick={handleSubmit}
               disabled={submitted || counted === 0}
               className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white cursor-pointer hover:opacity-90 transition disabled:opacity-40"
-              style={{ background: 'var(--brand)' }}
+              style={{ background: 'var(--brand-fill)' }}
             >
               {submitted ? <CheckCircle size={14} /> : <ClipboardList size={14} />}
               {submitted ? 'Submitted' : 'Submit Count'}

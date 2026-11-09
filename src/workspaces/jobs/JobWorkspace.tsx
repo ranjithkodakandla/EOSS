@@ -235,7 +235,7 @@ export default function JobWorkspace() {
           >
             {t}
             {tab === t && (
-              <span className="absolute bottom-0 left-0 right-0 h-0.5 rounded-t-full" style={{ background: 'var(--brand)' }} />
+              <span className="absolute bottom-0 left-0 right-0 h-0.5 rounded-t-full" style={{ background: 'var(--brand-fill)' }} />
             )}
           </button>
         ))}
@@ -405,7 +405,7 @@ export default function JobWorkspace() {
               <h3 className="text-sm font-bold text-[var(--text)]">Inspections for {job.jobNumber}</h3>
               {['owner', 'qc'].includes(currentUser.role) && (
                 <button onClick={() => navigate(`/quality?newFor=${job.id}`)}
-                  className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-white" style={{ background: 'var(--brand)' }}>
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-white" style={{ background: 'var(--brand-fill)' }}>
                   + New Inspection
                 </button>
               )}

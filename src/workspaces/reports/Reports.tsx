@@ -70,7 +70,7 @@ export default function Reports() {
             <table className="eoss-table">
               <thead><tr><th>Job #</th><th>Customer</th><th>Status</th><th>Priority</th><th>Planned End</th></tr></thead>
               <tbody>
-                {jobs.slice(0, 5).map(j => (
+                {jobs.map(j => (
                   <tr key={j.id}>
                     <td className="font-mono text-xs text-[var(--brand)]">{j.jobNumber}</td>
                     <td className="text-sm text-[var(--text)]">{j.customerName}</td>
@@ -108,7 +108,7 @@ export default function Reports() {
             <table className="eoss-table">
               <thead><tr><th>Material</th><th>Location</th><th>On Hand</th><th>Available</th><th>Status</th></tr></thead>
               <tbody>
-                {inventory.slice(0, 10).map(i => (
+                {inventory.map(i => (
                   <tr key={i.id}>
                     <td className="text-sm font-medium text-[var(--text)]">{i.materialName}</td>
                     <td className="text-xs text-[var(--text-2)]">{i.locationName}</td>
@@ -135,7 +135,7 @@ export default function Reports() {
             <table className="eoss-table">
               <thead><tr><th>PO Number</th><th>Supplier</th><th>Raised</th><th>Value</th><th>Status</th></tr></thead>
               <tbody>
-                {supplierPos.slice(0, 8).map(p => (
+                {supplierPos.map(p => (
                   <tr key={p.id}>
                     <td className="font-mono text-xs font-bold text-[var(--brand)]">{p.poNumber}</td>
                     <td className="text-sm text-[var(--text)]">{p.supplierName}</td>
@@ -162,7 +162,7 @@ export default function Reports() {
             <table className="eoss-table">
               <thead><tr><th>Dispatch #</th><th>Customer</th><th>Date</th><th>Vehicle</th><th>Status</th></tr></thead>
               <tbody>
-                {dispatches.slice(0, 8).map(d => (
+                {dispatches.map(d => (
                   <tr key={d.id}>
                     <td className="font-mono text-xs font-bold text-[var(--brand)]">{d.dispatchNumber}</td>
                     <td className="text-sm text-[var(--text)]">{d.customerName}</td>
@@ -252,7 +252,7 @@ export default function Reports() {
               <table className="eoss-table">
                 <thead><tr><th>Invoice #</th><th>Customer</th><th>Amount</th><th>Due Date</th><th>Status</th></tr></thead>
                 <tbody>
-                  {customerInvoices.slice(0, 8).map(i => (
+                  {customerInvoices.map(i => (
                     <tr key={i.id}>
                       <td className="font-mono text-xs font-bold text-[var(--brand)]">{i.invoiceNumber}</td>
                       <td className="text-sm text-[var(--text)]">{i.customerName}</td>

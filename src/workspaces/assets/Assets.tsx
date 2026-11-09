@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Plus, AlertTriangle, ChevronRight, Wrench, Search, X, Trash2 } from 'lucide-react';
 import { useStore } from '../../store';
 import { computeMaintenanceDue } from '../../domain/maintenanceDue';
+import { maintenanceDueSoon, maintenanceOverdue } from '../../domain/recordLists';
 import { DEMO_NOW } from '../../data/seed';
 import StatusChip from '../../components/layout/StatusChip';
 import clsx from 'clsx';
@@ -18,8 +19,14 @@ export default function Assets() {
   const [focus, setFocus] = useState<'all' | 'breakdown' | 'overdue' | 'due'>(
     focusParam === 'breakdown' || focusParam === 'overdue' || focusParam === 'due' ? focusParam : 'all'
   );
-  const [showLogEvent, setShowLogEvent] = useState(false);
-  const [logAssetId, setLogAssetId] = useState<string | undefined>(undefined);
+  const logParam = searchParams.get('log');
+  const [showLogEvent, setShowLogEvent] = useState(!!logParam);
+  const [logAssetId, setLogAssetId] = useState<string | undefined>(logParam ?? undefined);
+  useEffect(() => {
+    if (!logParam) return;
+    setLogAssetId(logParam);
+    setShowLogEvent(true);
+  }, [logParam]);
   const [deletedAssetIds, setDeletedAssetIds] = useState<Set<string>>(new Set());
   const canManage = ['owner', 'maintenance', 'supervisor'].includes(currentUser.role);
 
@@ -34,9 +41,10 @@ export default function Assets() {
   const now = new Date(DEMO_NOW);
   const dueByAsset = Object.fromEntries(assets.map(a => [a.id, computeMaintenanceDue(a, meterReadings, now)]));
 
-  const breakdowns = assets.filter(a => a.status === 'breakdown').length;
-  const pmOverdue = assets.filter(a => a.status === 'pm_overdue' || dueByAsset[a.id]?.status === 'overdue').length;
-  const upcoming = assets.filter(a => dueByAsset[a.id]?.status === 'upcoming' || dueByAsset[a.id]?.status === 'due').length;
+  const liveAssets = assets.filter(a => !deletedAssetIds.has(a.id));
+  const breakdowns = liveAssets.filter(a => a.status === 'breakdown').length;
+  const pmOverdue = maintenanceOverdue(liveAssets, meterReadings, now).length;
+  const upcoming = maintenanceDueSoon(liveAssets, meterReadings, now).length;
   const inMaint = assets.filter(a => a.status === 'in_maintenance').length;
   const openEvents = maintenanceEvents.filter(m => m.status !== 'closed').length;
 
@@ -45,8 +53,8 @@ export default function Assets() {
     if (search && !a.name.toLowerCase().includes(search.toLowerCase()) && !a.assetCode.toLowerCase().includes(search.toLowerCase())) return false;
     const due = dueByAsset[a.id];
     if (focus === 'breakdown') return a.status === 'breakdown';
-    if (focus === 'overdue') return a.status === 'pm_overdue' || due?.status === 'overdue';
-    if (focus === 'due') return due?.status === 'due' || due?.status === 'upcoming';
+    if (focus === 'overdue') return maintenanceOverdue([a], meterReadings, now).length > 0;
+    if (focus === 'due') return maintenanceDueSoon([a], meterReadings, now).length > 0;
     return true;
   });
   const filteredME = maintenanceEvents.filter(m => !search || m.eventNumber.toLowerCase().includes(search.toLowerCase()) || m.assetName.toLowerCase().includes(search.toLowerCase()));
@@ -86,7 +94,7 @@ export default function Assets() {
           </button>
         )}
         {canCreate && (
-          <button onClick={() => setShowLogEvent(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white" style={{ background: 'var(--brand)' }}>
+          <button onClick={() => setShowLogEvent(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white" style={{ background: 'var(--brand-fill)' }}>
             <Plus size={13} /> Log Event
           </button>
         )}
@@ -94,12 +102,12 @@ export default function Assets() {
 
       {/* Tabs */}
       <div className="flex-shrink-0 flex items-center border-b px-5" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
-        {([['assets', `Assets (${assets.length})`], ['maintenance', `Maintenance Events (${maintenanceEvents.length})`]] as [string, string][]).map(([id, label]) => (
+        {([['assets', `Assets (${filteredAssets.length})`], ['maintenance', `Maintenance Events (${filteredME.length})`]] as [string, string][]).map(([id, label]) => (
           <button key={id} onClick={() => setTab(id as any)}
             className="relative px-4 py-3 text-sm font-medium transition-colors whitespace-nowrap"
             style={{ color: tab === id ? 'var(--brand)' : 'var(--text-2)' }}>
             {label}
-            {tab === id && <span className="absolute bottom-0 left-0 right-0 h-0.5 rounded-t-full" style={{ background: 'var(--brand)' }} />}
+            {tab === id && <span className="absolute bottom-0 left-0 right-0 h-0.5 rounded-t-full" style={{ background: 'var(--brand-fill)' }} />}
           </button>
         ))}
       </div>
@@ -272,14 +280,14 @@ function AssetAction({ asset, events, onSchedule, onComplete }: {
   if (open) {
     return (
       <button type="button" onClick={e => { e.stopPropagation(); onComplete(open.id); }}
-        className="px-2 py-1 rounded-lg text-xs font-semibold text-white" style={{ background: 'var(--brand)' }}>
+        className="px-2 py-1 rounded-lg text-xs font-semibold text-white" style={{ background: 'var(--brand-fill)' }}>
         Complete
       </button>
     );
   }
   return (
     <button type="button" onClick={e => { e.stopPropagation(); onSchedule(asset.id); }}
-      className="px-2 py-1 rounded-lg text-xs font-semibold text-white" style={{ background: 'var(--brand)' }}>
+      className="px-2 py-1 rounded-lg text-xs font-semibold text-white" style={{ background: 'var(--brand-fill)' }}>
       Schedule
     </button>
   );
@@ -349,7 +357,7 @@ function LogEventModal({ assets, initialAssetId, onClose, onSave }: { assets: { 
         {err && <p className="text-xs text-[var(--danger)] mt-2">{err}</p>}
         <div className="flex gap-3 mt-5">
           <button onClick={onClose} className="flex-1 py-2.5 border border-[var(--border)] rounded-xl text-sm text-[var(--text-2)]">Cancel</button>
-          <button onClick={save} className="flex-1 py-2.5 bg-[var(--brand)] text-white rounded-xl text-sm font-medium">Log Event</button>
+          <button onClick={save} className="flex-1 py-2.5 bg-[var(--brand-fill)] text-white rounded-xl text-sm font-medium">Log Event</button>
         </div>
       </div>
     </div>

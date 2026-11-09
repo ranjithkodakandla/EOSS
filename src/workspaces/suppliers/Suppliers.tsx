@@ -20,7 +20,7 @@ export default function Suppliers() {
           <p className="text-sm text-[var(--text-2)]">{SUPPLIERS.length} suppliers registered</p>
         </div>
         {['owner', 'buyer'].includes(currentUser.role) && (
-          <button onClick={() => setShowAdd(true)} className="flex items-center gap-2 px-4 py-2 bg-[var(--brand)] text-white rounded-lg text-sm font-medium"><Plus size={16} /> Add Supplier</button>
+          <button onClick={() => setShowAdd(true)} className="flex items-center gap-2 px-4 py-2 bg-[var(--brand-fill)] text-white rounded-lg text-sm font-medium"><Plus size={16} /> Add Supplier</button>
         )}
       </div>
 
@@ -148,7 +148,7 @@ function AddSupplierModal({ onClose, onSave, initialValues, editMode }: { onClos
         {err && <p className="text-xs text-[var(--danger)] mt-2">{err}</p>}
         <div className="flex gap-3 mt-5">
           <button onClick={onClose} className="flex-1 py-2.5 border border-[var(--border)] rounded-xl text-sm text-[var(--text-2)]">Cancel</button>
-          <button onClick={save} className="flex-1 py-2.5 bg-[var(--brand)] text-white rounded-xl text-sm font-medium">Save Supplier</button>
+          <button onClick={save} className="flex-1 py-2.5 bg-[var(--brand-fill)] text-white rounded-xl text-sm font-medium">Save Supplier</button>
         </div>
       </div>
     </div>

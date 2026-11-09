@@ -3,6 +3,8 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Plus, Trash2 } from 'lucide-react';
 import { useStore } from '../../store';
 import type { PurchaseRequisition } from '../../types';
+import SiteStoreField from '../../components/forms/SiteStoreField';
+import { DEFAULT_SITE_ID, DEFAULT_SITE_NAME, DEFAULT_STORE_ID, DEFAULT_STORE_NAME } from '../../domain/recordLists';
 
 type Step = 1 | 2 | 3;
 
@@ -32,12 +34,16 @@ export default function PRCreate() {
 
   // Step 1 — Header
   const [header, setHeader] = useState({
-    jobId: '',
+    jobId: searchParams.get('job') ?? '',
     raisedBy: currentUser.name,
     requiredBy: prefillName ? '2026-11-12' : '',
     priority: (prefillName ? 'high' : 'normal') as PurchaseRequisition['priority'],
     purpose: prefillName ? `Cover shortage of ${prefillName}` : '',
     notes: '',
+    deliverToSiteId: DEFAULT_SITE_ID,
+    deliverToSiteName: DEFAULT_SITE_NAME,
+    deliverToStoreId: DEFAULT_STORE_ID,
+    deliverToStoreName: DEFAULT_STORE_NAME,
   });
 
   // Step 2 — Lines
@@ -86,6 +92,10 @@ export default function PRCreate() {
       lineCount: lines.length,
       totalQty: lines.reduce((s, l) => s + l.requiredQty, 0),
       priority: header.priority,
+      deliverToSiteId: header.deliverToSiteId,
+      deliverToSiteName: header.deliverToSiteName,
+      deliverToStoreId: header.deliverToStoreId,
+      deliverToStoreName: header.deliverToStoreName,
       lines,
       purpose: header.purpose,
       notes: header.notes,
@@ -110,7 +120,7 @@ export default function PRCreate() {
         </button>
         <div>
           <h1 className="text-lg font-bold text-[var(--text)]">New Purchase Requisition</h1>
-          <p className="text-xs text-[var(--text-2)]">Raise a material requirement for production</p>
+          <p className="text-xs text-[var(--text-2)]">Deliver to {header.deliverToSiteName} · {header.deliverToStoreName}</p>
         </div>
         {/* Step indicator */}
         <div className="ml-auto flex items-center gap-1">
@@ -160,6 +170,21 @@ export default function PRCreate() {
                   </select>
                 </div>
                 <div className="md:col-span-2">
+                  <SiteStoreField
+                    siteId={header.deliverToSiteId}
+                    storeId={header.deliverToStoreId}
+                    label="Deliver-to site"
+                    storeLabel="Deliver-to store"
+                    onChange={next => setHeader(h => ({
+                      ...h,
+                      deliverToSiteId: next.siteId,
+                      deliverToSiteName: next.siteName,
+                      deliverToStoreId: next.storeId,
+                      deliverToStoreName: next.storeName,
+                    }))}
+                  />
+                </div>
+                <div className="md:col-span-2">
                   <label className="block text-xs font-medium text-[var(--text-3)] mb-1">Purpose</label>
                   <input className="eoss-input w-full" placeholder="e.g. SS 316 plates for reactor shell" value={header.purpose} onChange={e => setHeader(h => ({ ...h, purpose: e.target.value }))} />
                 </div>
@@ -175,7 +200,7 @@ export default function PRCreate() {
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <h2 className="text-sm font-bold text-[var(--text)]">Material Lines</h2>
-                <button onClick={addLine} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white" style={{ background: 'var(--brand)' }}>
+                <button onClick={addLine} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white" style={{ background: 'var(--brand-fill)' }}>
                   <Plus size={13} /> Add Line
                 </button>
               </div>
@@ -302,7 +327,7 @@ export default function PRCreate() {
           onClick={() => step < 3 ? setStep((step + 1) as Step) : handleSubmit()}
           disabled={!canNext[step]}
           className="px-5 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-40"
-          style={{ background: 'var(--brand)' }}>
+          style={{ background: 'var(--brand-fill)' }}>
           {step < 3 ? 'Next →' : 'Submit PR'}
         </button>
       </div>

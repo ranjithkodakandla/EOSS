@@ -1,9 +1,10 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
+import { FileText, ShoppingCart, Settings, ShieldCheck, Truck, ArrowRight, Workflow } from 'lucide-react';
+import { useStore } from '../../store';
 import {
-  FileText, ShoppingCart, Settings, ShieldCheck,
-  Truck, ArrowRight, Workflow
-} from 'lucide-react';
+  salesOrders, shortageItems, jobsInProgress, openInspections, dispatchesReady,
+} from '../../domain/recordLists';
 
 interface ProcessStep {
   id: string;
@@ -15,22 +16,19 @@ interface ProcessStep {
   bg: string;
   borderColor: string;
   glowColor: string;
-  badge?: {
-    type: 'alert' | 'success';
-    icon: React.ReactNode;
-  };
+  badge?: { icon: React.ReactNode };
   path: string;
 }
 
 export default function OrderToDeliveryFlow() {
   const navigate = useNavigate();
+  const { customerPos, inventory, jobs, inspections, dispatches } = useStore();
 
-  // Operational metrics matching reference specification
-  const openSales = 12;
-  const shortageCount = 3;
-  const inProgressJobs = 4;
-  const pendingQC = 2;
-  const readyDispatch = 6;
+  const openSales = salesOrders(customerPos).length;
+  const shortageCount = shortageItems(inventory).length;
+  const inProgressJobs = jobsInProgress(jobs).length;
+  const pendingQC = openInspections(inspections).length;
+  const readyDispatch = dispatchesReady(dispatches).length;
 
   const steps: ProcessStep[] = [
     {
@@ -55,15 +53,12 @@ export default function OrderToDeliveryFlow() {
       bg: 'linear-gradient(180deg, #FFF9F5 0%, #FFEDD5 100%)',
       borderColor: 'var(--warning-light, #FED7AA)',
       glowColor: 'rgba(234, 88, 12, 0.08)',
-      badge: {
-        type: 'alert',
+      badge: shortageCount > 0 ? {
         icon: (
-          <span className="w-4 h-4 bg-orange-500 text-white rounded-full flex items-center justify-center text-[10px] font-black shadow-sm ring-2 ring-white">
-            !
-          </span>
+          <span className="w-4 h-4 bg-orange-500 text-white rounded-full flex items-center justify-center text-[10px] font-black shadow-sm ring-2 ring-white">!</span>
         ),
-      },
-      path: '/inventory',
+      } : undefined,
+      path: '/inventory?focus=shortage',
     },
     {
       id: 'production',
@@ -75,19 +70,19 @@ export default function OrderToDeliveryFlow() {
       bg: 'linear-gradient(180deg, #F5FAFF 0%, #DBEAFE 100%)',
       borderColor: 'var(--info-light, #BFDBFE)',
       glowColor: 'rgba(37, 99, 235, 0.08)',
-      path: '/jobs',
+      path: '/jobs?status=active',
     },
     {
       id: 'quality',
       name: 'Quality',
-      count: `${pendingQC} Pending`,
+      count: `${pendingQC} Open`,
       countColor: '#D97706',
       countSize: 'text-[11.5px] sm:text-[12.5px] font-bold',
       icon: <ShieldCheck size={20} className="text-amber-600" />,
       bg: 'linear-gradient(180deg, #FFFCF2 0%, #FEF3C7 100%)',
       borderColor: 'var(--warning-pale, #FDE68A)',
       glowColor: 'rgba(217, 119, 6, 0.08)',
-      path: '/quality',
+      path: '/quality?result=open',
     },
     {
       id: 'dispatch',
@@ -99,15 +94,12 @@ export default function OrderToDeliveryFlow() {
       bg: 'linear-gradient(180deg, #F3FDF7 0%, #DCFCE7 100%)',
       borderColor: 'var(--success-light, #BBF7D0)',
       glowColor: 'rgba(22, 163, 74, 0.08)',
-      badge: {
-        type: 'success',
+      badge: readyDispatch > 0 ? {
         icon: (
-          <span className="w-4 h-4 bg-emerald-500 text-white rounded-full flex items-center justify-center text-[10px] font-black shadow-sm ring-2 ring-white">
-            ✓
-          </span>
+          <span className="w-4 h-4 bg-emerald-500 text-white rounded-full flex items-center justify-center text-[10px] font-black shadow-sm ring-2 ring-white">✓</span>
         ),
-      },
-      path: '/dispatch',
+      } : undefined,
+      path: '/dispatch?status=ready',
     },
   ];
 
@@ -117,17 +109,14 @@ export default function OrderToDeliveryFlow() {
       style={{
         background: 'var(--card-gradient, linear-gradient(180deg, #FFFFFF 0%, #FAF9FE 100%))',
         borderColor: 'var(--border)',
-        boxShadow: '0 4px 20px -2px rgba(24, 27, 65, 0.06), 0 2px 6px -1px rgba(24, 27, 65, 0.03), inset 0 1px 0 #FFFFFF',
+        boxShadow: '0 4px 20px -2px rgba(24, 27, 65, 0.06)',
       }}
     >
-      {/* Header */}
       <div className="flex items-center gap-2 mb-3">
         <div className="text-[var(--brand)] flex items-center justify-center">
           <Workflow size={18} strokeWidth={2.5} />
         </div>
-        <h2 className="text-base font-bold text-[var(--text)] tracking-tight">
-          Order to Delivery
-        </h2>
+        <h2 className="text-base font-bold text-[var(--text)] tracking-tight">Order to Delivery</h2>
       </div>
 
       <div className="sm:hidden space-y-1.5">
@@ -145,50 +134,24 @@ export default function OrderToDeliveryFlow() {
         ))}
       </div>
 
-      {/* Process Boxes: desktop flow */}
       <div className="hidden sm:flex w-full items-center justify-between gap-2">
         {steps.map((step, idx) => (
           <React.Fragment key={step.id}>
-            {/* Step Card: 105px on mobile to prevent squishing, flex-1 on tablet/desktop */}
             <button
               onClick={() => navigate(step.path)}
-              className="flex-shrink-0 sm:flex-shrink sm:flex-1 min-w-[105px] sm:min-w-0 h-[72px] rounded-2xl border transition-all duration-150 hover:-translate-y-0.5 group relative cursor-pointer flex flex-col items-center justify-between py-1.5 px-1.5 text-center"
-              style={{
-                background: step.bg,
-                borderColor: step.borderColor,
-                boxShadow: `0 3px 12px -2px ${step.glowColor}, inset 0 1px 1px #FFFFFF`,
-              }}
+              className="flex-shrink-0 sm:flex-1 min-w-[105px] sm:min-w-0 h-[72px] rounded-2xl border hover:-translate-y-0.5 group relative cursor-pointer flex flex-col items-center justify-between py-1.5 px-1.5 text-center"
+              style={{ background: step.bg, borderColor: step.borderColor, boxShadow: `0 3px 12px -2px ${step.glowColor}` }}
               title={`View ${step.name} (${step.count})`}
             >
-              {/* Badge if present (Material alert, Dispatch checkmark) */}
-              {step.badge && (
-                <div className="absolute -top-1.5 -right-1.5 z-10">
-                  {step.badge.icon}
-                </div>
-              )}
-
-              {/* Clean Icon placed directly at the top (No box) */}
-              <div className="group-hover:scale-105 transition-transform flex items-center justify-center pt-0.5">
-                {step.icon}
-              </div>
-
-              {/* Stage Label */}
-              <div className="text-[10px] sm:text-[11px] font-medium text-gray-600 tracking-tight leading-tight whitespace-nowrap">
-                {step.name}
-              </div>
-
-              {/* Value Count — Proportional Typography */}
-              <div
-                className={`${step.countSize || 'text-xs font-bold'} tracking-tight whitespace-nowrap leading-tight`}
-                style={{ color: step.countColor }}
-              >
+              {step.badge && <div className="absolute -top-1.5 -right-1.5 z-10">{step.badge.icon}</div>}
+              <div className="flex items-center justify-center pt-0.5">{step.icon}</div>
+              <div className="text-[10px] sm:text-[11px] font-medium text-[var(--text-2)] tracking-tight leading-tight whitespace-nowrap">{step.name}</div>
+              <div className={`${step.countSize || 'text-xs font-bold'} tracking-tight whitespace-nowrap leading-tight`} style={{ color: step.countColor }}>
                 {step.count}
               </div>
             </button>
-
-            {/* Connecting Arrow */}
             {idx < steps.length - 1 && (
-              <div className="flex-shrink-0 text-blue-500 flex items-center justify-center px-0.5">
+              <div className="flex-shrink-0 text-[var(--brand)] flex items-center justify-center px-0.5">
                 <ArrowRight size={14} strokeWidth={2.5} />
               </div>
             )}

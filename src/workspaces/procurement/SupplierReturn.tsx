@@ -134,7 +134,7 @@ export default function SupplierReturn() {
                 onClick={() => setDisposition(opt.value as typeof disposition)}
                 className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition cursor-pointer ${disposition === opt.value ? 'text-white border-transparent' : 'border-transparent'}`}
                 style={disposition === opt.value
-                  ? { background: 'var(--brand)' }
+                  ? { background: 'var(--brand-fill)' }
                   : { background: 'var(--surface-2)', color: 'var(--text-2)', border: '1px solid var(--border)' }
                 }
               >
@@ -169,7 +169,7 @@ export default function SupplierReturn() {
             type="submit"
             disabled={submitted || !selectedGrn || !returnReason}
             className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white cursor-pointer hover:opacity-90 transition disabled:opacity-40"
-            style={{ background: 'var(--brand)' }}
+            style={{ background: 'var(--brand-fill)' }}
           >
             {submitted ? <CheckCircle size={14} /> : <Plus size={14} />}
             {submitted ? 'Submitted' : 'Raise Return Note'}

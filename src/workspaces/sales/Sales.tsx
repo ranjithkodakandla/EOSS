@@ -73,14 +73,17 @@ export default function Sales() {
         <div>
           <h1 className="text-lg font-bold" style={{ color: 'var(--text)' }}>Sales</h1>
           <p className="text-xs mt-0.5" style={{ color: 'var(--text-2)' }}>
-            {customerPos.filter(p => p.status === 'active').length} active POs · ₹{(totalActive / 100000).toFixed(1)}L in progress
+            <button type="button" onClick={() => { setTab('pos'); setStatusFilter('active'); }} className="font-semibold" style={{ color: 'var(--brand)' }}>
+              {customerPos.filter(p => p.status === 'active').length} active POs
+            </button>
+            {' '}· ₹{(totalActive / 100000).toFixed(1)}L in progress
           </p>
         </div>
         {canCreate && (
           <button
             onClick={() => navigate('/sales/rfq/new')}
             className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white transition-opacity hover:opacity-90"
-            style={{ background: 'var(--brand)' }}
+            style={{ background: 'var(--brand-fill)' }}
           >
             <Plus size={15} /> New RFQ
           </button>
@@ -93,8 +96,8 @@ export default function Sales() {
         style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
       >
         {([
-          { id: 'pos', label: `Customer POs (${customerPos.length})` },
-          { id: 'rfqs', label: `RFQs (${rfqs.length})` },
+          { id: 'pos', label: `Customer POs (${filteredPos.length})` },
+          { id: 'rfqs', label: `RFQs (${filteredRfqs.length})` },
           { id: 'customers', label: 'Customer Directory' },
         ] as { id: POTab; label: string }[]).map(t => (
           <button
@@ -112,7 +115,7 @@ export default function Sales() {
             {tab === t.id && (
               <span
                 className="absolute bottom-0 left-0 right-0 h-0.5 rounded-t-full"
-                style={{ background: 'var(--brand)' }}
+                style={{ background: 'var(--brand-fill)' }}
               />
             )}
           </button>
@@ -147,11 +150,11 @@ export default function Sales() {
                 className="px-3 py-1 rounded-full text-xs font-medium transition-colors capitalize"
                 style={
                   statusFilter === s
-                    ? { background: 'var(--brand)', color: '#fff' }
+                    ? { background: 'var(--brand-fill)', color: '#fff' }
                     : { background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text-2)' }
                 }
               >
-                {s === 'all' ? 'All' : s}
+                {s === 'all' ? `All (${customerPos.filter(p => !search || p.poNumber.toLowerCase().includes(search.toLowerCase()) || p.customerName.toLowerCase().includes(search.toLowerCase())).length})` : `${s} (${customerPos.filter(p => p.status === s && (!search || p.poNumber.toLowerCase().includes(search.toLowerCase()) || p.customerName.toLowerCase().includes(search.toLowerCase()))).length})`}
               </button>
             ))}
           </div>
@@ -237,7 +240,7 @@ export default function Sales() {
                       <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                         <div className="flex items-center gap-1">
                           <button type="button" onClick={() => navigate(`/sales/po/${p.id}`)}
-                            className="text-xs px-2 py-1 rounded-lg font-semibold text-white" style={{ background: 'var(--brand)' }}>
+                            className="text-xs px-2 py-1 rounded-lg font-semibold text-white" style={{ background: 'var(--brand-fill)' }}>
                             Open
                           </button>
                           {canCreate && p.status !== 'cancelled' && (
@@ -290,7 +293,7 @@ export default function Sales() {
                       <div className="flex items-center gap-1">
                         {canCreate && r.status === 'open' && (
                           <button onClick={e => { e.stopPropagation(); navigate(`/sales/rfq/${r.id}/quotation/new`); }}
-                            className="text-xs px-2 py-1 rounded-lg font-semibold text-white" style={{ background: 'var(--brand)' }}>
+                            className="text-xs px-2 py-1 rounded-lg font-semibold text-white" style={{ background: 'var(--brand-fill)' }}>
                             Quote
                           </button>
                         )}
@@ -381,7 +384,7 @@ export default function Sales() {
                 <button
                   onClick={() => navigate(`/sales/po/${selectedPo.id}`)}
                   className="flex-1 py-2 rounded-lg text-sm font-semibold text-white transition-opacity hover:opacity-90"
-                  style={{ background: 'var(--brand)' }}
+                  style={{ background: 'var(--brand-fill)' }}
                 >
                   Open Full Record
                 </button>
@@ -464,7 +467,7 @@ export default function Sales() {
             </div>
             <button onClick={() => { showToast({ type: 'success', title: 'PO Created', body: `Purchase Order raised from ${selectedRfq.rfqNumber} for ${selectedRfq.customerName}.` }); setSelectedRfq(null); }}
               className="mt-auto w-full py-2.5 rounded-xl text-sm font-semibold text-white"
-              style={{ background: 'var(--brand)' }}>
+              style={{ background: 'var(--brand-fill)' }}>
               Convert to PO
             </button>
           </div>
@@ -481,7 +484,7 @@ function EditPOForm({ po, onSave, onCancel }: { po: CustomerPO; onSave: (p: Part
       <div><label className="text-xs text-[var(--text-3)] block mb-1">PO Number</label><input value={form.poNumber} onChange={e => setForm(f => ({ ...f, poNumber: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--surface)] text-sm text-[var(--text)]" /></div>
       <div><label className="text-xs text-[var(--text-3)] block mb-1">Total Value (₹)</label><input type="number" value={form.totalValue} onChange={e => setForm(f => ({ ...f, totalValue: Number(e.target.value) }))} className="w-full px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--surface)] text-sm text-[var(--text)]" /></div>
       <div><label className="text-xs text-[var(--text-3)] block mb-1">Payment Terms</label><input value={form.paymentTerms} onChange={e => setForm(f => ({ ...f, paymentTerms: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--surface)] text-sm text-[var(--text)]" /></div>
-      <div className="flex gap-2 mt-4"><button onClick={onCancel} className="flex-1 py-2 border border-[var(--border)] text-[var(--text)] rounded-lg text-sm">Cancel</button><button onClick={() => onSave(form)} className="flex-1 py-2 bg-[var(--brand)] text-white rounded-lg text-sm font-medium">Save</button></div>
+      <div className="flex gap-2 mt-4"><button onClick={onCancel} className="flex-1 py-2 border border-[var(--border)] text-[var(--text)] rounded-lg text-sm">Cancel</button><button onClick={() => onSave(form)} className="flex-1 py-2 bg-[var(--brand-fill)] text-white rounded-lg text-sm font-medium">Save</button></div>
     </div>
   );
 }
@@ -538,7 +541,7 @@ function NewRFQModal({ onClose, onSave }: { onClose: () => void; onSave: (r: Cus
         {err && <p className="text-xs text-[var(--danger)] mt-2">{err}</p>}
         <div className="flex gap-3 mt-5">
           <button onClick={onClose} className="flex-1 py-2.5 border border-[var(--border)] rounded-xl text-sm text-[var(--text-2)]">Cancel</button>
-          <button onClick={save} className="flex-1 py-2.5 bg-[var(--brand)] text-white rounded-xl text-sm font-medium">Create RFQ</button>
+          <button onClick={save} className="flex-1 py-2.5 bg-[var(--brand-fill)] text-white rounded-xl text-sm font-medium">Create RFQ</button>
         </div>
       </div>
     </div>

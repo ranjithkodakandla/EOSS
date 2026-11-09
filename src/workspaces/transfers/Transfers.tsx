@@ -45,19 +45,19 @@ const ORDER: TransferStatus[] = ['in_transit', 'pending', 'received'];
 export default function Transfers() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
-  const { currentUser, showToast, inventory } = useStore();
+  const { currentUser, showToast, storeLocations, sites } = useStore();
   const [rows, setRows] = useState<Transfer[]>(SEED);
   const [open, setOpen] = useState(Boolean(params.get('material')));
   const [form, setForm] = useState({
     material: params.get('material') || '',
-    fromLocation: params.get('from') || '',
-    toLocation: params.get('to') || '',
+    fromLocation: params.get('from') || 'Hyderabad Plant 1 · Raw Material Store',
+    toLocation: params.get('to') || 'Hyderabad Plant 1 · WIP Store',
     qty: params.get('qty') || '',
     uom: params.get('uom') || 'kg',
     jobNumber: params.get('job') || '',
   });
 
-  const locations = Array.from(new Set(inventory.map(i => i.locationName))).sort();
+  const locations = storeLocations.map(l => `${sites.find(s => s.id === l.siteId)?.name ?? 'Site'} · ${l.name}`);
   const canCreate = ['owner', 'storekeeper', 'supervisor'].includes(currentUser.role);
   const sorted = [...rows].sort((a, b) => ORDER.indexOf(a.status) - ORDER.indexOf(b.status));
 
@@ -98,7 +98,7 @@ export default function Transfers() {
           <p className="text-sm text-[var(--text-2)]">Open moves first. Receive when the material arrives.</p>
         </div>
         {canCreate && (
-          <button type="button" onClick={() => setOpen(true)} className="px-3 py-2 rounded-lg text-sm font-semibold text-white" style={{ background: 'var(--brand)' }}>
+          <button type="button" onClick={() => setOpen(true)} className="px-3 py-2 rounded-lg text-sm font-semibold text-white" style={{ background: 'var(--brand-fill)' }}>
             New move
           </button>
         )}
@@ -120,7 +120,7 @@ export default function Transfers() {
                 </button>
               )}
               {t.status !== 'received' && canCreate && (
-                <button type="button" onClick={() => receive(t.id)} className="px-3 py-1.5 rounded-lg text-sm font-semibold text-white" style={{ background: 'var(--brand)' }}>
+                <button type="button" onClick={() => receive(t.id)} className="px-3 py-1.5 rounded-lg text-sm font-semibold text-white" style={{ background: 'var(--brand-fill)' }}>
                   Receive
                 </button>
               )}
@@ -163,7 +163,7 @@ export default function Transfers() {
             </div>
             <div className="flex gap-2 mt-4">
               <button type="button" onClick={() => setOpen(false)} className="flex-1 py-2 border border-[var(--border)] rounded-lg text-sm">Cancel</button>
-              <button type="button" onClick={create} className="flex-1 py-2 rounded-lg text-sm font-semibold text-white" style={{ background: 'var(--brand)' }}>Create move</button>
+              <button type="button" onClick={create} className="flex-1 py-2 rounded-lg text-sm font-semibold text-white" style={{ background: 'var(--brand-fill)' }}>Create move</button>
             </div>
           </div>
         </div>

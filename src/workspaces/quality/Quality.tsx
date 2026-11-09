@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Plus, ChevronRight, AlertTriangle, X, Trash2 } from 'lucide-react';
 import { useStore } from '../../store';
+import { openInspections } from '../../domain/recordLists';
 import StatusChip from '../../components/layout/StatusChip';
 import type { Inspection, NCR } from '../../types';
 
@@ -34,25 +35,36 @@ export default function Quality() {
     showToast({ type: 'success', title: 'NCR removed' });
   };
 
-  const resultFilter = searchParams.get('result');
+  const resultParam = searchParams.get('result');
+  const [resultFilter, setResultFilter] = useState<string | null>(resultParam);
+  const [ncrFocus, setNcrFocus] = useState(false);
   const visibleInspections = inspections.filter(i => {
     if (deletedInspectionIds.has(i.id)) return false;
     if (resultFilter === 'open') return i.result === 'pending' || i.result === 'fail';
     if (resultFilter) return i.result === resultFilter;
     return true;
   });
-  const visibleNcrs = ncrs.filter(n => !deletedNcrIds.has(n.id));
+  const visibleNcrs = ncrs.filter(n => !deletedNcrIds.has(n.id) && (!ncrFocus || n.status === 'open' || n.status === 'in_progress'));
+  const openList = openInspections(inspections.filter(i => !deletedInspectionIds.has(i.id)));
 
-  const openNcrs = ncrs.filter(n => n.status === 'open' || n.status === 'in_progress').length;
-  const pendingInspections = inspections.filter(i => i.result === 'pending').length;
+  const openNcrs = ncrs.filter(n => !deletedNcrIds.has(n.id) && (n.status === 'open' || n.status === 'in_progress')).length;
+  const pendingInspections = openList.length;
 
   return (
     <div className="flex flex-col h-full">
       {/* Toolbar */}
       <div className="flex-shrink-0 flex items-center gap-3 px-5 py-3 border-b flex-wrap" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
         <div className="flex items-center gap-4">
-          {openNcrs > 0 && <span className="flex items-center gap-1 text-xs font-semibold" style={{ color: 'var(--error,#DC2626)' }}><AlertTriangle size={12} /> {openNcrs} open NCRs</span>}
-          {pendingInspections > 0 && <span className="text-xs font-semibold" style={{ color: 'var(--warning,#D97706)' }}>{pendingInspections} pending</span>}
+          {openNcrs > 0 && (
+            <button type="button" onClick={() => { setTab('ncrs'); setNcrFocus(v => !v); }} className="flex items-center gap-1 text-xs font-semibold" style={{ color: 'var(--error,#DC2626)' }}>
+              <AlertTriangle size={12} /> {openNcrs} open NCRs
+            </button>
+          )}
+          {pendingInspections > 0 && (
+            <button type="button" onClick={() => setResultFilter(resultFilter === 'open' ? null : 'open')} className="text-xs font-semibold" style={{ color: 'var(--warning,#D97706)' }}>
+              {pendingInspections} open
+            </button>
+          )}
         </div>
         <div className="flex-1" />
         {['owner', 'qc'].includes(currentUser.role) && (
@@ -61,7 +73,7 @@ export default function Quality() {
               style={{ borderColor: 'var(--error,#DC2626)', color: 'var(--error,#DC2626)' }}>
               <Plus size={12} className="inline -mt-0.5 mr-0.5" /> New NCR
             </button>
-            <button onClick={() => setShowNew(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white" style={{ background: 'var(--brand)' }}>
+            <button onClick={() => setShowNew(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white" style={{ background: 'var(--brand-fill)' }}>
               <Plus size={13} /> New Inspection
             </button>
           </>
@@ -75,7 +87,7 @@ export default function Quality() {
             className="relative px-4 py-3 text-sm font-medium transition-colors whitespace-nowrap"
             style={{ color: tab === id ? 'var(--brand)' : 'var(--text-2)' }}>
             {label}
-            {tab === id && <span className="absolute bottom-0 left-0 right-0 h-0.5 rounded-t-full" style={{ background: 'var(--brand)' }} />}
+            {tab === id && <span className="absolute bottom-0 left-0 right-0 h-0.5 rounded-t-full" style={{ background: 'var(--brand-fill)' }} />}
           </button>
         ))}
       </div>
@@ -135,7 +147,7 @@ export default function Quality() {
                     <div className="flex items-center gap-1">
                       {(i.result === 'pending' || i.result === 'fail') && (
                         <button type="button" onClick={() => navigate(i.result === 'pending' ? `/quality/inspection/${i.id}?record=1` : `/quality/inspection/${i.id}`)}
-                          className="px-2 py-1 rounded-lg text-xs font-semibold text-white" style={{ background: 'var(--brand)' }}>
+                          className="px-2 py-1 rounded-lg text-xs font-semibold text-white" style={{ background: 'var(--brand-fill)' }}>
                           {i.result === 'pending' ? 'Record' : 'Raise NCR'}
                         </button>
                       )}
@@ -298,7 +310,7 @@ function NewInspectionModal({ onClose, onSave, prefilledJobId, jobs }: {
         {err && <p className="text-xs text-red-500 mt-2">{err}</p>}
         <div className="flex gap-3 mt-5">
           <button onClick={onClose} className="flex-1 py-2.5 border border-[var(--border)] rounded-xl text-sm text-[var(--text-2)]">Cancel</button>
-          <button onClick={save} className="flex-1 py-2.5 bg-[var(--brand)] text-white rounded-xl text-sm font-medium">Create</button>
+          <button onClick={save} className="flex-1 py-2.5 bg-[var(--brand-fill)] text-white rounded-xl text-sm font-medium">Create</button>
         </div>
       </div>
     </div>

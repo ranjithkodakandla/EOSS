@@ -80,7 +80,7 @@ export default function PODetail() {
                 </button>
                 <button
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-white hover:opacity-90"
-                  style={{ background: 'var(--brand)' }}
+                  style={{ background: 'var(--brand-fill)' }}
                 >
                   <Edit2 size={14} /> Edit PO
                 </button>
@@ -115,7 +115,7 @@ export default function PODetail() {
           >
             {t.label}
             {activeTab === t.id && (
-              <span className="absolute bottom-0 left-0 right-0 h-0.5 rounded-t-full" style={{ background: 'var(--brand)' }} />
+              <span className="absolute bottom-0 left-0 right-0 h-0.5 rounded-t-full" style={{ background: 'var(--brand-fill)' }} />
             )}
           </button>
         ))}
@@ -275,7 +275,7 @@ export default function PODetail() {
                   <button
                     onClick={() => navigate(`/sales/po/${po.id}/amend`)}
                     className="mt-3 px-4 py-2 rounded-lg text-sm font-semibold text-white"
-                    style={{ background: 'var(--brand)' }}
+                    style={{ background: 'var(--brand-fill)' }}
                   >
                     Record Amendment
                   </button>

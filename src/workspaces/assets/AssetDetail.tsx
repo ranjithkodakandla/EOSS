@@ -82,11 +82,11 @@ export default function AssetDetail() {
       )}
 
       <div className="flex gap-2 mb-4">
-        <button onClick={() => setTab('info')} className={clsx('px-4 py-2 rounded-lg text-sm transition-colors', tab === 'info' ? 'bg-[var(--brand)] text-white' : 'border border-[var(--border)] text-[var(--text-2)]')}>Asset Info</button>
-        <button onClick={() => setTab('readings')} className={clsx('px-4 py-2 rounded-lg text-sm transition-colors', tab === 'readings' ? 'bg-[var(--brand)] text-white' : 'border border-[var(--border)] text-[var(--text-2)]')}>
+        <button onClick={() => setTab('info')} className={clsx('px-4 py-2 rounded-lg text-sm transition-colors', tab === 'info' ? 'bg-[var(--brand-fill)] text-white' : 'border border-[var(--border)] text-[var(--text-2)]')}>Asset Info</button>
+        <button onClick={() => setTab('readings')} className={clsx('px-4 py-2 rounded-lg text-sm transition-colors', tab === 'readings' ? 'bg-[var(--brand-fill)] text-white' : 'border border-[var(--border)] text-[var(--text-2)]')}>
           Running Hours ({readings.length})
         </button>
-        <button onClick={() => setTab('history')} className={clsx('px-4 py-2 rounded-lg text-sm transition-colors', tab === 'history' ? 'bg-[var(--brand)] text-white' : 'border border-[var(--border)] text-[var(--text-2)]')}>
+        <button onClick={() => setTab('history')} className={clsx('px-4 py-2 rounded-lg text-sm transition-colors', tab === 'history' ? 'bg-[var(--brand-fill)] text-white' : 'border border-[var(--border)] text-[var(--text-2)]')}>
           Maintenance History ({events.length})
         </button>
       </div>

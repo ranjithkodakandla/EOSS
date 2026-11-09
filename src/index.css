@@ -57,12 +57,13 @@
   --text-2: #626A84;
   --text-3: #8C94A8;
   --brand: #7048F5;
+  --brand-fill: #5B21B6;
   --sidebar-bg: #191A4A;
   --sidebar-border: rgba(255, 255, 255, 0.08);
   --sidebar-text: rgba(255, 255, 255, 0.65);
   --sidebar-text-active: #FFFFFF;
   --sidebar-text-hover: #FFFFFF;
-  --sidebar-active-bg: linear-gradient(135deg, #7048F5, #A855F7);
+  --sidebar-active-bg: linear-gradient(135deg, #4C1D95, #5B21B6);
 }
 
 /* Theme B — Ocean Teal */
@@ -94,12 +95,13 @@
   --text-2: #557174;
   --text-3: #879EA1;
   --brand: #087F8C;
+  --brand-fill: #155E75;
   --sidebar-bg: #102D3A;
   --sidebar-border: rgba(255, 255, 255, 0.08);
   --sidebar-text: rgba(255, 255, 255, 0.65);
   --sidebar-text-active: #FFFFFF;
   --sidebar-text-hover: #FFFFFF;
-  --sidebar-active-bg: linear-gradient(135deg, #087F8C, #0EA5A5);
+  --sidebar-active-bg: linear-gradient(135deg, #0F4C5C, #155E75);
 }
 
 /* Theme C — Graphite Amber */
@@ -131,12 +133,13 @@
   --text-2: #667085;
   --text-3: #9CA3AF;
   --brand: #E58A36;
+  --brand-fill: #9A3412;
   --sidebar-bg: #1F222B;
   --sidebar-border: rgba(255, 255, 255, 0.08);
   --sidebar-text: rgba(255, 255, 255, 0.65);
   --sidebar-text-active: #FFFFFF;
   --sidebar-text-hover: #FFFFFF;
-  --sidebar-active-bg: linear-gradient(135deg, #E58A36, #F59E0B);
+  --sidebar-active-bg: linear-gradient(135deg, #7C2D12, #9A3412);
 }
 
 /* ── EOSS Design Tokens v3 — Dark-first Industrial Intelligence Platform ── */
@@ -687,3 +690,110 @@ body {
 }
 .eoss-input::placeholder { color: var(--text-3); }
 select.eoss-input { cursor: pointer; }
+
+/* Palette on <html> wins over the later :root / system-light blocks. */
+html.theme-aurora[data-theme="light"] {
+  --brand: #7048F5;
+  --brand-secondary: #A855F7;
+  --brand-fill: #5B21B6;
+  --bg: #F7F6FE;
+  --app-bg: #F7F6FE;
+  --surface: #FFFFFF;
+  --surface-2: #F5F4FF;
+  --surface-3: #EDEBFC;
+  --surface-4: #E4E0F8;
+  --text: #1A1F36;
+  --text-2: #626A84;
+  --text-3: #8C94A8;
+  --border: #E5E0F5;
+  --border-2: #D4CCEE;
+  --card-gradient: linear-gradient(180deg, #FFFFFF 0%, #FAF9FE 100%);
+  color-scheme: light;
+}
+html.theme-ocean[data-theme="light"] {
+  --brand: #087F8C;
+  --brand-secondary: #0EA5A5;
+  --brand-fill: #155E75;
+  --bg: #F2F9F9;
+  --app-bg: #F2F9F9;
+  --surface: #FFFFFF;
+  --surface-2: #EAF5F5;
+  --surface-3: #D8EEEE;
+  --text: #0F2D2E;
+  --text-2: #557174;
+  --text-3: #879EA1;
+  --border: #D8E9E8;
+  --card-gradient: linear-gradient(180deg, #FFFFFF 0%, #F5FAFA 100%);
+  color-scheme: light;
+}
+html.theme-graphite[data-theme="light"] {
+  --brand: #E58A36;
+  --brand-secondary: #F59E0B;
+  --brand-fill: #9A3412;
+  --bg: #FAF8F5;
+  --app-bg: #FAF8F5;
+  --surface: #FFFFFF;
+  --surface-2: #F5F1EB;
+  --surface-3: #EDE8DF;
+  --text: #1F2937;
+  --text-2: #667085;
+  --text-3: #9CA3AF;
+  --border: #E8E2D7;
+  --card-gradient: linear-gradient(180deg, #FFFFFF 0%, #FAF8F5 100%);
+  color-scheme: light;
+}
+html[data-theme="dark"].theme-aurora:not(.theme-ocean),
+html[data-theme="dark"].theme-ocean,
+html[data-theme="dark"].theme-graphite {
+  --bg: #12141c;
+  --app-bg: #12141c;
+  --surface: #1b1e2a;
+  --surface-2: #242838;
+  --surface-3: #2c3144;
+  --surface-4: #343a50;
+  --text: #f4f5f8;
+  --text-2: #b7bccb;
+  --text-3: #8e94a8;
+  --border: rgba(255,255,255,0.12);
+  --border-2: rgba(255,255,255,0.18);
+  --border-strong: rgba(255,255,255,0.28);
+  --card-gradient: linear-gradient(180deg, #1b1e2a 0%, #151822 100%);
+  --success-bg: rgba(22,163,74,0.15);
+  --warning-bg: rgba(245,158,11,0.15);
+  --error-bg: rgba(239,68,68,0.15);
+  --info-bg: rgba(59,130,246,0.15);
+  color-scheme: dark;
+}
+html[data-theme="dark"].theme-aurora:not(.theme-ocean) { --brand: #A78BFA; --brand-secondary: #C084FC; }
+html[data-theme="dark"].theme-ocean { --brand: #2DD4BF; --brand-secondary: #14B8A6; }
+html[data-theme="dark"].theme-graphite { --brand: #F59E0B; --brand-secondary: #FBBF24; }
+
+.copilot-ask::placeholder { color: #3F3F46; opacity: 1; }
+
+html.theme-switching, html.theme-switching *, html.theme-switching *::before, html.theme-switching *::after {
+  transition: none !important;
+  animation-duration: 0.01ms !important;
+  animation-delay: 0s !important;
+}
+
+/* Record create / edit / detail dialogs share one right-hand sheet. */
+.fixed.inset-0.flex.items-center.justify-center:not([data-overlay="center"]) {
+  justify-content: flex-end !important;
+  align-items: stretch !important;
+  padding: 0 !important;
+}
+.fixed.inset-0.flex.items-center.justify-center:not([data-overlay="center"]) > div {
+  height: 100% !important;
+  max-height: none !important;
+  width: min(520px, 100vw) !important;
+  max-width: min(520px, 100vw) !important;
+  margin: 0 !important;
+  border-radius: 0 !important;
+  overflow: auto !important;
+}
+@media (max-width: 767px) {
+  .fixed.inset-0.flex.items-center.justify-center:not([data-overlay="center"]) > div {
+    width: 100vw !important;
+    max-width: 100vw !important;
+  }
+}

@@ -7,7 +7,7 @@ import GlobalSearchModal from '../search/GlobalSearchModal';
 import clsx from 'clsx';
 
 export default function TopBar({ onOpenMenu }: { onOpenMenu?: () => void }) {
-  const { sidebarCollapsed, currentUser, eossTheme, setEOSSTheme, showToast } = useStore();
+  const { sidebarCollapsed, currentUser, eossTheme, theme, setEOSSTheme, setTheme, showToast } = useStore();
   const [searchOpen, setSearchOpen] = useState(false);
   const [themeMenuOpen, setThemeMenuOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
@@ -126,7 +126,25 @@ export default function TopBar({ onOpenMenu }: { onOpenMenu?: () => void }) {
                   }}
                 >
                   <div className="px-3 py-1.5 text-[11px] font-bold text-[var(--text-2)] uppercase tracking-wider">
-                    EOSS Theme Presets
+                    Appearance
+                  </div>
+                  <div className="grid grid-cols-2 gap-1 px-1 pb-1">
+                    {(['light', 'dark'] as const).map(mode => (
+                      <button
+                        key={mode}
+                        type="button"
+                        onClick={() => setTheme(mode)}
+                        className={clsx(
+                          'px-2 py-1.5 rounded-lg text-xs font-semibold capitalize',
+                          theme === mode ? 'bg-[var(--brand-fill)] text-white' : 'text-[var(--text)] hover:bg-[var(--surface-2)]'
+                        )}
+                      >
+                        {mode}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="px-3 py-1.5 text-[11px] font-bold text-[var(--text-2)] uppercase tracking-wider">
+                    Palette
                   </div>
                   {themes.map(t => (
                     <button
@@ -277,7 +295,7 @@ function ProfileModal({ currentUser, eossTheme, themes, onThemeChange, onClose, 
         </div>
         <div className="px-6 pb-5 flex gap-3">
           <button onClick={onClose} className="flex-1 py-2.5 border border-[var(--border)] rounded-xl text-sm text-[var(--text-2)]">Cancel</button>
-          <button onClick={onSave} className="flex-1 py-2.5 bg-[var(--brand)] text-white rounded-xl text-sm font-medium">Save Preferences</button>
+          <button onClick={onSave} className="flex-1 py-2.5 bg-[var(--brand-fill)] text-white rounded-xl text-sm font-medium">Save Preferences</button>
         </div>
       </div>
     </div>

@@ -67,7 +67,7 @@ export default function Remnants() {
             onClick={() => setFilter(f)}
             className={`px-3 py-1.5 rounded-lg text-xs font-semibold capitalize cursor-pointer transition ${filter === f ? 'text-white' : 'border'}`}
             style={filter === f
-              ? { background: 'var(--brand)', border: 'none' }
+              ? { background: 'var(--brand-fill)', border: 'none' }
               : { borderColor: 'var(--border)', color: 'var(--text-2)' }
             }
           >

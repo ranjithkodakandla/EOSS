@@ -21,10 +21,22 @@ if (typeof window !== 'undefined') {
   };
 }
 
-ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>
-    <BrowserRouter>
-      <App />
-    </BrowserRouter>
-  </React.StrictMode>
-);
+const rootEl = document.getElementById('root')!;
+const paint = () => {
+  ReactDOM.createRoot(rootEl).render(
+    <React.StrictMode>
+      <BrowserRouter>
+        <App />
+      </BrowserRouter>
+    </React.StrictMode>
+  );
+};
+
+const persisted = useStore.persist;
+if (persisted?.hasHydrated?.()) paint();
+else if (persisted?.onFinishHydration) {
+  const unsub = persisted.onFinishHydration(() => { unsub(); paint(); });
+  persisted.rehydrate();
+} else {
+  paint();
+}
