@@ -1,4 +1,5 @@
 import React, { useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { FileText, Search, Plus, X, RefreshCw } from 'lucide-react';
 import { useStore } from '../../store';
 import { computeDocumentExpiry, listExpiringDocuments } from '../../domain/documentExpiry';
@@ -10,9 +11,13 @@ const CATEGORIES = ['All', 'Job Documents', 'Quality Documents', 'Material Certi
 
 export default function Documents() {
   const { documents: vaultDocuments, currentUser, addDocument, addDocumentVersion, showToast } = useStore();
+  const [searchParams] = useSearchParams();
+  const attentionParam = searchParams.get('attention');
   const [search, setSearch] = useState('');
   const [cat, setCat] = useState('All');
-  const [attention, setAttention] = useState<'all' | 'expiring' | 'expired'>('all');
+  const [attention, setAttention] = useState<'all' | 'expiring' | 'expired' | 'due'>(
+    attentionParam === 'expiring' || attentionParam === 'expired' || attentionParam === 'due' ? attentionParam : 'all'
+  );
   const [showUpload, setShowUpload] = useState(false);
   const now = new Date(DEMO_NOW);
 
@@ -21,7 +26,9 @@ export default function Documents() {
     const matchSearch = !search || d.title.toLowerCase().includes(search.toLowerCase()) || d.docType.toLowerCase().includes(search.toLowerCase());
     const matchCat = cat === 'All' || d.category === cat;
     const expiry = computeDocumentExpiry(d, now);
-    const matchAttention = attention === 'all' || expiry.status === attention;
+    const matchAttention = attention === 'all'
+      || (attention === 'due' && (expiry.status === 'expiring' || expiry.status === 'expired'))
+      || expiry.status === attention;
     return matchSearch && matchCat && matchAttention;
   });
 
@@ -94,6 +101,11 @@ export default function Documents() {
         )}
       </div>
 
+      {attention !== 'all' && (
+        <div className="px-5 py-2 text-sm border-b" style={{ borderColor: 'var(--border)', background: 'var(--surface-2)' }}>
+          These documents are expiring or already expired. Renew extends the current certificate by a year.
+        </div>
+      )}
       <div className="flex-1 overflow-auto p-5">
         <div className="space-y-2 max-w-4xl">
           {filtered.map(doc => {

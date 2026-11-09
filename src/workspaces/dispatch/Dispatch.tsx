@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Plus, ChevronRight, Search, X, PackageCheck, Trash2 } from 'lucide-react';
 import { useStore, CUSTOMERS } from '../../store';
 import type { Dispatch } from '../../types';
@@ -11,6 +11,7 @@ let dspSeq = 100;
 export default function DispatchWorkspace() {
   const { dispatches, invoices, currentUser, addDispatch, recordPoD, showToast, jobs, qualityReleases, inspections } = useStore();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [search, setSearch] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [podDispatchId, setPodDispatchId] = useState<string | null>(null);
@@ -29,6 +30,23 @@ export default function DispatchWorkspace() {
     customerId: '', customerName: '', carrier: '',
     vehicleNumber: '', lrNumber: '', dispatchDate: '', jobs: '',
   });
+
+  useEffect(() => {
+    const plan = searchParams.get('plan');
+    if (!plan) return;
+    const job = jobs.find(j => j.id === plan) ?? jobs.find(j => qualityReleases.some(r => r.jobId === j.id));
+    if (!job) return;
+    setSelectedJobId(job.id);
+    setForm(f => ({
+      ...f,
+      customerId: job.customerId,
+      customerName: job.customerName,
+      dispatchDate: '2026-11-09',
+    }));
+    setShowModal(true);
+    // Prefill once from the Home action.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const eligibleJob = jobs.find(j => j.id === selectedJobId);
   const eligibility = eligibleJob ? checkDispatchEligibility({ job: eligibleJob, qualityReleases, inspections }) : null;

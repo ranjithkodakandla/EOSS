@@ -151,7 +151,7 @@ sendBtnBg: isGraphite
     <div
       className={clsx(
         'flex flex-col rounded-3xl overflow-hidden relative select-none',
-        isDrawer ? 'h-full' : 'h-auto',
+        'h-full min-h-0',
         isDrawer ? 'w-full max-w-md' : 'w-full'
       )}
       style={{

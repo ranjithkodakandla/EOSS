@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, CheckCircle, XCircle, AlertTriangle, ShieldCheck } from 'lucide-react';
 import { useStore } from '../../store';
 import { DEMO_NOW } from '../../data/seed';
@@ -11,6 +11,7 @@ let ncrSeq = 50;
 export default function InspectionDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { inspections, lots, jobs, ncrs, qualityReleases, currentUser, addNCR, linkNCRToInspection, updateInspection, addQualityRelease } = useStore();
   const canRaiseNCR = ['owner', 'qc'].includes(currentUser.role);
   const canRelease = ['owner', 'qc'].includes(currentUser.role);
@@ -18,6 +19,12 @@ export default function InspectionDetail() {
   const [recForm, setRecForm] = useState({ accepted: 0, rejected: 0, notes: '' });
 
   const ins = inspections.find(i => i.id === id);
+  useEffect(() => {
+    if (ins && searchParams.get('record') === '1' && ins.result === 'pending') {
+      setRecForm({ accepted: ins.sampleQty, rejected: 0, notes: '' });
+      setRecording(true);
+    }
+  }, [ins?.id]);
   if (!ins) return <div className="p-6 text-[var(--text-2)]">Inspection not found</div>;
 
   const lot = ins.lotId ? lots.find(l => l.id === ins.lotId) : null;

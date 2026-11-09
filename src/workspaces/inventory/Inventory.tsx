@@ -1,10 +1,11 @@
 import React, { useState, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Search, ArrowRightLeft, ArrowUpDown, ArrowUp, ArrowDown, ShieldAlert, Plus, Pencil, X } from 'lucide-react';
 import { useStore } from '../../store';
 import { SITES, STORE_LOCATIONS } from '../../data/seed';
 import type { MaterialItem } from '../../types';
 import StatusChip from '../../components/layout/StatusChip';
+import StockWorkspaceNav from '../../components/layout/StockWorkspaceNav';
 import clsx from 'clsx';
 
 type SortKey = 'materialCode' | 'materialName' | 'locationName' | 'onHandQty' | 'reservedQty' | 'qcHoldQty' | 'inTransitQty' | 'availableQty' | 'reorderPoint';
@@ -18,10 +19,12 @@ const emptyMaterialForm = {
 export default function Inventory() {
   const { inventory, lots, currentUser, materials, addMaterial, updateMaterial, showToast } = useStore();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const shortageFocus = searchParams.get('focus') === 'shortage';
 
   const [search, setSearch] = useState('');
   const [selectedLocation, setSelectedLocation] = useState('all');
-  const [shortagesOnly, setShortagesOnly] = useState(false);
+  const [shortagesOnly, setShortagesOnly] = useState(shortageFocus);
   const [sortKey, setSortKey] = useState<SortKey>('materialCode');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
 
@@ -97,6 +100,12 @@ export default function Inventory() {
       });
   }, [inventory, search, selectedLocation, shortagesOnly, sortKey, sortDir]);
 
+  const raisePr = (item: { materialCode: string; materialName: string; primaryUom: string; reorderPoint: number; availableQty: number }) => {
+    const qty = Math.max(item.reorderPoint - item.availableQty, item.reorderPoint || 1);
+    const q = new URLSearchParams({ code: item.materialCode, name: item.materialName, qty: String(qty), uom: item.primaryUom });
+    navigate(`/procurement/pr/new?${q.toString()}`);
+  };
+
   const SortIcon = ({ k }: { k: SortKey }) => {
     if (sortKey !== k) return <ArrowUpDown size={12} className="opacity-40" />;
     return sortDir === 'asc' ? <ArrowUp size={12} /> : <ArrowDown size={12} />;
@@ -104,6 +113,7 @@ export default function Inventory() {
 
   return (
     <div className="flex flex-col h-full">
+      <StockWorkspaceNav />
       {/* Toolbar */}
       <div
         className="flex-shrink-0 flex items-center gap-3 px-5 py-3 border-b flex-wrap"
@@ -212,6 +222,12 @@ export default function Inventory() {
         })}
       </div>
 
+      {shortageFocus && (
+        <div className="px-4 py-2 text-sm border-b" style={{ borderColor: 'var(--border)', background: 'var(--surface-2)' }}>
+          Showing materials below what the shop needs. Raise a purchase request for the shortfall.
+        </div>
+      )}
+
       <div className="md:hidden flex-1 overflow-auto p-3 space-y-2">
         {filtered.length === 0 && (
           <p className="px-2 py-8 text-center text-sm" style={{ color: 'var(--text-3)' }}>No inventory items match your filter.</p>
@@ -219,14 +235,14 @@ export default function Inventory() {
         {filtered.map(item => {
           const isLow = item.shortage || item.availableQty <= item.reorderPoint * 0.5;
           return (
-            <button
+            <div
               key={item.id}
-              type="button"
+              role="link"
               onClick={() => {
                 const firstLot = lots.find(l => l.materialItemId === item.materialItemId);
                 if (firstLot) navigate(`/inventory/lot/${firstLot.id}`);
               }}
-              className="w-full text-left rounded-xl border p-3"
+              className="w-full text-left rounded-xl border p-3 cursor-pointer"
               style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
             >
               <div className="flex items-start justify-between gap-3">
@@ -254,7 +270,16 @@ export default function Inventory() {
                   {item.qcHoldQty > 0 && ` · ${item.qcHoldQty.toLocaleString('en-IN')} on QC hold`}
                 </div>
               )}
-            </button>
+              {item.shortage && (
+                <div className="mt-2 flex gap-2">
+                  <button type="button" onClick={e => { e.stopPropagation(); raisePr(item); }}
+                    className="px-2.5 py-1 rounded-lg text-xs font-semibold text-white" style={{ background: 'var(--brand)' }}>
+                    Raise PR
+                  </button>
+                  <MoveStockButton item={item} inventory={inventory} navigate={navigate} />
+                </div>
+              )}
+            </div>
           );
         })}
       </div>
@@ -352,6 +377,14 @@ export default function Inventory() {
                         {item.lotCount > 0 && (
                           <span className="text-xs" style={{ color: 'var(--text-3)' }}>{item.lotCount} lot{item.lotCount !== 1 ? 's' : ''}</span>
                         )}
+                        {item.shortage && (
+                          <>
+                            <button type="button" onClick={() => raisePr(item)} className="px-2 py-1 rounded-lg text-xs font-semibold text-white" style={{ background: 'var(--brand)' }}>
+                              Raise PR
+                            </button>
+                            <MoveStockButton item={item} inventory={inventory} navigate={navigate} />
+                          </>
+                        )}
                         {seedMaterial && currentUser.role !== 'operator' && (
                           <button onClick={e => openEditMaterial(seedMaterial, e)} className="p-1 rounded hover:bg-[var(--surface-2)]" title="Edit material master">
                             <Pencil size={12} style={{ color: 'var(--text-3)' }} />
@@ -444,6 +477,29 @@ function Field2({ label, value, onChange, placeholder, type = 'text', disabled }
         className="w-full p-2 rounded-lg bg-[var(--surface-2)] border border-[var(--border)] text-[var(--text)] disabled:opacity-50"
       />
     </div>
+  );
+}
+
+function MoveStockButton({ item, inventory, navigate }: {
+  item: { materialItemId: string; materialName: string; locationId: string; locationName: string; availableQty: number; reorderPoint: number; primaryUom: string };
+  inventory: { materialItemId: string; locationId: string; locationName: string; availableQty: number }[];
+  navigate: (path: string) => void;
+}) {
+  const source = inventory.find(o => o.materialItemId === item.materialItemId && o.locationId !== item.locationId && o.availableQty > 0);
+  if (!source) return null;
+  const qty = Math.min(source.availableQty, Math.max(item.reorderPoint - item.availableQty, 1));
+  const q = new URLSearchParams({
+    material: item.materialName,
+    from: source.locationName,
+    to: item.locationName,
+    qty: String(qty),
+    uom: item.primaryUom,
+  });
+  return (
+    <button type="button" onClick={e => { e.stopPropagation(); navigate(`/transfers?${q.toString()}`); }}
+      className="px-2 py-1 rounded-lg text-xs font-semibold border" style={{ borderColor: 'var(--brand)', color: 'var(--brand)' }}>
+      Move stock
+    </button>
   );
 }
 

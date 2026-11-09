@@ -34,7 +34,13 @@ export default function Quality() {
     showToast({ type: 'success', title: 'NCR removed' });
   };
 
-  const visibleInspections = inspections.filter(i => !deletedInspectionIds.has(i.id));
+  const resultFilter = searchParams.get('result');
+  const visibleInspections = inspections.filter(i => {
+    if (deletedInspectionIds.has(i.id)) return false;
+    if (resultFilter === 'open') return i.result === 'pending' || i.result === 'fail';
+    if (resultFilter) return i.result === resultFilter;
+    return true;
+  });
   const visibleNcrs = ncrs.filter(n => !deletedNcrIds.has(n.id));
 
   const openNcrs = ncrs.filter(n => n.status === 'open' || n.status === 'in_progress').length;
@@ -74,6 +80,12 @@ export default function Quality() {
         ))}
       </div>
 
+      {resultFilter === 'open' && (
+        <div className="px-5 py-2 text-sm border-b" style={{ borderColor: 'var(--border)', background: 'var(--surface-2)' }}>
+          Inspections still waiting on a result. Record the pending ones, or raise an NCR where one already failed.
+        </div>
+      )}
+
       <div className="flex-1 overflow-auto">
         {tab === 'inspections' && (
           <table className="w-full text-sm border-separate border-spacing-0" style={{ minWidth: 800 }}>
@@ -105,6 +117,12 @@ export default function Quality() {
                   <td className="px-4 py-3"><StatusChip status={i.result} size="sm" /></td>
                   <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                     <div className="flex items-center gap-1">
+                      {(i.result === 'pending' || i.result === 'fail') && (
+                        <button type="button" onClick={() => navigate(i.result === 'pending' ? `/quality/inspection/${i.id}?record=1` : `/quality/inspection/${i.id}`)}
+                          className="px-2 py-1 rounded-lg text-xs font-semibold text-white" style={{ background: 'var(--brand)' }}>
+                          {i.result === 'pending' ? 'Record' : 'Raise NCR'}
+                        </button>
+                      )}
                       {canManage && (
                         <button onClick={e => handleDeleteInspection(i.id, e)} className="p-1 rounded hover:bg-[var(--surface-2)]" title="Remove"><Trash2 size={12} style={{ color: 'var(--error,#DC2626)' }} /></button>
                       )}

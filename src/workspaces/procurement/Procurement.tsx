@@ -3,13 +3,14 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Plus, AlertTriangle, Search, ChevronRight, X, Pencil, Trash2, Send } from 'lucide-react';
 import { useStore } from '../../store';
 import StatusChip from '../../components/layout/StatusChip';
-import type { SupplierPO, SupplierQuotation } from '../../types';
+import type { GoodsReceipt, SupplierPO, SupplierPOLine, SupplierQuotation } from '../../types';
 
 type ProcTab = 'spo' | 'pr' | 'grn' | 'approvals' | 'quotes';
 
 export default function Procurement() {
-  const { supplierPos, grns, approvalRequests, supplierQuotations, purchaseReqs, currentUser, showToast, addSupplierPO, resolveApproval, updateSupplierPo } = useStore();
+  const { supplierPos, grns, approvalRequests, supplierQuotations, purchaseReqs, currentUser, showToast, addSupplierPO, resolveApproval, updateSupplierPo, addGRN, supplierPoLines } = useStore();
   const [searchParams] = useSearchParams();
+  const receiveParam = searchParams.get('receive');
   const [editSpo, setEditSpo] = useState<SupplierPO | null>(null);
 
   const handleDeleteSpo = (id: string) => {
@@ -19,9 +20,13 @@ export default function Procurement() {
     showToast({ type: 'success', title: 'Supplier PO cancelled' });
   };
   const navigate = useNavigate();
-  const [tab, setTab] = useState<ProcTab>((searchParams.get('tab') as ProcTab) ?? 'spo');
+  const [tab, setTab] = useState<ProcTab>(receiveParam ? 'grn' : ((searchParams.get('tab') as ProcTab) ?? 'spo'));
   const [search, setSearch] = useState('');
   const [showNewPO, setShowNewPO] = useState(false);
+  const receivablePos = supplierPos.filter(p => ['confirmed', 'partial', 'overdue', 'sent'].includes(p.status));
+  const [receivePoId, setReceivePoId] = useState<string | null>(
+    receiveParam ? (supplierPos.find(p => p.id === receiveParam)?.id ?? receivablePos[0]?.id ?? null) : null
+  );
 
   const overduePOs = supplierPos.filter(p => p.status === 'overdue').length;
   const pendingApprovals = approvalRequests.filter(a => a.status === 'pending').length;
@@ -340,6 +345,22 @@ export default function Procurement() {
         )}
       </div>
 
+      {receivePoId && (
+        <ReceiveStockModal
+          poId={receivePoId}
+          pos={receivablePos}
+          lines={supplierPoLines}
+          receivedBy={currentUser.name}
+          onClose={() => setReceivePoId(null)}
+          onSave={(grn) => {
+            addGRN(grn);
+            showToast({ type: 'success', title: 'Stock received', body: `${grn.grnNumber} recorded against ${grn.spoNumber}.` });
+            setReceivePoId(null);
+            setTab('grn');
+          }}
+        />
+      )}
+
       {showNewPO && (
         <NewSupplierPOModal
           onClose={() => setShowNewPO(false)}
@@ -435,6 +456,82 @@ function QuoteCompareModal({ quotes, onClose, onSelect }: { quotes: SupplierQuot
               Select {q.supplierName}
             </button>
           ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ReceiveStockModal({ poId, pos, lines, receivedBy, onClose, onSave }: {
+  poId: string;
+  pos: SupplierPO[];
+  lines: SupplierPOLine[];
+  receivedBy: string;
+  onClose: () => void;
+  onSave: (grn: GoodsReceipt) => void;
+}) {
+  const [selectedId, setSelectedId] = useState(poId);
+  const [challan, setChallan] = useState('');
+  const [date, setDate] = useState('2026-11-09');
+  const po = pos.find(p => p.id === selectedId) ?? pos[0];
+  const poLines = lines.filter(l => l.spoId === po?.id);
+  const save = () => {
+    if (!po || !challan) return;
+    const seq = String(Date.now()).slice(-4);
+    onSave({
+      id: `grn-${Date.now()}`,
+      grnNumber: `GRN-2026-${seq}`,
+      supplierId: po.supplierId,
+      supplierName: po.supplierName,
+      spoId: po.id,
+      spoNumber: po.poNumber,
+      receivedDate: date,
+      receivedBy,
+      deliveryChallan: challan,
+      status: 'pending_qc',
+      lineCount: poLines.length || po.lineCount,
+    });
+  };
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl w-full max-w-md p-6 shadow-2xl">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="font-bold text-[var(--text)]">Receive stock</h3>
+          <button onClick={onClose}><X size={16} className="text-[var(--text-3)]" /></button>
+        </div>
+        <div className="space-y-3">
+          <div>
+            <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Supplier PO</label>
+            <select className="eoss-input w-full" value={po?.id ?? ''} onChange={e => setSelectedId(e.target.value)}>
+              {pos.map(p => <option key={p.id} value={p.id}>{p.poNumber} · {p.supplierName}</option>)}
+            </select>
+          </div>
+          {po && (
+            <div className="rounded-lg border p-3 text-xs space-y-1" style={{ borderColor: 'var(--border)', background: 'var(--surface-2)' }}>
+              <div className="font-semibold text-[var(--text)]">{po.supplierName}</div>
+              <div className="text-[var(--text-2)]">Committed {po.committedDate ? new Date(po.committedDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '—'}</div>
+              {poLines.length === 0 && <div className="text-[var(--text-2)]">{po.lineCount} lines on this PO</div>}
+              {poLines.map(l => (
+                <div key={l.id} className="flex justify-between gap-2 text-[var(--text)]">
+                  <span>{l.materialName}</span>
+                  <span className="font-mono">{Math.max(l.orderedQty - l.receivedQty, 0)} {l.uom} due</span>
+                </div>
+              ))}
+            </div>
+          )}
+          <div>
+            <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Delivery challan *</label>
+            <input className="eoss-input w-full" value={challan} onChange={e => setChallan(e.target.value)} placeholder="DC-1042" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Received date</label>
+            <input type="date" className="eoss-input w-full" value={date} onChange={e => setDate(e.target.value)} />
+          </div>
+          <div className="text-xs text-[var(--text-2)]">Received by {receivedBy}. Goods go to incoming QC.</div>
+        </div>
+        <div className="flex gap-3 mt-5">
+          <button onClick={onClose} className="flex-1 py-2.5 border border-[var(--border)] rounded-xl text-sm text-[var(--text-2)]">Cancel</button>
+          <button disabled={!challan || !po} onClick={save} className="flex-1 py-2.5 bg-[var(--brand)] text-white rounded-xl text-sm font-medium disabled:opacity-50">Record GRN</button>
         </div>
       </div>
     </div>

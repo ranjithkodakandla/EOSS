@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft, AlertTriangle, Activity, Check, X,
   ExternalLink, ChevronRight, FileCheck, ShieldAlert
@@ -15,8 +15,9 @@ const TABS = ['Overview', 'Stages', 'Materials', 'Procurement', 'Quality', 'NCR 
 export default function JobWorkspace() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const {
-    jobs, setJobStatus, updateJobStage, resolveBlocker, currentUser, showToast,
+    jobs, setJobStatus, updateJobStage, resolveBlocker, currentUser, showToast, inventory,
     inspections, ncrs, lots, issueMaterial, addInspection, addNCR,
     jobBlockers: allJobBlockers, jobMaterialReqs, materials,
   } = useStore();
@@ -30,12 +31,26 @@ export default function JobWorkspace() {
   const [selectedEmployee, setSelectedEmployee] = useState<string>(EMPLOYEES[5]?.name || 'Mohan Das');
 
   const job = jobs.find(j => j.id === id);
-  if (!job) return <div className="p-8 text-sm text-[var(--text-2)]">Job not found: {id}</div>;
+  const activeStage = job?.stages.find(s => s.status === 'in_progress') || job?.stages[0];
+
+  useEffect(() => {
+    if (searchParams.get('update') === '1' && activeStage) {
+      const rem = Math.max(0, activeStage.inputQty - activeStage.completedGoodQty);
+      setSelectedStageId(activeStage.id);
+      setGoodQtyInput(rem || activeStage.inputQty);
+      setRejectQtyInput(0);
+      setStageNotes('');
+      setStageModalOpen(true);
+    }
+    // Open the stage form once when Home asks to update this job.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  if (!job || !activeStage) return <div className="p-8 text-sm text-[var(--text-2)]">Job not found: {id}</div>;
 
   const blockers = allJobBlockers.filter(b => b.jobId === id && b.status === 'open');
   const jobReqs = jobMaterialReqs.filter(r => r.jobId === job.id);
   const isBlocked = job.hasBlocker || blockers.length > 0;
-  const activeStage = job.stages.find(s => s.status === 'in_progress') || job.stages[0];
 
   // Open Stage Update Modal (Streamlined 2-click capture)
   const openStageUpdate = (stageId?: string) => {
@@ -306,7 +321,21 @@ export default function JobWorkspace() {
                     <td className="py-3 px-4 font-mono font-bold text-emerald-400">{r.reservedQty} {r.uom}</td>
                     <td className="py-3 px-4">
                       {r.shortage ? (
-                        <span className="text-xs font-bold text-[var(--error)]">Shortage ({r.requiredQty - r.reservedQty} {r.uom})</span>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-xs font-bold text-[var(--error)]">Shortage ({r.requiredQty - r.reservedQty} {r.uom})</span>
+                          <button type="button" onClick={() => {
+                            const source = inventory.find(i => i.materialItemId === r.materialItemId && i.availableQty > 0);
+                            const q = new URLSearchParams({
+                              material: r.materialName,
+                              from: source?.locationName || '',
+                              to: job.siteName,
+                              qty: String(r.requiredQty - r.reservedQty),
+                              uom: r.uom,
+                              job: job.jobNumber,
+                            });
+                            navigate(`/transfers?${q.toString()}`);
+                          }} className="text-xs font-semibold text-[var(--brand)]">Move stock</button>
+                        </div>
                       ) : (
                         <span className="text-xs font-bold text-emerald-400">Allocated</span>
                       )}

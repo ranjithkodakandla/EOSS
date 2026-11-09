@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Plus, AlertTriangle, ChevronRight, Wrench, Search, X, Trash2 } from 'lucide-react';
 import { useStore } from '../../store';
 import { computeMaintenanceDue } from '../../domain/maintenanceDue';
@@ -11,10 +11,15 @@ import type { MaintenanceEvent } from '../../types';
 export default function Assets() {
   const { assets, maintenanceEvents, meterReadings, currentUser, addMaintenanceEvent, showToast } = useStore();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const focusParam = searchParams.get('focus');
   const [tab, setTab] = useState<'assets' | 'maintenance'>('assets');
   const [search, setSearch] = useState('');
-  const [focus, setFocus] = useState<'all' | 'breakdown' | 'overdue' | 'due'>('all');
+  const [focus, setFocus] = useState<'all' | 'breakdown' | 'overdue' | 'due'>(
+    focusParam === 'breakdown' || focusParam === 'overdue' || focusParam === 'due' ? focusParam : 'all'
+  );
   const [showLogEvent, setShowLogEvent] = useState(false);
+  const [logAssetId, setLogAssetId] = useState<string | undefined>(undefined);
   const [deletedAssetIds, setDeletedAssetIds] = useState<Set<string>>(new Set());
   const canManage = ['owner', 'maintenance', 'supervisor'].includes(currentUser.role);
 
@@ -100,6 +105,11 @@ export default function Assets() {
       </div>
 
       <div className="flex-1 overflow-auto">
+      {(focus === 'overdue' || focus === 'due') && (
+        <div className="px-4 py-2 text-sm border-b" style={{ borderColor: 'var(--border)', background: 'var(--surface-2)' }}>
+          {focus === 'overdue' ? 'These assets are overdue. Schedule a service, or complete an open work order.' : 'These assets are due soon. Schedule the service.'}
+        </div>
+      )}
       {tab === 'assets' && (
         <>
         <div className="md:hidden p-3 space-y-2">
@@ -111,16 +121,21 @@ export default function Assets() {
                 ? new Date(a.nextServiceDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
                 : 'No service date';
             return (
-              <button key={a.id} type="button" onClick={() => navigate(`/assets/${a.id}`)}
-                className="w-full text-left rounded-xl border p-3"
+              <div key={a.id} onClick={() => navigate(`/assets/${a.id}`)}
+                className="w-full text-left rounded-xl border p-3 cursor-pointer"
                 style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
                 <div className="flex items-center justify-between gap-2">
                   <span className="font-mono text-xs font-bold" style={{ color: 'var(--brand)' }}>{a.assetCode}</span>
                   <StatusChip status={a.status} size="sm" />
                 </div>
                 <div className="text-sm font-semibold text-[var(--text)] mt-1">{a.name}</div>
-                <div className="text-xs text-[var(--text-2)] mt-0.5">{a.workCentre ?? a.category} · next {next}</div>
-              </button>
+                <div className="mt-2 flex items-center justify-between gap-2">
+                  <span className="text-xs text-[var(--text-2)]">{a.workCentre ?? a.category} · next {next}</span>
+                  {(focus === 'overdue' || focus === 'due') && (
+                    <AssetAction asset={a} events={maintenanceEvents} onSchedule={id => { setLogAssetId(id); setShowLogEvent(true); }} onComplete={id => navigate(`/assets/me/${id}`)} />
+                  )}
+                </div>
+              </div>
             );
           })}
           {filteredAssets.length === 0 && <p className="text-center py-8 text-sm" style={{ color: 'var(--text-3)' }}>No assets match</p>}
@@ -184,6 +199,9 @@ export default function Assets() {
                 <td className="px-4 py-3"><StatusChip status={a.status} size="sm" /></td>
                 <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                   <div className="flex items-center gap-1">
+                    {(focus === 'overdue' || focus === 'due') && (
+                      <AssetAction asset={a} events={maintenanceEvents} onSchedule={id => { setLogAssetId(id); setShowLogEvent(true); }} onComplete={id => navigate(`/assets/me/${id}`)} />
+                    )}
                     {canManage && (
                       <button onClick={e => handleDeleteAsset(a.id, e)} className="p-1 rounded hover:bg-[var(--surface-2)]" title="Remove asset"><Trash2 size={12} style={{ color: 'var(--error,#DC2626)' }} /></button>
                     )}
@@ -229,6 +247,7 @@ export default function Assets() {
 
       {showLogEvent && (
         <LogEventModal
+          initialAssetId={logAssetId}
           assets={assets}
           onClose={() => setShowLogEvent(false)}
           onSave={(event) => {
@@ -243,8 +262,31 @@ export default function Assets() {
   );
 }
 
-function LogEventModal({ assets, onClose, onSave }: { assets: { id: string; name: string; assetCode: string }[]; onClose: () => void; onSave: (e: MaintenanceEvent) => void }) {
-  const [form, setForm] = useState({ assetId: assets[0]?.id ?? '', type: 'Breakdown' as MaintenanceEvent['type'], symptom: '', technicianName: '', severity: 'Medium' as NonNullable<MaintenanceEvent['severity']> });
+function AssetAction({ asset, events, onSchedule, onComplete }: {
+  asset: { id: string };
+  events: { id: string; assetId: string; status: string }[];
+  onSchedule: (id: string) => void;
+  onComplete: (id: string) => void;
+}) {
+  const open = events.find(m => m.assetId === asset.id && m.status !== 'closed');
+  if (open) {
+    return (
+      <button type="button" onClick={e => { e.stopPropagation(); onComplete(open.id); }}
+        className="px-2 py-1 rounded-lg text-xs font-semibold text-white" style={{ background: 'var(--brand)' }}>
+        Complete
+      </button>
+    );
+  }
+  return (
+    <button type="button" onClick={e => { e.stopPropagation(); onSchedule(asset.id); }}
+      className="px-2 py-1 rounded-lg text-xs font-semibold text-white" style={{ background: 'var(--brand)' }}>
+      Schedule
+    </button>
+  );
+}
+
+function LogEventModal({ assets, initialAssetId, onClose, onSave }: { assets: { id: string; name: string; assetCode: string }[]; initialAssetId?: string; onClose: () => void; onSave: (e: MaintenanceEvent) => void }) {
+  const [form, setForm] = useState({ assetId: initialAssetId || assets[0]?.id || '', type: (initialAssetId ? 'Preventive' : 'Breakdown') as MaintenanceEvent['type'], symptom: initialAssetId ? 'Scheduled service from overdue maintenance' : '', technicianName: '', severity: 'Medium' as NonNullable<MaintenanceEvent['severity']> });
   const [barcodeInput, setBarcodeInput] = useState('');
   const [err, setErr] = useState('');
   const handleBarcodeScan = (code: string) => {

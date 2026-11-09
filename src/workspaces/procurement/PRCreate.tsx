@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Plus, Trash2 } from 'lucide-react';
 import { useStore } from '../../store';
 import type { PurchaseRequisition } from '../../types';
@@ -24,23 +24,34 @@ let prSeq = 100;
 
 export default function PRCreate() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const prefillName = searchParams.get('name') ?? '';
   const { currentUser, jobs, addPurchaseReq, showToast } = useStore();
 
-  const [step, setStep] = useState<Step>(1);
+  const [step, setStep] = useState<Step>(prefillName ? 2 : 1);
 
   // Step 1 — Header
   const [header, setHeader] = useState({
     jobId: '',
     raisedBy: currentUser.name,
-    requiredBy: '',
-    priority: 'normal' as PurchaseRequisition['priority'],
-    purpose: '',
+    requiredBy: prefillName ? '2026-11-12' : '',
+    priority: (prefillName ? 'high' : 'normal') as PurchaseRequisition['priority'],
+    purpose: prefillName ? `Cover shortage of ${prefillName}` : '',
     notes: '',
   });
 
   // Step 2 — Lines
   const [lines, setLines] = useState<PRLine[]>([
-    { id: 'l-1', materialCode: '', description: '', uom: 'kg', requiredQty: 0, targetRate: 0, requiredBy: '', notes: '' },
+    {
+      id: 'l-1',
+      materialCode: searchParams.get('code') ?? '',
+      description: prefillName,
+      uom: searchParams.get('uom') || 'kg',
+      requiredQty: Number(searchParams.get('qty') || 0),
+      targetRate: 0,
+      requiredBy: prefillName ? '2026-11-12' : '',
+      notes: prefillName ? 'Raised from a stock shortage' : '',
+    },
   ]);
 
   const activeJobs = jobs.filter(j => j.status === 'active' || j.status === 'hold');

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Plus, AlertTriangle, Search, ChevronRight, X, Trash2 } from 'lucide-react';
 import { useStore, CUSTOMERS } from '../../store';
 import { computeProductionStatus } from '../../domain/productionStatus';
@@ -21,9 +21,13 @@ const RISK_COLOR: Record<string, string> = {
 export default function Jobs() {
   const { jobs, dispatches, currentUser, addJob, showToast } = useStore();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const focusParam = searchParams.get('focus');
+  const riskParam = searchParams.get('risk');
+  const guided = focusParam === 'shortage' || !!riskParam;
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [riskFilter, setRiskFilter] = useState<string | null>(null);
+  const [riskFilter, setRiskFilter] = useState<string | null>(riskParam && riskParam !== 'watch' ? riskParam : null);
   const [showNewJob, setShowNewJob] = useState(false);
   const [deletedJobIds, setDeletedJobIds] = useState<Set<string>>(new Set());
   const canManage = ['owner', 'supervisor'].includes(currentUser.role);
@@ -48,8 +52,12 @@ export default function Jobs() {
       j.customerName.toLowerCase().includes(search.toLowerCase()) ||
       j.description.toLowerCase().includes(search.toLowerCase());
     const matchStatus = statusFilter === 'all' || j.status === statusFilter;
-    const matchRisk = !riskFilter || statusByJob[j.id].risk === riskFilter;
-    return matchSearch && matchStatus && matchRisk;
+    const risk = statusByJob[j.id].risk;
+    const matchRisk = riskParam === 'watch'
+      ? risk === 'at_risk' || risk === 'delayed'
+      : (!riskFilter || risk === riskFilter);
+    const matchFocus = focusParam !== 'shortage' || j.materialReadiness === 'shortage';
+    return matchSearch && matchStatus && matchRisk && matchFocus;
   });
 
   const statusCounts = {
@@ -69,6 +77,13 @@ export default function Jobs() {
   const daysLeft = (end: string) => {
     const diff = new Date(end).getTime() - now.getTime();
     return Math.ceil(diff / 86400000);
+  };
+
+  const jobNext = (j: Job) => {
+    const risk = statusByJob[j.id]?.risk;
+    if (j.hasBlocker || risk === 'blocked') return { label: 'Resolve', path: `/jobs/${j.id}` };
+    if (j.materialReadiness === 'shortage') return { label: 'Review', path: `/jobs/${j.id}` };
+    return { label: 'Update', path: `/jobs/${j.id}?update=1` };
   };
 
   return (
@@ -131,15 +146,23 @@ export default function Jobs() {
         })}
       </div>
 
+      {guided && (
+        <div className="px-4 py-2 text-sm border-b" style={{ borderColor: 'var(--border)', background: 'var(--surface-2)', color: 'var(--text)' }}>
+          {focusParam === 'shortage' && 'These jobs are short of material. Open one to see what is missing.'}
+          {riskParam === 'blocked' && 'These jobs are blocked. Resolve is the next step on the job.'}
+          {riskParam === 'watch' && 'These jobs are at risk or delayed. Update progress on the current stage.'}
+        </div>
+      )}
+
       <div className="md:hidden flex-1 overflow-auto p-3 space-y-2">
         {filtered.map(j => {
           const status = statusByJob[j.id];
           return (
-            <button
+            <div
               key={j.id}
-              type="button"
-              onClick={() => navigate(`/jobs/${j.id}`)}
-              className="w-full text-left rounded-xl border p-3"
+              role="link"
+              onClick={() => navigate(jobNext(j).path)}
+              className="w-full text-left rounded-xl border p-3 cursor-pointer"
               style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
             >
               <div className="flex items-center justify-between gap-2">
@@ -148,8 +171,16 @@ export default function Jobs() {
               </div>
               <div className="text-sm font-semibold text-[var(--text)] mt-1">{j.customerName}</div>
               <div className="text-xs text-[var(--text-2)] mt-0.5 line-clamp-2">{j.description}</div>
-              <div className="text-[11px] text-[var(--text-3)] mt-1.5">{j.currentStage} · due {new Date(j.plannedEnd).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</div>
-            </button>
+              <div className="mt-2 flex items-center justify-between gap-2">
+                <span className="text-[11px] text-[var(--text-3)]">{j.currentStage} · due {new Date(j.plannedEnd).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</span>
+                {guided && (
+                  <button type="button" onClick={e => { e.stopPropagation(); navigate(jobNext(j).path); }}
+                    className="px-2.5 py-1 rounded-lg text-xs font-semibold text-white" style={{ background: 'var(--brand)' }}>
+                    {jobNext(j).label}
+                  </button>
+                )}
+              </div>
+            </div>
           );
         })}
         {filtered.length === 0 && <p className="text-center py-8 text-sm" style={{ color: 'var(--text-3)' }}>No jobs found</p>}
@@ -210,6 +241,12 @@ export default function Jobs() {
                   </td>
                   <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                     <div className="flex items-center gap-1">
+                      {guided && (
+                        <button type="button" onClick={() => navigate(jobNext(j).path)}
+                          className="px-2 py-1 rounded-lg text-xs font-semibold text-white" style={{ background: 'var(--brand)' }}>
+                          {jobNext(j).label}
+                        </button>
+                      )}
                       {canManage && j.status !== 'complete' && (
                         <button onClick={e => handleDeleteJob(j.id, e)} className="p-1 rounded hover:bg-[var(--surface-2)]" title="Remove job"><Trash2 size={12} style={{ color: 'var(--error,#DC2626)' }} /></button>
                       )}

@@ -113,7 +113,7 @@ export default function OrderToDeliveryFlow() {
 
   return (
     <div
-      className="p-4 sm:p-5 rounded-2xl border"
+      className="p-3 sm:p-4 rounded-2xl border shrink-0"
       style={{
         background: 'var(--card-gradient, linear-gradient(180deg, #FFFFFF 0%, #FAF9FE 100%))',
         borderColor: 'var(--border)',
@@ -152,7 +152,7 @@ export default function OrderToDeliveryFlow() {
             {/* Step Card: 105px on mobile to prevent squishing, flex-1 on tablet/desktop */}
             <button
               onClick={() => navigate(step.path)}
-              className="flex-shrink-0 sm:flex-shrink sm:flex-1 min-w-[105px] sm:min-w-0 h-[82px] rounded-2xl border transition-all duration-150 hover:-translate-y-0.5 group relative cursor-pointer flex flex-col items-center justify-between py-2 px-1.5 text-center"
+              className="flex-shrink-0 sm:flex-shrink sm:flex-1 min-w-[105px] sm:min-w-0 h-[72px] rounded-2xl border transition-all duration-150 hover:-translate-y-0.5 group relative cursor-pointer flex flex-col items-center justify-between py-1.5 px-1.5 text-center"
               style={{
                 background: step.bg,
                 borderColor: step.borderColor,

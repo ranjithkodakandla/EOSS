@@ -29,14 +29,14 @@ export default function OperationalAttentionCard() {
   const docsExpiring = listExpiringDocuments(documents, now).length;
 
   const metrics = [
-    { icon: PackageX, label: 'Critical Material Shortages', value: criticalShortages, path: '/inventory', accent: 'error' },
-    { icon: AlertTriangle, label: 'Jobs Affected by Shortage', value: jobsAffectedByShortage, path: '/jobs', accent: 'error' },
-    { icon: Wrench, label: 'Maintenance Due', value: maintenanceDue, path: '/assets', accent: 'warning' },
-    { icon: Wrench, label: 'Maintenance Overdue', value: maintenanceOverdue, path: '/assets', accent: 'error' },
-    { icon: Ban, label: 'Jobs At Risk / Delayed', value: jobsAtRisk, path: '/jobs', accent: 'warning' },
-    { icon: Ban, label: 'Jobs Blocked', value: jobsBlocked, path: '/jobs', accent: 'error' },
-    { icon: ClipboardCheck, label: 'Inspections Pending', value: inspectionsPending, path: '/quality', accent: 'warning' },
-    { icon: FileWarning, label: 'Documents Expiring/Expired', value: docsExpiring, path: '/documents', accent: 'warning' },
+    { icon: PackageX, label: 'Critical Material Shortages', value: criticalShortages, path: '/inventory?focus=shortage', accent: 'error' },
+    { icon: AlertTriangle, label: 'Jobs Affected by Shortage', value: jobsAffectedByShortage, path: '/jobs?focus=shortage', accent: 'error' },
+    { icon: Wrench, label: 'Maintenance Due', value: maintenanceDue, path: '/assets?focus=due', accent: 'warning' },
+    { icon: Wrench, label: 'Maintenance Overdue', value: maintenanceOverdue, path: '/assets?focus=overdue', accent: 'error' },
+    { icon: Ban, label: 'Jobs At Risk / Delayed', value: jobsAtRisk, path: '/jobs?risk=watch', accent: 'warning' },
+    { icon: Ban, label: 'Jobs Blocked', value: jobsBlocked, path: '/jobs?risk=blocked', accent: 'error' },
+    { icon: ClipboardCheck, label: 'Inspections Pending', value: inspectionsPending, path: '/quality?result=open', accent: 'warning' },
+    { icon: FileWarning, label: 'Documents Expiring/Expired', value: docsExpiring, path: '/documents?attention=due', accent: 'warning' },
   ] as const;
 
   const colorFor = (accent: string) => accent === 'error' ? 'var(--error)' : 'var(--warning)';
@@ -44,7 +44,7 @@ export default function OperationalAttentionCard() {
 
   return (
     <div
-      className="p-4 rounded-2xl border"
+      className="p-4 rounded-2xl border h-full flex flex-col min-h-0"
       style={{
         background: 'var(--card-gradient, linear-gradient(180deg, #FFFFFF 0%, #FAF9FE 100%))',
         borderColor: 'var(--border, #E5E0F5)',
@@ -55,12 +55,12 @@ export default function OperationalAttentionCard() {
       {visible.length === 0 ? (
         <p className="text-sm text-[var(--text-2)] py-2">Nothing is waiting on you right now.</p>
       ) : (
-        <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
+        <div className="flex-1 flex flex-col justify-evenly min-h-0">
           {visible.map(m => (
             <button
               key={m.label}
               onClick={() => navigate(m.path)}
-              className="w-full flex items-center gap-3 py-2 text-left"
+              className="w-full flex items-center gap-3 py-1.5 text-left"
             >
               <m.icon size={15} style={{ color: colorFor(m.accent) }} />
               <span className="flex-1 text-[13px] font-medium text-[var(--text)]">{m.label}</span>
