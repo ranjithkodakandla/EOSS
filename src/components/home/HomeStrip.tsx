@@ -105,7 +105,7 @@ export default function HomeStrip() {
         tone: shipTone(job, now),
       });
     }
-    return { key, label: DAY[d.getDay()], date: d.getDate(), today: key === today, departures: departures.slice(0, 3) };
+    return { key, label: DAY[d.getDay()], today: key === today, departures: departures.slice(0, 3) };
   });
 
   return (
@@ -125,9 +125,7 @@ export default function HomeStrip() {
               boxShadow: day.today ? 'inset 0 0 0 1px var(--brand)' : undefined,
             }}
           >
-            <div className="text-[11px] font-bold text-[var(--text)] shrink-0">
-              {day.label} <span className="font-medium text-[var(--text-3)]">{day.date}</span>
-            </div>
+            <div className="text-[11px] font-bold text-[var(--text)] shrink-0">{day.label}</div>
             <div className="flex-1 min-h-0 flex flex-col justify-center gap-1 mt-1 overflow-hidden">
               {day.departures.length === 0 ? (
                 <span className="text-sm text-[var(--text-3)]">—</span>
