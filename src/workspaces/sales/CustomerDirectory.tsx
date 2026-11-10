@@ -8,7 +8,7 @@ import type { Party } from '../../types';
 
 export default function CustomerDirectory() {
   const navigate = useNavigate();
-  const { customers, showToast, updateCustomer, addCustomer } = useStore();
+  const { customers, customerPos, rfqs, showToast, updateCustomer, addCustomer } = useStore();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
   const [showAdd, setShowAdd] = useState(false);
@@ -77,7 +77,7 @@ export default function CustomerDirectory() {
           <table className="w-full text-sm">
             <thead>
               <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface-2)' }}>
-                {['Customer', 'GSTIN / State', 'Contact', 'Terms', 'Rating', 'Status', ''].map(h => (
+                {['Customer', 'GSTIN / State', 'Contact', 'Terms', 'Customer POs', 'RFQs', 'Rating', 'Status', ''].map(h => (
                   <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold text-[var(--text-2)] font-medium">
                     {h}
                   </th>
@@ -109,6 +109,24 @@ export default function CustomerDirectory() {
                     </div>
                   </td>
                   <td className="px-4 py-3 text-xs text-[var(--text-2)]">{c.paymentTerms}</td>
+                  <td className="px-4 py-3">
+                    <button
+                      type="button"
+                      onClick={e => { e.stopPropagation(); navigate(`/sales?tab=pos&customer=${encodeURIComponent(c.id)}`); }}
+                      className="text-xs font-semibold text-[var(--brand)] hover:underline"
+                    >
+                      {customerPos.filter(po => po.customerId === c.id).length} PO{customerPos.filter(po => po.customerId === c.id).length !== 1 ? 's' : ''}
+                    </button>
+                  </td>
+                  <td className="px-4 py-3">
+                    <button
+                      type="button"
+                      onClick={e => { e.stopPropagation(); navigate(`/sales?tab=rfqs&customer=${encodeURIComponent(c.id)}`); }}
+                      className="text-xs font-semibold text-[var(--brand)] hover:underline"
+                    >
+                      {rfqs.filter(rfq => rfq.customerId === c.id).length} RFQ{rfqs.filter(rfq => rfq.customerId === c.id).length !== 1 ? 's' : ''}
+                    </button>
+                  </td>
                   <td className="px-4 py-3">
                     {c.rating != null && (
                       <div className="flex items-center gap-1 text-xs">

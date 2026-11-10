@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { FileText, Search, Plus, X, RefreshCw } from 'lucide-react';
 import { useStore } from '../../store';
 import { computeDocumentExpiry, listExpiringDocuments } from '../../domain/documentExpiry';
@@ -11,9 +11,10 @@ const CATEGORIES = ['All', 'Job Documents', 'Quality Documents', 'Material Certi
 
 export default function Documents() {
   const { documents: vaultDocuments, currentUser, addDocument, addDocumentVersion, showToast } = useStore();
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const attentionParam = searchParams.get('attention');
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState(searchParams.get('search') ?? '');
   const [cat, setCat] = useState('All');
   const [attention, setAttention] = useState<'all' | 'expiring' | 'expired' | 'due'>(
     attentionParam === 'expiring' || attentionParam === 'expired' || attentionParam === 'due' ? attentionParam : 'all'
@@ -121,7 +122,7 @@ export default function Documents() {
           {filtered.map(doc => {
             const expiry = computeDocumentExpiry(doc, now);
             return (
-              <div key={doc.id} className="rounded-xl border p-4 flex items-center gap-3 hover:opacity-90 transition-opacity"
+              <div key={doc.id} role="button" tabIndex={0} onClick={() => navigate(`/documents/${doc.id}`)} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') navigate(`/documents/${doc.id}`); }} className="rounded-xl border p-4 flex items-center gap-3 hover:opacity-90 transition-opacity cursor-pointer"
                 style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
                 <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: 'var(--surface-2)' }}>
                   <FileText size={16} style={{ color: 'var(--brand)' }} />
@@ -139,10 +140,13 @@ export default function Documents() {
                   </div>
                 </div>
                 {(expiry.status === 'expiring' || expiry.status === 'expired') && (
-                  <button onClick={() => handleRenew(doc.id)} className="flex items-center gap-1 text-xs font-semibold flex-shrink-0" style={{ color: 'var(--brand)' }}>
+                  <button onClick={e => { e.stopPropagation(); handleRenew(doc.id); }} className="flex items-center gap-1 text-xs font-semibold flex-shrink-0" style={{ color: 'var(--brand)' }}>
                     <RefreshCw size={12} /> Renew
                   </button>
                 )}
+                <button type="button" onClick={e => { e.stopPropagation(); navigate(`/documents/${doc.id}`); }} className="text-xs font-semibold flex-shrink-0" style={{ color: 'var(--brand)' }}>
+                  Open document →
+                </button>
               </div>
             );
           })}

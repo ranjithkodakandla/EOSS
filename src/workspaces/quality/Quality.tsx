@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Plus, ChevronRight, AlertTriangle, X, Trash2 } from 'lucide-react';
+import { Plus, ChevronRight, AlertTriangle, Search, X, Trash2 } from 'lucide-react';
 import { useStore } from '../../store';
 import { openInspections } from '../../domain/recordLists';
 import StatusChip from '../../components/layout/StatusChip';
@@ -15,6 +15,7 @@ export default function Quality() {
   const [tab, setTab] = useState<'inspections' | 'ncrs'>('inspections');
   const [showNew, setShowNew] = useState(!!searchParams.get('newFor'));
   const [showNewNcr, setShowNewNcr] = useState(false);
+  const [search, setSearch] = useState('');
   const prefilledJobId = searchParams.get('newFor') ?? '';
   const [deletedInspectionIds, setDeletedInspectionIds] = useState<Set<string>>(new Set());
   const [deletedNcrIds, setDeletedNcrIds] = useState<Set<string>>(new Set());
@@ -38,14 +39,22 @@ export default function Quality() {
   const resultParam = searchParams.get('result');
   const [resultFilter, setResultFilter] = useState<string | null>(resultParam);
   const [ncrFocus, setNcrFocus] = useState(false);
+  const query = search.trim().toLowerCase();
   const visibleInspections = inspections.filter(i => {
     if (deletedInspectionIds.has(i.id)) return false;
     if (resultFilter === 'open') return i.result === 'pending' || i.result === 'fail';
-    if (resultFilter) return i.result === resultFilter;
-    return true;
+    if (resultFilter && i.result !== resultFilter) return false;
+    if (!query) return true;
+    return [i.inspectionNumber, i.type, i.jobNumber, i.stageName, i.productDescription, i.inspectorName, i.templateName]
+      .some(value => value?.toLowerCase().includes(query));
   });
-  const visibleNcrs = ncrs.filter(n => !deletedNcrIds.has(n.id) && (!ncrFocus || n.status === 'open' || n.status === 'in_progress'));
-  const openList = openInspections(inspections.filter(i => !deletedInspectionIds.has(i.id)));
+  const visibleNcrs = ncrs.filter(n => {
+    if (deletedNcrIds.has(n.id) || (ncrFocus && n.status !== 'open' && n.status !== 'in_progress')) return false;
+    if (!query) return true;
+    return [n.ncrNumber, n.sourceType, n.severity, n.description, n.jobNumber, n.status]
+      .some(value => value?.toLowerCase().includes(query));
+  });
+  const openList = openInspections(visibleInspections);
 
   const openNcrs = ncrs.filter(n => !deletedNcrIds.has(n.id) && (n.status === 'open' || n.status === 'in_progress')).length;
   const pendingInspections = openList.length;
@@ -65,6 +74,17 @@ export default function Quality() {
               {pendingInspections} open
             </button>
           )}
+        </div>
+        <div className="relative flex-1 min-w-[220px] max-w-sm">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-3)' }} />
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search inspections, NCRs, jobs…"
+            aria-label="Search quality records"
+            className="w-full pl-8 pr-3 py-1.5 rounded-lg text-sm border focus:outline-none focus:ring-1"
+            style={{ borderColor: 'var(--border)', background: 'var(--surface)', color: 'var(--text)' }}
+          />
         </div>
         <div className="flex-1" />
         {['owner', 'qc'].includes(currentUser.role) && (

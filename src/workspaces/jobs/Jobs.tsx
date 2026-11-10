@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Plus, AlertTriangle, Search, ChevronRight, Trash2 } from 'lucide-react';
+import { Plus, Search, ChevronRight, Trash2 } from 'lucide-react';
 import { useStore, CUSTOMERS } from '../../store';
 import { computeProductionStatus } from '../../domain/productionStatus';
 import { jobsBlocked, DEFAULT_SITE_ID, DEFAULT_SITE_NAME } from '../../domain/recordLists';
@@ -235,7 +235,6 @@ export default function Jobs() {
                   onClick={() => navigate(`/jobs/${j.id}`)}>
                   <td className="px-4 py-3 whitespace-nowrap">
                     <div className="flex items-center gap-1.5">
-                      {j.hasBlocker === true && <AlertTriangle size={12} style={{ color: 'var(--error,#DC2626)', flexShrink: 0 }} />}
                       <span className="font-mono text-xs font-bold" style={{ color: 'var(--brand)' }}>{j.jobNumber}</span>
                     </div>
                   </td>

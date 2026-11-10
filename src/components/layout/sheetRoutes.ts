@@ -3,7 +3,7 @@ const JOB_WORKSPACE = /^\/jobs\/[^/]+$/;
 
 export function sheetParent(pathname: string): string | null {
   if (pathname === '/sales/customers') return null;
-  if (/^\/sales\/customers\/[^/]+/.test(pathname)) return '/sales/customers';
+  if (/^\/sales\/customers\/[^/]+/.test(pathname)) return '/sales?tab=customers';
   if (pathname.startsWith('/sales/')) return '/sales';
   if (/^\/suppliers\/[^/]+/.test(pathname)) return '/suppliers';
   if (pathname.startsWith('/procurement/')) return '/procurement';
@@ -16,5 +16,6 @@ export function sheetParent(pathname: string): string | null {
   if (pathname.startsWith('/assets/')) return '/assets';
   if (/^\/dispatch\/[^/]+/.test(pathname)) return '/dispatch';
   if (pathname.startsWith('/finance/')) return '/finance';
+  if (/^\/documents\/[^/]+/.test(pathname)) return '/documents';
   return null;
 }

@@ -10,6 +10,7 @@ import clsx from 'clsx';
 import type { CustomerRFQ, CustomerPO } from '../../types';
 import SortableHeader from '../../components/layout/SortableHeader';
 import { sortRows } from '../../domain/tableSort';
+import CustomerDirectory from './CustomerDirectory';
 
 type POTab = 'pos' | 'rfqs' | 'customers';
 type SalesSortKey = 'number' | 'name' | 'date' | 'requiredBy' | 'value' | 'lines' | 'terms' | 'status' | 'channel' | 'quotation' | 'owner';
@@ -19,6 +20,7 @@ export default function Sales() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [tab, setTab] = useState<POTab>((searchParams.get('tab') as POTab) ?? 'pos');
+  const customerFilter = searchParams.get('customer') ?? '';
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [rfqStatusFilter, setRfqStatusFilter] = useState('all');
@@ -49,7 +51,7 @@ export default function Sales() {
     const q = search.toLowerCase();
     const matchSearch = !q || p.poNumber.toLowerCase().includes(q) || p.customerName.toLowerCase().includes(q);
     const matchStatus = statusFilter === 'all' || p.status === statusFilter;
-    return matchSearch && matchStatus;
+    return matchSearch && matchStatus && (!customerFilter || p.customerId === customerFilter);
   });
   const filteredPos = sortRows(filteredPosBase, sortKey, sortDir, (p, key) => {
     const values: Record<string, unknown> = {
@@ -61,7 +63,9 @@ export default function Sales() {
 
   const filteredRfqsBase = rfqs.filter(r => {
     const q = search.toLowerCase();
-    return (rfqStatusFilter === 'all' || r.status === rfqStatusFilter) && (!q || r.rfqNumber.toLowerCase().includes(q) || r.customerName.toLowerCase().includes(q));
+    return (rfqStatusFilter === 'all' || r.status === rfqStatusFilter)
+      && (!customerFilter || r.customerId === customerFilter)
+      && (!q || r.rfqNumber.toLowerCase().includes(q) || r.customerName.toLowerCase().includes(q));
   });
   const filteredRfqs = sortRows(filteredRfqsBase, sortKey, sortDir, (r, key) => {
     const values: Record<string, unknown> = {
@@ -118,7 +122,7 @@ export default function Sales() {
         ] as { id: POTab; label: string }[]).map(t => (
           <button
             key={t.id}
-            onClick={() => { setTab(t.id); if (t.id === 'customers') navigate('/sales/customers'); }}
+            onClick={() => { setTab(t.id); if (t.id === 'customers') navigate('/sales?tab=customers'); }}
             className={clsx(
               'px-4 py-3 text-sm font-medium transition-colors relative whitespace-nowrap',
               tab === t.id
@@ -138,6 +142,11 @@ export default function Sales() {
         ))}
       </div>
 
+      {tab === 'customers' ? (
+        <div className="flex-1 overflow-auto">
+          <CustomerDirectory />
+        </div>
+      ) : <>
       {/* Filter Bar */}
       <div
         className="flex-shrink-0 flex items-center gap-3 px-6 py-3 border-b"
@@ -485,6 +494,7 @@ export default function Sales() {
           </div>
         </div>
       )}
+      </>}
     </div>
   );
 }

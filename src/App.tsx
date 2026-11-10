@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { Routes, Route, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { Routes, Route, Outlet, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { X } from 'lucide-react';
 import AppShell from './components/layout/AppShell';
 import OnboardingGuard from './components/layout/OnboardingGuard';
@@ -11,7 +11,6 @@ import RFQCreate from './workspaces/sales/RFQCreate';
 import RFQDetail from './workspaces/sales/RFQDetail';
 import QuotationCreate from './workspaces/sales/QuotationCreate';
 import QuotationDetail from './workspaces/sales/QuotationDetail';
-import CustomerDirectory from './workspaces/sales/CustomerDirectory';
 import CustomerDetail from './workspaces/sales/CustomerDetail';
 import POAmend from './workspaces/sales/POAmend';
 import Suppliers from './workspaces/suppliers/Suppliers';
@@ -41,6 +40,7 @@ import MaintenanceDetail from './workspaces/assets/MaintenanceDetail';
 import Dispatch from './workspaces/dispatch/Dispatch';
 import DispatchDetail from './workspaces/dispatch/DispatchDetail';
 import Documents from './workspaces/documents/Documents';
+import DocumentDetail from './workspaces/documents/DocumentDetail';
 import Reports from './workspaces/reports/Reports';
 import Admin from './workspaces/admin/AdminSecurity';
 import AuditTimeline from './workspaces/admin/AuditTimeline';
@@ -53,11 +53,12 @@ import Transfers from './workspaces/transfers/Transfers';
 import Onboarding from './workspaces/onboarding/Onboarding';
 
 function Background({ pathname }: { pathname: string }) {
+  const [backgroundPathname, backgroundQuery = ''] = pathname.split('?');
   return (
-    <Routes location={{ pathname, search: '', hash: '', state: null, key: 'bg' }}>
+    <Routes location={{ pathname: backgroundPathname, search: backgroundQuery ? `?${backgroundQuery}` : '', hash: '', state: null, key: 'bg' }}>
       <Route index element={<Home />} />
       <Route path="sales" element={<Sales />} />
-      <Route path="sales/customers" element={<CustomerDirectory />} />
+      <Route path="sales/customers" element={<Navigate to="/sales?tab=customers" replace />} />
       <Route path="suppliers" element={<Suppliers />} />
       <Route path="procurement" element={<Procurement />} />
       <Route path="inventory" element={<Inventory />} />
@@ -131,7 +132,7 @@ export default function App() {
           <Route path="sales/quotation/:id" element={<QuotationDetail />} />
           <Route path="sales/po/:id" element={<SalesPODetail />} />
           <Route path="sales/po/:id/amend" element={<POAmend />} />
-          <Route path="sales/customers" element={<CustomerDirectory />} />
+          <Route path="sales/customers" element={<Navigate to="/sales?tab=customers" replace />} />
           <Route path="sales/customers/:id" element={<CustomerDetail />} />
           <Route path="suppliers" element={<Suppliers />} />
           <Route path="suppliers/:id" element={<SupplierDetail />} />
@@ -160,6 +161,7 @@ export default function App() {
           <Route path="dispatch" element={<Dispatch />} />
           <Route path="dispatch/:id" element={<DispatchDetail />} />
           <Route path="documents" element={<Documents />} />
+          <Route path="documents/:id" element={<DocumentDetail />} />
           <Route path="reports" element={<Reports />} />
           <Route path="finance" element={<Finance />} />
           <Route path="finance/invoice/:id" element={<InvoiceDetail />} />
