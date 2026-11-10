@@ -181,8 +181,12 @@ export default function GlobalSearchModal({ isOpen, onClose }: Props) {
   if (!isOpen) return null;
 
   return (
-    <div data-overlay="center" className="fixed inset-0 z-50 flex items-start justify-center pt-16 md:pt-24 px-4 bg-black/50 backdrop-blur-sm">
+    <div data-overlay="center" role="presentation" onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }} className="fixed inset-0 z-50 flex items-start justify-center pt-16 md:pt-24 px-4 bg-black/50 backdrop-blur-sm">
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Global record search"
+        onMouseDown={e => e.stopPropagation()}
         className="w-full max-w-2xl rounded-2xl overflow-hidden shadow-2xl border"
         style={{
           background: 'var(--surface, #FFFFFF)',

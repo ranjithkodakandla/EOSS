@@ -197,7 +197,7 @@ export default function Sales() {
                   className="w-full text-left rounded-xl border p-3" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-mono text-xs font-bold" style={{ color: 'var(--brand)' }}>{p.poNumber}</span>
-                    <StatusChip status={p.status} size="sm" />
+                    <StatusChip status={p.status} />
                   </div>
                   <div className="text-sm font-semibold text-[var(--text)] mt-1">{p.customerName}</div>
                   <div className="text-xs text-[var(--text-2)] mt-1">₹{(p.totalValue / 100000).toFixed(1)}L · {p.paymentTerms}</div>
@@ -243,7 +243,7 @@ export default function Sales() {
                       <td className="px-4 py-3 text-center text-xs" style={{ color: 'var(--text-2)' }}>{p.lineCount}</td>
                       <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-2)' }}>{p.paymentTerms}</td>
                       <td className="px-4 py-3">
-                        <StatusChip status={p.status} size="sm" />
+                        <StatusChip status={p.status} />
                       </td>
                       <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                         <div className="flex items-center gap-1">
@@ -302,7 +302,7 @@ export default function Sales() {
                         return q ? <button type="button" onClick={() => navigate(`/sales/quotation/${q.id}`)} className="font-mono font-semibold text-[var(--brand)] hover:underline">{q.quotationNumber}</button> : <span className="text-[var(--text-3)]">Pending</span>;
                       })()}
                     </td>
-                    <td className="px-4 py-3"><StatusChip status={r.status} size="sm" /></td>
+                    <td className="px-4 py-3"><StatusChip status={r.status} /></td>
                     <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-2)' }}>{r.owner}</td>
                     <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                       <div className="flex items-center gap-1">
@@ -386,7 +386,7 @@ export default function Sales() {
                           <div className="text-xs mt-0.5" style={{ color: 'var(--text-2)' }}>{j.currentStage} · {getStatusLabel(j.status)}</div>
                         </div>
                         <div className="flex items-center gap-2">
-                          <StatusChip status={j.status} size="sm" />
+                          <StatusChip status={j.status} />
                           <ChevronRight size={12} style={{ color: 'var(--text-3)' }} />
                         </div>
                       </button>
@@ -446,7 +446,7 @@ export default function Sales() {
               </div>
               <div className="flex justify-between">
                 <span className="text-[var(--text-3)]">Status</span>
-                <StatusChip status={selectedRfq.status} size="sm" />
+                <StatusChip status={selectedRfq.status} />
               </div>
               <div className="flex justify-between">
                 <span className="text-[var(--text-3)]">Received</span>

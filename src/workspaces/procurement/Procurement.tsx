@@ -174,7 +174,7 @@ export default function Procurement() {
                 className="w-full text-left rounded-xl border p-3" style={{ borderColor: 'var(--border)', background: p.status === 'overdue' ? 'var(--error-bg,#FEF2F2)' : 'var(--surface)' }}>
                 <div className="flex items-center justify-between gap-2">
                   <span className="font-mono text-xs font-bold" style={{ color: 'var(--brand)' }}>{p.poNumber}</span>
-                  <StatusChip status={p.status} size="sm" />
+                  <StatusChip status={p.status} />
                 </div>
                 <div className="text-sm font-semibold text-[var(--text)] mt-1">{p.supplierName}</div>
                 <div className="text-xs text-[var(--text-2)] mt-1">₹{(p.totalValue / 1000).toFixed(1)}k{p.jobRef ? ` · ${p.jobRef}` : ''}</div>
@@ -214,7 +214,7 @@ export default function Procurement() {
                   <td className="px-4 py-3 text-sm text-center" style={{ color: 'var(--text-2)' }}>{p.lineCount}</td>
                   <td className="px-4 py-3 font-mono text-sm font-semibold" style={{ color: 'var(--text)' }}>₹{(p.totalValue / 1000).toFixed(1)}k</td>
                   <td className="px-4 py-3 text-xs font-mono" style={{ color: 'var(--text-2)' }}>{p.jobRef ?? '—'}</td>
-                  <td className="px-4 py-3"><StatusChip status={p.status} size="sm" /></td>
+                  <td className="px-4 py-3"><StatusChip status={p.status} /></td>
                   <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                     <div className="flex items-center gap-1">
                       {canCreate && p.status !== 'cancelled' && (
@@ -261,8 +261,8 @@ export default function Procurement() {
                   <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-2)' }}>{new Date(pr.requiredBy).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</td>
                   <td className="px-4 py-3 font-mono text-xs" style={{ color: 'var(--text-2)' }}>{pr.jobNumber ?? '—'}</td>
                   <td className="px-4 py-3 text-sm text-center" style={{ color: 'var(--text-2)' }}>{pr.lineCount}</td>
-                  <td className="px-4 py-3"><StatusChip status={pr.priority} size="sm" /></td>
-                  <td className="px-4 py-3"><StatusChip status={pr.status} size="sm" /></td>
+                  <td className="px-4 py-3"><StatusChip status={pr.priority} /></td>
+                  <td className="px-4 py-3"><StatusChip status={pr.status} /></td>
                   <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                     {pr.status === 'approved' && (
                       <button onClick={() => navigate(`/procurement/supplier-rfq/new?prId=${pr.id}`)}
@@ -304,7 +304,7 @@ export default function Procurement() {
                   <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-2)' }}>{new Date(g.receivedDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</td>
                   <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-2)' }}>{g.receivedBy}</td>
                   <td className="px-4 py-3 font-mono text-xs" style={{ color: 'var(--text-2)' }}>{g.deliveryChallan}</td>
-                  <td className="px-4 py-3"><StatusChip status={g.status} size="sm" /></td>
+                  <td className="px-4 py-3"><StatusChip status={g.status} /></td>
                   <td className="px-4 py-3"><ChevronRight size={14} style={{ color: 'var(--text-3)' }} /></td>
                 </tr>
               ))}
@@ -322,7 +322,7 @@ export default function Procurement() {
                   <div key={qt.id} className="rounded-xl border p-3" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
                     <div className="flex items-center justify-between gap-2">
                       <span className="font-mono text-xs font-bold" style={{ color: 'var(--brand)' }}>{qt.quoteNumber}</span>
-                      <StatusChip status={qt.status} size="sm" />
+                      <StatusChip status={qt.status} />
                     </div>
                     <div className="text-sm font-medium text-[var(--text)] mt-1">{qt.supplierName}</div>
                     <div className="text-xs text-[var(--text-2)] mt-1">
@@ -361,7 +361,7 @@ export default function Procurement() {
                         <td className="text-xs" style={{ color: 'var(--text-2)' }}>{q.deliveryDays} days</td>
                         <td className="text-xs" style={{ color: 'var(--text-2)' }}>{q.paymentTerms}</td>
                         <td className="font-mono text-sm font-semibold" style={{ color: 'var(--text)' }}>₹{(total / 1000).toFixed(1)}k</td>
-                        <td><StatusChip status={q.status} size="sm" /></td>
+                        <td><StatusChip status={q.status} /></td>
                         <td>
                           {grouped.length > 1 && grouped[0]?.id === q.id && (
                             <button onClick={() => setCompareQuotes(grouped)}
@@ -399,7 +399,7 @@ export default function Procurement() {
                       {a.description && <div className="text-xs mt-1" style={{ color: 'var(--text-2)' }}>{a.description}</div>}
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
-                      {a.status !== 'pending' && <StatusChip status={a.status} size="sm" />}
+                      {a.status !== 'pending' && <StatusChip status={a.status} />}
                       {a.status === 'pending' && canApprove && <button onClick={() => resolveApproval(a.id, 'rejected', currentUser.name, 'Rejected in approval review')}
                         className="px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors"
                         style={{ borderColor: 'var(--error,#DC2626)', color: 'var(--error,#DC2626)', background: 'transparent' }}>

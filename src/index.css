@@ -366,7 +366,7 @@ body {
 :focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; border-radius: 4px; }
 
 /* ── EOSS Table ── */
-.eoss-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.eoss-table { width: 100%; border-collapse: collapse; font-size: 13px; line-height: 1.35; }
 .eoss-table th {
   background: var(--surface-2);
   color: var(--text-2);
@@ -387,6 +387,7 @@ body {
   border-bottom: 1px solid var(--border);
   vertical-align: middle;
   color: var(--text);
+  line-height: 1.35;
 }
 .eoss-table tbody tr { transition: background 0.1s; }
 .eoss-table tbody tr:hover td { background: var(--surface-2); }

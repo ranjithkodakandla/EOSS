@@ -74,13 +74,13 @@ export default function CustomerDirectory() {
                   </td>
                   <td className="px-4 py-3">
                     <div className="text-xs font-mono text-[var(--text)]">{c.gstin}</div>
-                    <div className="text-xs text-[var(--text-2)]">{c.state} · {c.city}</div>
+                    <div className="text-xs text-[var(--text-2)] whitespace-nowrap">{c.state} · {c.city}</div>
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-1 text-xs text-[var(--text-2)]">
                       <Phone size={11} /> {c.phone}
                     </div>
-                    <div className="flex items-center gap-1 text-xs text-[var(--text-2)] mt-0.5">
+                    <div className="flex items-center gap-1 text-xs text-[var(--text-2)] mt-0.5 truncate max-w-[15rem]">
                       <Mail size={11} /> {c.email}
                     </div>
                   </td>
