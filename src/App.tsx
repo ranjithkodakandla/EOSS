@@ -27,6 +27,8 @@ import InventoryItemDetail from './workspaces/inventory/InventoryItemDetail';
 import LotDetail from './workspaces/inventory/LotDetail';
 import CertificateDetail from './workspaces/inventory/CertificateDetail';
 import StockTransfer from './workspaces/inventory/StockTransfer';
+import InventoryTransfers from './workspaces/inventory/InventoryTransfers';
+import InventoryReturns from './workspaces/inventory/InventoryReturns';
 import CycleCount from './workspaces/inventory/CycleCount';
 import Remnants from './workspaces/inventory/Remnants';
 import Jobs from './workspaces/jobs/Jobs';
@@ -149,6 +151,8 @@ export default function App() {
           <Route path="inventory/lot/:id" element={<LotDetail />} />
           <Route path="inventory/cert/:id" element={<CertificateDetail />} />
           <Route path="inventory/transfer" element={<StockTransfer />} />
+          <Route path="inventory/transfers" element={<InventoryTransfers />} />
+          <Route path="inventory/returns" element={<InventoryReturns />} />
           <Route path="inventory/cycle" element={<CycleCount />} />
           <Route path="inventory/remnants" element={<Remnants />} />
           <Route path="jobs" element={<Jobs />} />

@@ -8,7 +8,7 @@ import { DEMO_NOW } from '../../data/seed';
 import RecordSheet from '../../components/layout/RecordSheet';
 import SiteStoreField from '../../components/forms/SiteStoreField';
 import StatusChip from '../../components/layout/StatusChip';
-import type { Job, JobStage } from '../../types';
+import type { Job, JobStage, JobDisposition } from '../../types';
 import SortableHeader from '../../components/layout/SortableHeader';
 import { sortRows } from '../../domain/tableSort';
 import { materialReadinessForJob } from '../../domain/inventory';
@@ -45,12 +45,12 @@ export default function Jobs() {
   const statusByJob = Object.fromEntries(jobs.map(j => [j.id, computeProductionStatus(j, now)]));
   const readinessByJob = Object.fromEntries(jobs.map(j => [j.id, materialReadinessForJob(j, jobMaterialReqs, inventory, lots, storeLocations)]));
 
-  const handleCancelJob = (id: string, reason: string, e?: React.MouseEvent) => {
+  const handleCancelJob = (id: string, reason: string, disposition: { wip: JobDisposition; finishedGoods: JobDisposition }, e?: React.MouseEvent) => {
     e?.stopPropagation();
     const job = jobs.find(j => j.id === id);
     if (!job) return;
     if (job.status === 'complete' || job.status === 'cancelled') { showToast({ type: 'error', title: 'Job cannot be cancelled', body: 'Completed and already cancelled jobs remain historical.' }); return; }
-    cancelJob(id, reason, currentUser.name);
+    cancelJob(id, reason, currentUser.name, disposition);
     setCancelJobId(null);
   };
 
@@ -279,7 +279,7 @@ export default function Jobs() {
         </table>
       </div>
 
-      {cancelJobId && <CancelJobModal job={jobs.find(j => j.id === cancelJobId)!} onClose={() => setCancelJobId(null)} onConfirm={reason => handleCancelJob(cancelJobId, reason)} />}
+      {cancelJobId && <CancelJobModal job={jobs.find(j => j.id === cancelJobId)!} onClose={() => setCancelJobId(null)} onConfirm={(reason, disposition) => handleCancelJob(cancelJobId, reason, disposition)} />}
       {showNewJob && (
         <NewJobModal
           onClose={() => setShowNewJob(false)}
@@ -295,13 +295,16 @@ export default function Jobs() {
   );
 }
 
-function CancelJobModal({ job, onClose, onConfirm }: { job: Job; onClose: () => void; onConfirm: (reason: string) => void }) {
+function CancelJobModal({ job, onClose, onConfirm }: { job: Job; onClose: () => void; onConfirm: (reason: string, disposition: { wip: JobDisposition; finishedGoods: JobDisposition }) => void }) {
   const { jobMaterialReqs } = useStore();
   const [reason, setReason] = useState('');
+  const [wip, setWip] = useState<JobDisposition>('not_applicable');
+  const [finishedGoods, setFinishedGoods] = useState<JobDisposition>('not_applicable');
   const reqs = jobMaterialReqs.filter(r => r.jobId === job.id);
   const reserved = reqs.reduce((sum, r) => sum + r.reservedQty, 0);
   const issued = reqs.reduce((sum, r) => sum + r.issuedQty, 0);
-  return <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60"><div className="w-full max-w-lg rounded-xl border p-5 space-y-4 bg-[var(--surface)]" style={{ borderColor: 'var(--border)' }}><div className="flex items-center justify-between"><div><h2 className="text-sm font-bold text-[var(--text)]">Cancel {job.jobNumber}</h2><p className="text-xs text-[var(--text-2)]">The record and audit history will be preserved.</p></div><button type="button" onClick={onClose}><X size={16} className="text-[var(--text-3)]" /></button></div><div className="rounded-lg p-3 text-xs" style={{ background: 'var(--surface-2)' }}><div className="grid grid-cols-2 gap-2"><div>Current status: <strong>{job.status}</strong></div><div>Current stage: <strong>{job.currentStage}</strong></div><div>Reserved: <strong>{reserved}</strong></div><div>Issued/consumed: <strong>{issued}</strong></div></div><p className="mt-2 text-[var(--text-2)]">Reserved but unissued quantities are released. Issued or consumed material is not restored automatically; use an accepted return transaction when appropriate.</p></div><div><label className="block text-xs font-semibold text-[var(--text-2)] mb-1">Cancellation reason *</label><textarea autoFocus value={reason} onChange={e => setReason(e.target.value)} rows={3} className="eoss-input w-full" placeholder="Why is this job being cancelled?" /></div><div className="flex justify-end gap-2"><button type="button" onClick={onClose} className="btn-ghost text-xs">Keep job</button><button type="button" disabled={!reason.trim()} onClick={() => onConfirm(reason)} className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white disabled:opacity-50" style={{ background: 'var(--error)' }}>Confirm cancellation</button></div></div></div>;
+  const options = ['not_applicable', 'retain', 'rework', 'scrap', 'return_after_inspection'] as const;
+  return <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60"><div className="w-full max-w-lg rounded-xl border p-5 space-y-4 bg-[var(--surface)]" style={{ borderColor: 'var(--border)' }}><div className="flex items-center justify-between"><div><h2 className="text-sm font-bold text-[var(--text)]">Cancel {job.jobNumber}</h2><p className="text-xs text-[var(--text-2)]">The record and audit history will be preserved.</p></div><button type="button" onClick={onClose}><X size={16} className="text-[var(--text-3)]" /></button></div><div className="rounded-lg p-3 text-xs" style={{ background: 'var(--surface-2)' }}><div className="grid grid-cols-2 gap-2"><div>Current status: <strong>{job.status}</strong></div><div>Current stage: <strong>{job.currentStage}</strong></div><div>Reserved: <strong>{reserved}</strong></div><div>Issued/consumed: <strong>{issued}</strong></div></div><p className="mt-2 text-[var(--text-2)]">Reserved but unissued quantities are released. Issued or consumed material is not restored automatically.</p></div><div><label className="block text-xs font-semibold text-[var(--text-2)] mb-1">Cancellation reason *</label><textarea autoFocus value={reason} onChange={e => setReason(e.target.value)} rows={3} className="eoss-input w-full" placeholder="Why is this job being cancelled?" /></div><div className="grid grid-cols-2 gap-3"><label className="text-xs text-[var(--text-2)]">WIP disposition<select className="eoss-input w-full mt-1" value={wip} onChange={e => setWip(e.target.value as JobDisposition)}>{options.map(o => <option key={o} value={o}>{o.replace(/_/g, ' ')}</option>)}</select></label><label className="text-xs text-[var(--text-2)]">Finished goods disposition<select className="eoss-input w-full mt-1" value={finishedGoods} onChange={e => setFinishedGoods(e.target.value as JobDisposition)}>{options.map(o => <option key={o} value={o}>{o.replace(/_/g, ' ')}</option>)}</select></label></div><div className="flex justify-end gap-2"><button type="button" onClick={onClose} className="btn-ghost text-xs">Keep job</button><button type="button" disabled={!reason.trim()} onClick={() => onConfirm(reason, { wip, finishedGoods })} className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white disabled:opacity-50" style={{ background: 'var(--error)' }}>Confirm cancellation</button></div></div></div>;
 }
 
 function NewJobModal({ onClose, onSave }: { onClose: () => void; onSave: (j: Job) => void }) {

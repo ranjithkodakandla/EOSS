@@ -5,12 +5,13 @@ import { useStore } from '../../store';
 
 export default function StockTransfer() {
   const navigate = useNavigate();
-  const { lots, storeLocations, sites, transferLot, currentUser } = useStore();
+  const { lots, storeLocations, sites, createStockTransfer, currentUser } = useStore();
   const placeOf = (siteId: string, name: string) => `${sites.find(s => s.id === siteId)?.name ?? 'Site'} · ${name}`;
 
   const [selectedLot, setSelectedLot] = useState('');
   const [toLocation, setToLocation] = useState('');
   const [transferNote, setTransferNote] = useState('');
+  const [quantity, setQuantity] = useState('');
   const [submitted, setSubmitted] = useState(false);
 
   const availableLots = lots.filter(l => l.status === 'available' && l.primaryQty > 0);
@@ -20,10 +21,11 @@ export default function StockTransfer() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedLot || !toLocation) return;
-    transferLot(selectedLot, toLocation, currentUser.name);
+    const qty = Number(quantity);
+    if (!selectedLot || !toLocation || !lotObj || !Number.isFinite(qty) || qty <= 0 || qty > lotObj.primaryQty) return;
+    createStockTransfer(selectedLot, toLocation, qty, currentUser.name, transferNote.trim() || undefined);
     setSubmitted(true);
-    setTimeout(() => navigate('/inventory'), 1500);
+    setTimeout(() => navigate('/inventory/transfers'), 800);
   };
 
   return (
@@ -100,6 +102,17 @@ export default function StockTransfer() {
         )}
 
         <div>
+          <label className="block text-xs font-semibold text-[var(--text-2)] mb-1.5">Quantity to dispatch *</label>
+          <div className="flex items-center gap-2">
+            <input type="number" min="0.01" max={lotObj?.primaryQty ?? undefined} step="any" required value={quantity}
+              onChange={e => setQuantity(e.target.value)} placeholder={lotObj ? String(lotObj.primaryQty) : 'Select a lot first'}
+              className="flex-1 px-3 py-2 rounded-lg border text-sm" style={{ borderColor: 'var(--border)', color: 'var(--text)' }} />
+            <span className="text-xs text-[var(--text-2)]">{lotObj?.primaryUom ?? 'UOM'}</span>
+          </div>
+          {lotObj && <p className="text-[11px] text-[var(--text-3)] mt-1">Available in selected lot: {lotObj.primaryQty} {lotObj.primaryUom}</p>}
+        </div>
+
+        <div>
           <label className="block text-xs font-semibold text-[var(--text-2)] mb-1.5">Destination Location *</label>
           <select
             required
@@ -142,12 +155,12 @@ export default function StockTransfer() {
           </button>
           <button
             type="submit"
-            disabled={submitted || !selectedLot || !toLocation}
+            disabled={submitted || !selectedLot || !toLocation || !quantity || Number(quantity) <= 0 || Number(quantity) > (lotObj?.primaryQty ?? 0)}
             className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white cursor-pointer hover:opacity-90 transition disabled:opacity-40"
             style={{ background: 'var(--brand-fill)' }}
           >
             {submitted ? <CheckCircle size={14} /> : <Layers size={14} />}
-            {submitted ? 'Transferred' : 'Confirm Transfer'}
+            {submitted ? 'Dispatched' : 'Dispatch Transfer'}
           </button>
         </div>
       </form>

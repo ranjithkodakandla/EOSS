@@ -10,7 +10,7 @@ import type {
   CustomerInvoice, SupplierInvoice, PaymentRecord, OnboardingState,
   Invoice, InvoiceLine, Payment, PaymentAllocation, CollectionActivity,
   FinishedProduct, SiteAllocation, CustomerQuotation, CustomerQuotationLine, POLine,
-  PurchaseRequisition, Site, MaterialItem,
+  PurchaseRequisition, Site, MaterialItem, InventoryTransfer, MaterialReturn, JobCancellationDisposition,
   MeterReading, QualityRelease, InspectionTemplate, StageTemplate,
   JobMaterialReq, JobBlocker, SupplierPOLine
   , Party
@@ -59,6 +59,8 @@ interface EOSSState {
   // Data (mutable for interactions)
   jobs: Job[];
   jobUpdates: JobUpdate[];
+  transfers: InventoryTransfer[];
+  materialReturns: MaterialReturn[];
   lots: MaterialLot[];
   inventory: InventoryItem[];
   movements: StockMovement[];
@@ -107,6 +109,7 @@ interface EOSSState {
 
   // Job actions
   updateJobStage: (jobId: string, stageId: string, update: Partial<JobStage>) => void;
+  skipJobStage: (jobId: string, stageId: string, reason: string, by: string) => void;
   addJobUpdate: (jobId: string, update: JobUpdate) => void;
   setJobStatus: (jobId: string, status: Job['status']) => void;
   resolveBlocker: (blockerId: string) => void;
@@ -126,9 +129,14 @@ interface EOSSState {
   issueMaterial: (lotId: string, qty: number, jobId: string, jobNumber: string, by: string) => void;
   reserveMaterial: (requirementId: string, qty: number, by: string) => void;
   returnMaterial: (lotId: string, qty: number, jobId: string, jobNumber: string, by: string) => void;
+  createMaterialReturn: (lotId: string, qty: number, jobId: string, jobNumber: string, by: string, notes?: string) => void;
+  acceptMaterialReturn: (returnId: string, by: string) => void;
+  rejectMaterialReturn: (returnId: string, by: string, reason?: string) => void;
   updateInventoryItem: (id: string, partial: Partial<InventoryItem>) => void;
   addInventoryItem: (item: InventoryItem) => void;
   transferLot: (lotId: string, toLocation: string, by: string) => void;
+  createStockTransfer: (lotId: string, destinationLocationId: string, qty: number, by: string, notes?: string) => void;
+  receiveStockTransfer: (transferId: string, by: string) => void;
   setLotStatus: (lotId: string, status: MaterialLot['status']) => void;
 
   // Asset actions
@@ -211,7 +219,7 @@ interface EOSSState {
   updateRfq: (id: string, partial: Partial<CustomerRFQ>) => void;
   updateSupplierPo: (id: string, partial: Partial<SupplierPO>) => void;
   updateJob: (id: string, partial: Partial<Job>) => void;
-  cancelJob: (id: string, reason: string, by: string) => void;
+  cancelJob: (id: string, reason: string, by: string, disposition: Pick<JobCancellationDisposition, 'wip' | 'finishedGoods'>) => void;
   updateInspection: (id: string, partial: Partial<Inspection>) => void;
   setInspectionStatus: (id: string, result: Inspection['result']) => void;
   updateNCR: (id: string, partial: Partial<NCR>) => void;
@@ -278,6 +286,8 @@ function buildSeed() {
       };
     }),
     jobUpdates: [] as JobUpdate[],
+    transfers: [] as InventoryTransfer[],
+    materialReturns: [] as MaterialReturn[],
     lots: [...MATERIAL_LOTS, ...MATERIAL_LOTS_DEMO],
     inventory: [...INVENTORY, ...INVENTORY_DEMO],
     movements: [...STOCK_MOVEMENTS],
@@ -386,8 +396,19 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
     })()),
   })),
 
+  skipJobStage: (jobId, stageId, reason, by) => set(s => {
+    if (!reason.trim()) return s;
+    const timestamp = new Date().toISOString();
+    const job = s.jobs.find(j => j.id === jobId);
+    if (!job) return s;
+    const stages = job.stages.map(st => st.id === stageId ? { ...st, status: 'skipped' as const, skipReason: reason.trim(), skippedAt: timestamp, skippedBy: by } : st);
+    const nextStage = stages.find(st => st.status === 'in_progress') ?? stages.find(st => st.status === 'pending');
+    return { jobs: s.jobs.map(j => j.id === jobId ? { ...j, stages, currentStage: nextStage?.name ?? j.currentStage } : j), auditEvents: [...s.auditEvents, { id: `ae-${Date.now()}`, actor: by, actorId: s.currentUser.id, scope: 'Job', action: 'stage_skip', entityId: stageId, entityRef: job.jobNumber, timestamp, source: 'ui', reason, after: { status: 'skipped', jobId } }] };
+  }),
+
   addJobUpdate: (jobId, update) => {
     const { updateJobStage, showToast } = get();
+    set(s => ({ jobUpdates: [...s.jobUpdates, update] }));
     updateJobStage(jobId, update.jobStageId, {
       completedGoodQty: update.completedGoodQty,
       rejectedQty: update.rejectedQty,
@@ -529,35 +550,126 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
     get().showToast({ type: 'success', title: 'Material return recorded', body: 'Returned material is available only after the return transaction is accepted.' });
   },
 
-  transferLot: (lotId, toLocation, by) => {
+  createMaterialReturn: (lotId, qty, jobId, jobNumber, by, notes) => {
+    set(s => {
+      const lot = s.lots.find(l => l.id === lotId);
+      const job = s.jobs.find(j => j.id === jobId);
+      const receiving = s.storeLocations.find(l => l.locationType === 'Quarantine') ?? s.storeLocations[0];
+      if (!lot || !job || !receiving || qty <= 0) return s;
+      const availableToReturn = s.movements.filter(m => m.lotId === lotId && m.referenceId === jobId && m.movementType === 'Issue').reduce((sum, m) => sum + m.primaryQty, 0)
+        - s.materialReturns.filter(r => r.originalLotId === lotId && r.jobId === jobId && r.status !== 'rejected').reduce((sum, r) => sum + r.quantity, 0);
+      if (qty > availableToReturn) return s;
+      const timestamp = new Date().toISOString();
+      const returnNumber = `RET-${String(s.materialReturns.length + 1).padStart(4, '0')}`;
+      const record: MaterialReturn = { id: `ret-${Date.now()}`, returnNumber, originalLotId: lotId, materialItemId: lot.materialItemId, materialName: lot.materialName, jobId, jobNumber, quantity: qty, uom: lot.primaryUom, receivingLocationId: receiving.id, receivingLocationName: receiving.name, status: 'pending_inspection', raisedAt: timestamp, raisedBy: by, notes };
+      return {
+        materialReturns: [record, ...s.materialReturns],
+        movements: [...s.movements, { id: `sm-${Date.now()}`, lotId, movementType: 'Return' as const, primaryQty: qty, uom: lot.primaryUom, fromLocation: `Job ${jobNumber}`, toLocation: receiving.name, referenceType: 'Material Return', referenceId: record.id, referenceNumber: returnNumber, performedBy: by, timestamp, notes: notes ?? 'Awaiting return inspection.' }],
+        auditEvents: [...s.auditEvents, { id: `ae-${Date.now()}`, actor: by, actorId: s.currentUser.id, scope: 'Inventory', action: 'return_request', entityId: record.id, entityRef: returnNumber, timestamp, source: 'ui', after: record as unknown as Record<string, unknown> }],
+      };
+    });
+    get().showToast({ type: 'success', title: 'Material return raised', body: 'The return is awaiting inspection and is not available stock yet.' });
+  },
+
+  acceptMaterialReturn: (returnId, by) => {
+    set(s => {
+      const record = s.materialReturns.find(r => r.id === returnId);
+      const sourceLot = record ? s.lots.find(l => l.id === record.originalLotId) : undefined;
+      if (!record || !sourceLot || record.status !== 'pending_inspection') return s;
+      const destination = s.storeLocations.find(l => l.id === record.receivingLocationId) ?? s.storeLocations[0];
+      if (!destination) return s;
+      const timestamp = new Date().toISOString();
+      const acceptedLotId = `lot-return-${Date.now()}`;
+      const acceptedLot: MaterialLot = { ...sourceLot, id: acceptedLotId, lotNumber: `${record.returnNumber}-ACCEPTED`, grnId: undefined, receivedDate: timestamp.slice(0, 10), status: 'available', storeLocationId: destination.id, storeLocationName: destination.name, primaryQty: record.quantity, parentLotId: sourceLot.id };
+      const existing = s.inventory.find(i => i.materialItemId === record.materialItemId && i.locationId === destination.id);
+      const inventory = existing ? s.inventory.map(i => i.id === existing.id ? { ...i, onHandQty: i.onHandQty + record.quantity, availableQty: i.availableQty + record.quantity, lotCount: i.lotCount + 1, shortage: i.availableQty + record.quantity < i.reorderPoint } : i) : s.inventory;
+      if (!existing) {
+        const material = s.materials.find(m => m.id === record.materialItemId);
+        inventory.unshift({ id: `inv-return-${Date.now()}`, materialItemId: record.materialItemId, materialCode: material?.itemCode ?? record.materialItemId, materialName: record.materialName, categoryName: material?.categoryName ?? 'Returned material', locationId: destination.id, locationName: destination.name, onHandQty: record.quantity, availableQty: record.quantity, reservedQty: 0, qcHoldQty: 0, inTransitQty: 0, primaryUom: record.uom, reorderPoint: material?.reorderPoint ?? 0, shortage: false, lotCount: 1 });
+      }
+      return {
+        materialReturns: s.materialReturns.map(r => r.id === returnId ? { ...r, status: 'accepted' as const, inspectedAt: timestamp, inspectedBy: by } : r),
+        lots: [...s.lots, acceptedLot], inventory,
+        movements: [...s.movements, { id: `sm-${Date.now()}-accepted`, lotId: acceptedLotId, movementType: 'Adjustment' as const, primaryQty: record.quantity, uom: record.uom, fromLocation: destination.name, toLocation: destination.name, referenceType: 'Accepted Material Return', referenceId: record.id, referenceNumber: record.returnNumber, performedBy: by, timestamp, notes: 'Accepted after return inspection.' }],
+        auditEvents: [...s.auditEvents, { id: `ae-${Date.now()}`, actor: by, actorId: s.currentUser.id, scope: 'Inventory', action: 'return_accept', entityId: returnId, entityRef: record.returnNumber, timestamp, source: 'ui', after: { status: 'accepted', quantity: record.quantity } }],
+      };
+    });
+    get().showToast({ type: 'success', title: 'Material return accepted', body: 'Accepted returned material is now available in Inventory.' });
+  },
+
+  rejectMaterialReturn: (returnId, by, reason) => {
+    set(s => {
+      const record = s.materialReturns.find(r => r.id === returnId);
+      if (!record || record.status !== 'pending_inspection') return s;
+      const timestamp = new Date().toISOString();
+      return {
+        materialReturns: s.materialReturns.map(r => r.id === returnId ? { ...r, status: 'rejected' as const, inspectedAt: timestamp, inspectedBy: by, notes: reason ?? r.notes } : r),
+        movements: [...s.movements, { id: `sm-${Date.now()}-rejected`, lotId: record.originalLotId, movementType: 'Scrap' as const, primaryQty: record.quantity, uom: record.uom, fromLocation: record.receivingLocationName, toLocation: 'Rejected Returns', referenceType: 'Rejected Material Return', referenceId: record.id, referenceNumber: record.returnNumber, performedBy: by, timestamp, notes: reason ?? 'Rejected after return inspection.' }],
+        auditEvents: [...s.auditEvents, { id: `ae-${Date.now()}`, actor: by, actorId: s.currentUser.id, scope: 'Inventory', action: 'return_reject', entityId: returnId, entityRef: record.returnNumber, timestamp, source: 'ui', reason }],
+      };
+    });
+    get().showToast({ type: 'info', title: 'Material return rejected', body: 'The quantity was not added to available stock.' });
+  },
+
+  createStockTransfer: (lotId, destinationLocationId, qty, by, notes) => {
     const timestamp = new Date().toISOString();
     set(s => {
       const lot = s.lots.find(l => l.id === lotId);
-      if (!lot || lot.status !== 'available' || lot.primaryQty <= 0) return s;
-      const destination = s.storeLocations.find(sl => sl.id === toLocation || sl.name === toLocation);
-      const destinationName = destination?.name ?? toLocation;
-      if (destinationName === lot.storeLocationName) return s;
-      const sourceInventory = s.inventory.find(i => i.materialItemId === lot.materialItemId && i.locationName === lot.storeLocationName);
-      const destinationInventory = s.inventory.find(i => i.materialItemId === lot.materialItemId && (i.locationId === destination?.id || i.locationName === destinationName));
+      const destination = s.storeLocations.find(sl => sl.id === destinationLocationId);
+      const sourceInventory = lot ? s.inventory.find(i => i.materialItemId === lot.materialItemId && i.locationId === lot.storeLocationId) : undefined;
+      if (!lot || !destination || !sourceInventory || lot.status !== 'available' || qty <= 0 || qty > lot.primaryQty || qty > sourceInventory.availableQty || destination.id === lot.storeLocationId) return s;
+      const transferNumber = `MV-${String(s.transfers.length + 1).padStart(4, '0')}`;
+      const transfer: InventoryTransfer = { id: `mv-${Date.now()}`, transferNumber, lotId, materialItemId: lot.materialItemId, materialName: lot.materialName, grade: lot.grade, sourceLocationId: lot.storeLocationId, sourceLocationName: lot.storeLocationName, destinationLocationId: destination.id, destinationLocationName: destination.name, quantity: qty, uom: lot.primaryUom, status: 'in_transit', initiatedAt: timestamp, initiatedBy: by, dispatchedAt: timestamp, notes };
       const newMovement: StockMovement = {
-        id: `sm-${Date.now()}`, lotId, movementType: 'Transfer-Out', primaryQty: lot.primaryQty,
-        uom: lot.primaryUom, fromLocation: lot.storeLocationName, toLocation: destinationName,
-        referenceType: 'Transfer', referenceId: lotId, referenceNumber: lot.lotNumber, performedBy: by, timestamp,
+        id: `sm-${Date.now()}`, lotId, movementType: 'Transfer-Out', primaryQty: qty,
+        uom: lot.primaryUom, fromLocation: lot.storeLocationName, toLocation: 'In Transit',
+        referenceType: 'Transfer', referenceId: transfer.id, referenceNumber: transferNumber, performedBy: by, timestamp, notes,
       };
-      const nextInventory = s.inventory
-        .map(i => sourceInventory && i.id === sourceInventory.id ? { ...i, onHandQty: Math.max(0, i.onHandQty - lot.primaryQty), availableQty: Math.max(0, i.availableQty - lot.primaryQty), lotCount: Math.max(0, i.lotCount - 1) } : i)
-        .map(i => destinationInventory && i.id === destinationInventory.id ? { ...i, onHandQty: i.onHandQty + lot.primaryQty, availableQty: i.availableQty + lot.primaryQty, lotCount: i.lotCount + 1 } : i);
-      if (destination && !destinationInventory) {
-        const sourceMaster = s.inventory.find(i => i.materialItemId === lot.materialItemId);
-        if (sourceMaster) nextInventory.push({ ...sourceMaster, id: `inv-${Date.now()}-${destination.id}`, locationId: destination.id, locationName: destination.name, onHandQty: lot.primaryQty, availableQty: lot.primaryQty, reservedQty: 0, qcHoldQty: 0, inTransitQty: 0, lotCount: 1, shortage: lot.primaryQty < sourceMaster.reorderPoint });
-      }
       return {
-        lots: s.lots.map(l => l.id !== lotId ? l : { ...l, storeLocationId: destination?.id ?? l.storeLocationId, storeLocationName: destinationName }),
-        inventory: nextInventory,
-        movements: [...s.movements, newMovement, { ...newMovement, id: `sm-${Date.now()}-in`, movementType: 'Transfer-In' as const, fromLocation: lot.storeLocationName, toLocation: destinationName }],
+        transfers: [transfer, ...s.transfers],
+        lots: s.lots.map(l => l.id !== lotId ? l : { ...l, primaryQty: l.primaryQty - qty, status: l.primaryQty - qty <= 0 ? 'issued' as const : l.status }),
+        inventory: s.inventory.map(i => i.id !== sourceInventory.id ? i : { ...i, onHandQty: i.onHandQty - qty, availableQty: i.availableQty - qty, inTransitQty: i.inTransitQty + qty, shortage: i.availableQty - qty < i.reorderPoint }),
+        movements: [...s.movements, newMovement],
+        auditEvents: [...s.auditEvents, { id: `ae-${Date.now()}`, actor: by, actorId: s.currentUser.id, scope: 'Inventory', action: 'transfer_create', entityId: transfer.id, entityRef: transferNumber, timestamp, source: 'ui', after: transfer as unknown as Record<string, unknown> }],
       };
     });
-    get().showToast({ type: 'success', title: 'Lot transferred', body: `Lot moved to ${toLocation}. Source stock was reduced before destination stock was added.` });
+    get().showToast({ type: 'success', title: 'Transfer in transit', body: 'Source stock was reduced and the transfer awaits destination receipt.' });
+  },
+
+  receiveStockTransfer: (transferId, by) => {
+    set(s => {
+      const transfer = s.transfers.find(t => t.id === transferId);
+      const sourceLot = transfer ? s.lots.find(l => l.id === transfer.lotId) : undefined;
+      const destination = transfer ? s.storeLocations.find(l => l.id === transfer.destinationLocationId) : undefined;
+      if (!transfer || !sourceLot || !destination || transfer.status !== 'in_transit') return s;
+      const timestamp = new Date().toISOString();
+      const receivedLotId = `lot-transfer-${Date.now()}`;
+      const receivedLot: MaterialLot = { ...sourceLot, id: receivedLotId, lotNumber: `${transfer.transferNumber}-${sourceLot.lotNumber}`, storeLocationId: destination.id, storeLocationName: destination.name, primaryQty: transfer.quantity, status: 'available', receivedDate: timestamp.slice(0, 10), parentLotId: sourceLot.id };
+      const sourceInventory = s.inventory.find(i => i.materialItemId === transfer.materialItemId && i.locationId === transfer.sourceLocationId);
+      const existing = s.inventory.find(i => i.materialItemId === transfer.materialItemId && i.locationId === destination.id);
+      const inventory = s.inventory.map(i => {
+        if (sourceInventory && i.id === sourceInventory.id) return { ...i, inTransitQty: Math.max(0, i.inTransitQty - transfer.quantity) };
+        if (existing && i.id === existing.id) return { ...i, onHandQty: i.onHandQty + transfer.quantity, availableQty: i.availableQty + transfer.quantity, lotCount: i.lotCount + 1, shortage: i.availableQty + transfer.quantity < i.reorderPoint };
+        return i;
+      });
+      if (!existing) {
+        const master = s.inventory.find(i => i.materialItemId === transfer.materialItemId);
+        if (master) inventory.push({ ...master, id: `inv-transfer-${Date.now()}`, locationId: destination.id, locationName: destination.name, onHandQty: transfer.quantity, availableQty: transfer.quantity, reservedQty: 0, qcHoldQty: 0, inTransitQty: 0, lotCount: 1, shortage: transfer.quantity < master.reorderPoint });
+      }
+      return {
+        transfers: s.transfers.map(t => t.id === transferId ? { ...t, status: 'received' as const, receivedAt: timestamp, receivedBy: by } : t),
+        lots: [...s.lots, receivedLot], inventory,
+        movements: [...s.movements, { id: `sm-${Date.now()}`, lotId: receivedLotId, movementType: 'Transfer-In' as const, primaryQty: transfer.quantity, uom: transfer.uom, fromLocation: 'In Transit', toLocation: destination.name, referenceType: 'Transfer', referenceId: transfer.id, referenceNumber: transfer.transferNumber, performedBy: by, timestamp }],
+        auditEvents: [...s.auditEvents, { id: `ae-${Date.now()}`, actor: by, actorId: s.currentUser.id, scope: 'Inventory', action: 'transfer_receive', entityId: transfer.id, entityRef: transfer.transferNumber, timestamp, source: 'ui', after: { status: 'received', receivedLotId } }],
+      };
+    });
+    get().showToast({ type: 'success', title: 'Transfer received', body: 'Destination inventory now includes the transferred quantity.' });
+  },
+
+  transferLot: (lotId, toLocation, by) => {
+    const lot = get().lots.find(l => l.id === lotId);
+    const destination = get().storeLocations.find(l => l.id === toLocation || l.name === toLocation);
+    if (lot && destination) get().createStockTransfer(lotId, destination.id, lot.primaryQty, by);
   },
 
   setLotStatus: (lotId, status) => set(s => ({
@@ -854,11 +966,12 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
         entityId: id, entityRef: current.jobNumber, timestamp: new Date().toISOString(), source: 'ui', before: current as unknown as Record<string, unknown>, after: next as unknown as Record<string, unknown> }],
     };
   }),
-  cancelJob: (id, reason, by) => {
+  cancelJob: (id, reason, by, disposition) => {
     set(s => {
       const job = s.jobs.find(j => j.id === id);
       if (!job || job.status === 'complete' || job.status === 'cancelled' || !reason.trim()) return s;
       const requirements = s.jobMaterialReqs.filter(r => r.jobId === id);
+      const issued = requirements.reduce((sum, r) => sum + r.issuedQty, 0);
       const releasable = requirements.reduce((sum, r) => sum + Math.max(0, r.reservedQty - r.issuedQty), 0);
       const siteLocationIds = new Set(s.storeLocations.filter(l => l.siteId === job.siteId).map(l => l.id));
       const inventory = s.inventory.map(item => {
@@ -868,8 +981,12 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
         return release > 0 ? { ...item, reservedQty: Math.max(0, item.reservedQty - release), availableQty: item.availableQty + release } : item;
       });
       const timestamp = new Date().toISOString();
+      const cancellationDisposition: JobCancellationDisposition = {
+        reason: reason.trim(), reservedReleasedQty: releasable, issuedQty: issued, consumedQty: issued,
+        wip: disposition.wip, finishedGoods: disposition.finishedGoods, recordedAt: timestamp, recordedBy: by,
+      };
       return {
-        jobs: s.jobs.map(j => j.id === id ? { ...j, status: 'cancelled' as const, cancellationReason: reason.trim(), cancelledAt: timestamp, cancelledBy: by } : j),
+        jobs: s.jobs.map(j => j.id === id ? { ...j, status: 'cancelled' as const, cancellationReason: reason.trim(), cancelledAt: timestamp, cancelledBy: by, cancellationDisposition } : j),
         inventory,
         jobMaterialReqs: s.jobMaterialReqs.map(r => r.jobId === id ? { ...r, reservedQty: r.issuedQty, shortage: false } : r),
         movements: releasable > 0 ? [...s.movements, ...requirements.filter(r => r.reservedQty > r.issuedQty).map(r => ({
@@ -878,7 +995,7 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
           toLocation: job.siteName, referenceType: 'Job Cancellation', referenceId: job.id, referenceNumber: job.jobNumber, performedBy: by, timestamp,
         }))] : s.movements,
         auditEvents: [...s.auditEvents, { id: `ae-${Date.now()}`, actor: by, actorId: s.currentUser.id, scope: 'Job', action: 'cancel', entityId: id,
-          entityRef: job.jobNumber, timestamp, source: 'ui', reason, before: { status: job.status }, after: { status: 'cancelled', releasedQty: releasable } }],
+          entityRef: job.jobNumber, timestamp, source: 'ui', reason, before: { status: job.status }, after: { status: 'cancelled', releasedQty: releasable, disposition: cancellationDisposition } }],
       };
     });
     get().showToast({ type: 'success', title: 'Job cancelled', body: 'The job remains in history; reserved but unissued material was released.' });
@@ -931,6 +1048,8 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
     useStore.setState(stampPlaces({
       ...state,
       jobUpdates: state.jobUpdates ?? [],
+      transfers: state.transfers ?? [],
+      materialReturns: state.materialReturns ?? [],
       jobs: state.jobs.map(j => {
         const template = j.stageTemplateId ? STAGE_TEMPLATES.find(t => t.id === j.stageTemplateId) : STAGE_TEMPLATES.find(t => t.stages.length === j.stages.length) ?? STAGE_TEMPLATES[0];
         return { ...j, stageTemplateId: j.stageTemplateId ?? template?.id, stageTemplateName: j.stageTemplateName && !j.stageTemplateName.toLowerCase().startsWith('custom') ? j.stageTemplateName : template?.name };

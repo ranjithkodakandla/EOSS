@@ -5,6 +5,8 @@ const ITEMS = [
   { to: '/inventory', label: 'Stock on hand', end: true },
   { to: '/products', label: 'Item master' },
   { to: '/inventory/transfer', label: 'Move stock' },
+  { to: '/inventory/transfers', label: 'Transfers' },
+  { to: '/inventory/returns', label: 'Returns' },
   { to: '/allocations', label: 'Site need' },
 ];
 

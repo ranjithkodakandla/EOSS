@@ -123,6 +123,52 @@ export interface MaterialLot {
   parentLotId?: ID; // for remnants
 }
 
+export type InventoryTransferStatus = 'in_transit' | 'received' | 'cancelled';
+
+export interface InventoryTransfer {
+  id: ID;
+  transferNumber: string;
+  lotId: ID;
+  materialItemId: ID;
+  materialName: string;
+  grade?: string;
+  sourceLocationId: ID;
+  sourceLocationName: string;
+  destinationLocationId: ID;
+  destinationLocationName: string;
+  quantity: number;
+  uom: string;
+  status: InventoryTransferStatus;
+  initiatedAt: string;
+  initiatedBy: string;
+  dispatchedAt: string;
+  receivedAt?: string;
+  receivedBy?: string;
+  notes?: string;
+}
+
+export type MaterialReturnStatus = 'pending_inspection' | 'accepted' | 'rejected';
+
+export interface MaterialReturn {
+  id: ID;
+  returnNumber: string;
+  originalLotId: ID;
+  materialItemId: ID;
+  materialName: string;
+  jobId: ID;
+  jobNumber: string;
+  quantity: number;
+  uom: string;
+  receivingLocationId: ID;
+  receivingLocationName: string;
+  status: MaterialReturnStatus;
+  raisedAt: string;
+  raisedBy: string;
+  inspectedAt?: string;
+  inspectedBy?: string;
+  notes?: string;
+}
+
 // ── Customer Orders ──
 export interface CustomerRFQ {
   id: ID;
@@ -278,6 +324,21 @@ export interface Job {
   cancellationReason?: string;
   cancelledAt?: string;
   cancelledBy?: string;
+  operationalNotes?: string;
+  cancellationDisposition?: JobCancellationDisposition;
+}
+
+export type JobDisposition = 'not_applicable' | 'retain' | 'rework' | 'scrap' | 'return_after_inspection';
+
+export interface JobCancellationDisposition {
+  reason: string;
+  reservedReleasedQty: number;
+  issuedQty: number;
+  consumedQty: number;
+  wip: JobDisposition;
+  finishedGoods: JobDisposition;
+  recordedAt: string;
+  recordedBy: string;
 }
 
 export interface JobStage {
@@ -285,7 +346,7 @@ export interface JobStage {
   jobId: ID;
   sequence: number;
   name: string;
-  status: 'pending' | 'in_progress' | 'complete' | 'hold' | 'rework';
+  status: 'pending' | 'in_progress' | 'complete' | 'hold' | 'rework' | 'skipped';
   plannedStart: string;
   plannedEnd: string;
   actualStart?: string;
@@ -298,6 +359,9 @@ export interface JobStage {
   reworkQty: number;
   scrapQty: number;
   uom: string;
+  skipReason?: string;
+  skippedAt?: string;
+  skippedBy?: string;
 }
 
 export interface JobUpdate {

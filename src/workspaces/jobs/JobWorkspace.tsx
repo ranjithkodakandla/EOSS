@@ -10,6 +10,7 @@ import StatusChip from '../../components/layout/StatusChip';
 import MaterialFeasibilityPanel from '../../components/domain/MaterialFeasibilityPanel';
 import clsx from 'clsx';
 import { jobMaterialQuantities, materialReadinessForJob } from '../../domain/inventory';
+import type { JobMaterialReq, JobUpdate } from '../../types';
 
 const TABS = ['Overview', 'Stages', 'Materials', 'Quality', 'NCR / Rework', 'Updates', 'Blockers'];
 
@@ -18,9 +19,9 @@ export default function JobWorkspace() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const {
-    jobs, setJobStatus, updateJobStage, updateJob, cancelJob, resolveBlocker, currentUser, showToast, inventory, storeLocations,
+    jobs, setJobStatus, updateJobStage, skipJobStage, addJobUpdate, updateJob, cancelJob, resolveBlocker, currentUser, showToast, inventory, storeLocations,
     inspections, ncrs, lots, issueMaterial, addInspection, addNCR,
-    jobBlockers: allJobBlockers, jobMaterialReqs, materials, stageTemplates,
+    jobBlockers: allJobBlockers, jobMaterialReqs, materials, stageTemplates, jobUpdates, createMaterialReturn,
   } = useStore();
 
   const [tab, setTab] = useState('Overview');
@@ -32,10 +33,13 @@ export default function JobWorkspace() {
   const [selectedEmployee, setSelectedEmployee] = useState<string>(EMPLOYEES[5]?.name || 'Mohan Das');
   const [recordModalOpen, setRecordModalOpen] = useState(false);
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
+  const [returnReq, setReturnReq] = useState<JobMaterialReq | null>(null);
+  const [returnQty, setReturnQty] = useState('');
+  const [returnNotes, setReturnNotes] = useState('');
   const [recordForm, setRecordForm] = useState({ status: 'active' as const, currentStage: '', owner: '', plannedEnd: '', notes: '' });
 
   const job = jobs.find(j => j.id === id);
-  const activeStage = job?.stages.find(s => s.status === 'in_progress') || job?.stages[0];
+  const activeStage = job?.stages.find(s => s.status === 'in_progress') || job?.stages.find(s => s.status !== 'complete' && s.status !== 'skipped') || job?.stages[0];
 
   useEffect(() => {
     if (searchParams.get('update') === '1' && activeStage) {
@@ -80,13 +84,12 @@ export default function JobWorkspace() {
 
     const totalGood = targetStage.completedGoodQty + goodQtyInput;
     const totalReject = targetStage.rejectedQty + rejectQtyInput;
-    updateJobStage(job.id, selectedStageId, {
-      completedGoodQty: totalGood,
-      rejectedQty: totalReject,
-      status: totalGood >= targetStage.inputQty ? 'complete' : 'in_progress',
-      owner: selectedEmployee,
-      actualStart: targetStage.actualStart || '2026-11-05',
-    });
+    const update: JobUpdate = { id: `ju-${Date.now()}`, jobStageId: selectedStageId, stageName: targetStage.name,
+      action: totalGood >= targetStage.inputQty ? 'complete' : 'continue', completedGoodQty: totalGood, rejectedQty: totalReject,
+      reworkQty: targetStage.reworkQty, scrapQty: targetStage.scrapQty, notes: stageNotes.trim(), performedByEmployeeId: EMPLOYEES.find(e => e.name === selectedEmployee)?.id ?? currentUser.id,
+      performedByName: selectedEmployee, loggedByUserId: currentUser.id, loggedByName: currentUser.name, timestamp: new Date().toISOString(), hasPhoto: false };
+    addJobUpdate(job.id, update);
+    updateJobStage(job.id, selectedStageId, { owner: selectedEmployee, actualStart: targetStage.actualStart || new Date().toISOString() });
 
     setStageModalOpen(false);
     showToast({
@@ -196,16 +199,18 @@ export default function JobWorkspace() {
             const isDone   = stage.status === 'complete';
             const isActive = stage.status === 'in_progress';
             const isHold   = stage.status === 'hold';
+            const isSkipped = stage.status === 'skipped';
 
             return (
               <div
                 key={stage.id}
-                onClick={() => openStageUpdate(stage.id)}
+                onClick={() => !isSkipped && openStageUpdate(stage.id)}
                 className={clsx(
                   'p-3 rounded-lg border text-xs space-y-1 transition-all cursor-pointer',
                   isDone ? 'bg-[var(--surface-2)] border-emerald-500/30' :
                   isActive ? 'bg-[var(--surface-2)] border-[var(--cyan-border)]' :
                   isHold ? 'bg-[var(--error-bg)]/20 border-[var(--error-border)]' :
+                  isSkipped ? 'bg-[var(--surface-2)] border-dashed border-[var(--border)] opacity-70' :
                   'bg-[var(--surface-2)]/50 border-[var(--border)]'
                 )}
               >
@@ -217,6 +222,8 @@ export default function JobWorkspace() {
                     <span className="text-[var(--cyan-bright)] font-bold text-xs">Active</span>
                   ) : isHold ? (
                     <span className="text-[var(--error)] font-bold text-xs">Blocked</span>
+                  ) : isSkipped ? (
+                    <span className="text-[var(--text-3)] font-bold text-xs">Skipped</span>
                   ) : (
                     <span className="text-[var(--text-3)] text-xs">Pending</span>
                   )}
@@ -302,6 +309,7 @@ export default function JobWorkspace() {
               </div>
             </div>
           </div>
+          {job.cancellationDisposition && <div className="p-4 rounded-xl border space-y-2 text-xs" style={{ borderColor: 'var(--warning)', background: 'var(--surface)' }}><div className="font-bold text-[var(--text)]">Cancellation disposition</div><div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-[var(--text-2)]"><span>WIP: <strong>{job.cancellationDisposition.wip.replace(/_/g, ' ')}</strong></span><span>Finished goods: <strong>{job.cancellationDisposition.finishedGoods.replace(/_/g, ' ')}</strong></span><span>Released: <strong>{job.cancellationDisposition.reservedReleasedQty}</strong></span><span>Issued/consumed: <strong>{job.cancellationDisposition.issuedQty}</strong></span></div><div className="text-[var(--text-3)]">Recorded by {job.cancellationDisposition.recordedBy} · {new Date(job.cancellationDisposition.recordedAt).toLocaleString('en-IN')}</div></div>}
         </div>
       )}
 
@@ -346,6 +354,7 @@ export default function JobWorkspace() {
                       ) : (
                         <span className="text-xs font-bold text-emerald-400">Allocated</span>
                       )}
+                      {r.issuedQty > 0 && <button type="button" onClick={() => { setReturnReq(r); setReturnQty(String(r.issuedQty)); setReturnNotes(''); }} className="block text-[11px] text-[var(--brand)] mt-1 hover:underline">Raise material return</button>}
                     </td>
                   </tr>
                 ))}
@@ -392,9 +401,10 @@ export default function JobWorkspace() {
                   <td className="py-3 px-4"><StatusChip status={s.status} size="sm" /></td>
                   <td className="py-3 px-4 font-mono font-bold text-emerald-400">{s.completedGoodQty}/{s.inputQty} {s.uom}</td>
                   <td className="py-3 px-4 text-right">
-                    <button onClick={() => openStageUpdate(s.id)} className="text-xs text-[var(--brand)] hover:underline font-medium">
+                    <button onClick={() => openStageUpdate(s.id)} disabled={s.status === 'complete' || s.status === 'skipped'} className="text-xs text-[var(--brand)] hover:underline font-medium disabled:opacity-40">
                       Update
                     </button>
+                    {s.status !== 'complete' && s.status !== 'skipped' && <button onClick={() => { const reason = window.prompt(`Why skip ${s.name}?`); if (reason?.trim()) skipJobStage(job.id, s.id, reason, currentUser.name); }} className="ml-3 text-xs text-[var(--text-2)] hover:underline">Skip</button>}
                   </td>
                 </tr>
               ))}
@@ -488,16 +498,22 @@ export default function JobWorkspace() {
       {/* Material Issue tab */}
       {tab === 'Materials' && (() => null)()}
 
-      {['Updates', 'Blockers'].includes(tab) && (
+      {tab === 'Updates' && (
+        <div className="space-y-3">{job.operationalNotes && <div className="rounded-xl border p-4 text-xs" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}><div className="font-semibold text-[var(--text)]">Operational note</div><p className="mt-1 text-[var(--text-2)]">{job.operationalNotes}</p></div>}{jobUpdates.filter(u => job.stages.some(s => s.id === u.jobStageId)).length === 0 ? <div className="rounded-xl border p-10 text-center text-sm text-[var(--text-3)]" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>No stage updates recorded yet.</div> : jobUpdates.filter(u => job.stages.some(s => s.id === u.jobStageId)).slice().reverse().map(u => <div key={u.id} className="rounded-xl border p-4" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}><div className="flex justify-between gap-3"><div className="font-semibold text-sm text-[var(--text)]">{u.stageName} · {u.action}</div><div className="text-xs text-[var(--text-3)]">{new Date(u.timestamp).toLocaleString('en-IN')}</div></div><div className="text-xs text-[var(--text-2)] mt-1">Good {u.completedGoodQty} · Reject {u.rejectedQty} · by {u.performedByName}</div>{u.notes && <p className="text-xs text-[var(--text-2)] mt-2">{u.notes}</p>}</div>)}</div>
+      )}
+
+      {tab === 'Blockers' && (
         <div className="rounded-xl border p-10 text-center" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
-          <p className="text-sm font-medium" style={{ color: 'var(--text-2)' }}>{tab}</p>
+          <p className="text-sm font-medium" style={{ color: 'var(--text-2)' }}>Blockers</p>
           <p className="text-xs mt-1" style={{ color: 'var(--text-3)' }}>No data recorded yet for this job.</p>
         </div>
       )}
 
-      {recordModalOpen && <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60"><div className="w-full max-w-lg rounded-xl p-5 space-y-4 bg-[var(--surface)] border border-[var(--border)]"><div className="flex items-center justify-between"><div><h3 className="text-sm font-bold text-[var(--text)]">Update {job.jobNumber}</h3><p className="text-xs text-[var(--text-2)]">Changes are saved to the job record and audit history.</p></div><button type="button" onClick={() => setRecordModalOpen(false)}><X size={16} className="text-[var(--text-3)]" /></button></div><div className="grid sm:grid-cols-2 gap-3"><label className="text-xs text-[var(--text-2)]">Job status<select className="eoss-input w-full mt-1" value={recordForm.status} onChange={e => setRecordForm(f => ({ ...f, status: e.target.value as typeof f.status }))}>{['draft', 'active', 'hold', 'complete', 'cancelled'].map(s => <option key={s} value={s}>{s}</option>)}</select></label><label className="text-xs text-[var(--text-2)]">Current production stage<select className="eoss-input w-full mt-1" value={recordForm.currentStage} onChange={e => setRecordForm(f => ({ ...f, currentStage: e.target.value }))}>{job.stages.map(stage => <option key={stage.id} value={stage.name}>{stage.name}</option>)}</select></label><label className="text-xs text-[var(--text-2)]">Owner<input className="eoss-input w-full mt-1" value={recordForm.owner} onChange={e => setRecordForm(f => ({ ...f, owner: e.target.value }))} /></label><label className="text-xs text-[var(--text-2)]">Target completion<input type="date" className="eoss-input w-full mt-1" value={recordForm.plannedEnd} onChange={e => setRecordForm(f => ({ ...f, plannedEnd: e.target.value }))} /></label></div><label className="text-xs text-[var(--text-2)] block">Operational note<textarea rows={3} className="eoss-input w-full mt-1" value={recordForm.notes} onChange={e => setRecordForm(f => ({ ...f, notes: e.target.value }))} /></label><div className="flex justify-end gap-2"><button type="button" onClick={() => setRecordModalOpen(false)} className="btn-ghost text-xs">Cancel</button><button type="button" onClick={() => { updateJob(job.id, { status: recordForm.status, currentStage: recordForm.currentStage, owner: recordForm.owner, plannedEnd: recordForm.plannedEnd }); setRecordModalOpen(false); showToast({ type: 'success', title: 'Job record updated' }); }} className="btn-primary text-xs">Save changes</button></div></div></div>}
+      {recordModalOpen && <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60"><div className="w-full max-w-lg rounded-xl p-5 space-y-4 bg-[var(--surface)] border border-[var(--border)]"><div className="flex items-center justify-between"><div><h3 className="text-sm font-bold text-[var(--text)]">Update {job.jobNumber}</h3><p className="text-xs text-[var(--text-2)]">Changes are saved to the job record and audit history.</p></div><button type="button" onClick={() => setRecordModalOpen(false)}><X size={16} className="text-[var(--text-3)]" /></button></div><div className="grid sm:grid-cols-2 gap-3"><label className="text-xs text-[var(--text-2)]">Job status<select className="eoss-input w-full mt-1" value={recordForm.status} onChange={e => setRecordForm(f => ({ ...f, status: e.target.value as typeof f.status }))}>{['draft', 'active', 'hold', 'complete', 'cancelled'].map(s => <option key={s} value={s}>{s}</option>)}</select></label><label className="text-xs text-[var(--text-2)]">Current production stage<select className="eoss-input w-full mt-1" value={recordForm.currentStage} onChange={e => setRecordForm(f => ({ ...f, currentStage: e.target.value }))}>{job.stages.map(stage => <option key={stage.id} value={stage.name}>{stage.name}</option>)}</select></label><label className="text-xs text-[var(--text-2)]">Owner<input className="eoss-input w-full mt-1" value={recordForm.owner} onChange={e => setRecordForm(f => ({ ...f, owner: e.target.value }))} /></label><label className="text-xs text-[var(--text-2)]">Target completion<input type="date" className="eoss-input w-full mt-1" value={recordForm.plannedEnd} onChange={e => setRecordForm(f => ({ ...f, plannedEnd: e.target.value }))} /></label></div><label className="text-xs text-[var(--text-2)] block">Operational note<textarea rows={3} className="eoss-input w-full mt-1" value={recordForm.notes} onChange={e => setRecordForm(f => ({ ...f, notes: e.target.value }))} /></label><div className="flex justify-end gap-2"><button type="button" onClick={() => setRecordModalOpen(false)} className="btn-ghost text-xs">Cancel</button><button type="button" onClick={() => { updateJob(job.id, { status: recordForm.status, currentStage: recordForm.currentStage, owner: recordForm.owner, plannedEnd: recordForm.plannedEnd, operationalNotes: recordForm.notes.trim() || undefined }); setRecordModalOpen(false); showToast({ type: 'success', title: 'Job record updated' }); }} className="btn-primary text-xs">Save changes</button></div></div></div>}
 
-      {cancelModalOpen && <JobCancelModal job={job} onClose={() => setCancelModalOpen(false)} onConfirm={reason => { cancelJob(job.id, reason, currentUser.name); setCancelModalOpen(false); }} />}
+      {cancelModalOpen && <JobCancelModal job={job} onClose={() => setCancelModalOpen(false)} onConfirm={(reason, disposition) => { cancelJob(job.id, reason, currentUser.name, disposition); setCancelModalOpen(false); }} />}
+
+      {returnReq && <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60"><div className="w-full max-w-md rounded-xl p-5 space-y-4 bg-[var(--surface)] border border-[var(--border)]"><h3 className="text-sm font-bold text-[var(--text)]">Raise material return</h3><p className="text-xs text-[var(--text-2)]">{returnReq.materialName} · issued {returnReq.issuedQty} {returnReq.uom}. The material enters quarantine for inspection.</p><label className="text-xs text-[var(--text-2)] block">Quantity<input type="number" min="0.01" max={returnReq.issuedQty} step="any" className="eoss-input w-full mt-1" value={returnQty} onChange={e => setReturnQty(e.target.value)} /></label><label className="text-xs text-[var(--text-2)] block">Notes<textarea className="eoss-input w-full mt-1" rows={2} value={returnNotes} onChange={e => setReturnNotes(e.target.value)} /></label><div className="flex justify-end gap-2"><button className="btn-ghost text-xs" onClick={() => setReturnReq(null)}>Cancel</button><button className="btn-primary text-xs" disabled={!Number(returnQty) || Number(returnQty) > returnReq.issuedQty || !returnReq.lotIds[0]} onClick={() => { createMaterialReturn(returnReq.lotIds[0], Number(returnQty), job.id, job.jobNumber, currentUser.name, returnNotes.trim() || undefined); setReturnReq(null); navigate('/inventory/returns'); }}>Raise return</button></div></div></div>}
 
       {/* ── 6. Streamlined Stage Update Modal (2 Clicks) ── */}
       {stageModalOpen && (
@@ -577,11 +593,14 @@ export default function JobWorkspace() {
   );
 }
 
-function JobCancelModal({ job, onClose, onConfirm }: { job: import('../../types').Job; onClose: () => void; onConfirm: (reason: string) => void }) {
+function JobCancelModal({ job, onClose, onConfirm }: { job: import('../../types').Job; onClose: () => void; onConfirm: (reason: string, disposition: { wip: import('../../types').JobDisposition; finishedGoods: import('../../types').JobDisposition }) => void }) {
   const { jobMaterialReqs } = useStore();
   const [reason, setReason] = useState('');
+  const [wip, setWip] = useState<import('../../types').JobDisposition>('not_applicable');
+  const [finishedGoods, setFinishedGoods] = useState<import('../../types').JobDisposition>('not_applicable');
   const reqs = jobMaterialReqs.filter(req => req.jobId === job.id);
   const reserved = reqs.reduce((sum, req) => sum + req.reservedQty, 0);
   const issued = reqs.reduce((sum, req) => sum + req.issuedQty, 0);
-  return <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60"><div className="w-full max-w-lg rounded-xl p-5 space-y-4 bg-[var(--surface)] border border-[var(--border)]"><div className="flex items-center justify-between"><div><h3 className="text-sm font-bold text-[var(--text)]">Cancel {job.jobNumber}</h3><p className="text-xs text-[var(--text-2)]">Cancellation preserves the job and its history.</p></div><button type="button" onClick={onClose}><X size={16} className="text-[var(--text-3)]" /></button></div><div className="text-xs rounded-lg p-3 bg-[var(--surface-2)]"><div className="grid grid-cols-2 gap-2"><span>Status: <strong>{job.status}</strong></span><span>Stage: <strong>{job.currentStage}</strong></span><span>Reserved: <strong>{reserved}</strong></span><span>Issued/consumed: <strong>{issued}</strong></span></div><p className="mt-2 text-[var(--text-2)]">Reserved but unissued quantities will be released. Issued or consumed material is not restored automatically. Use an accepted return transaction for eligible unused material.</p></div><label className="block text-xs font-semibold text-[var(--text-2)]">Cancellation reason *<textarea autoFocus rows={3} value={reason} onChange={e => setReason(e.target.value)} className="eoss-input w-full mt-1" /></label><div className="flex justify-end gap-2"><button type="button" onClick={onClose} className="btn-ghost text-xs">Keep job</button><button type="button" disabled={!reason.trim()} onClick={() => onConfirm(reason)} className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white disabled:opacity-50" style={{ background: 'var(--error)' }}>Confirm cancellation</button></div></div></div>;
+  const options = ['not_applicable', 'retain', 'rework', 'scrap', 'return_after_inspection'] as const;
+  return <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60"><div className="w-full max-w-lg rounded-xl p-5 space-y-4 bg-[var(--surface)] border border-[var(--border)]"><div className="flex items-center justify-between"><div><h3 className="text-sm font-bold text-[var(--text)]">Cancel {job.jobNumber}</h3><p className="text-xs text-[var(--text-2)]">Cancellation preserves the job and its history.</p></div><button type="button" onClick={onClose}><X size={16} className="text-[var(--text-3)]" /></button></div><div className="text-xs rounded-lg p-3 bg-[var(--surface-2)]"><div className="grid grid-cols-2 gap-2"><span>Status: <strong>{job.status}</strong></span><span>Stage: <strong>{job.currentStage}</strong></span><span>Reserved: <strong>{reserved}</strong></span><span>Issued/consumed: <strong>{issued}</strong></span></div><p className="mt-2 text-[var(--text-2)]">Reserved but unissued quantities will be released. Issued or consumed material is not restored automatically.</p></div><label className="block text-xs font-semibold text-[var(--text-2)]">Cancellation reason *<textarea autoFocus rows={3} value={reason} onChange={e => setReason(e.target.value)} className="eoss-input w-full mt-1" /></label><div className="grid grid-cols-2 gap-3"><label className="text-xs text-[var(--text-2)]">WIP disposition<select className="eoss-input w-full mt-1" value={wip} onChange={e => setWip(e.target.value as typeof wip)}>{options.map(o => <option key={o} value={o}>{o.replace(/_/g, ' ')}</option>)}</select></label><label className="text-xs text-[var(--text-2)]">Finished goods disposition<select className="eoss-input w-full mt-1" value={finishedGoods} onChange={e => setFinishedGoods(e.target.value as typeof finishedGoods)}>{options.map(o => <option key={o} value={o}>{o.replace(/_/g, ' ')}</option>)}</select></label></div><div className="flex justify-end gap-2"><button type="button" onClick={onClose} className="btn-ghost text-xs">Keep job</button><button type="button" disabled={!reason.trim()} onClick={() => onConfirm(reason, { wip, finishedGoods })} className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white disabled:opacity-50" style={{ background: 'var(--error)' }}>Confirm cancellation</button></div></div></div>;
 }
