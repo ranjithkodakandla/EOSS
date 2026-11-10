@@ -340,8 +340,7 @@ export default function Procurement() {
               })}
               {filteredQuotes.length === 0 && <p className="text-center py-10 text-sm" style={{ color: 'var(--text-3)' }}>No quotations received yet</p>}
             </div>
-            <div className="hidden md:block overflow-x-auto">
-              <table className="eoss-table">
+            <table className="eoss-table hidden md:table">
                 <thead><tr>
                   {([['Quote #', 'number'], ['Supplier', 'supplier'], ['Date', 'date'], ['Valid Until', 'validUntil'], ['Lead Time', 'leadTime'], ['Payment Terms', 'terms'], ['Total Value', 'value'], ['Status', 'status']] as [string, ProcurementSortKey][]).map(([label, key]) => (
                     <SortableHeader key={label} label={label} active={sortKey === key} direction={sortDir} onSort={() => handleSort(key)} />
@@ -376,8 +375,7 @@ export default function Procurement() {
                   })}
                   {filteredQuotes.length === 0 && <tr><td colSpan={9} className="text-center py-10 text-sm" style={{ color: 'var(--text-3)' }}>No quotations received yet</td></tr>}
                 </tbody>
-              </table>
-            </div>
+            </table>
           </div>
         )}
 

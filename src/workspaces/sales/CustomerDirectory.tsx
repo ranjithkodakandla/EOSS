@@ -5,12 +5,18 @@ import { useStore } from '../../store';
 import StatusChip, { getStatusLabel } from '../../components/layout/StatusChip';
 import EmptyState from '../../components/feedback/EmptyState';
 import type { Party } from '../../types';
+import SortableHeader from '../../components/layout/SortableHeader';
+import { sortRows } from '../../domain/tableSort';
+
+type CustomerSortKey = 'customer' | 'gstin' | 'contact' | 'terms' | 'pos' | 'rfqs' | 'rating' | 'status';
 
 export default function CustomerDirectory() {
   const navigate = useNavigate();
   const { customers, customerPos, rfqs, showToast, updateCustomer, addCustomer } = useStore();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
+  const [sortKey, setSortKey] = useState<CustomerSortKey>('customer');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [showAdd, setShowAdd] = useState(false);
   const [editCustomer, setEditCustomer] = useState<Party | null>(null);
 
@@ -20,11 +26,21 @@ export default function CustomerDirectory() {
     const matchStatus = statusFilter === 'all' || c.status === statusFilter;
     return matchSearch && matchStatus;
   });
+  const sortedCustomers = sortRows(filtered, sortKey, sortDir, (customer, key) => {
+    const poCount = customerPos.filter(po => po.customerId === customer.id).length;
+    const rfqCount = rfqs.filter(rfq => rfq.customerId === customer.id).length;
+    const values: Record<string, unknown> = { customer: customer.tradingName, gstin: customer.gstin, contact: customer.contactPerson, terms: customer.paymentTerms, pos: poCount, rfqs: rfqCount, rating: customer.rating ?? 0, status: customer.status };
+    return values[key] ?? customer.tradingName;
+  });
+  const handleSort = (key: CustomerSortKey) => {
+    if (sortKey === key) setSortDir(direction => direction === 'asc' ? 'desc' : 'asc');
+    else { setSortKey(key); setSortDir('asc'); }
+  };
 
   return (
-    <div className="p-4 md:p-6 max-w-6xl mx-auto space-y-5">
+    <div className="flex flex-col h-full">
       {/* Filters */}
-      <div className="flex gap-3 flex-wrap items-center border-b pb-4" style={{ borderColor: 'var(--border)' }}>
+      <div className="flex-shrink-0 flex items-center gap-3 px-6 py-3 border-b flex-wrap" style={{ borderColor: 'var(--border)', background: 'var(--surface-2)' }}>
         <div className="eoss-search-wrap flex-1">
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-2)]" />
           <input
@@ -44,24 +60,20 @@ export default function CustomerDirectory() {
 
       {/* Table */}
       {filtered.length === 0 ? (
-        <EmptyState icon={<Building2 size={22} />} title="No customers found" body="Try adjusting your search or filters." />
+        <div className="flex-1 p-6"><EmptyState icon={<Building2 size={22} />} title="No customers found" body="Try adjusting your search or filters." /></div>
       ) : (
-        <div
-          className="rounded-2xl border overflow-hidden"
-          style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
-        >
+        <div className="flex-1 overflow-auto">
           <table className="eoss-table">
             <thead>
               <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface-2)' }}>
-                {['Customer', 'GSTIN / State', 'Contact', 'Terms', 'Customer POs', 'RFQs', 'Rating', 'Status', ''].map(h => (
-                  <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold text-[var(--text-2)] font-medium">
-                    {h}
-                  </th>
+                {([['Customer', 'customer'], ['GSTIN / State', 'gstin'], ['Contact', 'contact'], ['Terms', 'terms'], ['Customer POs', 'pos'], ['RFQs', 'rfqs'], ['Rating', 'rating'], ['Status', 'status']] as [string, CustomerSortKey][]).map(([label, key]) => (
+                  <SortableHeader key={label} label={label} active={sortKey === key} direction={sortDir} onSort={() => handleSort(key)} className="text-left px-4 py-2.5" />
                 ))}
+                <th />
               </tr>
             </thead>
             <tbody>
-              {filtered.map((c, i) => (
+              {sortedCustomers.map((c, i) => (
                 <tr
                   key={c.id}
                   className="hover:bg-[var(--surface-2)] cursor-pointer transition-colors"
