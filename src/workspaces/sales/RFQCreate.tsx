@@ -94,7 +94,7 @@ export default function RFQCreate() {
       paymentTerms,
       deliveryTerms,
       internalNotes,
-      lines: lines.map(l => ({ ...l, targetPrice: l.targetPrice === '' ? null : l.targetPrice })),
+      lines: lines.map(l => ({ ...l, targetPrice: l.targetPrice === '' ? null : l.targetPrice })) as unknown as CustomerRFQ['lines'],
       technicalRequirements: {
         standards: techReqs.standards ? techReqs.standards.split('\n').map(s => s.trim()).filter(Boolean) : [],
         inspectionLevel: techReqs.inspectionLevel,
@@ -104,11 +104,11 @@ export default function RFQCreate() {
         traceability: techReqs.traceability,
         specialNotes: techReqs.specialNotes,
       },
-      documents: docNotes ? [{ id: `doc-${seq}`, name: 'Notes', type: 'Notes', revision: '—', notes: docNotes }] : [],
+      documents: docNotes ? [{ id: `doc-${seq}`, name: 'Notes', type: 'Notes', revision: '—', notes: docNotes }] as unknown as CustomerRFQ['documents'] : [],
       clarifications: [],
       revisions: [{ id: `rev-${seq}`, revision: 1, changedBy: currentUser.name, changeDescription: 'Initial issue', changedAt: DEMO_NOW }],
     };
-    addRfq(rfq);
+    addRfq(rfq as unknown as CustomerRFQ);
     showToast({ type: 'success', title: 'RFQ created', body: `${rfqNumber} opened for ${rfq.customerName}.` });
     navigate(`/sales/rfq/${rfq.id}`);
   };

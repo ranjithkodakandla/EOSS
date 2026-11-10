@@ -66,7 +66,7 @@ const STATUS_MAP: Record<string, { label: string; cls: string }> = {
 };
 
 export function getStatusLabel(status: string) {
-  return STATUS_MAP[status]?.label ?? status.replaceAll('_', ' ').replace(/\b\w/g, c => c.toUpperCase());
+  return STATUS_MAP[status]?.label ?? status.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase());
 }
 
 interface Props {

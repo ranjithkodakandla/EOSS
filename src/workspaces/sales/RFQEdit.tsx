@@ -19,7 +19,7 @@ export default function RFQEdit() {
   const [internalNotes, setInternalNotes] = useState(rfq?.internalNotes ?? '');
   const [customerInstructions, setCustomerInstructions] = useState(rfq?.customerInstructions ?? '');
   const [specialCommercialConditions, setSpecialCommercialConditions] = useState(rfq?.specialCommercialConditions ?? '');
-  const existingTech = rfq?.technicalRequirements ?? {};
+  const existingTech = (rfq?.technicalRequirements ?? {}) as Record<string, any>;
   const [standards, setStandards] = useState(Array.isArray(existingTech.standards) ? existingTech.standards.join('\n') : rfq?.applicableStandards ?? '');
   const [inspectionLevel, setInspectionLevel] = useState(existingTech.inspectionLevel ?? (rfq?.dimensionalInspection ? 'Dimensional inspection' : ''));
   const [surfaceFinish, setSurfaceFinish] = useState(existingTech.surfaceFinish ?? rfq?.surfaceTreatment ?? '');

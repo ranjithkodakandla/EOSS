@@ -271,6 +271,12 @@ function buildInitialData() {
 }
 
 function buildSeed() {
+  const flagshipRfq = RFQS_FULL[0];
+  const seededFlagshipRfq: CustomerRFQ = {
+    ...flagshipRfq,
+    status: ['open', 'quoted', 'converted', 'lost', 'cancelled'].includes(flagshipRfq.status) ? flagshipRfq.status as CustomerRFQ['status'] : 'open',
+    lineCount: flagshipRfq.lines.length,
+  };
   return {
     currentUser: DEMO_USERS[0], // owner by default
     customers: [...CUSTOMERS_BASE, GERMAN_CUSTOMER],
@@ -306,7 +312,7 @@ function buildSeed() {
     supplierPoLines: [...SUPPLIER_PO_LINES, ...SUPPLIER_PO_LINES_DEMO],
     poAmendments: [],
     purchaseReqs: [...PURCHASE_REQS, ...FLAGSHIP_PURCHASE_REQS],
-    rfqs: [...RFQS, { ...RFQS_FULL[0], lineCount: RFQS_FULL[0].lines.length }, ADDITIONAL_RFQ],
+    rfqs: [...RFQS, seededFlagshipRfq, ADDITIONAL_RFQ],
     quotations: [FLAGSHIP_QUOTATION],
     quotationLines: [...FLAGSHIP_QUOTATION_LINES],
     poLines: [...FLAGSHIP_PO_LINES],
@@ -713,6 +719,7 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
     const amendment = get().poAmendments.find(a => a.id === amendmentId);
     if (!amendment || amendment.status !== 'pending_approval') return;
     const now = new Date().toISOString();
+    const lineChanges = amendment.lineChanges;
     set(s => {
       const poAmendments = s.poAmendments.map(a => a.id === amendmentId ? { ...a, status: resolution, approvedBy: by, approvedAt: now } : a);
       if (resolution === 'rejected') return { poAmendments };
@@ -723,13 +730,13 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
           ...(amendment.headerChanges?.deliveryTerms ? { deliveryTerms: amendment.headerChanges.deliveryTerms } : {}),
           revision: amendment.revision, lastAmendedAt: now, hasAmendment: true,
         });
-        const poLines = amendment.lineId && amendment.lineChanges ? s.poLines.map(line => line.id !== amendment.lineId ? line : {
+        const poLines = amendment.lineId && lineChanges ? s.poLines.map(line => line.id !== amendment.lineId ? line : {
           ...line,
-          ...(amendment.lineChanges.description ? { description: amendment.lineChanges.description } : {}),
-          ...(amendment.lineChanges.drawingRevision ? { revision: amendment.lineChanges.drawingRevision } : {}),
-          ...(amendment.lineChanges.quantity !== undefined ? { orderedQty: amendment.lineChanges.quantity, value: amendment.lineChanges.quantity * line.rate } : {}),
-          ...(amendment.lineChanges.rate !== undefined ? { rate: amendment.lineChanges.rate, value: line.orderedQty * amendment.lineChanges.rate } : {}),
-          ...(amendment.lineChanges.requiredDate ? { requiredDate: amendment.lineChanges.requiredDate } : {}),
+          ...(lineChanges.description ? { description: lineChanges.description } : {}),
+          ...(lineChanges.drawingRevision ? { revision: lineChanges.drawingRevision } : {}),
+          ...(lineChanges.quantity !== undefined ? { orderedQty: lineChanges.quantity, value: lineChanges.quantity * line.rate } : {}),
+          ...(lineChanges.rate !== undefined ? { rate: lineChanges.rate, value: line.orderedQty * lineChanges.rate } : {}),
+          ...(lineChanges.requiredDate ? { requiredDate: lineChanges.requiredDate } : {}),
         }) : s.poLines;
         return { poAmendments, customerPos, poLines };
       }
@@ -739,12 +746,12 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
         ...(amendment.headerChanges?.committedDate ? { committedDate: amendment.headerChanges.committedDate } : {}),
         revision: amendment.revision, lastAmendedAt: now, hasAmendment: true,
       });
-      const supplierPoLines = amendment.lineId && amendment.lineChanges ? s.supplierPoLines.map(line => line.id !== amendment.lineId ? line : {
+      const supplierPoLines = amendment.lineId && lineChanges ? s.supplierPoLines.map(line => line.id !== amendment.lineId ? line : {
         ...line,
-        ...(amendment.lineChanges.materialName ? { materialName: amendment.lineChanges.materialName } : {}),
-        ...(amendment.lineChanges.quantity !== undefined ? { orderedQty: amendment.lineChanges.quantity, value: amendment.lineChanges.quantity * line.rate } : {}),
-        ...(amendment.lineChanges.rate !== undefined ? { rate: amendment.lineChanges.rate, value: amendment.lineChanges.quantity !== undefined ? amendment.lineChanges.quantity * amendment.lineChanges.rate : line.orderedQty * amendment.lineChanges.rate } : {}),
-        ...(amendment.lineChanges.requiredDate ? { committedDate: amendment.lineChanges.requiredDate } : {}),
+        ...(lineChanges.materialName ? { materialName: lineChanges.materialName } : {}),
+        ...(lineChanges.quantity !== undefined ? { orderedQty: lineChanges.quantity, value: lineChanges.quantity * line.rate } : {}),
+        ...(lineChanges.rate !== undefined ? { value: lineChanges.quantity !== undefined ? lineChanges.quantity * lineChanges.rate : line.orderedQty * lineChanges.rate } : {}),
+        ...(lineChanges.requiredDate ? { committedDate: lineChanges.requiredDate } : {}),
       }) : s.supplierPoLines;
       return { poAmendments, supplierPos, supplierPoLines };
     });

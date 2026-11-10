@@ -62,7 +62,7 @@ export default function SupplierPODetail() {
         {canApprove && po.status === 'pending_approval' && <button onClick={() => { setSupplierPoStatus(po.id, 'confirmed'); showToast({ type: 'success', title: 'Supplier PO approved and issued', body: `${po.poNumber} is ready for supplier communication.` }); }} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold text-white" style={{ background: 'var(--success,#16A34A)' }}><CheckCircle2 size={14} /> Approve & Issue PO</button>}
         {canApprove && pendingAmendment && <><button onClick={() => resolvePoAmendment(pendingAmendment.id, 'approved', currentUser.name)} className="px-3 py-1.5 rounded-lg text-sm font-semibold text-white" style={{ background: 'var(--success,#16A34A)' }}>Approve Amendment</button><button onClick={() => resolvePoAmendment(pendingAmendment.id, 'rejected', currentUser.name)} className="px-3 py-1.5 rounded-lg text-sm font-semibold border" style={{ borderColor: 'var(--error)', color: 'var(--error)' }}>Reject Amendment</button></>}
         {canEdit && !['cancelled', 'received'].includes(po.status) && <button onClick={() => navigate(`/procurement/spo/${po.id}/amend`)} className="px-3 py-1.5 rounded-lg text-sm font-semibold border" style={{ borderColor: 'var(--border)', color: 'var(--text-2)' }}><FileEditIcon /> Amend PO</button>}
-        <DocumentActions documentType="Supplier PO" reference={po.poNumber} date={po.raisedDate} partyName={po.supplierName} status={po.status} total={po.totalValue} lines={lines.map(l => ({ description: l.materialName, quantity: l.orderedQty, uom: l.uom, amount: l.value }))} references={[pr ? `Originating PR: ${pr.prNumber}` : '', selectedQuotation ? `Selected quotation: ${selectedQuotation.quoteNumber}` : '', po.siteName ? `Receiving site: ${po.siteName}` : ''].filter(Boolean)} />
+        <DocumentActions documentType="Supplier PO" reference={po.poNumber} date={po.raisedDate} partyName={po.supplierName} status={po.status} total={po.totalValue} lines={lines.map(l => ({ description: l.materialName, quantity: l.orderedQty, uom: l.uom, amount: l.value }))} references={[pr ? `Originating PR: ${pr.prNumber}` : '', selectedQuotation ? `Selected quotation: ${selectedQuotation.quoteNumber}` : '', po.deliverToSiteName ? `Receiving site: ${po.deliverToSiteName}` : ''].filter(Boolean)} />
       </div>
 
       <WorkflowTimeline steps={['Purchase Requisition', 'Supplier Quotations', 'Selected Quotation', 'Supplier PO', 'Quality / Inspection', 'GRN', 'Inventory']} current={workflowStep} />
@@ -89,7 +89,7 @@ export default function SupplierPODetail() {
               <Field label="Total Value" value={`₹${po.totalValue.toLocaleString('en-IN')}`} />
               {pr && <Field label="Originating PR" value={pr.prNumber} mono link={`/procurement/pr/${pr.id}`} navigate={navigate} />}
               {selectedQuotation && <Field label="Selected Quotation" value={selectedQuotation.quoteNumber} mono link={`/procurement?tab=quotes`} navigate={navigate} />}
-              {po.siteName && <Field label="Receiving Site" value={po.siteName} />}
+              {po.deliverToSiteName && <Field label="Receiving Site" value={po.deliverToSiteName} />}
             </dl>
           </div>
 
@@ -142,7 +142,7 @@ export default function SupplierPODetail() {
         </div>
       </div>
 
-      {amendments.length > 0 && <div className="mt-4 bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4"><h3 className="font-semibold text-sm text-[var(--text)] mb-3">Amendment History</h3><div className="space-y-2">{amendments.map(a => <div key={a.id} className="flex items-start justify-between gap-3 rounded-lg border p-3" style={{ borderColor: 'var(--border)' }}><div><div className="text-sm font-medium text-[var(--text)]">Rev {a.revision} · {a.reason.replaceAll('_', ' ')}</div><div className="text-xs mt-1 text-[var(--text-2)]">{a.changeNote}</div><div className="text-xs mt-1 text-[var(--text-3)]">Requested by {a.requestedBy}</div></div><StatusChip status={a.status} size="sm" /></div>)}</div></div>}
+      {amendments.length > 0 && <div className="mt-4 bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4"><h3 className="font-semibold text-sm text-[var(--text)] mb-3">Amendment History</h3><div className="space-y-2">{amendments.map(a => <div key={a.id} className="flex items-start justify-between gap-3 rounded-lg border p-3" style={{ borderColor: 'var(--border)' }}><div><div className="text-sm font-medium text-[var(--text)]">Rev {a.revision} · {a.reason.replace(/_/g, ' ')}</div><div className="text-xs mt-1 text-[var(--text-2)]">{a.changeNote}</div><div className="text-xs mt-1 text-[var(--text-3)]">Requested by {a.requestedBy}</div></div><StatusChip status={a.status} size="sm" /></div>)}</div></div>}
 
       <ConfirmModal
         open={confirm}
