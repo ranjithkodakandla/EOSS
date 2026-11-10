@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Plus, AlertTriangle, Search, ChevronRight, X, Pencil, Trash2, Send } from 'lucide-react';
 import { useStore } from '../../store';
-import StatusChip from '../../components/layout/StatusChip';
+import StatusChip, { getStatusLabel } from '../../components/layout/StatusChip';
 import type { GoodsReceipt, SupplierPO, SupplierPOLine, SupplierQuotation } from '../../types';
 import { DEFAULT_SITE_ID, DEFAULT_SITE_NAME, DEFAULT_STORE_ID, DEFAULT_STORE_NAME, GRN_STORE_ID, GRN_STORE_NAME } from '../../domain/recordLists';
 import { placeLabel } from '../../domain/places';
@@ -30,6 +30,7 @@ export default function Procurement() {
   const [search, setSearch] = useState('');
   const [showNewPO, setShowNewPO] = useState(false);
   const [siteFilter, setSiteFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all');
   const [overdueOnly, setOverdueOnly] = useState(false);
   const [approvalView, setApprovalView] = useState<'pending' | 'approved' | 'rejected' | 'all'>('pending');
   const [sortKey, setSortKey] = useState<ProcurementSortKey>('number');
@@ -45,8 +46,16 @@ export default function Procurement() {
 
   const q = search.toLowerCase();
   const matchSite = (siteId?: string) => siteFilter === 'all' || siteId === siteFilter;
+  const statusOptions = tab === 'pr'
+    ? ['draft', 'pending', 'approved', 'converted', 'cancelled']
+    : tab === 'quotes'
+      ? ['draft', 'sent', 'received', 'selected', 'rejected', 'expired']
+      : tab === 'spo'
+        ? ['draft', 'pending_approval', 'sent', 'confirmed', 'partial', 'received', 'overdue', 'cancelled']
+        : ['draft', 'pending_qc', 'accepted', 'partial', 'rejected'];
+  const matchStatus = (status: string) => statusFilter === 'all' || status === statusFilter;
   const filteredSpoBase = supplierPos.filter(p =>
-    matchSite(p.deliverToSiteId) && (!overdueOnly || p.status === 'overdue') &&
+    matchSite(p.deliverToSiteId) && matchStatus(p.status) && (!overdueOnly || p.status === 'overdue') &&
     (!q || p.poNumber.toLowerCase().includes(q) || p.supplierName.toLowerCase().includes(q))
   );
   const filteredSpo = sortRows(filteredSpoBase, sortKey, sortDir, (p, key) => {
@@ -54,7 +63,7 @@ export default function Procurement() {
     return values[key] ?? p.raisedDate;
   });
   const filteredPrsBase = purchaseReqs.filter(pr =>
-    matchSite(pr.deliverToSiteId) &&
+    matchSite(pr.deliverToSiteId) && matchStatus(pr.status) &&
     (!q || pr.prNumber.toLowerCase().includes(q) || pr.raisedBy.toLowerCase().includes(q) || (pr.jobNumber ?? '').toLowerCase().includes(q))
   );
   const filteredPrs = sortRows(filteredPrsBase, sortKey, sortDir, (pr, key) => {
@@ -62,7 +71,7 @@ export default function Procurement() {
     return values[key] ?? pr.raisedDate;
   });
   const filteredGrnsBase = grns.filter(g =>
-    matchSite(g.siteId) &&
+    matchSite(g.siteId) && matchStatus(g.status) &&
     (!q || g.grnNumber.toLowerCase().includes(q) || g.supplierName.toLowerCase().includes(q))
   );
   const filteredGrns = sortRows(filteredGrnsBase, sortKey, sortDir, (g, key) => {
@@ -70,7 +79,7 @@ export default function Procurement() {
     return values[key] ?? g.receivedDate;
   });
   const filteredQuotesBase = supplierQuotations.filter(qt =>
-    !q || qt.quoteNumber.toLowerCase().includes(q) || qt.supplierName.toLowerCase().includes(q)
+    matchStatus(qt.status) && (!q || qt.quoteNumber.toLowerCase().includes(q) || qt.supplierName.toLowerCase().includes(q))
   );
   const filteredQuotes = sortRows(filteredQuotesBase, sortKey, sortDir, (qt, key) => {
     const values: Record<string, unknown> = { number: qt.quoteNumber, supplier: qt.supplierName, date: qt.quoteDate, validUntil: qt.validUntil, leadTime: qt.deliveryDays, terms: qt.paymentTerms, value: qt.lines.reduce((s, l) => s + l.lineTotal, 0), status: qt.status };
@@ -98,16 +107,15 @@ export default function Procurement() {
       {/* Toolbar */}
       <div className="flex-shrink-0 flex items-center gap-3 px-5 py-3 border-b flex-wrap"
         style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
-        <div className="relative flex-1 min-w-[180px] max-w-xs">
+        <div className="eoss-search-wrap flex-1">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-3)' }} />
-          <input type="text" placeholder="Search this list…" value={search} onChange={e => setSearch(e.target.value)}
-            className="w-full pl-8 pr-3 py-1.5 text-sm rounded-lg border outline-none"
-            style={{ borderColor: 'var(--border)', background: 'var(--surface)', color: 'var(--text)' }} />
+          <input type="text" placeholder={tab === 'pr' ? 'Search PR number, requester or job' : tab === 'quotes' ? 'Search quote number or supplier' : tab === 'spo' ? 'Search Supplier PO number or supplier' : 'Search GRN number or supplier'} value={search} onChange={e => setSearch(e.target.value)} className="eoss-search-input" />
         </div>
-        <select value={siteFilter} onChange={e => setSiteFilter(e.target.value)} className="eoss-input text-xs py-1.5 max-w-[11rem]" aria-label="Deliver-to site">
+        <select value={siteFilter} onChange={e => setSiteFilter(e.target.value)} className="eoss-input min-h-[36px]" aria-label="Deliver-to site">
           <option value="all">All sites</option>
           {sites.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
         </select>
+        {tab !== 'approvals' && <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="eoss-input min-h-[36px]" aria-label="Procurement status"><option value="all">All {tab === 'pr' ? 'PR' : tab === 'quotes' ? 'quotation' : tab === 'spo' ? 'Supplier PO' : 'GRN'} statuses</option>{statusOptions.map(status => <option key={status} value={status}>{getStatusLabel(status)}</option>)}</select>}
         <div className="flex-1" />
         {overduePOs > 0 && (
           <button type="button" onClick={() => { setTab('spo'); setOverdueOnly(v => !v); }}
@@ -173,7 +181,7 @@ export default function Procurement() {
               </button>
             ))}
           </div>
-          <table className="hidden md:table w-full text-sm border-separate border-spacing-0">
+          <table className="eoss-table hidden md:table">
             <thead style={{ position: 'sticky', top: 0, zIndex: 5 }}>
               <tr style={{ background: 'var(--surface-2)', borderBottom: '1px solid var(--border)' }}>
                 {([['PO Number', 'number'], ['Supplier', 'supplier'], ['Raised', 'date'], ['Committed', 'committedDate'], ['Lines', 'lines'], ['Value', 'value'], ['Job Ref', 'job'], ['Status', 'status']] as [string, ProcurementSortKey][]).map(([label, key]) => (
@@ -226,7 +234,7 @@ export default function Procurement() {
         )}
 
         {tab === 'pr' && (
-          <table className="w-full text-sm border-separate border-spacing-0">
+          <table className="eoss-table">
             <thead style={{ position: 'sticky', top: 0, zIndex: 5 }}>
               <tr style={{ background: 'var(--surface-2)' }}>
                 {([['PR Number', 'number'], ['Raised By', 'raisedBy'], ['Raised Date', 'date'], ['Required By', 'requiredBy'], ['Job Ref', 'job'], ['Lines', 'lines'], ['Priority', 'priority'], ['Status', 'status']] as [string, ProcurementSortKey][]).map(([label, key]) => (
@@ -272,7 +280,7 @@ export default function Procurement() {
         )}
 
         {tab === 'grn' && (
-          <table className="w-full text-sm border-separate border-spacing-0">
+          <table className="eoss-table">
             <thead style={{ position: 'sticky', top: 0, zIndex: 5 }}>
               <tr style={{ background: 'var(--surface-2)' }}>
                 {([['GRN Number', 'number'], ['Supplier', 'supplier'], ['PO Ref', 'poRef'], ['Received', 'date'], ['By', 'receivedBy'], ['Challan', 'challan'], ['Status', 'status']] as [string, ProcurementSortKey][]).map(([label, key]) => (
@@ -375,7 +383,7 @@ export default function Procurement() {
 
         {tab === 'approvals' && (
           <div className="p-5">
-            <div className="flex items-center justify-between gap-3 mb-4 flex-wrap"><p className="text-xs text-[var(--text-2)]">Pending is the action queue; decisions remain available in the history views.</p><select value={approvalView} onChange={e => setApprovalView(e.target.value as typeof approvalView)} className="eoss-input text-xs py-1.5" aria-label="Approval history view"><option value="pending">Pending</option><option value="approved">Approved</option><option value="rejected">Rejected</option><option value="all">All history</option></select></div>
+            <div className="flex items-center justify-between gap-3 mb-4 flex-wrap"><p className="text-xs text-[var(--text-2)]">Pending is the action queue; decisions remain available in the history views.</p><select value={approvalView} onChange={e => setApprovalView(e.target.value as typeof approvalView)} className="eoss-input min-h-[36px]" aria-label="Approval history view"><option value="pending">Pending</option><option value="approved">Approved</option><option value="rejected">Rejected</option><option value="all">All history</option></select></div>
             {visibleApprovals.length === 0 ? (
               <div className="rounded-xl border p-10 text-center" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
                 <p className="text-sm" style={{ color: 'var(--text-3)' }}>No pending approvals.</p>
@@ -483,7 +491,7 @@ function QuoteCompareModal({ quotes, onClose, onSelect }: { quotes: SupplierQuot
           <button onClick={onClose}><X size={16} className="text-[var(--text-3)]" /></button>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-sm border-collapse">
+              <table className="eoss-table">
             <thead>
               <tr style={{ borderBottom: '2px solid var(--border)', background: 'var(--surface-2)' }}>
                 <th className="text-left p-3 text-xs font-semibold text-[var(--text-2)]">Criteria</th>

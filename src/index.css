@@ -691,6 +691,23 @@ body {
 .eoss-input::placeholder { color: var(--text-3); }
 select.eoss-input { cursor: pointer; }
 
+/* Shared workspace controls: search and filters use the same footprint everywhere. */
+.eoss-search-input {
+  width: 100%;
+  min-height: 36px;
+  padding: 8px 12px 8px 34px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control, 10px);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.eoss-search-input:focus { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(112, 72, 245, 0.08); }
+.eoss-search-input::placeholder { color: var(--text-3); }
+.eoss-search-wrap { position: relative; width: min(100%, 360px); min-width: 240px; }
+
 /* Palette on <html> wins over the later :root / system-light blocks. */
 html.theme-aurora[data-theme="light"] {
   --brand: #7048F5;

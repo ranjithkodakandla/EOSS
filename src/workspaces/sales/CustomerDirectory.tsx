@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Plus, Building2, Phone, Mail, ChevronRight, Star, X, Pencil } from 'lucide-react';
+import { Search, Building2, Phone, Mail, ChevronRight, Star, X, Pencil } from 'lucide-react';
 import { useStore } from '../../store';
 import StatusChip, { getStatusLabel } from '../../components/layout/StatusChip';
 import EmptyState from '../../components/feedback/EmptyState';
@@ -23,40 +23,23 @@ export default function CustomerDirectory() {
 
   return (
     <div className="p-4 md:p-6 max-w-6xl mx-auto space-y-5">
-      {/* Header */}
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div>
-          <h1 className="text-xl font-bold text-[var(--text)]">Customer Directory</h1>
-          <p className="text-sm text-[var(--text-2)] mt-0.5">
-            {customers.filter(c => c.status === 'active').length} active customers
-          </p>
-        </div>
-        <span className="text-xs text-[var(--text-3)]">Customer master records linked to Customer POs and RFQs</span>
-      </div>
-
       {/* Filters */}
-      <div className="flex gap-3 flex-wrap items-center">
-        <div className="relative flex-1 min-w-[220px]">
+      <div className="flex gap-3 flex-wrap items-center border-b pb-4" style={{ borderColor: 'var(--border)' }}>
+        <div className="eoss-search-wrap flex-1">
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-2)]" />
           <input
             type="text"
-            placeholder="Search by name, GSTIN or city…"
+            placeholder="Search customer name, GSTIN or city"
             value={search}
             onChange={e => setSearch(e.target.value)}
-            className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border bg-[var(--surface)] focus:outline-none focus:ring-2"
-            style={{ borderColor: 'var(--border)', color: 'var(--text)' }}
+            className="eoss-search-input"
           />
         </div>
-        {(['all', 'active', 'inactive'] as const).map(s => (
-          <button
-            key={s}
-            onClick={() => setStatusFilter(s)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold capitalize border transition-colors cursor-pointer ${statusFilter === s ? 'text-white border-transparent' : 'border-transparent bg-transparent'}`}
-            style={statusFilter === s ? { background: 'var(--brand-fill)' } : { color: 'var(--text-2)' }}
-          >
-            {s === 'all' ? 'All' : getStatusLabel(s)}
-          </button>
-        ))}
+        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value as typeof statusFilter)} className="eoss-input min-h-[36px]" aria-label="Customer status">
+          <option value="all">All customer statuses</option>
+          <option value="active">{getStatusLabel('active')}</option>
+          <option value="inactive">{getStatusLabel('inactive')}</option>
+        </select>
       </div>
 
       {/* Table */}
@@ -67,7 +50,7 @@ export default function CustomerDirectory() {
           className="rounded-2xl border overflow-hidden"
           style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
         >
-          <table className="w-full text-sm">
+          <table className="eoss-table">
             <thead>
               <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface-2)' }}>
                 {['Customer', 'GSTIN / State', 'Contact', 'Terms', 'Customer POs', 'RFQs', 'Rating', 'Status', ''].map(h => (

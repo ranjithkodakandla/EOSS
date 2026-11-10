@@ -16,7 +16,7 @@ type POTab = 'pos' | 'rfqs' | 'customers';
 type SalesSortKey = 'number' | 'name' | 'date' | 'requiredBy' | 'value' | 'lines' | 'terms' | 'status' | 'channel' | 'quotation' | 'owner';
 
 export default function Sales() {
-  const { rfqs, quotations, customerPos, jobs, currentUser, showToast, updateCustomerPo, updateRfq, addCustomerPO } = useStore();
+  const { rfqs, quotations, customerPos, customers, jobs, currentUser, showToast, updateCustomerPo, updateRfq, addCustomerPO } = useStore();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [tab, setTab] = useState<POTab>((searchParams.get('tab') as POTab) ?? 'pos');
@@ -100,12 +100,12 @@ export default function Sales() {
         style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
       >
         <div>
-          <h1 className="text-lg font-bold" style={{ color: 'var(--text)' }}>Sales</h1>
+          <h1 className="text-lg font-bold" style={{ color: 'var(--text)' }}>{tab === 'pos' ? 'Customer POs' : tab === 'rfqs' ? 'Customer RFQs' : 'Customer Directory'}</h1>
           <p className="text-xs mt-0.5" style={{ color: 'var(--text-2)' }}>
             <button type="button" onClick={() => { setTab('pos'); setStatusFilter('active'); }} className="font-semibold" style={{ color: 'var(--brand)' }}>
               {customerPos.filter(p => p.status === 'active').length} Active Customer POs
             </button>
-            {' '}· ₹{(totalActive / 100000).toFixed(1)}L in progress
+            {' '}· {customers.filter(c => c.status === 'active').length} Active Customers · ₹{(totalActive / 100000).toFixed(1)}L in progress
           </p>
         </div>
         {canCreate && <div className="flex items-center gap-2">
@@ -157,22 +157,17 @@ export default function Sales() {
         className="flex-shrink-0 flex items-center gap-3 px-6 py-3 border-b"
         style={{ borderColor: 'var(--border)', background: 'var(--surface-2)' }}
       >
-        <div className="relative flex-1 max-w-xs">
+        <div className="eoss-search-wrap flex-1">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-3)' }} />
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder={tab === 'rfqs' ? 'Search RFQ number or customer name' : 'Search Customer PO number or customer name'}
-            className="w-full pl-8 pr-3 py-1.5 rounded-lg text-sm border focus:outline-none focus:ring-1"
-            style={{
-              borderColor: 'var(--border)',
-              background: 'var(--surface)',
-              color: 'var(--text)',
-            }}
+            className="eoss-search-input"
           />
         </div>
-        {tab === 'pos' && <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="eoss-input text-xs py-1.5" aria-label="Customer PO status"><option value="all">All Customer PO statuses</option>{poStatuses.filter(s => s !== 'all').map(s => <option key={s} value={s}>{getStatusLabel(s)}</option>)}</select>}
-        {tab === 'rfqs' && <select value={rfqStatusFilter} onChange={e => setRfqStatusFilter(e.target.value)} className="eoss-input text-xs py-1.5" aria-label="Customer RFQ status"><option value="all">All Customer RFQ statuses</option>{['open', 'quoted', 'converted', 'lost', 'cancelled'].map(s => <option key={s} value={s}>{getStatusLabel(s)}</option>)}</select>}
+        {tab === 'pos' && <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="eoss-input min-h-[36px]" aria-label="Customer PO status"><option value="all">All Customer PO statuses</option>{poStatuses.filter(s => s !== 'all').map(s => <option key={s} value={s}>{getStatusLabel(s)}</option>)}</select>}
+        {tab === 'rfqs' && <select value={rfqStatusFilter} onChange={e => setRfqStatusFilter(e.target.value)} className="eoss-input min-h-[36px]" aria-label="Customer RFQ status"><option value="all">All Customer RFQ statuses</option>{['open', 'quoted', 'converted', 'lost', 'cancelled'].map(s => <option key={s} value={s}>{getStatusLabel(s)}</option>)}</select>}
         {search && (
           <button
             onClick={() => setSearch('')}
@@ -209,7 +204,7 @@ export default function Sales() {
                 </button>
               ))}
             </div>
-            <table className="hidden md:table w-full text-sm border-collapse">
+            <table className="eoss-table hidden md:table">
               <thead className="sticky top-0 z-10" style={{ background: 'var(--surface-2)' }}>
                 <tr style={{ borderBottom: '1px solid var(--border)' }}>
                   {([['PO Number', 'number'], ['Customer', 'name'], ['Date', 'date'], ['Value', 'value'], ['Lines', 'lines'], ['Terms', 'terms'], ['Status', 'status']] as [string, SalesSortKey][]).map(([label, key]) => (
@@ -276,7 +271,7 @@ export default function Sales() {
           )}
 
           {tab === 'rfqs' && (
-            <table className="w-full text-sm border-collapse">
+            <table className="eoss-table">
               <thead className="sticky top-0 z-10" style={{ background: 'var(--surface-2)' }}>
                 <tr style={{ borderBottom: '1px solid var(--border)' }}>
                   {([['RFQ Number', 'number'], ['Customer', 'name'], ['Received', 'date'], ['Required By', 'requiredBy'], ['Lines', 'lines'], ['Channel', 'channel'], ['Quotation', 'quotation'], ['Status', 'status'], ['Owner', 'owner']] as [string, SalesSortKey][]).map(([label, key]) => (
