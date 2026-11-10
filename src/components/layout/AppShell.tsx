@@ -30,6 +30,7 @@ function installTableSorting() {
     const headerRow = table.tHead?.rows[0];
     const body = table.tBodies[0];
     if (!headerRow || !body) return;
+    const hasExplicitSort = Array.from(headerRow.cells).some(header => header.querySelector('button'));
 
     Array.from(headerRow.cells).forEach((header, column) => {
       if (header.querySelector('button') || !header.innerText.trim()) return;
@@ -71,6 +72,13 @@ function installTableSorting() {
         header.setAttribute('aria-sort', direction === 'asc' ? 'ascending' : 'descending');
       });
     });
+
+    // Give every table a predictable starting view. Users can click any header
+    // to reverse it or choose another column.
+    if (!hasExplicitSort && !state.has(table)) {
+      const firstHeader = Array.from(headerRow.cells).find(header => header.innerText.trim());
+      firstHeader?.querySelector('button')?.click();
+    }
   };
 
   const scan = () => document.querySelectorAll<HTMLTableElement>('table').forEach(enhance);

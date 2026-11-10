@@ -22,8 +22,8 @@ export default function Sales() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [rfqStatusFilter, setRfqStatusFilter] = useState('all');
-  const [sortKey, setSortKey] = useState<SalesSortKey>('date');
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+  const [sortKey, setSortKey] = useState<SalesSortKey>('number');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [selectedPoId, setSelectedPoId] = useState<string | null>(null);
   const [showNewRFQ, setShowNewRFQ] = useState(false);
   const [showDirectOrder, setShowDirectOrder] = useState(false);

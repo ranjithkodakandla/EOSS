@@ -75,7 +75,7 @@ export default function DispatchWorkspace() {
     d.dispatchNumber.toLowerCase().includes(search.toLowerCase()) ||
     d.customerName.toLowerCase().includes(search.toLowerCase()))
   );
-  const [sortKey, setSortKey] = useState<DispatchSortKey>('status');
+  const [sortKey, setSortKey] = useState<DispatchSortKey>('number');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const filtered = sortRows(filteredBase, sortKey, sortDir, (d, key) => ({
     number: d.dispatchNumber, customer: d.customerName, jobs: (d.jobs ?? []).join(', '), carrier: d.carrier ?? d.vehicleNumber,

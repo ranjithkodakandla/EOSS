@@ -32,8 +32,8 @@ export default function Procurement() {
   const [siteFilter, setSiteFilter] = useState('all');
   const [overdueOnly, setOverdueOnly] = useState(false);
   const [approvalView, setApprovalView] = useState<'pending' | 'approved' | 'rejected' | 'all'>('pending');
-  const [sortKey, setSortKey] = useState<ProcurementSortKey>('date');
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+  const [sortKey, setSortKey] = useState<ProcurementSortKey>('number');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const receivablePos = supplierPos.filter(p => ['confirmed', 'partial', 'overdue', 'sent'].includes(p.status));
   const [receivePoId, setReceivePoId] = useState<string | null>(
     receiveParam ? (supplierPos.find(p => p.id === receiveParam)?.id ?? receivablePos[0]?.id ?? null) : null

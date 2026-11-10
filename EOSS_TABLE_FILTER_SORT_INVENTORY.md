@@ -30,5 +30,5 @@ This inventory records the current pilot-prototype state. “Working” means th
 
 ## Current exceptions and next step
 
-Every table in the prototype now exposes sorting from its column headers. Clicking a header sorts the complete row, so the values in all other columns stay together. Clicking the same header again reverses the order. Small detail lists and non-table cards remain scoped views rather than browse tables.
+Every table in the prototype now exposes sorting from its column headers. Tables open sorted by their first meaningful column in ascending order, which is a predictable starting point for identifiers and names. Clicking any header sorts the complete row, so the values in all other columns stay together. Clicking the same header again reverses the order. Small detail lists and non-table cards remain scoped views rather than browse tables.
 
