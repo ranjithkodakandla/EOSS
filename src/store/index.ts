@@ -58,6 +58,7 @@ interface EOSSState {
 
   // Data (mutable for interactions)
   jobs: Job[];
+  jobUpdates: JobUpdate[];
   lots: MaterialLot[];
   inventory: InventoryItem[];
   movements: StockMovement[];
@@ -123,6 +124,8 @@ interface EOSSState {
 
   // Inventory actions
   issueMaterial: (lotId: string, qty: number, jobId: string, jobNumber: string, by: string) => void;
+  reserveMaterial: (requirementId: string, qty: number, by: string) => void;
+  returnMaterial: (lotId: string, qty: number, jobId: string, jobNumber: string, by: string) => void;
   updateInventoryItem: (id: string, partial: Partial<InventoryItem>) => void;
   addInventoryItem: (item: InventoryItem) => void;
   transferLot: (lotId: string, toLocation: string, by: string) => void;
@@ -169,6 +172,7 @@ interface EOSSState {
   addCustomerPO: (po: CustomerPO) => void;
   addSupplierPO: (po: SupplierPO) => void;
   addGRN: (grn: GoodsReceipt) => void;
+  acceptGRN: (grnId: string, by: string) => void;
   addJob: (job: Job) => void;
   addInspection: (ins: Inspection) => void;
   addDispatchRecord: (d: Dispatch) => void;
@@ -207,6 +211,7 @@ interface EOSSState {
   updateRfq: (id: string, partial: Partial<CustomerRFQ>) => void;
   updateSupplierPo: (id: string, partial: Partial<SupplierPO>) => void;
   updateJob: (id: string, partial: Partial<Job>) => void;
+  cancelJob: (id: string, reason: string, by: string) => void;
   updateInspection: (id: string, partial: Partial<Inspection>) => void;
   setInspectionStatus: (id: string, result: Inspection['result']) => void;
   updateNCR: (id: string, partial: Partial<NCR>) => void;
@@ -261,7 +266,18 @@ function buildSeed() {
     notifications: [...NOTIFICATIONS],
     unreadCount: NOTIFICATIONS.filter(n => !n.read).length,
 
-    jobs: [...JOBS, ...FLAGSHIP_JOBS, ...JOBS_DEMO].map(j => ({ ...j, stages: [...j.stages] })),
+    jobs: [...JOBS, ...FLAGSHIP_JOBS, ...JOBS_DEMO].map(j => {
+      const snapshotTemplate = j.stageTemplateId
+        ? STAGE_TEMPLATES.find(template => template.id === j.stageTemplateId)
+        : STAGE_TEMPLATES.find(template => template.stages.length === j.stages.length) ?? STAGE_TEMPLATES[0];
+      return {
+        ...j,
+        stageTemplateId: j.stageTemplateId ?? snapshotTemplate?.id,
+        stageTemplateName: j.stageTemplateName && !j.stageTemplateName.toLowerCase().startsWith('custom') ? j.stageTemplateName : snapshotTemplate?.name,
+        stages: [...j.stages],
+      };
+    }),
+    jobUpdates: [] as JobUpdate[],
     lots: [...MATERIAL_LOTS, ...MATERIAL_LOTS_DEMO],
     inventory: [...INVENTORY, ...INVENTORY_DEMO],
     movements: [...STOCK_MOVEMENTS],
@@ -359,10 +375,15 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
 
   // ── Job Actions ──
   updateJobStage: (jobId, stageId, update) => set(s => ({
-    jobs: s.jobs.map(j => j.id !== jobId ? j : {
-      ...j,
-      stages: j.stages.map(st => st.id !== stageId ? st : { ...st, ...update }),
-    }),
+    jobs: s.jobs.map(j => j.id !== jobId ? j : (() => {
+      const stages = j.stages.map(st => st.id !== stageId ? st : { ...st, ...update });
+      const nextStage = stages.find(st => st.status === 'in_progress') ?? stages.find(st => st.status === 'pending');
+      return {
+        ...j,
+        currentStage: nextStage?.name ?? j.currentStage,
+        stages,
+      };
+    })()),
   })),
 
   addJobUpdate: (jobId, update) => {
@@ -380,6 +401,11 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
 
   setJobStatus: (jobId, status) => set(s => ({
     jobs: s.jobs.map(j => j.id !== jobId ? j : { ...j, status }),
+    auditEvents: [...s.auditEvents, {
+      id: `ae-${Date.now()}`, actor: s.currentUser.name, actorId: s.currentUser.id,
+      scope: 'Job', action: 'status_change', entityId: jobId, entityRef: s.jobs.find(j => j.id === jobId)?.jobNumber ?? jobId,
+      timestamp: new Date().toISOString(), source: 'ui', after: { status },
+    }],
   })),
 
   resolveBlocker: (blockerId) => {
@@ -430,39 +456,108 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
     const timestamp = new Date().toISOString();
     set(s => {
       const lot = s.lots.find(l => l.id === lotId);
-      if (!lot) return s;
+      const stock = lot ? s.inventory.find(i => i.materialItemId === lot.materialItemId && i.locationId === lot.storeLocationId) : undefined;
+      if (!lot || !stock || !['available', 'reserved'].includes(lot.status) || qty <= 0 || qty > stock.availableQty) return s;
       const newMovement: StockMovement = {
         id: `sm-${Date.now()}`, lotId, movementType: 'Issue', primaryQty: qty,
         uom: lot.primaryUom, fromLocation: lot.storeLocationName, toLocation: 'WIP Store',
         referenceType: 'Job', referenceId: jobId, referenceNumber: jobNumber, performedBy: by, timestamp,
       };
       return {
-        lots: s.lots.map(l => l.id !== lotId ? l : { ...l, primaryQty: l.primaryQty - qty, status: 'issued' as const }),
+        lots: s.lots.map(l => l.id !== lotId ? l : { ...l, primaryQty: Math.max(0, l.primaryQty - qty), status: l.primaryQty - qty <= 0 ? 'issued' as const : l.status }),
         movements: [...s.movements, newMovement],
-        inventory: s.inventory.map(inv => inv.materialItemId === lot.materialItemId
-          ? { ...inv, onHandQty: inv.onHandQty - qty, availableQty: Math.max(0, inv.availableQty - qty) }
-          : inv),
+        inventory: s.inventory.map(inv => inv.id !== stock.id ? inv
+          : { ...inv, onHandQty: Math.max(0, inv.onHandQty - qty), availableQty: Math.max(0, inv.availableQty - qty), reservedQty: Math.max(0, inv.reservedQty - Math.min(inv.reservedQty, qty)), shortage: inv.availableQty - qty < inv.reorderPoint }),
+        jobMaterialReqs: s.jobMaterialReqs.map(req => req.jobId !== jobId || req.materialItemId !== lot.materialItemId ? req : { ...req, issuedQty: req.issuedQty + qty }),
+        auditEvents: [...s.auditEvents, { id: `ae-${Date.now()}`, actor: by, actorId: s.currentUser.id, scope: 'Inventory', action: 'issue', entityId: lotId, entityRef: jobNumber, timestamp, source: 'ui', after: { qty, jobId } }],
       };
     });
     get().showToast({ type: 'success', title: 'Material issued', body: `${qty} ${get().lots.find(l => l.id === lotId)?.primaryUom ?? ''} issued to ${jobNumber}.` });
+  },
+
+  reserveMaterial: (requirementId, qty, by) => {
+    set(s => {
+      const req = s.jobMaterialReqs.find(r => r.id === requirementId);
+      const job = req ? s.jobs.find(j => j.id === req.jobId) : undefined;
+      if (!req || !job || qty <= 0) return s;
+      const siteLocationIds = new Set(s.storeLocations.filter(l => l.siteId === job.siteId).map(l => l.id));
+      const stock = s.inventory.find(i => i.materialItemId === req.materialItemId && siteLocationIds.has(i.locationId) && i.availableQty >= qty);
+      if (!stock) return s;
+      const lotId = req.lotIds[0] ?? s.lots.find(l => l.materialItemId === req.materialItemId)?.id ?? '';
+      const timestamp = new Date().toISOString();
+      return {
+        inventory: s.inventory.map(i => i.id !== stock.id ? i : { ...i, availableQty: i.availableQty - qty, reservedQty: i.reservedQty + qty }),
+        jobMaterialReqs: s.jobMaterialReqs.map(r => r.id !== requirementId ? r : {
+          ...r, reservedQty: r.reservedQty + qty, shortage: r.requiredQty > r.reservedQty + qty,
+        }),
+        movements: [...s.movements, {
+          id: `sm-${Date.now()}`, lotId, movementType: 'Reservation' as const, primaryQty: qty, uom: req.uom,
+          fromLocation: stock.locationName, toLocation: `Reserved for ${job.jobNumber}`, referenceType: 'Job', referenceId: job.id,
+          referenceNumber: job.jobNumber, performedBy: by, timestamp,
+        }],
+        auditEvents: [...s.auditEvents, {
+          id: `ae-${Date.now()}`, actor: by, actorId: s.currentUser.id, scope: 'Inventory', action: 'reserve', entityId: requirementId,
+          entityRef: job.jobNumber, timestamp, source: 'ui', after: { qty, materialItemId: req.materialItemId, jobId: job.id },
+        }],
+      };
+    });
+    get().showToast({ type: 'success', title: 'Material reserved', body: 'The reservation is now reflected in Stock on Hand and Site Need.' });
+  },
+
+  returnMaterial: (lotId, qty, jobId, jobNumber, by) => {
+    set(s => {
+      const lot = s.lots.find(l => l.id === lotId);
+      if (!lot || qty <= 0) return s;
+      const inventoryRow = s.inventory.find(i => i.materialItemId === lot.materialItemId && i.locationName === lot.storeLocationName)
+        ?? s.inventory.find(i => i.materialItemId === lot.materialItemId);
+      if (!inventoryRow) return s;
+      const timestamp = new Date().toISOString();
+      return {
+        lots: s.lots.map(l => l.id !== lotId ? l : { ...l, primaryQty: l.primaryQty + qty, status: 'available' as const }),
+        inventory: s.inventory.map(i => i.id !== inventoryRow.id ? i : { ...i, onHandQty: i.onHandQty + qty, availableQty: i.availableQty + qty, shortage: i.availableQty + qty < i.reorderPoint }),
+        movements: [...s.movements, {
+          id: `sm-${Date.now()}`, lotId, movementType: 'Return' as const, primaryQty: qty, uom: lot.primaryUom,
+          fromLocation: `Job ${jobNumber}`, toLocation: lot.storeLocationName, referenceType: 'Job Return', referenceId: jobId,
+          referenceNumber: jobNumber, performedBy: by, timestamp, notes: 'Accepted return from cancelled or completed job.',
+        }],
+        auditEvents: [...s.auditEvents, {
+          id: `ae-${Date.now()}`, actor: by, actorId: s.currentUser.id, scope: 'Inventory', action: 'return', entityId: lotId,
+          entityRef: jobNumber, timestamp, source: 'ui', after: { qty, jobId, movementType: 'Return' },
+        }],
+      };
+    });
+    get().showToast({ type: 'success', title: 'Material return recorded', body: 'Returned material is available only after the return transaction is accepted.' });
   },
 
   transferLot: (lotId, toLocation, by) => {
     const timestamp = new Date().toISOString();
     set(s => {
       const lot = s.lots.find(l => l.id === lotId);
-      if (!lot) return s;
+      if (!lot || lot.status !== 'available' || lot.primaryQty <= 0) return s;
+      const destination = s.storeLocations.find(sl => sl.id === toLocation || sl.name === toLocation);
+      const destinationName = destination?.name ?? toLocation;
+      if (destinationName === lot.storeLocationName) return s;
+      const sourceInventory = s.inventory.find(i => i.materialItemId === lot.materialItemId && i.locationName === lot.storeLocationName);
+      const destinationInventory = s.inventory.find(i => i.materialItemId === lot.materialItemId && (i.locationId === destination?.id || i.locationName === destinationName));
       const newMovement: StockMovement = {
         id: `sm-${Date.now()}`, lotId, movementType: 'Transfer-Out', primaryQty: lot.primaryQty,
-        uom: lot.primaryUom, fromLocation: lot.storeLocationName, toLocation,
+        uom: lot.primaryUom, fromLocation: lot.storeLocationName, toLocation: destinationName,
         referenceType: 'Transfer', referenceId: lotId, referenceNumber: lot.lotNumber, performedBy: by, timestamp,
       };
+      const nextInventory = s.inventory
+        .map(i => sourceInventory && i.id === sourceInventory.id ? { ...i, onHandQty: Math.max(0, i.onHandQty - lot.primaryQty), availableQty: Math.max(0, i.availableQty - lot.primaryQty), lotCount: Math.max(0, i.lotCount - 1) } : i)
+        .map(i => destinationInventory && i.id === destinationInventory.id ? { ...i, onHandQty: i.onHandQty + lot.primaryQty, availableQty: i.availableQty + lot.primaryQty, lotCount: i.lotCount + 1 } : i);
+      if (destination && !destinationInventory) {
+        const sourceMaster = s.inventory.find(i => i.materialItemId === lot.materialItemId);
+        if (sourceMaster) nextInventory.push({ ...sourceMaster, id: `inv-${Date.now()}-${destination.id}`, locationId: destination.id, locationName: destination.name, onHandQty: lot.primaryQty, availableQty: lot.primaryQty, reservedQty: 0, qcHoldQty: 0, inTransitQty: 0, lotCount: 1, shortage: lot.primaryQty < sourceMaster.reorderPoint });
+      }
       return {
-        lots: s.lots.map(l => l.id !== lotId ? l : { ...l, storeLocationName: toLocation }),
-        movements: [...s.movements, newMovement],
+        lots: s.lots.map(l => l.id !== lotId ? l : { ...l, storeLocationId: destination?.id ?? l.storeLocationId, storeLocationName: destinationName }),
+        inventory: nextInventory,
+        movements: [...s.movements, newMovement, { ...newMovement, id: `sm-${Date.now()}-in`, movementType: 'Transfer-In' as const, fromLocation: lot.storeLocationName, toLocation: destinationName }],
       };
     });
-    get().showToast({ type: 'success', title: 'Lot transferred', body: `Lot moved to ${toLocation}.` });
+    get().showToast({ type: 'success', title: 'Lot transferred', body: `Lot moved to ${toLocation}. Source stock was reduced before destination stock was added.` });
   },
 
   setLotStatus: (lotId, status) => set(s => ({
@@ -636,6 +731,55 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
   }),
   addSupplierPO: (spo) => set(s => ({ supplierPos: [spo, ...s.supplierPos] })),
   addGRN: (grn) => set(s => ({ grns: [grn, ...s.grns] })),
+  acceptGRN: (grnId, by) => {
+    set(s => {
+      const grn = s.grns.find(g => g.id === grnId);
+      if (!grn || grn.status === 'accepted') return s;
+      const lines = s.supplierPoLines.filter(line => line.spoId === grn.spoId && line.receivedQty > 0 && line.acceptedQty > 0);
+      if (lines.length === 0) return s;
+      const timestamp = new Date().toISOString();
+      let inventory = [...s.inventory];
+      let lots = [...s.lots];
+      let movements = [...s.movements];
+      for (const line of lines) {
+        const material = s.materials.find(m => m.id === line.materialItemId);
+        const locationId = grn.storeLocationId ?? s.storeLocations.find(l => l.siteId === grn.siteId)?.id ?? s.storeLocations[0]?.id ?? '';
+        const locationName = grn.storeLocationName ?? s.storeLocations.find(l => l.id === locationId)?.name ?? 'Receiving Store';
+        const lotId = `lot-${Date.now()}-${line.id}`;
+        lots.push({
+          id: lotId, lotNumber: `${grn.grnNumber}-${line.materialItemId}`, materialItemId: line.materialItemId,
+          materialName: line.materialName, supplierId: grn.supplierId, supplierName: grn.supplierName, grnId,
+          receivedDate: grn.receivedDate, grade: material?.standardGrade, status: 'available', storeLocationId: locationId,
+          storeLocationName: locationName, primaryQty: line.acceptedQty, primaryUom: line.uom, certStatus: 'pending',
+        });
+        const existing = inventory.find(i => i.materialItemId === line.materialItemId && i.locationId === locationId);
+        if (existing) {
+          inventory = inventory.map(i => i.id !== existing.id ? i : {
+            ...i, onHandQty: i.onHandQty + line.acceptedQty, availableQty: i.availableQty + line.acceptedQty,
+            lotCount: i.lotCount + 1, shortage: i.availableQty + line.acceptedQty < i.reorderPoint,
+          });
+        } else {
+          inventory.unshift({
+            id: `inv-${Date.now()}-${line.materialItemId}`, materialItemId: line.materialItemId,
+            materialCode: material?.itemCode ?? line.materialItemId, materialName: line.materialName,
+            categoryName: material?.categoryName ?? 'Uncategorised', locationId, locationName,
+            onHandQty: line.acceptedQty, availableQty: line.acceptedQty, reservedQty: 0, qcHoldQty: 0,
+            inTransitQty: 0, primaryUom: line.uom, reorderPoint: material?.reorderPoint ?? 0,
+            shortage: line.acceptedQty < (material?.reorderPoint ?? 0), lotCount: 1,
+          });
+        }
+        movements.push({ id: `sm-${Date.now()}-${line.id}`, lotId, movementType: 'Receipt', primaryQty: line.acceptedQty, uom: line.uom,
+          toLocation: locationName, referenceType: 'GRN', referenceId: grn.id, referenceNumber: grn.grnNumber, performedBy: by, timestamp });
+      }
+      return {
+        grns: s.grns.map(g => g.id === grnId ? { ...g, status: 'accepted' as const } : g),
+        inventory, lots, movements,
+        auditEvents: [...s.auditEvents, { id: `ae-${Date.now()}`, actor: by, actorId: s.currentUser.id, scope: 'GRN', action: 'accept',
+          entityId: grn.id, entityRef: grn.grnNumber, timestamp, source: 'ui', after: { acceptedLineCount: lines.length } }],
+      };
+    });
+    get().showToast({ type: 'success', title: 'GRN accepted', body: 'Accepted quantities are now available in Inventory. Pending and rejected quantities remain excluded.' });
+  },
   addJob: (job) => set(s => ({ jobs: [job, ...s.jobs] })),
   addInspection: (ins) => set(s => ({ inspections: [ins, ...s.inspections] })),
   addDispatchRecord: (d) => set(s => ({ dispatches: [d, ...s.dispatches] })),
@@ -700,7 +844,45 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
   addSupplier: (supplier) => set(s => ({ suppliers: [supplier, ...s.suppliers] })),
   updateRfq: (id, partial) => set(s => ({ rfqs: s.rfqs.map(r => r.id === id ? { ...r, ...partial } : r) })),
   updateSupplierPo: (id, partial) => set(s => ({ supplierPos: s.supplierPos.map(p => p.id === id ? { ...p, ...partial } : p) })),
-  updateJob: (id, partial) => set(s => ({ jobs: s.jobs.map(j => j.id === id ? { ...j, ...partial } : j) })),
+  updateJob: (id, partial) => set(s => {
+    const current = s.jobs.find(j => j.id === id);
+    if (!current) return s;
+    const next = { ...current, ...partial };
+    return {
+      jobs: s.jobs.map(j => j.id === id ? next : j),
+      auditEvents: [...s.auditEvents, { id: `ae-${Date.now()}`, actor: s.currentUser.name, actorId: s.currentUser.id, scope: 'Job', action: 'update',
+        entityId: id, entityRef: current.jobNumber, timestamp: new Date().toISOString(), source: 'ui', before: current as unknown as Record<string, unknown>, after: next as unknown as Record<string, unknown> }],
+    };
+  }),
+  cancelJob: (id, reason, by) => {
+    set(s => {
+      const job = s.jobs.find(j => j.id === id);
+      if (!job || job.status === 'complete' || job.status === 'cancelled' || !reason.trim()) return s;
+      const requirements = s.jobMaterialReqs.filter(r => r.jobId === id);
+      const releasable = requirements.reduce((sum, r) => sum + Math.max(0, r.reservedQty - r.issuedQty), 0);
+      const siteLocationIds = new Set(s.storeLocations.filter(l => l.siteId === job.siteId).map(l => l.id));
+      const inventory = s.inventory.map(item => {
+        const req = requirements.find(r => r.materialItemId === item.materialItemId);
+        if (!req || !siteLocationIds.has(item.locationId)) return item;
+        const release = Math.max(0, req.reservedQty - req.issuedQty);
+        return release > 0 ? { ...item, reservedQty: Math.max(0, item.reservedQty - release), availableQty: item.availableQty + release } : item;
+      });
+      const timestamp = new Date().toISOString();
+      return {
+        jobs: s.jobs.map(j => j.id === id ? { ...j, status: 'cancelled' as const, cancellationReason: reason.trim(), cancelledAt: timestamp, cancelledBy: by } : j),
+        inventory,
+        jobMaterialReqs: s.jobMaterialReqs.map(r => r.jobId === id ? { ...r, reservedQty: r.issuedQty, shortage: false } : r),
+        movements: releasable > 0 ? [...s.movements, ...requirements.filter(r => r.reservedQty > r.issuedQty).map(r => ({
+          id: `sm-${Date.now()}-${r.id}`, lotId: r.lotIds[0] ?? '', movementType: 'Reservation-Release' as const,
+          primaryQty: Math.max(0, r.reservedQty - r.issuedQty), uom: r.uom, fromLocation: `Reserved for ${job.jobNumber}`,
+          toLocation: job.siteName, referenceType: 'Job Cancellation', referenceId: job.id, referenceNumber: job.jobNumber, performedBy: by, timestamp,
+        }))] : s.movements,
+        auditEvents: [...s.auditEvents, { id: `ae-${Date.now()}`, actor: by, actorId: s.currentUser.id, scope: 'Job', action: 'cancel', entityId: id,
+          entityRef: job.jobNumber, timestamp, source: 'ui', reason, before: { status: job.status }, after: { status: 'cancelled', releasedQty: releasable } }],
+      };
+    });
+    get().showToast({ type: 'success', title: 'Job cancelled', body: 'The job remains in history; reserved but unissued material was released.' });
+  },
   updateInspection: (id, partial) => set(s => ({ inspections: s.inspections.map(i => i.id === id ? { ...i, ...partial } : i) })),
   setInspectionStatus: (id, result) => set(s => ({ inspections: s.inspections.map(i => i.id === id ? { ...i, result } : i) })),
   updateNCR: (id, partial) => set(s => ({ ncrs: s.ncrs.map(n => n.id === id ? { ...n, ...partial } : n) })),
@@ -746,7 +928,14 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
   },
   onRehydrateStorage: () => (state) => {
     if (!state) return;
-    useStore.setState(stampPlaces(state));
+    useStore.setState(stampPlaces({
+      ...state,
+      jobUpdates: state.jobUpdates ?? [],
+      jobs: state.jobs.map(j => {
+        const template = j.stageTemplateId ? STAGE_TEMPLATES.find(t => t.id === j.stageTemplateId) : STAGE_TEMPLATES.find(t => t.stages.length === j.stages.length) ?? STAGE_TEMPLATES[0];
+        return { ...j, stageTemplateId: j.stageTemplateId ?? template?.id, stageTemplateName: j.stageTemplateName && !j.stageTemplateName.toLowerCase().startsWith('custom') ? j.stageTemplateName : template?.name };
+      }),
+    }));
   },
 }));
 

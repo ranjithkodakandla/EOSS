@@ -23,12 +23,12 @@ const emptyMaterialForm = {
 };
 
 export default function Inventory() {
-  const { inventory, lots, sites, currentUser, materials, addMaterial, updateMaterial, addInventoryItem, updateInventoryItem, showToast } = useStore();
+  const { inventory, lots, sites, storeLocations, currentUser, materials, addMaterial, updateMaterial, addInventoryItem, updateInventoryItem, showToast } = useStore();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const shortageFocus = searchParams.get('focus') === 'shortage';
 
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState(searchParams.get('search') ?? '');
   const [selectedLocation, setSelectedLocation] = useState('all');
   const [shortagesOnly, setShortagesOnly] = useState(shortageFocus);
   const [sortKey, setSortKey] = useState<SortKey>('materialCode');
@@ -119,9 +119,9 @@ export default function Inventory() {
     return sortRows(filteredRows, sortKey, sortDir, (row, key) => row[key as SortKey]);
   }, [inventory, search, selectedLocation, shortagesOnly, sortKey, sortDir]);
 
-  const raisePr = (item: { materialCode: string; materialName: string; primaryUom: string; reorderPoint: number; availableQty: number }) => {
+  const raisePr = (item: { materialCode: string; materialName: string; primaryUom: string; reorderPoint: number; availableQty: number }, grade?: string) => {
     const qty = Math.max(item.reorderPoint - item.availableQty, item.reorderPoint || 1);
-    const q = new URLSearchParams({ code: item.materialCode, name: item.materialName, qty: String(qty), uom: item.primaryUom });
+    const q = new URLSearchParams({ code: item.materialCode, name: item.materialName, qty: String(qty), uom: item.primaryUom, ...(grade ? { grade } : {}) });
     navigate(`/procurement/pr/new?${q.toString()}`);
   };
 
@@ -176,11 +176,11 @@ export default function Inventory() {
 
         {currentUser.role !== 'operator' && (
           <button
-            onClick={openAddMaterial}
+            onClick={() => navigate('/procurement/pr/new')}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white"
             style={{ background: 'var(--brand-fill)' }}
           >
-            <Plus size={13} /> Add Material
+            <Plus size={13} /> Create Purchase Requisition
           </button>
         )}
       </div>
@@ -202,7 +202,7 @@ export default function Inventory() {
         >
           All stores
         </button>
-        {STORE_LOCATIONS.filter(loc => inventory.some(i => i.locationId === loc.id)).map(loc => {
+        {storeLocations.filter(loc => loc.locationType !== 'Dispatch').map(loc => {
           const items = inventory.filter(i => i.locationId === loc.id);
           const hasShortage = items.some(i => i.shortage);
           const isSelected = selectedLocation === loc.id;
@@ -253,8 +253,7 @@ export default function Inventory() {
               key={item.id}
               role="link"
               onClick={() => {
-                const firstLot = lots.find(l => l.materialItemId === item.materialItemId);
-                if (firstLot) navigate(`/inventory/lot/${firstLot.id}`);
+                navigate(`/inventory/item/${item.materialItemId}`);
               }}
               className="w-full text-left rounded-xl border p-3 cursor-pointer"
               style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
@@ -286,7 +285,7 @@ export default function Inventory() {
               )}
               {item.shortage && (
                 <div className="mt-2 flex gap-2">
-                  <button type="button" onClick={e => { e.stopPropagation(); raisePr(item); }}
+                  <button type="button" onClick={e => { e.stopPropagation(); raisePr(item, materials.find(m => m.id === item.materialItemId)?.standardGrade); }}
                     className="px-2.5 py-1 rounded-lg text-xs font-semibold text-white" style={{ background: 'var(--brand-fill)' }}>
                     Raise PR
                   </button>
@@ -349,13 +348,10 @@ export default function Inventory() {
                     }}
                     onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(var(--brand-rgb,112,72,245),0.04)'; }}
                     onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = idx % 2 === 0 ? 'var(--surface)' : 'var(--surface-2)'; }}
-                    onClick={() => {
-                      const firstLot = lots.find(l => l.materialItemId === item.materialItemId);
-                      if (firstLot) navigate(`/inventory/lot/${firstLot.id}`);
-                    }}
+                    onClick={() => navigate(`/inventory/item/${item.materialItemId}`)}
                   >
                     <td className="px-4 py-3 font-mono text-xs font-bold whitespace-nowrap" style={{ color: 'var(--brand)' }}>
-                      {item.materialCode}
+                      <button type="button" className="hover:underline" onClick={e => { e.stopPropagation(); navigate(`/inventory/item/${item.materialItemId}`); }}>{item.materialCode}</button>
                     </td>
                     <td className="px-4 py-3">
                       <div className="text-sm font-medium" style={{ color: 'var(--text)' }}>{item.materialName}</div>
@@ -387,11 +383,11 @@ export default function Inventory() {
                     <td className="px-4 py-3 text-right" onClick={e => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1.5">
                         {item.lotCount > 0 && (
-                          <span className="text-xs" style={{ color: 'var(--text-3)' }}>{item.lotCount} lot{item.lotCount !== 1 ? 's' : ''}</span>
+                          <button type="button" className="text-xs hover:underline" style={{ color: 'var(--brand)' }} onClick={() => navigate(`/inventory/item/${item.materialItemId}?view=lots`)}>{item.lotCount} lot{item.lotCount !== 1 ? 's' : ''}</button>
                         )}
                         {item.shortage && (
                           <>
-                            <button type="button" onClick={() => raisePr(item)} className="px-2 py-1 rounded-lg text-xs font-semibold text-white" style={{ background: 'var(--brand-fill)' }}>
+                            <button type="button" onClick={() => raisePr(item, materials.find(m => m.id === item.materialItemId)?.standardGrade)} className="px-2 py-1 rounded-lg text-xs font-semibold text-white" style={{ background: 'var(--brand-fill)' }}>
                               Raise PR
                             </button>
                             <MoveStockButton item={item} inventory={inventory} navigate={navigate} />
@@ -417,9 +413,15 @@ export default function Inventory() {
         className="flex-shrink-0 flex items-center gap-6 px-5 py-2 border-t text-xs"
         style={{ borderColor: 'var(--border)', background: 'var(--surface)', color: 'var(--text-3)' }}
       >
-        <span>{filtered.length} of {inventory.length} items</span>
+        <span>{filtered.length} of {inventory.length} stock rows</span>
         <span>·</span>
-        <span>{STORE_LOCATIONS.length} store locations</span>
+        <span>{storeLocations.filter(l => l.locationType !== 'Dispatch').length} active store locations</span>
+        <span>·</span>
+        <span>{inventory.filter(i => selectedLocation === 'all' || i.locationId === selectedLocation).reduce((sum, i) => sum + i.availableQty, 0).toLocaleString('en-IN')} available</span>
+        <span>·</span>
+        <span>{inventory.filter(i => selectedLocation === 'all' || i.locationId === selectedLocation).reduce((sum, i) => sum + i.reservedQty, 0).toLocaleString('en-IN')} reserved</span>
+        <span>·</span>
+        <span>{inventory.filter(i => selectedLocation === 'all' || i.locationId === selectedLocation).reduce((sum, i) => sum + i.qcHoldQty, 0).toLocaleString('en-IN')} QC hold</span>
         {shortageCount > 0 && (
           <>
             <span>·</span>
@@ -517,7 +519,7 @@ function MoveStockButton({ item, inventory, navigate }: {
     uom: item.primaryUom,
   });
   return (
-    <button type="button" onClick={e => { e.stopPropagation(); navigate(`/transfers?${q.toString()}`); }}
+    <button type="button" onClick={e => { e.stopPropagation(); navigate(`/inventory/transfer?${q.toString()}`); }}
       className="px-2 py-1 rounded-lg text-xs font-semibold border" style={{ borderColor: 'var(--brand)', color: 'var(--brand)' }}>
       Move stock
     </button>

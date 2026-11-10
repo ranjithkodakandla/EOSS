@@ -2,18 +2,17 @@ import React from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, CheckCircle, XCircle } from 'lucide-react';
 import { useStore } from '../../store';
-import { SUPPLIER_PO_LINES } from '../../data/seed';
 import StatusChip from '../../components/layout/StatusChip';
 
 export default function GRNDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { grns, currentUser, showToast } = useStore();
+  const { grns, supplierPoLines, currentUser, acceptGRN, showToast } = useStore();
 
   const grn = grns.find(g => g.id === id);
   if (!grn) return <div className="p-6 text-[var(--text-2)]">GRN not found</div>;
 
-  const lines = SUPPLIER_PO_LINES.filter(l => l.spoId === grn.spoId);
+  const lines = supplierPoLines.filter(l => l.spoId === grn.spoId && (grn.status === 'pending_qc' ? l.status === 'pending' : l.receivedQty > 0));
   const canApprove = ['owner', 'storekeeper', 'buyer'].includes(currentUser.role);
 
   return (
@@ -82,8 +81,9 @@ export default function GRNDetail() {
           <h3 className="font-semibold text-sm text-[var(--text)] mb-3">GRN Actions</h3>
           <div className="flex gap-2">
             <button
-              onClick={() => showToast({ type: 'success', title: 'GRN Accepted', body: `${grn.grnNumber} accepted and stock updated` })}
-              className="flex items-center gap-2 px-4 py-2 bg-[var(--success)] text-white rounded-lg text-sm font-medium"
+              onClick={() => acceptGRN(grn.id, currentUser.name)}
+              disabled={!lines.some(line => line.acceptedQty > 0)}
+              className="flex items-center gap-2 px-4 py-2 bg-[var(--success)] text-white rounded-lg text-sm font-medium disabled:opacity-40"
             >
               <CheckCircle size={14} /> Accept GRN
             </button>

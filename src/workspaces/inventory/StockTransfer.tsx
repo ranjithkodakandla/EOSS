@@ -13,7 +13,7 @@ export default function StockTransfer() {
   const [transferNote, setTransferNote] = useState('');
   const [submitted, setSubmitted] = useState(false);
 
-  const availableLots = lots.filter(l => l.status === 'available' || l.status === 'reserved');
+  const availableLots = lots.filter(l => l.status === 'available' && l.primaryQty > 0);
   const lotObj = lots.find(l => l.id === selectedLot);
 
   const isCrossGstin = false; // In prototype: flag when from/to sites differ — placeholder
@@ -21,8 +21,7 @@ export default function StockTransfer() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedLot || !toLocation) return;
-    const toLocName = storeLocations.find(sl => sl.id === toLocation)?.name ?? toLocation;
-    transferLot(selectedLot, toLocName, currentUser.name);
+    transferLot(selectedLot, toLocation, currentUser.name);
     setSubmitted(true);
     setTimeout(() => navigate('/inventory'), 1500);
   };
@@ -111,7 +110,7 @@ export default function StockTransfer() {
           >
             <option value="">Select destination…</option>
             {storeLocations
-              .filter(sl => !lotObj || sl.name !== lotObj.storeLocationName)
+              .filter(sl => !lotObj || sl.id !== lotObj.storeLocationId)
               .map(sl => (
                 <option key={sl.id} value={sl.id}>
                   {placeOf(sl.siteId, sl.name)} ({sl.locationType})

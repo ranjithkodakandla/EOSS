@@ -269,12 +269,15 @@ export interface Job {
   owner: string;
   currentStage: string;
   stages: JobStage[];
-  materialReadiness: 'ready' | 'partial' | 'shortage' | 'pending';
+  materialReadiness: 'ready' | 'available' | 'partial' | 'shortage' | 'pending' | 'awaiting_procurement' | 'quality_hold';
   hasBlocker: boolean;
   value?: number;
   stageTemplateId?: ID;
   stageTemplateName?: string;
   poLineId?: ID;
+  cancellationReason?: string;
+  cancelledAt?: string;
+  cancelledBy?: string;
 }
 
 export interface JobStage {
@@ -364,7 +367,7 @@ export interface GoodsReceipt {
 }
 
 // ── Stock Movements ──
-export type MovementType = 'Receipt' | 'Issue' | 'Return' | 'Transfer-In' | 'Transfer-Out' | 'Adjustment' | 'Dispatch-Out' | 'Scrap';
+export type MovementType = 'Receipt' | 'Issue' | 'Return' | 'Reservation' | 'Reservation-Release' | 'Transfer-In' | 'Transfer-Out' | 'Adjustment' | 'Dispatch-Out' | 'Scrap';
 
 export interface StockMovement {
   id: ID;

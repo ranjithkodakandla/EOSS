@@ -736,6 +736,17 @@ export const COMPANY_CONFIG = {
 // ── Production Stage Templates (configurable routes) ──
 export const STAGE_TEMPLATES: StageTemplate[] = [
   {
+    id: 'tmpl-standard-fabrication', name: 'Standard Fabrication Workflow', appliesToCategory: 'Fabrication / Welded Assemblies',
+    description: 'Default route for the existing fabrication jobs; the instantiated stage sequence is snapshotted on each job.',
+    stages: [
+      { sequence: 1, name: 'Cutting', workCentre: 'Cutting Bay', plannedDurationDays: 3, inspectionRequired: false },
+      { sequence: 2, name: 'Fit-up', workCentre: 'Fabrication Bay', plannedDurationDays: 3, inspectionRequired: false, dependsOnSequence: 1 },
+      { sequence: 3, name: 'Welding', workCentre: 'Welding Bay', plannedDurationDays: 5, inspectionRequired: false, dependsOnSequence: 2 },
+      { sequence: 4, name: 'NDT', workCentre: 'QC Bay', plannedDurationDays: 2, inspectionRequired: true, dependsOnSequence: 3 },
+      { sequence: 5, name: 'Painting & Dispatch', workCentre: 'Paint Bay', plannedDurationDays: 2, inspectionRequired: false, dependsOnSequence: 4 },
+    ],
+  },
+  {
     id: 'tmpl-heavy-fab', name: 'Heavy Forged Component Route', appliesToCategory: 'Heavy Forgings / Pressure Parts',
     description: 'For large forged/machined pressure-boundary components requiring NDT and final inspection before dispatch.',
     stages: [

@@ -1,105 +1,37 @@
 import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Search } from 'lucide-react';
 import { useStore } from '../../store';
 import StockWorkspaceNav from '../../components/layout/StockWorkspaceNav';
+import { jobMaterialQuantities } from '../../domain/inventory';
 
 export default function Allocations() {
   const navigate = useNavigate();
-  const { jobMaterialReqs, jobs, inventory, siteAllocations, showToast } = useStore();
-  const [extra, setExtra] = useState<Record<string, number>>({});
-  const [released, setReleased] = useState<Record<string, number>>({});
-  const [showHistory, setShowHistory] = useState(false);
+  const { jobMaterialReqs, jobs, inventory, storeLocations, purchaseReqs, reserveMaterial, showToast } = useStore();
+  const [query, setQuery] = useState('');
+  const [status, setStatus] = useState('all');
 
-  const rows = useMemo(() => {
-    return jobMaterialReqs
-      .map(req => {
-        const job = jobs.find(j => j.id === req.jobId);
-        if (!job || job.status === 'complete' || job.status === 'cancelled') return null;
-        const reserved = Math.max(0, req.reservedQty + (extra[req.id] || 0) - (released[req.id] || 0));
-        const gap = Math.max(0, req.requiredQty - reserved);
-        const places = inventory.filter(i => i.materialItemId === req.materialItemId);
-        const freeHere = places.filter(i => i.locationName.toLowerCase().includes(job.siteName.split(' ')[0].toLowerCase()) || i.locationId.startsWith('loc-rm') && job.siteId === 'site-hyd').reduce((s, i) => s + i.availableQty, 0);
-        const freeElsewhere = places.filter(i => i.availableQty > 0);
-        return { req, job, reserved, gap, freeElsewhere, freeHere };
-      })
-      .filter((row): row is NonNullable<typeof row> => !!row)
-      .sort((a, b) => b.gap - a.gap);
-  }, [jobMaterialReqs, jobs, inventory, extra, released]);
+  const rows = useMemo(() => jobs.filter(j => !['complete', 'cancelled'].includes(j.status)).flatMap(job => jobMaterialQuantities(job, jobMaterialReqs, inventory, storeLocations).map(row => ({ ...row, job }))).filter(row => {
+    const q = query.toLowerCase();
+    const shortage = row.shortageQty > 0;
+    return (!q || `${row.job.jobNumber} ${row.job.siteName} ${row.req.materialName}`.toLowerCase().includes(q)) && (status === 'all' || (status === 'shortage' ? shortage : status === 'covered' ? !shortage : true));
+  }).sort((a, b) => b.shortageQty - a.shortageQty), [jobs, jobMaterialReqs, inventory, storeLocations, query, status]);
 
-  const reserve = (id: string, gap: number, free: number) => {
-    const add = Math.max(1, Math.min(gap, free || gap));
-    setExtra(s => ({ ...s, [id]: (s[id] || 0) + add }));
-    showToast({ type: 'success', title: 'Reserved', body: `${add} held against this job.` });
+  const reserve = (row: (typeof rows)[number]) => {
+    const available = Math.min(row.shortageQty, row.availableQty);
+    if (available <= 0) return;
+    reserveMaterial(row.req.id, available, useStore.getState().currentUser.name);
   };
 
-  const release = (id: string, reserved: number) => {
-    const drop = Math.min(reserved, Math.max(1, Math.round(reserved * 0.5) || 1));
-    setReleased(s => ({ ...s, [id]: (s[id] || 0) + drop }));
-    showToast({ type: 'info', title: 'Released', body: `${drop} returned to free stock.` });
+  const raisePr = (row: (typeof rows)[number]) => {
+    const uncovered = row.shortageQty;
+    const duplicate = purchaseReqs.some(pr => pr.jobId === row.job.id && pr.status !== 'cancelled' && (pr as PurchaseRequisitionWithLines).lines?.some(line => line.materialCode === row.req.materialItemId || line.description === row.req.materialName));
+    if (duplicate) { showToast({ type: 'info', title: 'Procurement already in progress', body: 'An open PR already covers this job requirement.' }); return; }
+    const q = new URLSearchParams({ job: row.job.id, name: row.req.materialName, code: row.req.materialItemId, qty: String(uncovered), uom: row.req.uom, site: row.job.siteId });
+    navigate(`/procurement/pr/new?${q.toString()}`);
   };
 
-  return (
-    <div className="flex flex-col h-full min-h-0">
-      <StockWorkspaceNav />
-      <div className="px-4 py-3 border-b" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
-        <h1 className="text-lg font-bold text-[var(--text)]">What each site still needs</h1>
-        <p className="text-sm text-[var(--text-2)]">Open jobs first. Reserve what is already here, or move stock that is sitting somewhere else.</p>
-      </div>
-      <div className="flex-1 overflow-auto p-3 md:p-4 space-y-2 max-w-5xl">
-        {rows.map(({ req, job, reserved, gap, freeElsewhere }) => {
-          const source = freeElsewhere.find(i => i.availableQty > 0 && gap > 0);
-          return (
-            <div key={req.id} className="rounded-xl border p-4" style={{ borderColor: gap > 0 ? 'var(--warning,#D97706)' : 'var(--border)', background: 'var(--surface)' }}>
-              <div className="flex flex-wrap items-start justify-between gap-2">
-                <div>
-                  <button type="button" onClick={() => navigate(`/jobs/${job.id}`)} className="text-sm font-bold text-[var(--brand)]">{job.jobNumber}</button>
-                  <span className="text-sm text-[var(--text-2)]"> · {job.siteName}</span>
-                  <div className="text-sm font-semibold text-[var(--text)] mt-1">{req.materialName}</div>
-                  <div className="text-sm text-[var(--text)] mt-1">
-                    Need {req.requiredQty} {req.uom} · reserved {reserved} · {gap > 0 ? <span className="font-semibold" style={{ color: 'var(--error)' }}>{gap} short</span> : <span className="font-semibold" style={{ color: 'var(--success)' }}>covered</span>}
-                  </div>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {gap > 0 && (
-                    <button type="button" onClick={() => reserve(req.id, gap, source?.availableQty || gap)}
-                      className="px-3 py-1.5 rounded-lg text-sm font-semibold text-white" style={{ background: 'var(--brand-fill)' }}>
-                      Reserve
-                    </button>
-                  )}
-                  {reserved > 0 && (
-                    <button type="button" onClick={() => release(req.id, reserved)}
-                      className="px-3 py-1.5 rounded-lg text-sm font-semibold border" style={{ borderColor: 'var(--border)', color: 'var(--text)' }}>
-                      Release
-                    </button>
-                  )}
-                  {source && gap > 0 && source.locationName !== 'WIP Store' && (
-                    <button type="button" onClick={() => {
-                      const q = new URLSearchParams({
-                        material: req.materialName, from: source.locationName, to: 'WIP Store',
-                        qty: String(Math.min(source.availableQty, gap)), uom: req.uom, job: job.jobNumber,
-                      });
-                      navigate(`/transfers?${q.toString()}`);
-                    }} className="px-3 py-1.5 rounded-lg text-sm font-semibold border" style={{ borderColor: 'var(--brand)', color: 'var(--brand)' }}>
-                      Transfer {Math.min(source.availableQty, gap)} from {source.locationName}
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
-          );
-        })}
-        {rows.length === 0 && <p className="text-sm text-[var(--text-2)]">No open job is waiting on material.</p>}
-
-        <button type="button" onClick={() => setShowHistory(v => !v)} className="text-sm font-semibold text-[var(--text-2)] pt-2">
-          {showHistory ? 'Hide' : 'Show'} recorded site splits ({siteAllocations.length})
-        </button>
-        {showHistory && siteAllocations.map(a => (
-          <div key={a.id} className="rounded-xl border px-4 py-3 text-sm" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
-            <span className="font-semibold text-[var(--text)]">{a.productName}</span>
-            <span className="text-[var(--text-2)]"> · {a.allocatedQty} {a.uom} at {a.siteName} · {a.jobNumber ?? a.poNumber} · {a.status}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
+  return <div className="flex flex-col h-full min-h-0"><StockWorkspaceNav /><div className="flex-shrink-0 px-4 py-3 border-b" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}><h1 className="text-lg font-bold text-[var(--text)]">Site Need</h1><p className="text-sm text-[var(--text-2)]">Demand and fulfilment planning by site — not another item catalogue or stock listing.</p><div className="mt-3 flex flex-wrap gap-2"><div className="relative flex-1 min-w-[220px] max-w-sm"><Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-3)]" /><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search job, site or item…" className="w-full pl-8 pr-3 py-1.5 text-sm rounded-lg border outline-none" style={{ borderColor: 'var(--border)', background: 'var(--surface)', color: 'var(--text)' }} /></div><select value={status} onChange={e => setStatus(e.target.value)} className="eoss-input text-xs"><option value="all">All requirements</option><option value="shortage">Shortage</option><option value="covered">Covered</option></select></div></div><div className="flex-1 overflow-auto p-3 md:p-4"><div className="rounded-xl border overflow-x-auto" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}><table className="eoss-table"><thead><tr><th>Site</th><th>Item</th><th>Required</th><th>Available</th><th>Reserved</th><th>Shortage</th><th>Required by</th><th>Source / action</th></tr></thead><tbody>{rows.map(row => { const reqOpen = purchaseReqs.some(pr => pr.jobId === row.job.id && pr.status !== 'cancelled' && (pr as PurchaseRequisitionWithLines).lines?.some(line => line.description === row.req.materialName)); return <tr key={row.req.id}><td><button type="button" onClick={() => navigate(`/jobs/${row.job.id}`)} className="text-left"><div className="text-xs font-semibold text-[var(--brand)]">{row.job.siteName}</div><div className="text-[11px] text-[var(--text-3)]">{row.job.jobNumber}</div></button></td><td><div className="text-sm font-semibold">{row.req.materialName}</div><div className="text-xs text-[var(--text-3)]">{row.req.uom}</div></td><td className="font-mono text-xs">{row.req.requiredQty}</td><td className="font-mono text-xs">{row.availableQty}</td><td className="font-mono text-xs">{row.reservedQty}</td><td className="font-mono text-xs font-bold" style={{ color: row.shortageQty ? 'var(--error)' : 'var(--success)' }}>{row.shortageQty}</td><td className="text-xs">{row.job.plannedEnd}</td><td><div className="flex flex-wrap gap-1.5">{row.shortageQty > 0 && row.availableQty > 0 && <button type="button" onClick={() => reserve(row)} className="px-2 py-1 rounded text-xs font-semibold text-white" style={{ background: 'var(--brand-fill)' }}>Reserve {Math.min(row.shortageQty, row.availableQty)}</button>}{row.shortageQty > 0 && <button type="button" onClick={() => raisePr(row)} className="px-2 py-1 rounded text-xs font-semibold border" style={{ borderColor: 'var(--brand)', color: 'var(--brand)' }}>{reqOpen ? 'Open PR' : 'Create PR'}</button>}{row.shortageQty === 0 && <span className="text-xs font-semibold text-[var(--success)]">Covered</span>}</div></td></tr>; })}{rows.length === 0 && <tr><td colSpan={8} className="py-10 text-center text-sm text-[var(--text-3)]">No active site requirements.</td></tr>}</tbody></table></div></div></div>;
 }
+
+type PurchaseRequisitionWithLines = { lines?: { materialCode?: string; description?: string }[] };

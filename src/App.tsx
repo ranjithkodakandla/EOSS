@@ -23,6 +23,7 @@ import PRCreate from './workspaces/procurement/PRCreate';
 import PRDetail from './workspaces/procurement/PRDetail';
 import SupplierRFQCreate from './workspaces/procurement/SupplierRFQCreate';
 import Inventory from './workspaces/inventory/Inventory';
+import InventoryItemDetail from './workspaces/inventory/InventoryItemDetail';
 import LotDetail from './workspaces/inventory/LotDetail';
 import CertificateDetail from './workspaces/inventory/CertificateDetail';
 import StockTransfer from './workspaces/inventory/StockTransfer';
@@ -144,6 +145,7 @@ export default function App() {
           <Route path="procurement/grn/:id" element={<GRNDetail />} />
           <Route path="procurement/supplier-return" element={<SupplierReturn />} />
           <Route path="inventory" element={<Inventory />} />
+          <Route path="inventory/item/:id" element={<InventoryItemDetail />} />
           <Route path="inventory/lot/:id" element={<LotDetail />} />
           <Route path="inventory/cert/:id" element={<CertificateDetail />} />
           <Route path="inventory/transfer" element={<StockTransfer />} />

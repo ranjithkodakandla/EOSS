@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Plus, Search, ChevronRight, Trash2 } from 'lucide-react';
+import { Plus, Search, ChevronRight, X } from 'lucide-react';
 import { useStore, CUSTOMERS } from '../../store';
 import { computeProductionStatus } from '../../domain/productionStatus';
 import { jobsBlocked, DEFAULT_SITE_ID, DEFAULT_SITE_NAME } from '../../domain/recordLists';
@@ -11,8 +11,9 @@ import StatusChip from '../../components/layout/StatusChip';
 import type { Job, JobStage } from '../../types';
 import SortableHeader from '../../components/layout/SortableHeader';
 import { sortRows } from '../../domain/tableSort';
+import { materialReadinessForJob } from '../../domain/inventory';
 
-type JobSortKey = 'number' | 'customer' | 'description' | 'status' | 'priority' | 'stage' | 'plannedEnd' | 'projected' | 'material' | 'risk';
+type JobSortKey = 'number' | 'customer' | 'description' | 'status' | 'priority' | 'stage' | 'plannedEnd' | 'projected' | 'material';
 
 const PRIORITY_COLOR: Record<string, string> = {
   urgent: 'var(--error)', high: 'var(--warning)', normal: 'var(--info)', low: 'var(--text-3)'
@@ -26,7 +27,7 @@ const RISK_COLOR: Record<string, string> = {
 };
 
 export default function Jobs() {
-  const { jobs, dispatches, sites, currentUser, addJob, showToast } = useStore();
+  const { jobs, sites, storeLocations, inventory, lots, jobMaterialReqs, stageTemplates, currentUser, addJob, cancelJob, showToast } = useStore();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const focusParam = searchParams.get('focus');
@@ -37,25 +38,23 @@ export default function Jobs() {
   const [riskFilter, setRiskFilter] = useState<string | null>(riskParam);
   const [siteFilter, setSiteFilter] = useState(searchParams.get('site') ?? 'all');
   const [showNewJob, setShowNewJob] = useState(false);
-  const [deletedJobIds, setDeletedJobIds] = useState<Set<string>>(new Set());
+  const [cancelJobId, setCancelJobId] = useState<string | null>(null);
   const canManage = ['owner', 'supervisor'].includes(currentUser.role);
   const now = new Date(DEMO_NOW);
 
   const statusByJob = Object.fromEntries(jobs.map(j => [j.id, computeProductionStatus(j, now)]));
+  const readinessByJob = Object.fromEntries(jobs.map(j => [j.id, materialReadinessForJob(j, jobMaterialReqs, inventory, lots, storeLocations)]));
 
-  const handleDeleteJob = (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handleCancelJob = (id: string, reason: string, e?: React.MouseEvent) => {
+    e?.stopPropagation();
     const job = jobs.find(j => j.id === id);
     if (!job) return;
-    if (job.status === 'complete') { showToast({ type: 'error', title: 'Cannot delete completed job' }); return; }
-    const hasDispatch = dispatches.some(d => Array.isArray(d.jobs) && d.jobs.includes(id));
-    if (hasDispatch) { showToast({ type: 'error', title: 'Cannot delete job', body: 'Job has dispatch records.' }); return; }
-    setDeletedJobIds(prev => new Set([...prev, id]));
-    showToast({ type: 'success', title: 'Job removed' });
+    if (job.status === 'complete' || job.status === 'cancelled') { showToast({ type: 'error', title: 'Job cannot be cancelled', body: 'Completed and already cancelled jobs remain historical.' }); return; }
+    cancelJob(id, reason, currentUser.name);
+    setCancelJobId(null);
   };
 
   const matchJob = (j: Job, status: string) => {
-    if (deletedJobIds.has(j.id)) return false;
     const q = search.toLowerCase();
     const matchSearch = !q || j.jobNumber.toLowerCase().includes(q) ||
       j.customerName.toLowerCase().includes(q) ||
@@ -64,7 +63,8 @@ export default function Jobs() {
     const matchRisk = riskFilter === 'watch'
       ? risk === 'at_risk' || risk === 'delayed'
       : (!riskFilter || risk === riskFilter);
-    const matchFocus = focusParam !== 'shortage' || j.materialReadiness === 'shortage';
+    const readiness = readinessByJob[j.id];
+    const matchFocus = focusParam !== 'shortage' || readiness === 'shortage';
     const matchSite = siteFilter === 'all' || j.siteId === siteFilter;
     const matchStatus = status === 'all' || j.status === status;
     return matchSearch && matchStatus && matchRisk && matchFocus && matchSite;
@@ -74,7 +74,7 @@ export default function Jobs() {
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const sortedJobs = sortRows(filteredBase, sortKey, sortDir, (j, key) => {
     const status = statusByJob[j.id];
-    return ({ number: j.jobNumber, customer: j.customerName, description: j.description, status: j.status, priority: j.priority, stage: j.currentStage, plannedEnd: j.plannedEnd, projected: status.projectedCompletion, material: j.materialReadiness, risk: status.risk } as Record<JobSortKey, unknown>)[key as JobSortKey];
+    return ({ number: j.jobNumber, customer: j.customerName, description: j.description, status: j.status, priority: j.priority, stage: j.currentStage, plannedEnd: j.plannedEnd, projected: status.projectedCompletion, material: readinessByJob[j.id] } as Record<JobSortKey, unknown>)[key as JobSortKey];
   });
   const handleSort = (key: JobSortKey) => {
     if (sortKey === key) setSortDir(direction => direction === 'asc' ? 'desc' : 'asc');
@@ -103,7 +103,7 @@ export default function Jobs() {
   const jobNext = (j: Job) => {
     const risk = statusByJob[j.id]?.risk;
     if (j.hasBlocker || risk === 'blocked') return { label: 'Resolve', path: `/jobs/${j.id}` };
-    if (j.materialReadiness === 'shortage') return { label: 'Review', path: `/jobs/${j.id}` };
+    if (readinessByJob[j.id] === 'shortage') return { label: 'Review', path: `/jobs/${j.id}` };
     return { label: 'Update', path: `/jobs/${j.id}?update=1` };
   };
 
@@ -192,7 +192,7 @@ export default function Jobs() {
             >
               <div className="flex items-center justify-between gap-2">
                 <span className="font-mono text-xs font-bold" style={{ color: 'var(--brand)' }}>{j.jobNumber}</span>
-                <span className="text-xs font-semibold" style={{ color: RISK_COLOR[status.risk] }}>{RISK_LABEL[status.risk]}</span>
+                <span className="text-xs font-semibold" style={{ color: readinessByJob[j.id] === 'shortage' ? 'var(--error)' : 'var(--success)' }}>{String(readinessByJob[j.id]).replace('_', ' ')}</span>
               </div>
               <div className="text-sm font-semibold text-[var(--text)] mt-1">{j.customerName}</div>
               <div className="text-[11px] text-[var(--text-3)]">{j.siteName}</div>
@@ -217,7 +217,7 @@ export default function Jobs() {
         <table className="w-full text-sm border-separate border-spacing-0" style={{ minWidth: 900 }}>
           <thead style={{ position: 'sticky', top: 0, zIndex: 5 }}>
             <tr style={{ background: 'var(--surface-2)' }}>
-              {([['Job #', 'number'], ['Customer', 'customer'], ['Description', 'description'], ['Status', 'status'], ['Priority', 'priority'], ['Stage', 'stage'], ['Planned End', 'plannedEnd'], ['Projected', 'projected'], ['Material', 'material'], ['Risk', 'risk']] as [string, JobSortKey][]).map(([label, key]) => (
+              {([['Job #', 'number'], ['Customer', 'customer'], ['Material Readiness', 'material'], ['Current Stage', 'stage'], ['Job Status', 'status'], ['Target Completion', 'plannedEnd'], ['Projected', 'projected']] as [string, JobSortKey][]).map(([label, key]) => (
                 <SortableHeader key={label} label={label} active={sortKey === key} direction={sortDir} onSort={() => handleSort(key)} className="text-left px-4 py-2.5 text-xs font-semibold font-medium" style={{ color: 'var(--text-3)', borderBottom: '1px solid var(--border)' }} />
               ))}
               <th />
@@ -242,12 +242,9 @@ export default function Jobs() {
                     {j.customerName}
                     <div className="text-[11px] font-normal text-[var(--text-3)]">{j.siteName}</div>
                   </td>
-                  <td className="px-4 py-3 text-xs max-w-[200px] truncate" style={{ color: 'var(--text-2)' }}>{j.description}</td>
-                  <td className="px-4 py-3"><StatusChip status={j.status} size="sm" /></td>
-                  <td className="px-4 py-3">
-                    <span className="text-xs font-semibold capitalize" style={{ color: PRIORITY_COLOR[j.priority] }}>{j.priority}</span>
-                  </td>
+                  <td className="px-4 py-3"><StatusChip status={readinessByJob[j.id]} label={String(readinessByJob[j.id]).replace('_', ' ')} size="sm" /></td>
                   <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-2)' }}>{j.currentStage}</td>
+                  <td className="px-4 py-3"><StatusChip status={j.status} size="sm" /></td>
                   <td className="px-4 py-3">
                     <span className="text-xs" style={{ color: isLate ? 'var(--error,#DC2626)' : 'var(--text-2)', fontWeight: isLate ? 600 : undefined }}>
                       {new Date(j.plannedEnd).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
@@ -258,16 +255,6 @@ export default function Jobs() {
                   <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-2)' }} title={status.projectionBasis}>
                     {status.projectedCompletion ? new Date(status.projectedCompletion).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '—'}
                   </td>
-                  <td className="px-4 py-3">
-                    <StatusChip
-                      status={j.materialReadiness === 'ready' ? 'available' : j.materialReadiness === 'shortage' ? 'shortage' : j.materialReadiness === 'partial' ? 'partial' : 'pending'}
-                      label={j.materialReadiness}
-                      size="sm"
-                    />
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className="text-xs font-semibold" style={{ color: RISK_COLOR[status.risk] }}>{RISK_LABEL[status.risk]}</span>
-                  </td>
                   <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                     <div className="flex items-center gap-1">
                       {guided && (
@@ -276,8 +263,8 @@ export default function Jobs() {
                           {jobNext(j).label}
                         </button>
                       )}
-                      {canManage && j.status !== 'complete' && (
-                        <button onClick={e => handleDeleteJob(j.id, e)} className="p-1 rounded hover:bg-[var(--surface-2)]" title="Remove job"><Trash2 size={12} style={{ color: 'var(--error,#DC2626)' }} /></button>
+                      {canManage && !['complete', 'cancelled'].includes(j.status) && (
+                        <button onClick={e => { e.stopPropagation(); setCancelJobId(j.id); }} className="px-2 py-1 rounded text-xs font-semibold border" style={{ borderColor: 'var(--error)', color: 'var(--error)' }} title="Cancel job">Cancel</button>
                       )}
                       <ChevronRight size={14} style={{ color: 'var(--text-3)' }} />
                     </div>
@@ -286,12 +273,13 @@ export default function Jobs() {
               );
             })}
             {sortedJobs.length === 0 && (
-              <tr><td colSpan={11} className="px-4 py-10 text-center text-sm" style={{ color: 'var(--text-3)' }}>No jobs found</td></tr>
+              <tr><td colSpan={8} className="px-4 py-10 text-center text-sm" style={{ color: 'var(--text-3)' }}>No jobs found</td></tr>
             )}
           </tbody>
         </table>
       </div>
 
+      {cancelJobId && <CancelJobModal job={jobs.find(j => j.id === cancelJobId)!} onClose={() => setCancelJobId(null)} onConfirm={reason => handleCancelJob(cancelJobId, reason)} />}
       {showNewJob && (
         <NewJobModal
           onClose={() => setShowNewJob(false)}
@@ -307,12 +295,22 @@ export default function Jobs() {
   );
 }
 
+function CancelJobModal({ job, onClose, onConfirm }: { job: Job; onClose: () => void; onConfirm: (reason: string) => void }) {
+  const { jobMaterialReqs } = useStore();
+  const [reason, setReason] = useState('');
+  const reqs = jobMaterialReqs.filter(r => r.jobId === job.id);
+  const reserved = reqs.reduce((sum, r) => sum + r.reservedQty, 0);
+  const issued = reqs.reduce((sum, r) => sum + r.issuedQty, 0);
+  return <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60"><div className="w-full max-w-lg rounded-xl border p-5 space-y-4 bg-[var(--surface)]" style={{ borderColor: 'var(--border)' }}><div className="flex items-center justify-between"><div><h2 className="text-sm font-bold text-[var(--text)]">Cancel {job.jobNumber}</h2><p className="text-xs text-[var(--text-2)]">The record and audit history will be preserved.</p></div><button type="button" onClick={onClose}><X size={16} className="text-[var(--text-3)]" /></button></div><div className="rounded-lg p-3 text-xs" style={{ background: 'var(--surface-2)' }}><div className="grid grid-cols-2 gap-2"><div>Current status: <strong>{job.status}</strong></div><div>Current stage: <strong>{job.currentStage}</strong></div><div>Reserved: <strong>{reserved}</strong></div><div>Issued/consumed: <strong>{issued}</strong></div></div><p className="mt-2 text-[var(--text-2)]">Reserved but unissued quantities are released. Issued or consumed material is not restored automatically; use an accepted return transaction when appropriate.</p></div><div><label className="block text-xs font-semibold text-[var(--text-2)] mb-1">Cancellation reason *</label><textarea autoFocus value={reason} onChange={e => setReason(e.target.value)} rows={3} className="eoss-input w-full" placeholder="Why is this job being cancelled?" /></div><div className="flex justify-end gap-2"><button type="button" onClick={onClose} className="btn-ghost text-xs">Keep job</button><button type="button" disabled={!reason.trim()} onClick={() => onConfirm(reason)} className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white disabled:opacity-50" style={{ background: 'var(--error)' }}>Confirm cancellation</button></div></div></div>;
+}
+
 function NewJobModal({ onClose, onSave }: { onClose: () => void; onSave: (j: Job) => void }) {
-  const { customerPos } = useStore();
+  const { customerPos, stageTemplates } = useStore();
   const [form, setForm] = useState({
     customerId: '', customerName: '', description: '', plannedEnd: '', priority: 'normal' as Job['priority'],
     linkedPoRef: '', orderedQty: '', bufferPct: '5',
     siteId: DEFAULT_SITE_ID, siteName: DEFAULT_SITE_NAME,
+    stageTemplateId: stageTemplates[0]?.id ?? '',
   });
   const [err, setErr] = useState('');
   const orderedQtyNum = Number(form.orderedQty) || 0;
@@ -322,12 +320,9 @@ function NewJobModal({ onClose, onSave }: { onClose: () => void; onSave: (j: Job
     if (!form.customerId || !form.description || !form.plannedEnd) { setErr('Customer, description and planned end date required'); return; }
     const id = `job-${Date.now()}`;
     const num = `J-${String(Math.floor(Math.random() * 900 + 110))}`;
-    const defaultStages: JobStage[] = [
-      { id: `${id}-s1`, jobId: id, name: 'Material Preparation', sequence: 1, status: 'pending', plannedStart: DEMO_NOW, plannedEnd: form.plannedEnd, inputQty: plannedQty || 0, completedGoodQty: 0, rejectedQty: 0, reworkQty: 0, scrapQty: 0, uom: 'pcs' },
-      { id: `${id}-s2`, jobId: id, name: 'Fabrication', sequence: 2, status: 'pending', plannedStart: DEMO_NOW, plannedEnd: form.plannedEnd, inputQty: plannedQty || 0, completedGoodQty: 0, rejectedQty: 0, reworkQty: 0, scrapQty: 0, uom: 'pcs' },
-      { id: `${id}-s3`, jobId: id, name: 'QC Inspection', sequence: 3, status: 'pending', plannedStart: DEMO_NOW, plannedEnd: form.plannedEnd, inputQty: plannedQty || 0, completedGoodQty: 0, rejectedQty: 0, reworkQty: 0, scrapQty: 0, uom: 'pcs' },
-    ];
-    onSave({ id, jobNumber: num, customerId: form.customerId, customerName: form.customerName, description: form.description, status: 'active', priority: form.priority, plannedStart: DEMO_NOW, plannedEnd: form.plannedEnd, siteId: form.siteId, siteName: form.siteName, owner: 'Owner', stages: defaultStages, currentStage: 'Material Preparation', materialReadiness: 'pending', hasBlocker: false });
+    const template = stageTemplates.find(t => t.id === form.stageTemplateId) ?? stageTemplates[0];
+    const defaultStages: JobStage[] = (template?.stages ?? []).map(stage => ({ id: `${id}-s${stage.sequence}`, jobId: id, name: stage.name, sequence: stage.sequence, status: 'pending', plannedStart: DEMO_NOW, plannedEnd: form.plannedEnd, inputQty: plannedQty || 0, completedGoodQty: 0, rejectedQty: 0, reworkQty: 0, scrapQty: 0, uom: 'pcs', workCentre: stage.workCentre }));
+    onSave({ id, jobNumber: num, customerId: form.customerId, customerName: form.customerName, description: form.description, status: 'active', priority: form.priority, plannedStart: DEMO_NOW, plannedEnd: form.plannedEnd, siteId: form.siteId, siteName: form.siteName, owner: 'Owner', stages: defaultStages, currentStage: defaultStages[0]?.name ?? 'Planning', materialReadiness: 'pending', hasBlocker: false, stageTemplateId: template?.id, stageTemplateName: template?.name });
   };
   return (
     <RecordSheet
@@ -365,6 +360,13 @@ function NewJobModal({ onClose, onSave }: { onClose: () => void; onSave: (j: Job
           <div>
             <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Job Description *</label>
             <input className="eoss-input w-full" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="e.g. Fabrication of 10 MS Frames" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Production workflow *</label>
+            <select className="eoss-input w-full" value={form.stageTemplateId} onChange={e => setForm(f => ({ ...f, stageTemplateId: e.target.value }))}>
+              {stageTemplates.map(template => <option key={template.id} value={template.id}>{template.name} ({template.stages.length} stages)</option>)}
+            </select>
+            <p className="text-[11px] text-[var(--text-3)] mt-1">The selected stage sequence is copied to the job and will not change if the template changes later.</p>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>

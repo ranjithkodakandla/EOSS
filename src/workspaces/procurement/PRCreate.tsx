@@ -17,6 +17,7 @@ interface PRLine {
   targetRate: number;
   requiredBy: string;
   notes: string;
+  grade?: string;
 }
 
 const UOM_OPTIONS = ['kg', 'nos', 'mtr', 'pcs', 'sheets', 'ltrs', 'sets', 'rolls'];
@@ -28,7 +29,7 @@ export default function PRCreate() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const prefillName = searchParams.get('name') ?? '';
-  const { currentUser, jobs, addPurchaseReq, showToast } = useStore();
+  const { currentUser, jobs, sites, storeLocations, addPurchaseReq, showToast } = useStore();
 
   const [step, setStep] = useState<Step>(prefillName ? 2 : 1);
 
@@ -40,10 +41,10 @@ export default function PRCreate() {
     priority: (prefillName ? 'high' : 'normal') as PurchaseRequisition['priority'],
     purpose: prefillName ? `Cover shortage of ${prefillName}` : '',
     notes: '',
-    deliverToSiteId: DEFAULT_SITE_ID,
-    deliverToSiteName: DEFAULT_SITE_NAME,
-    deliverToStoreId: DEFAULT_STORE_ID,
-    deliverToStoreName: DEFAULT_STORE_NAME,
+    deliverToSiteId: searchParams.get('site') || DEFAULT_SITE_ID,
+    deliverToSiteName: sites.find(s => s.id === searchParams.get('site'))?.name ?? DEFAULT_SITE_NAME,
+    deliverToStoreId: storeLocations.find(l => l.siteId === (searchParams.get('site') || DEFAULT_SITE_ID))?.id ?? DEFAULT_STORE_ID,
+    deliverToStoreName: storeLocations.find(l => l.id === (storeLocations.find(sl => sl.siteId === (searchParams.get('site') || DEFAULT_SITE_ID))?.id ?? DEFAULT_STORE_ID))?.name ?? DEFAULT_STORE_NAME,
   });
 
   // Step 2 — Lines
@@ -57,6 +58,7 @@ export default function PRCreate() {
       targetRate: 0,
       requiredBy: prefillName ? '2026-11-12' : '',
       notes: prefillName ? 'Raised from a stock shortage' : '',
+      grade: searchParams.get('grade') ?? '',
     },
   ]);
 
@@ -64,7 +66,7 @@ export default function PRCreate() {
   const selectedJob = activeJobs.find(j => j.id === header.jobId);
 
   const addLine = () =>
-    setLines(ls => [...ls, { id: `l-${Date.now()}`, materialCode: '', description: '', uom: 'kg', requiredQty: 0, targetRate: 0, requiredBy: '', notes: '' }]);
+    setLines(ls => [...ls, { id: `l-${Date.now()}`, materialCode: '', description: '', uom: 'kg', requiredQty: 0, targetRate: 0, requiredBy: '', notes: '', grade: '' }]);
 
   const removeLine = (id: string) => setLines(ls => ls.filter(l => l.id !== id));
 
@@ -223,6 +225,10 @@ export default function PRCreate() {
                     <div className="md:col-span-2">
                       <label className="block text-xs text-[var(--text-3)] mb-1">Description *</label>
                       <input className="eoss-input w-full" placeholder="e.g. SS 316 Plate 6mm thk" value={line.description} onChange={e => setLine(line.id, { description: e.target.value })} />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-[var(--text-3)] mb-1">Grade / specification</label>
+                      <input className="eoss-input w-full" value={line.grade ?? ''} onChange={e => setLine(line.id, { grade: e.target.value })} />
                     </div>
                     <div>
                       <label className="block text-xs text-[var(--text-3)] mb-1">Qty *</label>

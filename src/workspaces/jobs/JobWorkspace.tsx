@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import {
-  ArrowLeft, AlertTriangle, Activity, Check, X,
+  ArrowLeft, AlertTriangle, Activity, Check, X, Pencil,
   ExternalLink, ChevronRight, FileCheck, ShieldAlert
 } from 'lucide-react';
 import { useStore } from '../../store';
@@ -9,17 +9,18 @@ import { EMPLOYEES } from '../../data/seed';
 import StatusChip from '../../components/layout/StatusChip';
 import MaterialFeasibilityPanel from '../../components/domain/MaterialFeasibilityPanel';
 import clsx from 'clsx';
+import { jobMaterialQuantities, materialReadinessForJob } from '../../domain/inventory';
 
-const TABS = ['Overview', 'Stages', 'Materials', 'Procurement', 'Quality', 'NCR / Rework', 'Assets', 'Documents', 'Dispatch', 'Updates', 'Blockers'];
+const TABS = ['Overview', 'Stages', 'Materials', 'Quality', 'NCR / Rework', 'Updates', 'Blockers'];
 
 export default function JobWorkspace() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const {
-    jobs, setJobStatus, updateJobStage, resolveBlocker, currentUser, showToast, inventory,
+    jobs, setJobStatus, updateJobStage, updateJob, cancelJob, resolveBlocker, currentUser, showToast, inventory, storeLocations,
     inspections, ncrs, lots, issueMaterial, addInspection, addNCR,
-    jobBlockers: allJobBlockers, jobMaterialReqs, materials,
+    jobBlockers: allJobBlockers, jobMaterialReqs, materials, stageTemplates,
   } = useStore();
 
   const [tab, setTab] = useState('Overview');
@@ -29,6 +30,9 @@ export default function JobWorkspace() {
   const [rejectQtyInput, setRejectQtyInput] = useState<number>(0);
   const [stageNotes, setStageNotes] = useState('');
   const [selectedEmployee, setSelectedEmployee] = useState<string>(EMPLOYEES[5]?.name || 'Mohan Das');
+  const [recordModalOpen, setRecordModalOpen] = useState(false);
+  const [cancelModalOpen, setCancelModalOpen] = useState(false);
+  const [recordForm, setRecordForm] = useState({ status: 'active' as const, currentStage: '', owner: '', plannedEnd: '', notes: '' });
 
   const job = jobs.find(j => j.id === id);
   const activeStage = job?.stages.find(s => s.status === 'in_progress') || job?.stages[0];
@@ -36,11 +40,8 @@ export default function JobWorkspace() {
   useEffect(() => {
     if (searchParams.get('update') === '1' && activeStage) {
       const rem = Math.max(0, activeStage.inputQty - activeStage.completedGoodQty);
-      setSelectedStageId(activeStage.id);
-      setGoodQtyInput(rem || activeStage.inputQty);
-      setRejectQtyInput(0);
-      setStageNotes('');
-      setStageModalOpen(true);
+      setRecordForm({ status: 'active', currentStage: activeStage.name, owner: job?.owner ?? '', plannedEnd: job?.plannedEnd ?? '', notes: '' });
+      setRecordModalOpen(true);
     }
     // Open the stage form once when Home asks to update this job.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -50,6 +51,11 @@ export default function JobWorkspace() {
 
   const blockers = allJobBlockers.filter(b => b.jobId === id && b.status === 'open');
   const jobReqs = jobMaterialReqs.filter(r => r.jobId === job.id);
+  const materialReadiness = materialReadinessForJob(job, jobMaterialReqs, inventory, lots, storeLocations);
+  const materialRows = jobMaterialQuantities(job, jobMaterialReqs, inventory, storeLocations);
+  const workflowName = job.stageTemplateName && !job.stageTemplateName.toLowerCase().startsWith('custom')
+    ? job.stageTemplateName
+    : stageTemplates.find(template => template.stages.length === job.stages.length)?.name ?? 'Job workflow snapshot';
   const isBlocked = job.hasBlocker || blockers.length > 0;
 
   // Open Stage Update Modal (Streamlined 2-click capture)
@@ -145,12 +151,13 @@ export default function JobWorkspace() {
             </button>
           ) : (
             <button
-              onClick={() => openStageUpdate()}
+              onClick={() => { setRecordForm({ status: job.status === 'draft' ? 'active' : job.status as 'active', currentStage: activeStage.name, owner: job.owner, plannedEnd: job.plannedEnd, notes: '' }); setRecordModalOpen(true); }}
               className="btn-primary text-xs py-2 px-4 inline-flex items-center gap-1.5"
             >
-              <Activity size={13} /> Update Progress
+              <Pencil size={13} /> Update Record
             </button>
           )}
+          {!['complete', 'cancelled'].includes(job.status) && <button type="button" onClick={() => setCancelModalOpen(true)} className="px-3 py-2 rounded-lg text-xs font-semibold border" style={{ borderColor: 'var(--error)', color: 'var(--error)' }}>Cancel Job</button>}
         </div>
       </div>
 
@@ -248,7 +255,7 @@ export default function JobWorkspace() {
             <div className="p-3.5 rounded-xl bg-[var(--surface)] border border-[var(--border)]">
               <div className="text-xs text-[var(--text-3)] font-medium">Materials</div>
               <div className={clsx('text-sm font-bold mt-1 capitalize', job.materialReadiness === 'shortage' ? 'text-[var(--error)]' : 'text-[var(--text)]')}>
-                {job.materialReadiness}
+                {materialReadiness.replace('_', ' ')}
               </div>
               <div className="text-xs text-[var(--text-3)] mt-0.5">
                 {jobReqs[0] ? `${jobReqs[0].materialName} (${jobReqs[0].reservedQty}/${jobReqs[0].requiredQty} ${jobReqs[0].uom})` : 'No BOM captured'}
@@ -291,7 +298,7 @@ export default function JobWorkspace() {
               </div>
               <div>
                 <span className="text-[var(--text-3)] block">Production Route:</span>
-                <span className="font-medium text-[var(--text)]">{job.stageTemplateName || 'Custom (not from template)'}</span>
+                <span className="font-medium text-[var(--text)]">{workflowName} · {job.stages.length} stages</span>
               </div>
             </div>
           </div>
@@ -313,27 +320,27 @@ export default function JobWorkspace() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--border)]">
-                {jobReqs.map(r => (
+                {materialRows.map(({ req: r, shortageQty, availableQty }) => (
                   <tr key={r.id}>
                     <td className="py-3 px-4 font-medium text-[var(--text)]">{r.materialName}</td>
                     <td className="py-3 px-4 text-xs text-[var(--text-3)]">{r.stageName}</td>
                     <td className="py-3 px-4 font-mono">{r.requiredQty} {r.uom}</td>
                     <td className="py-3 px-4 font-mono font-bold text-emerald-400">{r.reservedQty} {r.uom}</td>
                     <td className="py-3 px-4">
-                      {r.shortage ? (
+                      {shortageQty > 0 ? (
                         <div className="flex flex-wrap items-center gap-2">
-                          <span className="text-xs font-bold text-[var(--error)]">Shortage ({r.requiredQty - r.reservedQty} {r.uom})</span>
+                          <span className="text-xs font-bold text-[var(--error)]">Shortage ({shortageQty} {r.uom}) · {availableQty} available</span>
                           <button type="button" onClick={() => {
                             const source = inventory.find(i => i.materialItemId === r.materialItemId && i.availableQty > 0);
                             const q = new URLSearchParams({
                               material: r.materialName,
                               from: source?.locationName || '',
                               to: job.siteName,
-                              qty: String(r.requiredQty - r.reservedQty),
+                              qty: String(shortageQty),
                               uom: r.uom,
                               job: job.jobNumber,
                             });
-                            navigate(`/transfers?${q.toString()}`);
+                            navigate(`/inventory/transfer?${q.toString()}`);
                           }} className="text-xs font-semibold text-[var(--brand)]">Move stock</button>
                         </div>
                       ) : (
@@ -481,12 +488,16 @@ export default function JobWorkspace() {
       {/* Material Issue tab */}
       {tab === 'Materials' && (() => null)()}
 
-      {['Procurement', 'Assets', 'Documents', 'Dispatch', 'Updates', 'Blockers'].includes(tab) && (
+      {['Updates', 'Blockers'].includes(tab) && (
         <div className="rounded-xl border p-10 text-center" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
           <p className="text-sm font-medium" style={{ color: 'var(--text-2)' }}>{tab}</p>
           <p className="text-xs mt-1" style={{ color: 'var(--text-3)' }}>No data recorded yet for this job.</p>
         </div>
       )}
+
+      {recordModalOpen && <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60"><div className="w-full max-w-lg rounded-xl p-5 space-y-4 bg-[var(--surface)] border border-[var(--border)]"><div className="flex items-center justify-between"><div><h3 className="text-sm font-bold text-[var(--text)]">Update {job.jobNumber}</h3><p className="text-xs text-[var(--text-2)]">Changes are saved to the job record and audit history.</p></div><button type="button" onClick={() => setRecordModalOpen(false)}><X size={16} className="text-[var(--text-3)]" /></button></div><div className="grid sm:grid-cols-2 gap-3"><label className="text-xs text-[var(--text-2)]">Job status<select className="eoss-input w-full mt-1" value={recordForm.status} onChange={e => setRecordForm(f => ({ ...f, status: e.target.value as typeof f.status }))}>{['draft', 'active', 'hold', 'complete', 'cancelled'].map(s => <option key={s} value={s}>{s}</option>)}</select></label><label className="text-xs text-[var(--text-2)]">Current production stage<select className="eoss-input w-full mt-1" value={recordForm.currentStage} onChange={e => setRecordForm(f => ({ ...f, currentStage: e.target.value }))}>{job.stages.map(stage => <option key={stage.id} value={stage.name}>{stage.name}</option>)}</select></label><label className="text-xs text-[var(--text-2)]">Owner<input className="eoss-input w-full mt-1" value={recordForm.owner} onChange={e => setRecordForm(f => ({ ...f, owner: e.target.value }))} /></label><label className="text-xs text-[var(--text-2)]">Target completion<input type="date" className="eoss-input w-full mt-1" value={recordForm.plannedEnd} onChange={e => setRecordForm(f => ({ ...f, plannedEnd: e.target.value }))} /></label></div><label className="text-xs text-[var(--text-2)] block">Operational note<textarea rows={3} className="eoss-input w-full mt-1" value={recordForm.notes} onChange={e => setRecordForm(f => ({ ...f, notes: e.target.value }))} /></label><div className="flex justify-end gap-2"><button type="button" onClick={() => setRecordModalOpen(false)} className="btn-ghost text-xs">Cancel</button><button type="button" onClick={() => { updateJob(job.id, { status: recordForm.status, currentStage: recordForm.currentStage, owner: recordForm.owner, plannedEnd: recordForm.plannedEnd }); setRecordModalOpen(false); showToast({ type: 'success', title: 'Job record updated' }); }} className="btn-primary text-xs">Save changes</button></div></div></div>}
+
+      {cancelModalOpen && <JobCancelModal job={job} onClose={() => setCancelModalOpen(false)} onConfirm={reason => { cancelJob(job.id, reason, currentUser.name); setCancelModalOpen(false); }} />}
 
       {/* ── 6. Streamlined Stage Update Modal (2 Clicks) ── */}
       {stageModalOpen && (
@@ -564,4 +575,13 @@ export default function JobWorkspace() {
     </div>
     </div>
   );
+}
+
+function JobCancelModal({ job, onClose, onConfirm }: { job: import('../../types').Job; onClose: () => void; onConfirm: (reason: string) => void }) {
+  const { jobMaterialReqs } = useStore();
+  const [reason, setReason] = useState('');
+  const reqs = jobMaterialReqs.filter(req => req.jobId === job.id);
+  const reserved = reqs.reduce((sum, req) => sum + req.reservedQty, 0);
+  const issued = reqs.reduce((sum, req) => sum + req.issuedQty, 0);
+  return <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60"><div className="w-full max-w-lg rounded-xl p-5 space-y-4 bg-[var(--surface)] border border-[var(--border)]"><div className="flex items-center justify-between"><div><h3 className="text-sm font-bold text-[var(--text)]">Cancel {job.jobNumber}</h3><p className="text-xs text-[var(--text-2)]">Cancellation preserves the job and its history.</p></div><button type="button" onClick={onClose}><X size={16} className="text-[var(--text-3)]" /></button></div><div className="text-xs rounded-lg p-3 bg-[var(--surface-2)]"><div className="grid grid-cols-2 gap-2"><span>Status: <strong>{job.status}</strong></span><span>Stage: <strong>{job.currentStage}</strong></span><span>Reserved: <strong>{reserved}</strong></span><span>Issued/consumed: <strong>{issued}</strong></span></div><p className="mt-2 text-[var(--text-2)]">Reserved but unissued quantities will be released. Issued or consumed material is not restored automatically. Use an accepted return transaction for eligible unused material.</p></div><label className="block text-xs font-semibold text-[var(--text-2)]">Cancellation reason *<textarea autoFocus rows={3} value={reason} onChange={e => setReason(e.target.value)} className="eoss-input w-full mt-1" /></label><div className="flex justify-end gap-2"><button type="button" onClick={onClose} className="btn-ghost text-xs">Keep job</button><button type="button" disabled={!reason.trim()} onClick={() => onConfirm(reason)} className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white disabled:opacity-50" style={{ background: 'var(--error)' }}>Confirm cancellation</button></div></div></div>;
 }

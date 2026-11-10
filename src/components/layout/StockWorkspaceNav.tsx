@@ -4,7 +4,7 @@ import clsx from 'clsx';
 const ITEMS = [
   { to: '/inventory', label: 'Stock on hand', end: true },
   { to: '/products', label: 'Item master' },
-  { to: '/transfers', label: 'Move stock' },
+  { to: '/inventory/transfer', label: 'Move stock' },
   { to: '/allocations', label: 'Site need' },
 ];
 
