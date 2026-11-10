@@ -2,20 +2,21 @@ import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, AlertTriangle, Truck } from 'lucide-react';
 import { useStore } from '../../store';
-import { SUPPLIER_PO_LINES } from '../../data/seed';
 import StatusChip from '../../components/layout/StatusChip';
 import ConfirmModal from '../../components/feedback/ConfirmModal';
 
 export default function SupplierPODetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { supplierPos, setSupplierPoStatus, currentUser, showToast } = useStore();
+  const { supplierPos, supplierPoLines, supplierQuotations, purchaseReqs, setSupplierPoStatus, currentUser, showToast } = useStore();
   const [confirm, setConfirm] = useState(false);
 
   const po = supplierPos.find(p => p.id === id);
   if (!po) return <div className="p-6 text-[var(--text-2)]">PO not found</div>;
 
-  const lines = SUPPLIER_PO_LINES.filter(l => l.spoId === id);
+  const lines = supplierPoLines.filter(l => l.spoId === id);
+  const sourceQuote = supplierQuotations.find(q => q.id === po.supplierQuotationId) ?? supplierQuotations.find(q => q.prId && q.prId === po.prId && q.status === 'selected');
+  const sourcePr = purchaseReqs.find(pr => pr.id === po.prId);
   const canEdit = ['owner', 'buyer'].includes(currentUser.role);
 
   const handleCancel = () => {
@@ -69,6 +70,9 @@ export default function SupplierPODetail() {
               <Field label="Payment Terms" value={po.paymentTerms} />
               <Field label="Total Value" value={`₹${po.totalValue.toLocaleString('en-IN')}`} />
               {po.jobRef && <Field label="Job Reference" value={po.jobRef} mono />}
+              {sourcePr && <button type="button" onClick={() => navigate(`/procurement/pr/${sourcePr.id}`)} className="text-left"><Field label="Purchase Requisition" value={sourcePr.prNumber} mono /></button>}
+              {sourceQuote ? <button type="button" onClick={() => navigate('/procurement?tab=quotes')} className="text-left"><Field label="Selected Supplier Quotation" value={sourceQuote.quoteNumber} mono /></button> : <Field label="Procurement route" value="DIRECT PROCUREMENT — NO SUPPLIER QUOTATION" />}
+              {po.deliverToSiteName && <Field label="Delivery Site" value={po.deliverToSiteName} />}
             </dl>
           </div>
 

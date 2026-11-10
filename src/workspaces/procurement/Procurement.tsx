@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Plus, AlertTriangle, Search, ChevronRight, X, Pencil, Trash2, Send } from 'lucide-react';
+import { Plus, AlertTriangle, Search, ChevronRight, X, Pencil, Trash2, Send, ArrowUpDown } from 'lucide-react';
 import { useStore } from '../../store';
 import StatusChip from '../../components/layout/StatusChip';
 import type { GoodsReceipt, SupplierPO, SupplierPOLine, SupplierQuotation } from '../../types';
@@ -28,6 +28,8 @@ export default function Procurement() {
   const [showNewPO, setShowNewPO] = useState(false);
   const [siteFilter, setSiteFilter] = useState('all');
   const [overdueOnly, setOverdueOnly] = useState(false);
+  const [approvalView, setApprovalView] = useState<'pending' | 'approved' | 'rejected' | 'all'>('pending');
+  const [sortNewestFirst, setSortNewestFirst] = useState(true);
   const receivablePos = supplierPos.filter(p => ['confirmed', 'partial', 'overdue', 'sent'].includes(p.status));
   const [receivePoId, setReceivePoId] = useState<string | null>(
     receiveParam ? (supplierPos.find(p => p.id === receiveParam)?.id ?? receivablePos[0]?.id ?? null) : null
@@ -35,13 +37,14 @@ export default function Procurement() {
 
   const pendingApprovals = approvalRequests.filter(a => a.status === 'pending').length;
   const canCreate = ['owner', 'buyer'].includes(currentUser.role);
+  const canApprove = currentUser.role === 'owner';
 
   const q = search.toLowerCase();
   const matchSite = (siteId?: string) => siteFilter === 'all' || siteId === siteFilter;
   const filteredSpo = supplierPos.filter(p =>
     matchSite(p.deliverToSiteId) && (!overdueOnly || p.status === 'overdue') &&
     (!q || p.poNumber.toLowerCase().includes(q) || p.supplierName.toLowerCase().includes(q))
-  );
+  ).sort((a, b) => (sortNewestFirst ? -1 : 1) * a.raisedDate.localeCompare(b.raisedDate));
   const filteredPrs = purchaseReqs.filter(pr =>
     matchSite(pr.deliverToSiteId) &&
     (!q || pr.prNumber.toLowerCase().includes(q) || pr.raisedBy.toLowerCase().includes(q) || (pr.jobNumber ?? '').toLowerCase().includes(q))
@@ -49,11 +52,13 @@ export default function Procurement() {
   const filteredGrns = grns.filter(g =>
     matchSite(g.siteId) &&
     (!q || g.grnNumber.toLowerCase().includes(q) || g.supplierName.toLowerCase().includes(q))
-  );
+  ).sort((a, b) => (sortNewestFirst ? -1 : 1) * a.receivedDate.localeCompare(b.receivedDate));
   const filteredQuotes = supplierQuotations.filter(qt =>
     !q || qt.quoteNumber.toLowerCase().includes(q) || qt.supplierName.toLowerCase().includes(q)
   );
   const overduePOs = supplierPos.filter(p => p.status === 'overdue' && matchSite(p.deliverToSiteId) && (!q || p.poNumber.toLowerCase().includes(q) || p.supplierName.toLowerCase().includes(q))).length;
+  const approvalSiteId = (id: string) => supplierPos.find(p => p.id === id)?.deliverToSiteId ?? purchaseReqs.find(p => p.id === id)?.deliverToSiteId ?? grns.find(g => g.id === id)?.siteId;
+  const visibleApprovals = approvalRequests.filter(a => (approvalView === 'all' || a.status === approvalView) && matchSite(approvalSiteId(a.entityId)));
 
   const TABS = [
     { id: 'spo' as ProcTab, label: `Supplier POs (${filteredSpo.length})` },
@@ -80,6 +85,7 @@ export default function Procurement() {
           {sites.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
         </select>
         <div className="flex-1" />
+        <button type="button" onClick={() => setSortNewestFirst(v => !v)} className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border text-xs" style={{ borderColor: 'var(--border)', color: 'var(--text-2)' }}><ArrowUpDown size={13} /> {sortNewestFirst ? 'Newest' : 'Oldest'}</button>
         {overduePOs > 0 && (
           <button type="button" onClick={() => { setTab('spo'); setOverdueOnly(v => !v); }}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
@@ -347,32 +353,34 @@ export default function Procurement() {
 
         {tab === 'approvals' && (
           <div className="p-5">
-            <p className="mb-4 text-xs text-[var(--text-2)]">PRs under ₹10,000 from approved vendors are already approved. These still need a decision.</p>
-            {approvalRequests.filter(a => a.status === 'pending').length === 0 ? (
+            <div className="flex items-center justify-between gap-3 mb-4 flex-wrap"><p className="text-xs text-[var(--text-2)]">Pending is the action queue; decisions remain available in the history views.</p><select value={approvalView} onChange={e => setApprovalView(e.target.value as typeof approvalView)} className="eoss-input text-xs py-1.5" aria-label="Approval history view"><option value="pending">Pending</option><option value="approved">Approved</option><option value="rejected">Rejected</option><option value="all">All history</option></select></div>
+            {visibleApprovals.length === 0 ? (
               <div className="rounded-xl border p-10 text-center" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
                 <p className="text-sm" style={{ color: 'var(--text-3)' }}>No pending approvals.</p>
               </div>
             ) : (
               <div className="space-y-3 max-w-3xl">
-                {approvalRequests.filter(a => a.status === 'pending').map(a => (
+                {visibleApprovals.map(a => (
                   <div key={a.id} className="rounded-xl border p-4 flex items-start justify-between gap-4"
                     style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
                     <div className="flex-1 min-w-0">
                       <div className="text-sm font-semibold" style={{ color: 'var(--text)' }}>{a.entityRef}</div>
-                      <div className="text-xs mt-0.5" style={{ color: 'var(--text-3)' }}>{a.requestedBy} · {new Date(a.requestedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</div>
+                      <div className="text-xs mt-0.5" style={{ color: 'var(--text-3)' }}>{a.requestedBy} · {new Date(a.requestedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} · {a.siteName ?? 'Company-wide / unassigned'}</div>
                       {a.description && <div className="text-xs mt-1" style={{ color: 'var(--text-2)' }}>{a.description}</div>}
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
-                      <button onClick={() => resolveApproval(a.id, 'rejected', currentUser.name)}
+                      {a.status !== 'pending' && <StatusChip status={a.status} size="sm" />}
+                      {a.status === 'pending' && canApprove && <button onClick={() => resolveApproval(a.id, 'rejected', currentUser.name, 'Rejected in approval review')}
                         className="px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors"
                         style={{ borderColor: 'var(--error,#DC2626)', color: 'var(--error,#DC2626)', background: 'transparent' }}>
                         Reject
-                      </button>
-                      <button onClick={() => resolveApproval(a.id, 'approved', currentUser.name)}
+                      </button>}
+                      {a.status === 'pending' && canApprove && <button onClick={() => resolveApproval(a.id, 'approved', currentUser.name, 'Approved in approval review')}
                         className="px-3 py-1.5 text-xs font-semibold rounded-lg text-white transition-colors"
                         style={{ background: 'var(--success,#16A34A)' }}>
                         Approve
-                      </button>
+                      </button>}
+                      {a.status === 'pending' && !canApprove && <span className="text-[11px] text-[var(--text-3)]">Owner approval required</span>}
                     </div>
                   </div>
                 ))}

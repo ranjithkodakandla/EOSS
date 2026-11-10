@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Plus, Search, ChevronRight, ArrowUpRight, Calendar,
-  FileText, Briefcase, DollarSign, Clock, User, X, Pencil, Trash2
+  FileText, Briefcase, DollarSign, Clock, User, X, Pencil, XCircle, ArrowUpDown, ArrowUp, ArrowDown
 } from 'lucide-react';
 import { useStore, CUSTOMERS } from '../../store';
 import StatusChip from '../../components/layout/StatusChip';
@@ -12,22 +12,25 @@ import type { CustomerRFQ, CustomerPO } from '../../types';
 type POTab = 'pos' | 'rfqs' | 'customers';
 
 export default function Sales() {
-  const { rfqs, customerPos, jobs, currentUser, showToast, updateCustomerPo, updateRfq } = useStore();
+  const { rfqs, quotations, customerPos, jobs, currentUser, showToast, updateCustomerPo, updateRfq, addCustomerPO } = useStore();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [tab, setTab] = useState<POTab>((searchParams.get('tab') as POTab) ?? 'pos');
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [rfqStatusFilter, setRfqStatusFilter] = useState('all');
+  const [sortKey, setSortKey] = useState<'date' | 'value' | 'name'>('date');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [selectedPoId, setSelectedPoId] = useState<string | null>(null);
   const [showNewRFQ, setShowNewRFQ] = useState(false);
+  const [showDirectOrder, setShowDirectOrder] = useState(false);
   const [selectedRfq, setSelectedRfq] = useState<CustomerRFQ | null>(null);
-  const [editPo, setEditPo] = useState<CustomerPO | null>(null);
 
-  const handleDeletePo = (id: string) => {
+  const handleCancelPo = (id: string) => {
     const hasActiveJobs = jobs.some(j => j.customerPoId === id && j.status !== 'cancelled');
     if (hasActiveJobs) { showToast({ type: 'error', title: 'Cannot cancel PO', body: 'PO has active jobs. Cancel jobs first.' }); return; }
     updateCustomerPo(id, { status: 'cancelled' });
-    showToast({ type: 'success', title: 'PO cancelled' });
+    showToast({ type: 'success', title: 'Customer PO cancelled', body: 'The record remains available in history.' });
   };
 
   const handleDeleteRfq = (id: string) => {
@@ -45,13 +48,20 @@ export default function Sales() {
     const matchStatus = statusFilter === 'all' || p.status === statusFilter;
     return matchSearch && matchStatus;
   }).sort((a, b) => {
-    const rank = (s: string) => s === 'on_hold' ? 0 : s === 'active' ? 1 : s === 'partial' ? 2 : s === 'complete' ? 3 : 4;
-    return rank(a.status) - rank(b.status);
+    const av = sortKey === 'value' ? a.totalValue : sortKey === 'name' ? a.customerName : a.acceptedDate;
+    const bv = sortKey === 'value' ? b.totalValue : sortKey === 'name' ? b.customerName : b.acceptedDate;
+    const cmp = av < bv ? -1 : av > bv ? 1 : 0;
+    return sortDir === 'asc' ? cmp : -cmp;
   });
 
   const filteredRfqs = rfqs.filter(r => {
     const q = search.toLowerCase();
-    return !q || r.rfqNumber.toLowerCase().includes(q) || r.customerName.toLowerCase().includes(q);
+    return (rfqStatusFilter === 'all' || r.status === rfqStatusFilter) && (!q || r.rfqNumber.toLowerCase().includes(q) || r.customerName.toLowerCase().includes(q));
+  }).sort((a, b) => {
+    const av = sortKey === 'value' ? a.lineCount : sortKey === 'name' ? a.customerName : a.receivedDate;
+    const bv = sortKey === 'value' ? b.lineCount : sortKey === 'name' ? b.customerName : b.receivedDate;
+    const cmp = av < bv ? -1 : av > bv ? 1 : 0;
+    return sortDir === 'asc' ? cmp : -cmp;
   });
 
   const selectedPo = customerPos.find(p => p.id === selectedPoId);
@@ -80,13 +90,7 @@ export default function Sales() {
           </p>
         </div>
         {canCreate && (
-          <button
-            onClick={() => navigate('/sales/rfq/new')}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white transition-opacity hover:opacity-90"
-            style={{ background: 'var(--brand-fill)' }}
-          >
-            <Plus size={15} /> New RFQ
-          </button>
+          <div className="flex items-center gap-2"><button onClick={() => navigate('/sales/rfq/new')} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white transition-opacity hover:opacity-90" style={{ background: 'var(--brand-fill)' }}><Plus size={15} /> New RFQ</button><button onClick={() => setShowDirectOrder(true)} className="px-3 py-2 rounded-lg text-xs font-semibold border" style={{ borderColor: 'var(--brand)', color: 'var(--brand)' }}>Direct customer order</button></div>
         )}
       </div>
 
@@ -132,7 +136,7 @@ export default function Sales() {
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}
-            placeholder="Search PO number, customer…"
+            placeholder={tab === 'rfqs' ? 'Search RFQ number, customer…' : 'Search Customer PO number, customer…'}
             className="w-full pl-8 pr-3 py-1.5 rounded-lg text-sm border focus:outline-none focus:ring-1"
             style={{
               borderColor: 'var(--border)',
@@ -159,6 +163,8 @@ export default function Sales() {
             ))}
           </div>
         )}
+        {tab === 'rfqs' && <select value={rfqStatusFilter} onChange={e => setRfqStatusFilter(e.target.value)} className="eoss-input text-xs py-1.5" aria-label="Customer RFQ status"><option value="all">All RFQ statuses</option>{['open', 'quoted', 'converted', 'lost', 'cancelled'].map(s => <option key={s} value={s}>{s}</option>)}</select>}
+        {(tab === 'pos' || tab === 'rfqs') && <button type="button" onClick={() => { const order: ['date' | 'value' | 'name', 'asc' | 'desc'][] = [['date', 'asc'], ['date', 'desc'], ['value', 'asc'], ['value', 'desc'], ['name', 'asc'], ['name', 'desc']]; const i = order.findIndex(([key, dir]) => key === sortKey && dir === sortDir); const [nextKey, nextDir] = order[(i + 1) % order.length]; setSortKey(nextKey); setSortDir(nextDir); }} className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border text-xs" style={{ borderColor: 'var(--border)', color: 'var(--text-2)' }}><ArrowUpDown size={13} /> Sort: {sortKey} <span>{sortDir === 'asc' ? <ArrowUp size={12} /> : <ArrowDown size={12} />}</span></button>}
         {search && (
           <button
             onClick={() => setSearch('')}
@@ -244,10 +250,10 @@ export default function Sales() {
                             Open
                           </button>
                           {canCreate && p.status !== 'cancelled' && (
-                            <button onClick={() => setEditPo(p)} className="p-1 rounded hover:bg-[var(--surface-2)]" title="Edit PO"><Pencil size={12} style={{ color: 'var(--text-3)' }} /></button>
+                            <button onClick={() => navigate(`/sales/po/${p.id}/amend`)} className="p-1 rounded hover:bg-[var(--surface-2)]" title="Amend Customer PO"><Pencil size={12} style={{ color: 'var(--text-3)' }} /></button>
                           )}
                           {canCreate && p.status !== 'cancelled' && (
-                            <button onClick={() => handleDeletePo(p.id)} className="p-1 rounded hover:bg-[var(--surface-2)]" title="Cancel PO"><Trash2 size={12} style={{ color: 'var(--error,#DC2626)' }} /></button>
+                            <button onClick={() => handleCancelPo(p.id)} className="p-1 rounded hover:bg-[var(--surface-2)]" title="Cancel Customer PO"><XCircle size={12} style={{ color: 'var(--error,#DC2626)' }} /></button>
                           )}
                         </div>
                       </td>
@@ -266,7 +272,7 @@ export default function Sales() {
             <table className="w-full text-sm border-collapse">
               <thead className="sticky top-0 z-10" style={{ background: 'var(--surface-2)' }}>
                 <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                  {['RFQ Number', 'Customer', 'Received', 'Required By', 'Lines', 'Channel', 'Status', 'Owner', ''].map(h => (
+                  {['RFQ Number', 'Customer', 'Received', 'Required By', 'Lines', 'Channel', 'Quotation', 'Status', 'Owner', ''].map(h => (
                     <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold font-medium" style={{ color: 'var(--text-3)' }}>{h}</th>
                   ))}
                 </tr>
@@ -287,6 +293,12 @@ export default function Sales() {
                     <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-2)' }}>{fmt(r.requiredBy)}</td>
                     <td className="px-4 py-3 text-center text-xs" style={{ color: 'var(--text-2)' }}>{r.lineCount}</td>
                     <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-2)' }}>{r.channel}</td>
+                    <td className="px-4 py-3 text-xs" onClick={e => e.stopPropagation()}>
+                      {(() => {
+                        const q = quotations.find(qt => qt.rfqId === r.id);
+                        return q ? <button type="button" onClick={() => navigate(`/sales/quotation/${q.id}`)} className="font-mono font-semibold text-[var(--brand)] hover:underline">{q.quotationNumber}</button> : <span className="text-[var(--text-3)]">Pending</span>;
+                      })()}
+                    </td>
                     <td className="px-4 py-3"><StatusChip status={r.status} size="sm" /></td>
                     <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-2)' }}>{r.owner}</td>
                     <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
@@ -298,14 +310,14 @@ export default function Sales() {
                           </button>
                         )}
                         {canCreate && r.status !== 'cancelled' && (
-                          <button onClick={e => { e.stopPropagation(); handleDeleteRfq(r.id); }} className="p-1 rounded hover:bg-[var(--surface-2)]" title="Cancel RFQ"><Trash2 size={12} style={{ color: 'var(--error,#DC2626)' }} /></button>
+                          <button onClick={e => { e.stopPropagation(); handleDeleteRfq(r.id); }} className="p-1 rounded hover:bg-[var(--surface-2)]" title="Cancel Customer RFQ"><XCircle size={12} style={{ color: 'var(--error,#DC2626)' }} /></button>
                         )}
                       </div>
                     </td>
                   </tr>
                 ))}
                 {filteredRfqs.length === 0 && (
-                  <tr><td colSpan={8} className="text-center py-12 text-sm" style={{ color: 'var(--text-3)' }}>No RFQs found</td></tr>
+                  <tr><td colSpan={10} className="text-center py-12 text-sm" style={{ color: 'var(--text-3)' }}>No RFQs found</td></tr>
                 )}
               </tbody>
             </table>
@@ -401,18 +413,6 @@ export default function Sales() {
         )}
       </div>
 
-      {/* Edit PO Modal */}
-      {editPo && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-6 w-full max-w-md shadow-xl">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="font-bold text-[var(--text)]">Edit PO — {editPo.poNumber}</h2>
-              <button onClick={() => setEditPo(null)} className="text-[var(--text-3)]"><X size={18} /></button>
-            </div>
-            <EditPOForm po={editPo} onSave={(partial) => { updateCustomerPo(editPo.id, partial); setEditPo(null); showToast({ type: 'success', title: 'PO updated' }); }} onCancel={() => setEditPo(null)} />
-          </div>
-        </div>
-      )}
 
       {/* New RFQ Modal */}
       {showNewRFQ && (
@@ -425,6 +425,7 @@ export default function Sales() {
           }}
         />
       )}
+      {showDirectOrder && <DirectOrderModal onClose={() => setShowDirectOrder(false)} onSave={(po) => { addCustomerPO(po); showToast({ type: 'success', title: 'Direct customer order created', body: `${po.poNumber} is ready for review.` }); setShowDirectOrder(false); navigate(`/sales/po/${po.id}`); }} />}
 
       {/* RFQ Detail Drawer */}
       {selectedRfq && (
@@ -473,18 +474,6 @@ export default function Sales() {
           </div>
         </div>
       )}
-    </div>
-  );
-}
-
-function EditPOForm({ po, onSave, onCancel }: { po: CustomerPO; onSave: (p: Partial<CustomerPO>) => void; onCancel: () => void }) {
-  const [form, setForm] = useState({ poNumber: po.poNumber, totalValue: po.totalValue, paymentTerms: po.paymentTerms });
-  return (
-    <div className="space-y-3">
-      <div><label className="text-xs text-[var(--text-3)] block mb-1">PO Number</label><input value={form.poNumber} onChange={e => setForm(f => ({ ...f, poNumber: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--surface)] text-sm text-[var(--text)]" /></div>
-      <div><label className="text-xs text-[var(--text-3)] block mb-1">Total Value (₹)</label><input type="number" value={form.totalValue} onChange={e => setForm(f => ({ ...f, totalValue: Number(e.target.value) }))} className="w-full px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--surface)] text-sm text-[var(--text)]" /></div>
-      <div><label className="text-xs text-[var(--text-3)] block mb-1">Payment Terms</label><input value={form.paymentTerms} onChange={e => setForm(f => ({ ...f, paymentTerms: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--surface)] text-sm text-[var(--text)]" /></div>
-      <div className="flex gap-2 mt-4"><button onClick={onCancel} className="flex-1 py-2 border border-[var(--border)] text-[var(--text)] rounded-lg text-sm">Cancel</button><button onClick={() => onSave(form)} className="flex-1 py-2 bg-[var(--brand-fill)] text-white rounded-lg text-sm font-medium">Save</button></div>
     </div>
   );
 }
@@ -546,6 +535,19 @@ function NewRFQModal({ onClose, onSave }: { onClose: () => void; onSave: (r: Cus
       </div>
     </div>
   );
+}
+
+function DirectOrderModal({ onClose, onSave }: { onClose: () => void; onSave: (po: CustomerPO) => void }) {
+  const { customers, currentUser } = useStore();
+  const [customerId, setCustomerId] = useState('');
+  const [value, setValue] = useState('');
+  const customer = customers.find(c => c.id === customerId);
+  const submit = () => {
+    if (!customer || !value || Number(value) <= 0) return;
+    const id = `cpo-direct-${Date.now()}`;
+    onSave({ id, poNumber: `DPO-${String(Date.now()).slice(-6)}`, customerId, customerName: customer.tradingName || customer.legalName, acceptedDate: new Date().toISOString().slice(0, 10), paymentTerms: customer.paymentTerms, status: 'active', totalValue: Number(value), currency: customer.currency, lineCount: 1, deliveryTerms: 'To be confirmed' });
+  };
+  return <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"><div className="w-full max-w-md rounded-2xl border p-6 shadow-2xl" style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}><div className="flex items-center justify-between mb-4"><div><h3 className="font-bold text-[var(--text)]">Direct customer order</h3><p className="text-xs text-[var(--text-2)] mt-1">Use only when no quotation was prepared. The record will be clearly labelled.</p></div><button type="button" onClick={onClose}><X size={16} /></button></div><div className="space-y-3"><label className="block text-xs text-[var(--text-2)]">Customer<select className="eoss-input w-full mt-1" value={customerId} onChange={e => setCustomerId(e.target.value)}><option value="">Select customer…</option>{customers.map(c => <option key={c.id} value={c.id}>{c.tradingName || c.legalName}</option>)}</select></label><label className="block text-xs text-[var(--text-2)]">Order value<input type="number" min="1" className="eoss-input w-full mt-1" value={value} onChange={e => setValue(e.target.value)} /></label><p className="text-[11px] text-[var(--text-3)]">Created by {currentUser.name}. Credit review is applied using the demo customer account.</p></div><div className="flex gap-2 mt-5"><button type="button" onClick={onClose} className="flex-1 py-2 rounded-lg border text-sm" style={{ borderColor: 'var(--border)' }}>Cancel</button><button type="button" onClick={submit} disabled={!customer || !value} className="flex-1 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-40" style={{ background: 'var(--brand-fill)' }}>Create direct order</button></div></div></div>;
 }
 
 function Metric({ icon, label, value, small }: { icon: React.ReactNode; label: string; value: string; small?: boolean }) {

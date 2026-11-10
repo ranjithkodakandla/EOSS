@@ -6,13 +6,15 @@ import { useStore } from '../../store';
 export default function POAmend() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { customerPos, showToast } = useStore();
+  const { customerPos, jobs, approvalRequests, currentUser, addApprovalRequest, updateCustomerPo, showToast } = useStore();
 
   const po = customerPos.find(p => p.id === id);
 
   const [reason, setReason] = useState('');
   const [changeNote, setChangeNote] = useState('');
   const [submitted, setSubmitted] = useState(false);
+  const workStarted = jobs.some(j => j.customerPoId === po?.id && j.status !== 'draft' && j.status !== 'cancelled');
+  const previousAmendment = approvalRequests.filter(a => a.entityId === po?.id && a.requestType === 'Customer PO Amendment').slice(-1)[0];
 
   if (!po) {
     return (
@@ -26,6 +28,21 @@ export default function POAmend() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!reason.trim() || !changeNote.trim()) return;
+    const approvalId = `apr-amend-${Date.now()}`;
+    addApprovalRequest({
+      id: approvalId,
+      requestType: 'Customer PO Amendment',
+      entityRef: po.poNumber,
+      entityId: po.id,
+      description: `${reason}: ${changeNote}`,
+      requestedBy: currentUser.name,
+      requestedAt: new Date().toISOString(),
+      status: 'pending',
+      notes: changeNote,
+      approvalCycle: (previousAmendment?.approvalCycle ?? 0) + 1,
+      previousRequestId: previousAmendment?.id,
+    });
+    updateCustomerPo(po.id, { hasAmendment: true });
     setSubmitted(true);
     showToast({ type: 'success', title: 'Amendment request submitted', body: `Amendment for ${po.poNumber} is pending approval.` });
     setTimeout(() => navigate(`/sales/po/${id}`), 1500);
@@ -56,7 +73,7 @@ export default function POAmend() {
       >
         <AlertTriangle size={16} className="text-amber-500 mt-0.5 flex-shrink-0" />
         <div className="text-xs text-amber-700">
-          <strong>Amendment requires approval.</strong> Any change to quantity, price or delivery date will be flagged for maker-checker review before it becomes binding. The original PO remains in effect until the amendment is approved.
+          <strong>Amendment requires approval.</strong> Any commercial change is recorded as a controlled request; the original PO remains in effect until the amendment is approved. {workStarted ? 'Work has started, so this is an exception request for owner review.' : ''}
         </div>
       </div>
 
@@ -66,6 +83,10 @@ export default function POAmend() {
         className="rounded-2xl border p-5 space-y-4"
         style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
       >
+        <div className="rounded-lg border p-3 text-xs" style={{ borderColor: 'var(--border)', background: 'var(--surface-2)', color: 'var(--text-2)' }}>
+          <div className="font-semibold text-[var(--text)] mb-1">Original commercial values</div>
+          <div className="grid grid-cols-2 gap-2"><span>PO number: <strong>{po.poNumber}</strong></span><span>Total: <strong>₹{po.totalValue.toLocaleString('en-IN')}</strong></span><span>Payment terms: <strong>{po.paymentTerms}</strong></span><span>Jobs started: <strong>{workStarted ? 'Yes' : 'No'}</strong></span></div>
+        </div>
         <div>
           <label className="block text-xs font-semibold text-[var(--text-2)] mb-1.5">Amendment Reason *</label>
           <select

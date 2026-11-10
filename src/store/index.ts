@@ -13,6 +13,7 @@ import type {
   PurchaseRequisition, Site, MaterialItem,
   MeterReading, QualityRelease, InspectionTemplate, StageTemplate,
   JobMaterialReq, JobBlocker, SupplierPOLine
+  , Party
 } from '../types';
 import { stampPlaces } from '../domain/places';
 import {
@@ -46,6 +47,8 @@ export type EOSSTheme = 'aurora' | 'ocean' | 'graphite';
 interface EOSSState {
   // Session
   currentUser: DemoUser;
+  customers: Party[];
+  suppliers: Party[];
   purchaseReqs: PurchaseRequisition[];
   theme: ThemeMode;
   eossTheme: EOSSTheme;
@@ -137,6 +140,7 @@ interface EOSSState {
 
   // Approval actions
   resolveApproval: (aprId: string, resolution: 'approved' | 'rejected', by: string, notes?: string) => void;
+  addApprovalRequest: (request: ApprovalRequest) => void;
 
   // Document actions
   addDocument: (doc: VaultDocument) => void;
@@ -196,6 +200,10 @@ interface EOSSState {
 
   // Update / soft-delete actions
   updateCustomerPo: (id: string, partial: Partial<CustomerPO>) => void;
+  updateCustomer: (id: string, partial: Partial<Party>) => void;
+  addCustomer: (customer: Party) => void;
+  updateSupplier: (id: string, partial: Partial<Party>) => void;
+  addSupplier: (supplier: Party) => void;
   updateRfq: (id: string, partial: Partial<CustomerRFQ>) => void;
   updateSupplierPo: (id: string, partial: Partial<SupplierPO>) => void;
   updateJob: (id: string, partial: Partial<Job>) => void;
@@ -248,6 +256,8 @@ function buildInitialData() {
 function buildSeed() {
   return {
     currentUser: DEMO_USERS[0], // owner by default
+    customers: [...CUSTOMERS_BASE, GERMAN_CUSTOMER],
+    suppliers: [...SUPPLIERS],
     notifications: [...NOTIFICATIONS],
     unreadCount: NOTIFICATIONS.filter(n => !n.read).length,
 
@@ -483,14 +493,36 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
 
   // ── Approval Actions ──
   resolveApproval: (aprId, resolution, by, notes) => {
-    set(s => ({
-      approvalRequests: s.approvalRequests.map(a =>
-        a.id !== aprId ? a : { ...a, status: resolution, approvedBy: by, notes }),
-      pulseExceptions: s.pulseExceptions.filter(pe => pe.affectedId !== aprId),
-      unreadCount: Math.max(0, s.unreadCount - 1),
-    }));
+    set(s => {
+      const request = s.approvalRequests.find(a => a.id === aprId);
+      if (!request) return s;
+      return {
+        approvalRequests: s.approvalRequests.map(a =>
+          a.id !== aprId ? a : { ...a, status: resolution, approvedBy: by, notes, decisionAt: new Date().toISOString() }),
+        pulseExceptions: s.pulseExceptions.filter(pe => pe.affectedId !== aprId),
+        unreadCount: Math.max(0, s.unreadCount - 1),
+        customerPos: request.requestType === 'Customer PO Credit Limit Approval'
+          ? s.customerPos.map(po => po.id === request.entityId ? { ...po, status: resolution === 'approved' ? 'active' as const : 'on_hold' as const } : po)
+          : s.customerPos,
+        auditEvents: [...s.auditEvents, {
+          id: `ae-${Date.now()}`,
+          actor: by, actorId: s.currentUser.id, scope: 'ApprovalRequest', action: resolution,
+          entityId: request.entityId, entityRef: request.entityRef, timestamp: new Date().toISOString(),
+          source: 'ui', reason: notes, after: { approvalId: aprId, status: resolution },
+        }],
+      };
+    });
     get().showToast({ type: resolution === 'approved' ? 'success' : 'info', title: `Request ${resolution}`, body: `Approval request resolved.` });
   },
+
+  addApprovalRequest: (request) => set(s => ({
+    approvalRequests: [request, ...s.approvalRequests],
+    auditEvents: [...s.auditEvents, {
+      id: `ae-${Date.now()}`, actor: s.currentUser.name, actorId: s.currentUser.id,
+      scope: 'ApprovalRequest', action: 'create', entityId: request.entityId, entityRef: request.entityRef,
+      timestamp: new Date().toISOString(), source: 'ui', after: request as unknown as Record<string, unknown>,
+    }],
+  })),
 
   // ── Document Actions ──
   addDocument: (doc) => set(s => ({ documents: [doc, ...s.documents] })),
@@ -551,15 +583,57 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
   addRfq: (rfq) => set(s => ({ rfqs: [rfq, ...s.rfqs] })),
   addQuotation: (q, lines) => set(s => ({ quotations: [q, ...s.quotations], quotationLines: [...s.quotationLines, ...lines] })),
   updateQuotation: (id, partial) => set(s => ({ quotations: s.quotations.map(q => q.id === id ? { ...q, ...partial } : q) })),
-  convertQuotationToPO: (quotationId, po, lines) => set(s => ({
-    quotations: s.quotations.map(q => q.id === quotationId ? { ...q, status: 'accepted' as const } : q),
-    rfqs: s.rfqs.map(r => r.id === s.quotations.find(q => q.id === quotationId)?.rfqId ? { ...r, status: 'converted' as const } : r),
-    customerPos: [po, ...s.customerPos],
-    poLines: [...s.poLines, ...lines],
-  })),
+  convertQuotationToPO: (quotationId, po, lines) => set(s => {
+    const quotation = s.quotations.find(q => q.id === quotationId);
+    const customer = s.customers.find(c => c.id === po.customerId);
+    const exposure = s.customerPos
+      .filter(p => p.customerId === po.customerId && ['active', 'partial', 'on_hold'].includes(p.status))
+      .reduce((sum, p) => sum + p.totalValue, 0);
+    const available = (customer?.creditLimit ?? Number.POSITIVE_INFINITY) - exposure;
+    const exceedsCredit = Number.isFinite(available) && po.totalValue > available;
+    const approvalId = exceedsCredit ? `apr-credit-${po.id}` : undefined;
+    const approval: ApprovalRequest | undefined = exceedsCredit ? {
+      id: approvalId!, requestType: 'Customer PO Credit Limit Approval', entityRef: po.poNumber,
+      entityId: po.id, description: `${po.poNumber} exceeds available credit by ₹${(po.totalValue - available).toLocaleString('en-IN')}.`,
+      requestedBy: s.currentUser.name, requestedAt: new Date().toISOString(), status: 'pending',
+      thresholdValue: customer?.creditLimit, currentValue: exposure + po.totalValue, approvalCycle: 1,
+    } : undefined;
+    const nextPo: CustomerPO = {
+      ...po,
+      quotationId, rfqId: quotation?.rfqId, rfqRef: quotation?.rfqNumber,
+      status: exceedsCredit ? 'on_hold' : po.status,
+      creditApprovalId: approvalId,
+      commercialLocked: false,
+    };
+    return {
+      quotations: s.quotations.map(q => q.id === quotationId ? { ...q, status: 'accepted' as const } : q),
+      rfqs: s.rfqs.map(r => r.id === quotation?.rfqId ? { ...r, status: 'converted' as const, quotationId, quotationRef: quotation?.quotationNumber, quotationStatus: 'accepted' as const } : r),
+      customerPos: [nextPo, ...s.customerPos],
+      poLines: [...s.poLines, ...lines],
+      ...(approval ? { approvalRequests: [approval, ...s.approvalRequests] } : {}),
+      auditEvents: [...s.auditEvents, {
+        id: `ae-${Date.now()}`, actor: s.currentUser.name, actorId: s.currentUser.id, scope: 'CustomerPO', action: 'create',
+        entityId: nextPo.id, entityRef: nextPo.poNumber, timestamp: new Date().toISOString(), source: 'ui',
+        after: nextPo as unknown as Record<string, unknown>, reason: exceedsCredit ? 'Credit limit approval required' : undefined,
+      }],
+    };
+  }),
   addPurchaseReq: (pr) => set(s => ({ purchaseReqs: [pr, ...s.purchaseReqs] })),
   updatePurchaseReq: (id, partial) => set(s => ({ purchaseReqs: s.purchaseReqs.map(p => p.id === id ? { ...p, ...partial } : p) })),
-  addCustomerPO: (po) => set(s => ({ customerPos: [po, ...s.customerPos] })),
+  addCustomerPO: (po) => set(s => {
+    const customer = s.customers.find(c => c.id === po.customerId);
+    const exposure = s.customerPos.filter(p => p.customerId === po.customerId && ['active', 'partial', 'on_hold'].includes(p.status)).reduce((sum, p) => sum + p.totalValue, 0);
+    const available = (customer?.creditLimit ?? Number.POSITIVE_INFINITY) - exposure;
+    const exceedsCredit = Number.isFinite(available) && po.totalValue > available;
+    const approvalId = exceedsCredit ? `apr-credit-${po.id}` : undefined;
+    const nextPo = { ...po, status: exceedsCredit ? 'on_hold' as const : po.status, creditApprovalId: approvalId };
+    const approval: ApprovalRequest | undefined = exceedsCredit ? {
+      id: approvalId!, requestType: 'Customer PO Credit Limit Approval', entityRef: po.poNumber, entityId: po.id,
+      description: `${po.poNumber} exceeds available credit by ₹${(po.totalValue - available).toLocaleString('en-IN')}.`, requestedBy: s.currentUser.name,
+      requestedAt: new Date().toISOString(), status: 'pending', thresholdValue: customer?.creditLimit, currentValue: exposure + po.totalValue, approvalCycle: 1,
+    } : undefined;
+    return { customerPos: [nextPo, ...s.customerPos], ...(approval ? { approvalRequests: [approval, ...s.approvalRequests] } : {}) };
+  }),
   addSupplierPO: (spo) => set(s => ({ supplierPos: [spo, ...s.supplierPos] })),
   addGRN: (grn) => set(s => ({ grns: [grn, ...s.grns] })),
   addJob: (job) => set(s => ({ jobs: [job, ...s.jobs] })),
@@ -599,7 +673,31 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
   addCollectionActivity: (ca) => set(s => ({ collectionActivities: [ca, ...s.collectionActivities] })),
 
   // ── Update / Soft-delete Actions ──
-  updateCustomerPo: (id, partial) => set(s => ({ customerPos: s.customerPos.map(p => p.id === id ? { ...p, ...partial } : p) })),
+  updateCustomerPo: (id, partial) => set(s => {
+    const current = s.customerPos.find(p => p.id === id);
+    if (!current) return s;
+    const commercialChange = ['totalValue', 'paymentTerms', 'deliveryTerms', 'poNumber'].some(key => key in partial);
+    if (current.commercialLocked && commercialChange) return s;
+    const safePartial = { ...partial, poNumber: current.poNumber };
+    const next = { ...current, ...safePartial };
+    return {
+      customerPos: s.customerPos.map(p => p.id === id ? next : p),
+      auditEvents: commercialChange ? [...s.auditEvents, {
+        id: `ae-${Date.now()}`, actor: s.currentUser.name, actorId: s.currentUser.id, scope: 'CustomerPO', action: 'update',
+        entityId: id, entityRef: current.poNumber, timestamp: new Date().toISOString(), source: 'ui', before: current as unknown as Record<string, unknown>, after: next as unknown as Record<string, unknown>,
+      }] : s.auditEvents,
+    };
+  }),
+  updateCustomer: (id, partial) => set(s => ({
+    customers: s.customers.map(c => c.id === id ? { ...c, ...partial } : c),
+    auditEvents: [...s.auditEvents, {
+      id: `ae-${Date.now()}`, actor: s.currentUser.name, actorId: s.currentUser.id, scope: 'Customer', action: 'update', entityId: id,
+      entityRef: s.customers.find(c => c.id === id)?.tradingName ?? id, timestamp: new Date().toISOString(), source: 'ui', after: partial as Record<string, unknown>,
+    }],
+  })),
+  addCustomer: (customer) => set(s => ({ customers: [customer, ...s.customers] })),
+  updateSupplier: (id, partial) => set(s => ({ suppliers: s.suppliers.map(supplier => supplier.id === id ? { ...supplier, ...partial } : supplier) })),
+  addSupplier: (supplier) => set(s => ({ suppliers: [supplier, ...s.suppliers] })),
   updateRfq: (id, partial) => set(s => ({ rfqs: s.rfqs.map(r => r.id === id ? { ...r, ...partial } : r) })),
   updateSupplierPo: (id, partial) => set(s => ({ supplierPos: s.supplierPos.map(p => p.id === id ? { ...p, ...partial } : p) })),
   updateJob: (id, partial) => set(s => ({ jobs: s.jobs.map(j => j.id === id ? { ...j, ...partial } : j) })),

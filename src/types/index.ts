@@ -135,6 +135,9 @@ export interface CustomerRFQ {
   lineCount: number;
   channel: string;
   owner: string;
+  quotationId?: ID;
+  quotationRef?: string;
+  quotationStatus?: CustomerQuotation['status'];
 }
 
 export interface CustomerPO {
@@ -149,8 +152,14 @@ export interface CustomerPO {
   currency: string;
   lineCount: number;
   quotationRef?: string;
+  quotationId?: ID;
+  rfqId?: ID;
+  rfqRef?: string;
   deliveryTerms: string;
   hasAmendment?: boolean;
+  commercialLocked?: boolean;
+  commercialLockReason?: string;
+  creditApprovalId?: ID;
 }
 
 export interface POLine {
@@ -191,6 +200,12 @@ export interface SupplierPO {
   deliverToSiteName?: string;
   deliverToStoreId?: ID;
   deliverToStoreName?: string;
+  supplierQuotationId?: ID;
+  supplierQuotationRef?: string;
+  supplierRfqId?: ID;
+  supplierRfqRef?: string;
+  directProcurement?: boolean;
+  directProcurementReason?: string;
 }
 
 export interface SupplierPOLine {
@@ -703,6 +718,11 @@ export interface ApprovalRequest {
   thresholdValue?: number;
   currentValue?: number;
   notes?: string;
+  siteId?: ID;
+  siteName?: string;
+  decisionAt?: string;
+  approvalCycle?: number;
+  previousRequestId?: ID;
 }
 
 // ── Notifications ──
@@ -780,6 +800,9 @@ export interface SupplierQuotation {
   deliveryDays: number;
   lines: SupplierQuotationLine[];
   notes?: string;
+  supplierRfqId?: ID;
+  supplierRfqRef?: string;
+  recordType?: 'rfq' | 'quotation';
 }
 
 export interface SupplierQuotationLine {

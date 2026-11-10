@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, ChevronRight, Edit2, Building2, Phone, Mail, MapPin, FileText, Star } from 'lucide-react';
-import { CUSTOMERS } from '../../store';
+import { ArrowLeft, ChevronRight, Edit2, Building2, Phone, Mail, MapPin, FileText, Star, X } from 'lucide-react';
 import { useStore } from '../../store';
 import StatusChip from '../../components/layout/StatusChip';
 
@@ -10,10 +9,11 @@ type Tab = 'overview' | 'orders' | 'contacts' | 'documents';
 export default function CustomerDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { customerPos } = useStore();
+  const { customers, customerPos, rfqs, documents, updateCustomer, showToast } = useStore();
   const [tab, setTab] = useState<Tab>('overview');
+  const [showEdit, setShowEdit] = useState(false);
 
-  const customer = CUSTOMERS.find(c => c.id === id);
+  const customer = customers.find(c => c.id === id);
   if (!customer) return (
     <div className="p-8 text-center text-sm" style={{ color: 'var(--text-2)' }}>
       Customer not found.{' '}
@@ -22,6 +22,8 @@ export default function CustomerDetail() {
   );
 
   const orders = customerPos.filter(po => po.customerId === id);
+  const customerRfqs = rfqs.filter(r => r.customerId === id);
+  const customerDocuments = documents.filter(d => d.linkedEntities.some(e => e.type === 'Customer' && (e.ref === id || e.ref === customer?.tradingName)));
   const TABS: { key: Tab; label: string }[] = [
     { key: 'overview', label: 'Overview' },
     { key: 'orders', label: `Orders (${orders.length})` },
@@ -53,7 +55,7 @@ export default function CustomerDetail() {
               <p className="text-sm mt-0.5" style={{ color: 'var(--text-2)' }}>{customer.legalName} · {customer.city}, {customer.state}</p>
             </div>
           </div>
-          <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium hover:opacity-80"
+          <button onClick={() => setShowEdit(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium hover:opacity-80"
             style={{ borderColor: 'var(--border)', color: 'var(--text-2)' }}>
             <Edit2 size={13} /> Edit
           </button>
@@ -123,6 +125,10 @@ export default function CustomerDetail() {
                     style={{ borderColor: 'var(--border)', background: 'var(--surface-2)', color: 'var(--text-2)' }}>
                     {orders.length} Purchase Order{orders.length !== 1 ? 's' : ''}
                   </button>
+                  <button onClick={() => navigate(`/sales?tab=rfqs&customer=${id}`)} className="w-full text-left px-3 py-2 rounded-lg border text-xs font-medium hover:opacity-80"
+                    style={{ borderColor: 'var(--border)', background: 'var(--surface-2)', color: 'var(--text-2)' }}>
+                    {customerRfqs.length} Customer RFQ{customerRfqs.length !== 1 ? 's' : ''}
+                  </button>
                   <button onClick={() => navigate('/documents')} className="w-full text-left px-3 py-2 rounded-lg border text-xs font-medium hover:opacity-80"
                     style={{ borderColor: 'var(--border)', background: 'var(--surface-2)', color: 'var(--text-2)' }}>
                     Document Vault →
@@ -188,7 +194,7 @@ export default function CustomerDetail() {
         {tab === 'documents' && (
           <div className="max-w-2xl">
             <Card title="Documents">
-              <p className="text-sm text-center py-6" style={{ color: 'var(--text-3)' }}>Customer documents are managed in the Document Vault.</p>
+              {customerDocuments.length === 0 ? <p className="text-sm text-center py-6" style={{ color: 'var(--text-3)' }}>No customer-linked documents. Documents are managed in the Document Vault.</p> : <div className="space-y-2 mb-4">{customerDocuments.map(d => <button key={d.id} type="button" onClick={() => navigate(`/documents?search=${encodeURIComponent(d.title)}`)} className="w-full text-left rounded-lg border p-3" style={{ borderColor: 'var(--border)' }}><div className="text-sm font-semibold text-[var(--text)]">{d.title}</div><div className="text-xs text-[var(--text-2)]">{d.docType} · Uploaded {d.uploadedAt}</div></button>)}</div>}
               <div className="text-center">
                 <button onClick={() => navigate('/documents')} className="px-4 py-2 rounded-lg text-sm font-semibold text-white" style={{ background: 'var(--brand-fill)' }}>
                   Open Document Vault
@@ -198,8 +204,14 @@ export default function CustomerDetail() {
           </div>
         )}
       </div>
+      {showEdit && <EditCustomerModal customer={customer} onClose={() => setShowEdit(false)} onSave={(partial) => { updateCustomer(customer.id, partial); showToast({ type: 'success', title: 'Customer updated' }); setShowEdit(false); }} />}
     </div>
   );
+}
+
+function EditCustomerModal({ customer, onClose, onSave }: { customer: any; onClose: () => void; onSave: (partial: Record<string, string>) => void }) {
+  const [form, setForm] = useState({ contactPerson: customer.contactPerson, phone: customer.phone, email: customer.email, city: customer.city, state: customer.state, paymentTerms: customer.paymentTerms });
+  return <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"><div className="w-full max-w-md rounded-2xl border p-6 shadow-2xl" style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}><div className="flex items-center justify-between mb-4"><h2 className="font-bold text-[var(--text)]">Edit customer details</h2><button type="button" onClick={onClose}><X size={16} /></button></div><div className="space-y-3">{(['contactPerson', 'phone', 'email', 'city', 'state'] as const).map(key => <label key={key} className="block text-xs text-[var(--text-2)] capitalize">{key.replace(/([A-Z])/g, ' $1')}<input className="eoss-input w-full mt-1" value={form[key]} onChange={e => setForm({ ...form, [key]: e.target.value })} /></label>)}<label className="block text-xs text-[var(--text-2)]">Payment terms<select className="eoss-input w-full mt-1" value={form.paymentTerms} onChange={e => setForm({ ...form, paymentTerms: e.target.value })}>{['Advance', 'Net 15', 'Net 30', 'Net 45', 'Net 60'].map(t => <option key={t}>{t}</option>)}</select></label></div><div className="flex gap-2 mt-5"><button type="button" onClick={onClose} className="flex-1 py-2 rounded-lg border text-sm" style={{ borderColor: 'var(--border)' }}>Cancel</button><button type="button" onClick={() => onSave(form)} className="flex-1 py-2 rounded-lg text-sm font-semibold text-white" style={{ background: 'var(--brand-fill)' }}>Save changes</button></div></div></div>;
 }
 
 function SBadge({ label, value, emphasis }: { label: string; value: string; emphasis?: boolean }) {

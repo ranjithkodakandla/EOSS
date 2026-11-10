@@ -1,19 +1,20 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, Plus, Building2, Phone, Mail, ChevronRight, Star, X, Pencil } from 'lucide-react';
-import { CUSTOMERS, useStore } from '../../store';
+import { useStore } from '../../store';
 import StatusChip from '../../components/layout/StatusChip';
 import EmptyState from '../../components/feedback/EmptyState';
+import type { Party } from '../../types';
 
 export default function CustomerDirectory() {
   const navigate = useNavigate();
-  const { showToast } = useStore();
+  const { customers, showToast, updateCustomer, addCustomer } = useStore();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
   const [showAdd, setShowAdd] = useState(false);
-  const [editCustomer, setEditCustomer] = useState<typeof CUSTOMERS[0] | null>(null);
+  const [editCustomer, setEditCustomer] = useState<Party | null>(null);
 
-  const filtered = CUSTOMERS.filter(c => {
+  const filtered = customers.filter(c => {
     const q = search.toLowerCase();
     const matchSearch = !q || c.legalName.toLowerCase().includes(q) || c.tradingName.toLowerCase().includes(q) || c.gstin.includes(q) || c.city.toLowerCase().includes(q);
     const matchStatus = statusFilter === 'all' || c.status === statusFilter;
@@ -27,7 +28,7 @@ export default function CustomerDirectory() {
         <div>
           <h1 className="text-xl font-bold text-[var(--text)]">Customer Directory</h1>
           <p className="text-sm text-[var(--text-2)] mt-0.5">
-            {CUSTOMERS.filter(c => c.status === 'active').length} active customers
+            {customers.filter(c => c.status === 'active').length} active customers
           </p>
         </div>
         <button
@@ -135,8 +136,10 @@ export default function CustomerDirectory() {
       {showAdd && (
         <AddCustomerModal
           onClose={() => setShowAdd(false)}
-          onSave={(name) => {
-            showToast({ type: 'success', title: 'Customer added', body: `${name} has been registered.` });
+          onSave={(form) => {
+            const customer: Party = { id: `cust-${Date.now()}`, partyType: 'Customer', legalName: form.legalName, tradingName: form.tradingName || form.legalName, panNumber: form.pan, gstin: form.gstin, state: form.state, paymentTerms: form.paymentTerms, currency: 'INR', status: 'active', contactPerson: form.contactPerson, phone: form.phone, email: form.email, city: form.city, since: new Date().getFullYear().toString() };
+            addCustomer(customer);
+            showToast({ type: 'success', title: 'Customer added', body: `${customer.tradingName} has been registered.` });
             setShowAdd(false);
           }}
         />
@@ -146,8 +149,9 @@ export default function CustomerDirectory() {
           editMode
           initialValues={{ legalName: editCustomer.legalName, tradingName: editCustomer.tradingName ?? '', gstin: editCustomer.gstin, pan: editCustomer.panNumber, city: editCustomer.city, state: editCustomer.state, phone: editCustomer.phone, email: editCustomer.email, paymentTerms: editCustomer.paymentTerms, contactPerson: editCustomer.contactPerson }}
           onClose={() => setEditCustomer(null)}
-          onSave={(name) => {
-            showToast({ type: 'success', title: 'Customer updated', body: `${name} has been updated.` });
+          onSave={(form) => {
+            updateCustomer(editCustomer.id, { legalName: form.legalName, tradingName: form.tradingName || form.legalName, city: form.city, state: form.state, phone: form.phone, email: form.email, contactPerson: form.contactPerson, paymentTerms: form.paymentTerms });
+            showToast({ type: 'success', title: 'Customer updated', body: `${form.tradingName || form.legalName} has been updated.` });
             setEditCustomer(null);
           }}
         />
@@ -156,12 +160,12 @@ export default function CustomerDirectory() {
   );
 }
 
-function AddCustomerModal({ onClose, onSave, initialValues, editMode }: { onClose: () => void; onSave: (name: string) => void; initialValues?: Record<string, string>; editMode?: boolean }) {
+function AddCustomerModal({ onClose, onSave, initialValues, editMode }: { onClose: () => void; onSave: (form: Record<string, string>) => void; initialValues?: Record<string, string>; editMode?: boolean }) {
   const [form, setForm] = useState({ legalName: '', tradingName: '', gstin: '', pan: '', city: '', state: '', phone: '', email: '', paymentTerms: 'Net 30', contactPerson: '', ...initialValues });
   const [err, setErr] = useState('');
   const save = () => {
     if (!form.legalName || !form.city) { setErr('Legal name and city are required'); return; }
-    onSave(form.tradingName || form.legalName);
+    onSave(form);
   };
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">

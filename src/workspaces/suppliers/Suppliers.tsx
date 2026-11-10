@@ -1,23 +1,24 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, ChevronRight, Plus, X, Pencil } from 'lucide-react';
-import { useStore, SUPPLIERS } from '../../store';
+import { useStore } from '../../store';
 import StatusChip from '../../components/layout/StatusChip';
+import type { Party } from '../../types';
 
 export default function Suppliers() {
-  const { currentUser, showToast } = useStore();
+  const { currentUser, suppliers, showToast, updateSupplier, addSupplier } = useStore();
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
   const [showAdd, setShowAdd] = useState(false);
-  const [editSupplier, setEditSupplier] = useState<typeof SUPPLIERS[0] | null>(null);
-  const filtered = SUPPLIERS.filter(s => !search || s.tradingName.toLowerCase().includes(search.toLowerCase()) || s.legalName.toLowerCase().includes(search.toLowerCase()) || (s.city ?? '').toLowerCase().includes(search.toLowerCase()));
+  const [editSupplier, setEditSupplier] = useState<Party | null>(null);
+  const filtered = suppliers.filter(s => !search || s.tradingName.toLowerCase().includes(search.toLowerCase()) || s.legalName.toLowerCase().includes(search.toLowerCase()) || (s.city ?? '').toLowerCase().includes(search.toLowerCase()));
 
   return (
     <div className="p-4 md:p-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
         <div>
           <h1 className="text-xl font-bold text-[var(--text)]">Suppliers</h1>
-          <p className="text-sm text-[var(--text-2)]">{SUPPLIERS.length} suppliers registered</p>
+          <p className="text-sm text-[var(--text-2)]">{suppliers.length} suppliers registered</p>
         </div>
         {['owner', 'buyer'].includes(currentUser.role) && (
           <button onClick={() => setShowAdd(true)} className="flex items-center gap-2 px-4 py-2 bg-[var(--brand-fill)] text-white rounded-lg text-sm font-medium"><Plus size={16} /> Add Supplier</button>
@@ -80,8 +81,10 @@ export default function Suppliers() {
       {showAdd && (
         <AddSupplierModal
           onClose={() => setShowAdd(false)}
-          onSave={(name) => {
-            showToast({ type: 'success', title: 'Supplier added', body: `${name} has been registered.` });
+          onSave={(form) => {
+            const supplier: Party = { id: `supp-${Date.now()}`, partyType: 'Supplier', legalName: form.legalName, tradingName: form.tradingName || form.legalName, panNumber: form.pan, gstin: form.gstin, state: form.state, paymentTerms: form.paymentTerms, currency: 'INR', status: 'active', contactPerson: form.contactPerson, phone: form.phone, email: form.email, city: form.city, since: new Date().getFullYear().toString(), category: form.category };
+            addSupplier(supplier);
+            showToast({ type: 'success', title: 'Supplier added', body: `${supplier.tradingName} has been registered.` });
             setShowAdd(false);
           }}
         />
@@ -91,8 +94,9 @@ export default function Suppliers() {
           initialValues={{ tradingName: editSupplier.tradingName, legalName: editSupplier.legalName, category: editSupplier.category ?? 'Raw Material', city: editSupplier.city ?? '', state: editSupplier.state ?? '', gstin: editSupplier.gstin ?? '', pan: editSupplier.panNumber ?? '', paymentTerms: editSupplier.paymentTerms, contactPerson: editSupplier.contactPerson, phone: editSupplier.phone, email: editSupplier.email }}
           editMode
           onClose={() => setEditSupplier(null)}
-          onSave={(name) => {
-            showToast({ type: 'success', title: 'Supplier updated', body: `${name} has been updated.` });
+          onSave={(form) => {
+            updateSupplier(editSupplier.id, { legalName: form.legalName, tradingName: form.tradingName || form.legalName, category: form.category, city: form.city, state: form.state, phone: form.phone, email: form.email, contactPerson: form.contactPerson, paymentTerms: form.paymentTerms });
+            showToast({ type: 'success', title: 'Supplier updated', body: `${form.tradingName || form.legalName} has been updated.` });
             setEditSupplier(null);
           }}
         />
@@ -101,12 +105,12 @@ export default function Suppliers() {
   );
 }
 
-function AddSupplierModal({ onClose, onSave, initialValues, editMode }: { onClose: () => void; onSave: (name: string) => void; initialValues?: Record<string, string>; editMode?: boolean }) {
+function AddSupplierModal({ onClose, onSave, initialValues, editMode }: { onClose: () => void; onSave: (form: Record<string, string>) => void; initialValues?: Record<string, string>; editMode?: boolean }) {
   const [form, setForm] = useState({ tradingName: '', legalName: '', category: 'Raw Material', city: '', state: '', gstin: '', pan: '', paymentTerms: 'Net 30', contactPerson: '', phone: '', email: '', ...initialValues });
   const [err, setErr] = useState('');
   const save = () => {
     if (!form.legalName || !form.city) { setErr('Legal name and city are required'); return; }
-    onSave(form.tradingName || form.legalName);
+    onSave(form);
   };
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Edit2, FilePlus, ExternalLink, ChevronRight } from 'lucide-react';
+import { ArrowLeft, FilePlus, ExternalLink, ChevronRight, Lock } from 'lucide-react';
 import { useStore } from '../../store';
 import StatusChip from '../../components/layout/StatusChip';
 import clsx from 'clsx';
@@ -10,7 +10,7 @@ type DetailTab = 'overview' | 'lines' | 'amendments' | 'jobs' | 'documents';
 export default function PODetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { customerPos, jobs, currentUser } = useStore();
+  const { customerPos, quotations, rfqs, jobs, currentUser } = useStore();
   const [activeTab, setActiveTab] = useState<DetailTab>('overview');
 
   const po = customerPos.find(p => p.id === id);
@@ -18,6 +18,9 @@ export default function PODetail() {
 
   const poJobs = jobs.filter(j => j.customerPoId === po.id);
   const canEdit = ['owner', 'sales'].includes(currentUser.role);
+  const sourceQuotation = quotations.find(q => q.id === po.quotationId || q.quotationNumber === po.quotationRef);
+  const sourceRfq = rfqs.find(r => r.id === po.rfqId || r.id === sourceQuotation?.rfqId);
+  const workStarted = poJobs.some(j => j.status !== 'draft' && j.status !== 'cancelled') || po.commercialLocked;
   const fmt = (d: string) => new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
 
   const TABS: { id: DetailTab; label: string }[] = [
@@ -78,12 +81,13 @@ export default function PODetail() {
                 >
                   <FilePlus size={14} /> Record Amendment
                 </button>
-                <button
+                {!workStarted && <button
+                  onClick={() => navigate(`/sales/po/${po.id}/amend`)}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-white hover:opacity-90"
                   style={{ background: 'var(--brand-fill)' }}
                 >
-                  <Edit2 size={14} /> Edit PO
-                </button>
+                  <FilePlus size={14} /> Amend PO
+                </button>}
               </>
             )}
           </div>
@@ -97,6 +101,8 @@ export default function PODetail() {
           <SummaryBadge label="Delivery Terms" value={po.deliveryTerms} />
           <SummaryBadge label="Currency" value={po.currency} />
           {po.quotationRef && <SummaryBadge label="Quotation Ref" value={po.quotationRef} mono />}
+          {!po.quotationRef && <SummaryBadge label="Source" value="DIRECT ORDER — NO QUOTATION" />}
+          {workStarted && <SummaryBadge label="Commercial changes" value="Locked after work started" />}
           <SummaryBadge label="Accepted" value={fmt(po.acceptedDate)} />
         </div>
       </div>
@@ -136,6 +142,10 @@ export default function PODetail() {
                   <DL label="Delivery Terms" value={po.deliveryTerms} />
                   <DL label="Currency" value={po.currency} />
                   {po.quotationRef && <DL label="Quotation Reference" value={po.quotationRef} mono />}
+                  {sourceQuotation && <button type="button" onClick={() => navigate(`/sales/quotation/${sourceQuotation.id}`)} className="text-left"><DL label="Quotation" value={sourceQuotation.quotationNumber} mono /></button>}
+                  {sourceRfq && <button type="button" onClick={() => navigate(`/sales/rfq/${sourceRfq.id}`)} className="text-left"><DL label="Originating RFQ" value={sourceRfq.rfqNumber} mono /></button>}
+                  {!sourceQuotation && <DL label="Source" value="DIRECT ORDER — NO QUOTATION" />}
+                  {workStarted && <div className="col-span-2 flex items-center gap-2 rounded-lg px-3 py-2 text-xs" style={{ background: 'var(--warning-bg)', color: 'var(--warning)' }}><Lock size={13} /> Commercial amendments are locked because work has started against this Customer PO.</div>}
                 </dl>
               </Card>
 

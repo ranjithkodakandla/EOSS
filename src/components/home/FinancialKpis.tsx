@@ -103,7 +103,7 @@ export default function FinancialKpis() {
       iconBg: 'linear-gradient(135deg, #FEF3C7 0%, #FDE68A 100%)',
       iconColor: '#D97706',
       iconGlow: 'rgba(217, 119, 6, 0.25)',
-      path: '/reports',
+      path: '/finance?tab=overview',
     },
   ];
 
