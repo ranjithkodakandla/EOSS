@@ -118,14 +118,14 @@ export default function Procurement() {
         {tab !== 'approvals' && <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="eoss-input min-h-[36px]" aria-label="Procurement status"><option value="all">All {tab === 'pr' ? 'PR' : tab === 'quotes' ? 'quotation' : tab === 'spo' ? 'Supplier PO' : 'GRN'} statuses</option>{statusOptions.map(status => <option key={status} value={status}>{getStatusLabel(status)}</option>)}</select>}
         <div className="flex-1" />
         {overduePOs > 0 && (
-          <button type="button" onClick={() => { setTab('spo'); setOverdueOnly(v => !v); }}
+          <button type="button" onClick={() => { setTab('spo'); setStatusFilter('all'); setOverdueOnly(v => !v); }}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
             style={{ background: 'var(--error-bg,#FEF2F2)', color: 'var(--error,#DC2626)' }}>
             <AlertTriangle size={13} /> {overduePOs} overdue
           </button>
         )}
         {pendingApprovals > 0 && (
-          <button type="button" onClick={() => setTab('approvals')}
+          <button type="button" onClick={() => { setTab('approvals'); setStatusFilter('all'); }}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
             style={{ background: 'var(--warning-bg,#FFFBEB)', color: 'var(--warning,#D97706)' }}>
             {pendingApprovals} to approve
@@ -155,7 +155,7 @@ export default function Procurement() {
       <div className="flex-shrink-0 flex items-center border-b px-3 overflow-x-auto"
         style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
         {TABS.map(t => (
-          <button key={t.id} onClick={() => setTab(t.id)}
+          <button key={t.id} onClick={() => { setTab(t.id); setStatusFilter('all'); setOverdueOnly(false); }}
             className="relative px-4 py-3 text-sm font-medium transition-colors whitespace-nowrap"
             style={{ color: tab === t.id ? 'var(--brand)' : 'var(--text-2)' }}>
             {t.label}
