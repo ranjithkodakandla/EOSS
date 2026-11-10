@@ -660,7 +660,7 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
     };
     return {
       quotations: s.quotations.map(q => q.id === quotationId ? { ...q, status: 'accepted' as const } : q),
-      rfqs: s.rfqs.map(r => r.id === quotation?.rfqId ? { ...r, status: 'converted' as const, quotationId, quotationRef: quotation?.quotationNumber, quotationStatus: 'accepted' as const } : r),
+      rfqs: s.rfqs.map(r => r.id === quotation?.rfqId ? { ...r, status: 'converted' as const, quotationId, quotationRef: quotation?.quotationNumber, quotationStatus: 'accepted' as const, convertedPoId: nextPo.id } : r),
       customerPos: [nextPo, ...s.customerPos],
       poLines: [...s.poLines, ...lines],
       ...(approval ? { approvalRequests: [approval, ...s.approvalRequests] } : {}),

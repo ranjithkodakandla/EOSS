@@ -7,6 +7,7 @@ const STATUS_MAP: Record<string, { label: string; cls: string }> = {
   pending: { label: 'Pending', cls: 'bg-[var(--warning-bg)] text-[var(--warning)]' },
   pending_approval: { label: 'Pending Approval', cls: 'bg-[var(--warning-bg)] text-[var(--warning)]' },
   active: { label: 'Active', cls: 'bg-[var(--info-bg)] text-[var(--info)]' },
+  inactive: { label: 'Inactive', cls: 'bg-[var(--surface-2)] text-[var(--text-3)]' },
   hold: { label: 'On Hold', cls: 'bg-[var(--hold-bg)] text-[var(--hold)]' },
   warning: { label: 'Warning', cls: 'bg-[var(--warning-bg)] text-[var(--warning)]' },
   complete: { label: 'Complete', cls: 'bg-[var(--success-bg)] text-[var(--success)]' },

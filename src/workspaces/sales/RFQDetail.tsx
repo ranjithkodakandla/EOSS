@@ -17,7 +17,7 @@ export default function RFQDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { rfqs, quotations, currentUser } = useStore();
+  const { rfqs, quotations, customerPos, currentUser } = useStore();
   const [tab, setTab] = useState<Tab>('lines');
 
   const rfq = rfqs.find(r => r.id === id) as (CustomerRFQ & Record<string, any>) | undefined;
@@ -28,6 +28,7 @@ export default function RFQDetail() {
   );
 
   const linkedQuotation = quotations.find(q => q.rfqId === rfq.id);
+  const convertedPo = customerPos.find(po => po.id === rfq.convertedPoId || po.rfqId === rfq.id || po.quotationRef === linkedQuotation?.quotationNumber);
   const canQuote = ['owner', 'sales'].includes(currentUser.role) && rfq.status === 'open';
   const canConvert = linkedQuotation?.status === 'accepted' && rfq.status !== 'converted';
   const returnTo = searchParams.get('from') || '/sales?tab=rfqs';
@@ -113,6 +114,11 @@ export default function RFQDetail() {
                 className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white bg-green-600 hover:bg-green-700"
               >
                 <CheckCircle size={15} /> Convert to PO
+              </button>
+            )}
+            {rfq.status === 'converted' && convertedPo && (
+              <button onClick={() => navigate(`/sales/po/${convertedPo.id}?from=${encodeURIComponent(`/sales/rfq/${rfq.id}`)}`)} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold border" style={{ borderColor: 'var(--brand)', color: 'var(--brand)' }}>
+                <FileText size={15} /> View Customer PO
               </button>
             )}
           </div>

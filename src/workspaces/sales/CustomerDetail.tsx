@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, ChevronRight, Edit2, Building2, Phone, Mail, MapPin, FileText, Star, X, Upload } from 'lucide-react';
+import { ArrowLeft, ChevronRight, Edit2, Phone, Mail, Star, Upload } from 'lucide-react';
 import { useStore } from '../../store';
 import StatusChip from '../../components/layout/StatusChip';
 
@@ -9,9 +9,8 @@ type Tab = 'overview' | 'orders' | 'rfqs' | 'contacts' | 'documents';
 export default function CustomerDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { customers, customerPos, rfqs, documents, updateCustomer, addDocument, currentUser, showToast } = useStore();
+  const { customers, customerPos, rfqs, documents, customerInvoices, addDocument, currentUser, showToast } = useStore();
   const [tab, setTab] = useState<Tab>('overview');
-  const [showEdit, setShowEdit] = useState(false);
 
   const customer = customers.find(c => c.id === id);
   if (!customer) return (
@@ -24,6 +23,14 @@ export default function CustomerDetail() {
   const orders = customerPos.filter(po => po.customerId === id);
   const customerRfqs = rfqs.filter(r => r.customerId === id);
   const customerDocuments = documents.filter(d => d.linkedEntities.some(e => e.type === 'Customer' && (e.ref === id || e.ref === customer?.tradingName)));
+  const customerInvoiceRecords = customerInvoices.filter(invoice => invoice.customerId === id);
+  const orderedValue = orders.reduce((sum, po) => sum + po.totalValue, 0);
+  const invoicedValue = customerInvoiceRecords.reduce((sum, invoice) => sum + invoice.amount, 0);
+  const paidValue = customerInvoiceRecords.reduce((sum, invoice) => sum + invoice.amountPaid, 0);
+  const outstandingValue = Math.max(0, invoicedValue - paidValue);
+  const overdueValue = customerInvoiceRecords.filter(invoice => invoice.status === 'overdue').reduce((sum, invoice) => sum + Math.max(0, invoice.amount - invoice.amountPaid), 0);
+  const availableCredit = customer.creditLimit == null ? undefined : Math.max(0, customer.creditLimit - outstandingValue);
+  const creditUtilization = customer.creditLimit && customer.creditLimit > 0 ? Math.min(100, (outstandingValue / customer.creditLimit) * 100) : undefined;
   const TABS: { key: Tab; label: string }[] = [
     { key: 'overview', label: 'Overview' },
     { key: 'orders', label: `Customer POs (${orders.length})` },
@@ -56,7 +63,7 @@ export default function CustomerDetail() {
               <p className="text-sm mt-0.5" style={{ color: 'var(--text-2)' }}>{customer.legalName} · {customer.city}, {customer.state}</p>
             </div>
           </div>
-          <button onClick={() => setShowEdit(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium hover:opacity-80"
+          <button onClick={() => navigate(`/sales/customers/${customer.id}/edit`)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium hover:opacity-80"
             style={{ borderColor: 'var(--border)', color: 'var(--text-2)' }}>
             <Edit2 size={13} /> Edit
           </button>
@@ -118,6 +125,21 @@ export default function CustomerDetail() {
                       </dd>
                     </div>
                   )}
+                </div>
+              </Card>
+              <Card title="Account Exposure">
+                <div className="grid grid-cols-2 gap-3">
+                  <DL label="Customer POs" value={`${orders.length} · ₹${(orderedValue / 100000).toFixed(2)}L`} />
+                  <DL label="Invoiced" value={`₹${(invoicedValue / 100000).toFixed(2)}L`} />
+                  <DL label="Paid" value={`₹${(paidValue / 100000).toFixed(2)}L`} />
+                  <DL label="Outstanding" value={`₹${(outstandingValue / 100000).toFixed(2)}L`} />
+                  <DL label="Overdue" value={`₹${(overdueValue / 100000).toFixed(2)}L`} />
+                  <DL label="Available Credit" value={availableCredit == null ? 'Not configured' : `₹${(availableCredit / 100000).toFixed(2)}L`} />
+                </div>
+                <div className="mt-3 pt-3 border-t" style={{ borderColor: 'var(--border)' }}>
+                  <div className="flex items-center justify-between text-xs"><span style={{ color: 'var(--text-3)' }}>Credit utilisation</span><span className="font-semibold" style={{ color: 'var(--text-2)' }}>{creditUtilization == null ? 'Not configured' : `${creditUtilization.toFixed(0)}%`}</span></div>
+                  <div className="h-1.5 rounded-full mt-1.5" style={{ background: 'var(--surface-2)' }}><div className="h-full rounded-full" style={{ width: `${creditUtilization ?? 0}%`, background: overdueValue > 0 ? 'var(--error,#DC2626)' : 'var(--brand-fill)' }} /></div>
+                  <div className="text-xs mt-2" style={{ color: 'var(--text-3)' }}>{customerInvoiceRecords.length === 0 ? 'Not Enough Payment History' : overdueValue > 0 ? 'Payment history shows overdue receivables' : 'Payments currently on time'}</div>
                 </div>
               </Card>
               <Card title="Quick Links">
@@ -188,7 +210,7 @@ export default function CustomerDetail() {
                   {customerRfqs.length === 0 ? (
                     <tr><td colSpan={5} className="px-4 py-10 text-center text-sm" style={{ color: 'var(--text-3)' }}>No RFQs on record.</td></tr>
                   ) : customerRfqs.map(rfq => (
-                    <tr key={rfq.id} className="cursor-pointer" style={{ borderBottom: '1px solid var(--border)' }} onClick={() => navigate(`/sales/rfq/${rfq.id}`)}>
+                    <tr key={rfq.id} className="cursor-pointer" style={{ borderBottom: '1px solid var(--border)' }} onClick={() => navigate(`/sales/rfq/${rfq.id}?from=${encodeURIComponent(`/sales?tab=customers&customer=${customer.id}`)}`)}>
                       <td className="px-4 py-3 font-mono text-xs font-bold" style={{ color: 'var(--brand)' }}>{rfq.rfqNumber}</td>
                       <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-2)' }}>{new Date(rfq.receivedDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</td>
                       <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-2)' }}>{new Date(rfq.requiredBy).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</td>
@@ -225,19 +247,13 @@ export default function CustomerDetail() {
           <div className="max-w-2xl">
             <Card title="Documents">
               <label className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold text-white cursor-pointer mb-4" style={{ background: 'var(--brand-fill)' }}><Upload size={14} /> Upload Customer Document<input type="file" className="hidden" onChange={e => { const file = e.target.files?.[0]; if (!file) return; addDocument({ id: `doc-customer-${Date.now()}`, title: file.name, docType: 'Customer Document', category: 'Customer Documents', uploadedBy: currentUser.name, uploadedAt: new Date().toISOString().slice(0, 10), version: 1, fileSize: `${Math.max(1, Math.round(file.size / 1024))} KB`, linkedEntities: [{ type: 'Customer', ref: customer.id }, { type: 'Customer', ref: customer.tradingName }] }); showToast({ type: 'success', title: 'Customer document uploaded', body: `${file.name} is associated with ${customer.tradingName}.` }); e.target.value = ''; }} /></label>
-              {customerDocuments.length === 0 ? <p className="text-sm text-center py-6" style={{ color: 'var(--text-3)' }}>No customer documents attached.</p> : <div className="space-y-2">{customerDocuments.map(d => <button key={d.id} type="button" onClick={() => navigate(`/documents/${d.id}`)} className="w-full text-left rounded-lg border p-3 hover:bg-[var(--surface-2)]" style={{ borderColor: 'var(--border)' }}><div className="text-sm font-semibold text-[var(--text)]">{d.title}</div><div className="text-xs text-[var(--text-2)]">{d.docType} · Uploaded {d.uploadedAt}</div></button>)}</div>}
+              {customerDocuments.length === 0 ? <p className="text-sm text-center py-6" style={{ color: 'var(--text-3)' }}>No customer documents attached.</p> : <div className="space-y-2">{customerDocuments.map(d => <div key={d.id} className="rounded-lg border p-3" style={{ borderColor: 'var(--border)' }}><div className="flex items-start justify-between gap-3"><div><div className="text-sm font-semibold text-[var(--text)]">{d.title}</div><div className="text-xs mt-1 text-[var(--text-2)]">{d.docType} · {d.fileSize} · Uploaded {d.uploadedAt} by {d.uploadedBy}</div><div className="text-[11px] mt-1 text-[var(--text-3)]">Status: {d.status ?? 'Active'} · Customer-scoped document</div></div><div className="flex items-center gap-2"><button type="button" onClick={() => showToast({ type: 'info', title: 'Customer document', body: `${d.title} is available in the ${customer.tradingName} document context.` })} className="text-xs font-semibold" style={{ color: 'var(--brand)' }}>View</button><button type="button" onClick={() => showToast({ type: 'info', title: 'Customer document', body: `Download requested for ${d.title}.` })} className="text-xs font-semibold" style={{ color: 'var(--text-2)' }}>Download</button></div></div></div>)}</div>}
             </Card>
           </div>
         )}
       </div>
-      {showEdit && <EditCustomerModal customer={customer} onClose={() => setShowEdit(false)} onSave={(partial) => { updateCustomer(customer.id, partial); showToast({ type: 'success', title: 'Customer updated' }); setShowEdit(false); }} />}
     </div>
   );
-}
-
-function EditCustomerModal({ customer, onClose, onSave }: { customer: any; onClose: () => void; onSave: (partial: Record<string, string>) => void }) {
-  const [form, setForm] = useState({ contactPerson: customer.contactPerson, phone: customer.phone, email: customer.email, city: customer.city, state: customer.state, paymentTerms: customer.paymentTerms });
-  return <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"><div className="w-full max-w-md rounded-2xl border p-6 shadow-2xl" style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}><div className="flex items-center justify-between mb-4"><h2 className="font-bold text-[var(--text)]">Edit customer details</h2><button type="button" onClick={onClose}><X size={16} /></button></div><div className="space-y-3">{(['contactPerson', 'phone', 'email', 'city', 'state'] as const).map(key => <label key={key} className="block text-xs text-[var(--text-2)] capitalize">{key.replace(/([A-Z])/g, ' $1')}<input className="eoss-input w-full mt-1" value={form[key]} onChange={e => setForm({ ...form, [key]: e.target.value })} /></label>)}<label className="block text-xs text-[var(--text-2)]">Payment terms<select className="eoss-input w-full mt-1" value={form.paymentTerms} onChange={e => setForm({ ...form, paymentTerms: e.target.value })}>{['Advance', 'Net 15', 'Net 30', 'Net 45', 'Net 60'].map(t => <option key={t}>{t}</option>)}</select></label></div><div className="flex gap-2 mt-5"><button type="button" onClick={onClose} className="flex-1 py-2 rounded-lg border text-sm" style={{ borderColor: 'var(--border)' }}>Cancel</button><button type="button" onClick={() => onSave(form)} className="flex-1 py-2 rounded-lg text-sm font-semibold text-white" style={{ background: 'var(--brand-fill)' }}>Save changes</button></div></div></div>;
 }
 
 function SBadge({ label, value, emphasis }: { label: string; value: string; emphasis?: boolean }) {

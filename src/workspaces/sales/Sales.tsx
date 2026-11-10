@@ -24,23 +24,26 @@ export default function Sales() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [rfqStatusFilter, setRfqStatusFilter] = useState('all');
-  const [sortKey, setSortKey] = useState<SalesSortKey>('number');
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+  const [sortKey, setSortKey] = useState<SalesSortKey>('date');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [selectedPoId, setSelectedPoId] = useState<string | null>(null);
   const [showNewRFQ, setShowNewRFQ] = useState(false);
   const [showDirectOrder, setShowDirectOrder] = useState(false);
   const [selectedRfq, setSelectedRfq] = useState<CustomerRFQ | null>(null);
 
   const handleCancelPo = (id: string) => {
-    const hasActiveJobs = jobs.some(j => j.customerPoId === id && j.status !== 'cancelled');
-    if (hasActiveJobs) { showToast({ type: 'error', title: 'Cannot cancel PO', body: 'PO has active jobs. Cancel jobs first.' }); return; }
+    const po = customerPos.find(p => p.id === id);
+    const linkedJobs = jobs.filter(j => j.customerPoId === id);
+    const hasActiveJobs = linkedJobs.some(j => !['cancelled', 'complete'].includes(j.status));
+    if (!po || po.status === 'complete' || po.status === 'cancelled' || hasActiveJobs) { showToast({ type: 'error', title: 'Cannot cancel PO', body: hasActiveJobs ? 'PO has active jobs. Cancel jobs first.' : 'This Customer PO is already closed or cancelled.' }); return; }
     updateCustomerPo(id, { status: 'cancelled' });
     showToast({ type: 'success', title: 'Customer PO cancelled', body: 'The record remains available in history.' });
   };
 
   const handleDeleteRfq = (id: string) => {
     const linked = customerPos.some(p => (p as any).rfqId === id);
-    if (linked) { showToast({ type: 'error', title: 'Cannot cancel RFQ', body: 'RFQ has an associated PO.' }); return; }
+    const rfq = rfqs.find(r => r.id === id);
+    if (linked || rfq?.status === 'converted') { showToast({ type: 'error', title: 'Cannot cancel RFQ', body: linked ? 'RFQ has an associated PO.' : 'A converted RFQ is preserved as transaction history.' }); return; }
     updateRfq(id, { status: 'cancelled' });
     showToast({ type: 'success', title: 'RFQ cancelled' });
   };
@@ -159,7 +162,7 @@ export default function Sales() {
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}
-            placeholder={tab === 'rfqs' ? 'Search RFQ number, customer…' : 'Search Customer PO number, customer…'}
+            placeholder={tab === 'rfqs' ? 'Search RFQ number or customer name' : 'Search Customer PO number or customer name'}
             className="w-full pl-8 pr-3 py-1.5 rounded-lg text-sm border focus:outline-none focus:ring-1"
             style={{
               borderColor: 'var(--border)',
@@ -253,10 +256,10 @@ export default function Sales() {
                             className="text-xs px-2 py-1 rounded-lg font-semibold text-white" style={{ background: 'var(--brand-fill)' }}>
                             Open
                           </button>
-                          {canCreate && p.status !== 'cancelled' && (
+                          {canCreate && p.status !== 'cancelled' && p.status !== 'complete' && jobs.filter(j => j.customerPoId === p.id).every(j => !['in_progress', 'complete'].includes(j.status)) && (
                             <button onClick={() => navigate(`/sales/po/${p.id}/amend`)} className="p-1 rounded hover:bg-[var(--surface-2)]" title="Amend Customer PO"><Pencil size={12} style={{ color: 'var(--text-3)' }} /></button>
                           )}
-                          {canCreate && p.status !== 'cancelled' && (
+                          {canCreate && p.status !== 'cancelled' && p.status !== 'complete' && jobs.filter(j => j.customerPoId === p.id).every(j => ['cancelled', 'complete'].includes(j.status)) && (
                             <button onClick={() => handleCancelPo(p.id)} className="p-1 rounded hover:bg-[var(--surface-2)]" title="Cancel Customer PO"><XCircle size={12} style={{ color: 'var(--error,#DC2626)' }} /></button>
                           )}
                         </div>
@@ -290,7 +293,7 @@ export default function Sales() {
                     style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}
                     onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--surface-2)'; }}
                     onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'var(--surface)'; }}
-                    onClick={() => navigate(`/sales/rfq/${r.id}`)}
+                    onClick={() => navigate(`/sales/rfq/${r.id}?from=${encodeURIComponent('/sales?tab=rfqs')}`)}
                   >
                     <td className="px-4 py-3 font-mono text-xs font-bold" style={{ color: 'var(--brand)' }}>{r.rfqNumber}</td>
                     <td className="px-4 py-3 font-medium" style={{ color: 'var(--text)' }}>{r.customerName}</td>
@@ -314,7 +317,7 @@ export default function Sales() {
                             Quote
                           </button>
                         )}
-                        {canCreate && r.status !== 'cancelled' && (
+                        {canCreate && !['cancelled', 'converted'].includes(r.status) && (
                           <button onClick={e => { e.stopPropagation(); handleDeleteRfq(r.id); }} className="p-1 rounded hover:bg-[var(--surface-2)]" title="Cancel Customer RFQ"><XCircle size={12} style={{ color: 'var(--error,#DC2626)' }} /></button>
                         )}
                       </div>

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate, Link, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Edit2, FilePlus, ExternalLink, ChevronRight, Ban, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, FilePlus, ExternalLink, ChevronRight, Ban, CheckCircle2 } from 'lucide-react';
 import { useStore } from '../../store';
 import StatusChip from '../../components/layout/StatusChip';
 import clsx from 'clsx';
@@ -25,11 +25,12 @@ export default function PODetail() {
   const actualLines = poLines.filter(line => line.poId === po.id);
   const displayLines = actualLines.length > 0 ? actualLines : Array.from({ length: po.lineCount }, (_, i) => ({ id: `fallback-${i}`, drawingNumber: `Component-${i + 1}`, revision: 'A', description: i === 0 ? 'SS 304 Precision Component' : i === 1 ? 'EN8 Machined Part' : `Component Line ${i + 1}`, orderedQty: 10 + i * 5, uom: 'pcs', requiredDate: '', rate: (po.totalValue / po.lineCount) / (10 + i * 5), value: po.totalValue / po.lineCount, status: 'pending' as const }));
   const quotation = quotations.find(q => q.quotationNumber === po.quotationRef);
-  const originatingRfq = quotation ? rfqs.find(r => r.id === quotation.rfqId) : undefined;
+  const originatingRfq = rfqs.find(r => r.id === po.rfqId) ?? (quotation ? rfqs.find(r => r.id === quotation.rfqId) : undefined);
   const canEdit = ['owner', 'sales'].includes(currentUser.role);
   const canApprove = currentUser.role === 'owner';
   const returnTo = searchParams.get('from') || '/sales?tab=pos';
   const canCancel = canEdit && po.status !== 'complete' && po.status !== 'cancelled' && poJobs.every(j => j.status === 'cancelled' || j.status === 'complete');
+  const canAmend = canEdit && !['complete', 'cancelled'].includes(po.status) && poJobs.every(j => !['in_progress', 'complete'].includes(j.status));
   const fmt = (d: string) => new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
 
   const TABS: { id: DetailTab; label: string }[] = [
@@ -85,20 +86,14 @@ export default function PODetail() {
             {canCancel && (
               <button onClick={() => { updateCustomerPo(po.id, { status: 'cancelled' }); showToast({ type: 'success', title: 'Customer PO cancelled', body: `${po.poNumber} preserved in history.` }); }} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium" style={{ borderColor: 'var(--error,#DC2626)', color: 'var(--error,#DC2626)' }}><Ban size={14} /> Cancel PO</button>
             )}
-            {canEdit && po.status !== 'complete' && po.status !== 'cancelled' && (
+            {canAmend && (
               <>
                 <button
                   onClick={() => navigate(`/sales/po/${po.id}/amend`)}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium hover:opacity-80 transition-opacity"
                   style={{ borderColor: 'var(--border)', color: 'var(--text-2)' }}
                 >
-                  <FilePlus size={14} /> Record Amendment
-                </button>
-                <button
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-white hover:opacity-90"
-                  style={{ background: 'var(--brand)' }}
-                >
-                  <Edit2 size={14} /> Edit PO
+                  <FilePlus size={14} /> Create Revised PO
                 </button>
               </>
             )}
@@ -221,13 +216,13 @@ export default function PODetail() {
                       <ChevronRight size={12} style={{ color: 'var(--text-3)' }} />
                     </button>
                   ))}
-                  {canEdit && (
+                  {canAmend && (
                     <button
                       onClick={() => navigate(`/sales/po/${po.id}/amend`)}
                       className="w-full py-2 rounded-lg border text-xs font-medium hover:opacity-80 transition-opacity"
                       style={{ borderColor: 'var(--border)', color: 'var(--text-2)' }}
                     >
-                      Record Amendment
+                      Create Revised PO
                     </button>
                   )}
                 </div>
@@ -291,17 +286,17 @@ export default function PODetail() {
             {amendments.length === 0 ? (
               <div className="rounded-xl border p-10 text-center" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
                 <p className="text-sm" style={{ color: 'var(--text-3)' }}>No amendments recorded for this PO.</p>
-                {canEdit && (
+                {canAmend && (
                   <button
                     onClick={() => navigate(`/sales/po/${po.id}/amend`)}
                     className="mt-3 px-4 py-2 rounded-lg text-sm font-semibold text-white"
                     style={{ background: 'var(--brand)' }}
                   >
-                    Record Amendment
+                    Create Revised PO
                   </button>
                 )}
               </div>
-            ) : <div className="space-y-3">{amendments.map(amendment => <div key={amendment.id} className="rounded-xl border p-4" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}><div className="flex items-start justify-between gap-3"><div><div className="text-sm font-semibold" style={{ color: 'var(--text)' }}>Rev {amendment.revision} · {amendment.reason.replaceAll('_', ' ')}</div><div className="text-xs mt-0.5" style={{ color: 'var(--text-3)' }}>Requested by {amendment.requestedBy} · {fmt(amendment.requestedAt)}</div></div><StatusChip status={amendment.status} size="sm" /></div><p className="mt-3 text-sm" style={{ color: 'var(--text-2)' }}>{amendment.changeNote}</p>{amendment.attachmentName && <div className="mt-2 text-xs" style={{ color: 'var(--text-3)' }}>Evidence: {amendment.attachmentName}</div>}</div>)}</div>}
+            ) : <div className="space-y-3">{amendments.map(amendment => <div key={amendment.id} className="rounded-xl border p-4" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}><div className="flex items-start justify-between gap-3"><div><div className="text-sm font-semibold" style={{ color: 'var(--text)' }}>Rev {amendment.revision} · {amendment.reason.replaceAll('_', ' ')}</div><div className="text-xs mt-0.5" style={{ color: 'var(--text-3)' }}>Requested by {amendment.requestedBy} · {fmt(amendment.requestedAt)}</div></div><StatusChip status={amendment.status} size="sm" /></div><p className="mt-3 text-sm" style={{ color: 'var(--text-2)' }}>{amendment.changeNote}</p><div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3 text-xs"><div className="rounded-lg p-3" style={{ background: 'var(--surface-2)' }}><div className="font-semibold mb-1" style={{ color: 'var(--text-2)' }}>Previous effective version</div><div style={{ color: 'var(--text-3)' }}>PO and line snapshot preserved at submission</div></div><div className="rounded-lg p-3" style={{ background: 'var(--surface-2)' }}><div className="font-semibold mb-1" style={{ color: 'var(--text-2)' }}>{amendment.status === 'approved' ? 'Current effective revision' : 'Proposed revision'}</div><div style={{ color: 'var(--text-3)' }}>{amendment.headerChanges?.paymentTerms ? `Payment terms → ${amendment.headerChanges.paymentTerms}` : ''}{amendment.lineChanges?.quantity !== undefined ? ` · Quantity → ${amendment.lineChanges.quantity}` : ''}{amendment.lineChanges?.rate !== undefined ? ` · Rate → ₹${amendment.lineChanges.rate.toLocaleString('en-IN')}` : ''}{!amendment.headerChanges?.paymentTerms && amendment.lineChanges?.quantity === undefined && amendment.lineChanges?.rate === undefined ? 'See change description above' : ''}</div></div></div>{amendment.attachmentName && <div className="mt-2 text-xs" style={{ color: 'var(--text-3)' }}>Evidence: {amendment.attachmentName}</div>}</div>)}</div>}
           </div>
         )}
 

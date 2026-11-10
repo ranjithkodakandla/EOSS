@@ -281,6 +281,7 @@ export interface POAmendment {
   lineChanges?: { description?: string; drawingRevision?: string; materialName?: string; quantity?: number; rate?: number; requiredDate?: string };
   headerChanges?: { paymentTerms?: string; deliveryTerms?: string; committedDate?: string };
   beforeSnapshot: Record<string, unknown>;
+  afterSnapshot?: Record<string, unknown>;
 }
 
 export interface SupplierPOLine {
