@@ -1,14 +1,17 @@
 import React, { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Plus, AlertTriangle, Search, ChevronRight, X, Pencil, Trash2, Send, ArrowUpDown } from 'lucide-react';
+import { Plus, AlertTriangle, Search, ChevronRight, X, Pencil, Trash2, Send } from 'lucide-react';
 import { useStore } from '../../store';
 import StatusChip from '../../components/layout/StatusChip';
 import type { GoodsReceipt, SupplierPO, SupplierPOLine, SupplierQuotation } from '../../types';
 import { DEFAULT_SITE_ID, DEFAULT_SITE_NAME, DEFAULT_STORE_ID, DEFAULT_STORE_NAME, GRN_STORE_ID, GRN_STORE_NAME } from '../../domain/recordLists';
 import { placeLabel } from '../../domain/places';
 import SiteStoreField from '../../components/forms/SiteStoreField';
+import SortableHeader from '../../components/layout/SortableHeader';
+import { sortRows } from '../../domain/tableSort';
 
 type ProcTab = 'spo' | 'pr' | 'grn' | 'approvals' | 'quotes';
+type ProcurementSortKey = 'number' | 'supplier' | 'date' | 'committedDate' | 'value' | 'lines' | 'job' | 'status' | 'raisedBy' | 'requiredBy' | 'priority' | 'poRef' | 'receivedBy' | 'challan' | 'validUntil' | 'leadTime' | 'terms';
 
 export default function Procurement() {
   const { supplierPos, grns, approvalRequests, supplierQuotations, purchaseReqs, sites, currentUser, showToast, addSupplierPO, resolveApproval, updateSupplierPo, addGRN, supplierPoLines } = useStore();
@@ -29,7 +32,8 @@ export default function Procurement() {
   const [siteFilter, setSiteFilter] = useState('all');
   const [overdueOnly, setOverdueOnly] = useState(false);
   const [approvalView, setApprovalView] = useState<'pending' | 'approved' | 'rejected' | 'all'>('pending');
-  const [sortNewestFirst, setSortNewestFirst] = useState(true);
+  const [sortKey, setSortKey] = useState<ProcurementSortKey>('date');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const receivablePos = supplierPos.filter(p => ['confirmed', 'partial', 'overdue', 'sent'].includes(p.status));
   const [receivePoId, setReceivePoId] = useState<string | null>(
     receiveParam ? (supplierPos.find(p => p.id === receiveParam)?.id ?? receivablePos[0]?.id ?? null) : null
@@ -41,24 +45,45 @@ export default function Procurement() {
 
   const q = search.toLowerCase();
   const matchSite = (siteId?: string) => siteFilter === 'all' || siteId === siteFilter;
-  const filteredSpo = supplierPos.filter(p =>
+  const filteredSpoBase = supplierPos.filter(p =>
     matchSite(p.deliverToSiteId) && (!overdueOnly || p.status === 'overdue') &&
     (!q || p.poNumber.toLowerCase().includes(q) || p.supplierName.toLowerCase().includes(q))
-  ).sort((a, b) => (sortNewestFirst ? -1 : 1) * a.raisedDate.localeCompare(b.raisedDate));
-  const filteredPrs = purchaseReqs.filter(pr =>
+  );
+  const filteredSpo = sortRows(filteredSpoBase, sortKey, sortDir, (p, key) => {
+    const values: Record<string, unknown> = { number: p.poNumber, supplier: p.supplierName, date: p.raisedDate, committedDate: p.committedDate, value: p.totalValue, lines: p.lineCount, job: p.jobRef, status: p.status };
+    return values[key] ?? p.raisedDate;
+  });
+  const filteredPrsBase = purchaseReqs.filter(pr =>
     matchSite(pr.deliverToSiteId) &&
     (!q || pr.prNumber.toLowerCase().includes(q) || pr.raisedBy.toLowerCase().includes(q) || (pr.jobNumber ?? '').toLowerCase().includes(q))
   );
-  const filteredGrns = grns.filter(g =>
+  const filteredPrs = sortRows(filteredPrsBase, sortKey, sortDir, (pr, key) => {
+    const values: Record<string, unknown> = { number: pr.prNumber, raisedBy: pr.raisedBy, date: pr.raisedDate, requiredBy: pr.requiredBy, job: pr.jobNumber, lines: pr.lineCount, priority: pr.priority, status: pr.status };
+    return values[key] ?? pr.raisedDate;
+  });
+  const filteredGrnsBase = grns.filter(g =>
     matchSite(g.siteId) &&
     (!q || g.grnNumber.toLowerCase().includes(q) || g.supplierName.toLowerCase().includes(q))
-  ).sort((a, b) => (sortNewestFirst ? -1 : 1) * a.receivedDate.localeCompare(b.receivedDate));
-  const filteredQuotes = supplierQuotations.filter(qt =>
+  );
+  const filteredGrns = sortRows(filteredGrnsBase, sortKey, sortDir, (g, key) => {
+    const values: Record<string, unknown> = { number: g.grnNumber, supplier: g.supplierName, poRef: g.spoNumber, date: g.receivedDate, receivedBy: g.receivedBy, challan: g.deliveryChallan, status: g.status };
+    return values[key] ?? g.receivedDate;
+  });
+  const filteredQuotesBase = supplierQuotations.filter(qt =>
     !q || qt.quoteNumber.toLowerCase().includes(q) || qt.supplierName.toLowerCase().includes(q)
   );
+  const filteredQuotes = sortRows(filteredQuotesBase, sortKey, sortDir, (qt, key) => {
+    const values: Record<string, unknown> = { number: qt.quoteNumber, supplier: qt.supplierName, date: qt.quoteDate, validUntil: qt.validUntil, leadTime: qt.deliveryDays, terms: qt.paymentTerms, value: qt.lines.reduce((s, l) => s + l.lineTotal, 0), status: qt.status };
+    return values[key] ?? qt.quoteDate;
+  });
   const overduePOs = supplierPos.filter(p => p.status === 'overdue' && matchSite(p.deliverToSiteId) && (!q || p.poNumber.toLowerCase().includes(q) || p.supplierName.toLowerCase().includes(q))).length;
   const approvalSiteId = (id: string) => supplierPos.find(p => p.id === id)?.deliverToSiteId ?? purchaseReqs.find(p => p.id === id)?.deliverToSiteId ?? grns.find(g => g.id === id)?.siteId;
   const visibleApprovals = approvalRequests.filter(a => (approvalView === 'all' || a.status === approvalView) && matchSite(approvalSiteId(a.entityId)));
+
+  const handleSort = (key: ProcurementSortKey) => {
+    if (sortKey === key) setSortDir(direction => direction === 'asc' ? 'desc' : 'asc');
+    else { setSortKey(key); setSortDir('asc'); }
+  };
 
   const TABS = [
     { id: 'spo' as ProcTab, label: `Supplier POs (${filteredSpo.length})` },
@@ -85,7 +110,6 @@ export default function Procurement() {
           {sites.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
         </select>
         <div className="flex-1" />
-        <button type="button" onClick={() => setSortNewestFirst(v => !v)} className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border text-xs" style={{ borderColor: 'var(--border)', color: 'var(--text-2)' }}><ArrowUpDown size={13} /> {sortNewestFirst ? 'Newest' : 'Oldest'}</button>
         {overduePOs > 0 && (
           <button type="button" onClick={() => { setTab('spo'); setOverdueOnly(v => !v); }}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
@@ -162,9 +186,10 @@ export default function Procurement() {
           <table className="hidden md:table w-full text-sm border-separate border-spacing-0">
             <thead style={{ position: 'sticky', top: 0, zIndex: 5 }}>
               <tr style={{ background: 'var(--surface-2)', borderBottom: '1px solid var(--border)' }}>
-                {['PO Number', 'Supplier', 'Raised', 'Committed', 'Lines', 'Value', 'Job Ref', 'Status', ''].map(h => (
-                  <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold font-medium" style={{ color: 'var(--text-3)', borderBottom: '1px solid var(--border)' }}>{h}</th>
+                {([['PO Number', 'number'], ['Supplier', 'supplier'], ['Raised', 'date'], ['Committed', 'committedDate'], ['Lines', 'lines'], ['Value', 'value'], ['Job Ref', 'job'], ['Status', 'status']] as [string, ProcurementSortKey][]).map(([label, key]) => (
+                  <SortableHeader key={label} label={label} active={sortKey === key} direction={sortDir} onSort={() => handleSort(key)} className="text-left px-4 py-2.5 text-xs font-semibold font-medium" style={{ color: 'var(--text-3)', borderBottom: '1px solid var(--border)' }} />
                 ))}
+                <th />
               </tr>
             </thead>
             <tbody>
@@ -214,9 +239,10 @@ export default function Procurement() {
           <table className="w-full text-sm border-separate border-spacing-0">
             <thead style={{ position: 'sticky', top: 0, zIndex: 5 }}>
               <tr style={{ background: 'var(--surface-2)' }}>
-                {['PR Number', 'Raised By', 'Raised Date', 'Required By', 'Job Ref', 'Lines', 'Priority', 'Status', ''].map(h => (
-                  <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold font-medium" style={{ color: 'var(--text-3)', borderBottom: '1px solid var(--border)' }}>{h}</th>
+                {([['PR Number', 'number'], ['Raised By', 'raisedBy'], ['Raised Date', 'date'], ['Required By', 'requiredBy'], ['Job Ref', 'job'], ['Lines', 'lines'], ['Priority', 'priority'], ['Status', 'status']] as [string, ProcurementSortKey][]).map(([label, key]) => (
+                  <SortableHeader key={label} label={label} active={sortKey === key} direction={sortDir} onSort={() => handleSort(key)} className="text-left px-4 py-2.5 text-xs font-semibold font-medium" style={{ color: 'var(--text-3)', borderBottom: '1px solid var(--border)' }} />
                 ))}
+                <th />
               </tr>
             </thead>
             <tbody>
@@ -259,9 +285,10 @@ export default function Procurement() {
           <table className="w-full text-sm border-separate border-spacing-0">
             <thead style={{ position: 'sticky', top: 0, zIndex: 5 }}>
               <tr style={{ background: 'var(--surface-2)' }}>
-                {['GRN Number', 'Supplier', 'PO Ref', 'Received', 'By', 'Challan', 'Status', ''].map(h => (
-                  <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold font-medium" style={{ color: 'var(--text-3)', borderBottom: '1px solid var(--border)' }}>{h}</th>
+                {([['GRN Number', 'number'], ['Supplier', 'supplier'], ['PO Ref', 'poRef'], ['Received', 'date'], ['By', 'receivedBy'], ['Challan', 'challan'], ['Status', 'status']] as [string, ProcurementSortKey][]).map(([label, key]) => (
+                  <SortableHeader key={label} label={label} active={sortKey === key} direction={sortDir} onSort={() => handleSort(key)} className="text-left px-4 py-2.5 text-xs font-semibold font-medium" style={{ color: 'var(--text-3)', borderBottom: '1px solid var(--border)' }} />
                 ))}
+                <th />
               </tr>
             </thead>
             <tbody>
@@ -317,7 +344,12 @@ export default function Procurement() {
             </div>
             <div className="hidden md:block overflow-x-auto">
               <table className="eoss-table">
-                <thead><tr><th>Quote #</th><th>Supplier</th><th>Date</th><th>Valid Until</th><th>Lead Time</th><th>Payment Terms</th><th>Total Value</th><th>Status</th><th></th></tr></thead>
+                <thead><tr>
+                  {([['Quote #', 'number'], ['Supplier', 'supplier'], ['Date', 'date'], ['Valid Until', 'validUntil'], ['Lead Time', 'leadTime'], ['Payment Terms', 'terms'], ['Total Value', 'value'], ['Status', 'status']] as [string, ProcurementSortKey][]).map(([label, key]) => (
+                    <SortableHeader key={label} label={label} active={sortKey === key} direction={sortDir} onSort={() => handleSort(key)} />
+                  ))}
+                  <th />
+                </tr></thead>
                 <tbody>
                   {filteredQuotes.map(q => {
                     const total = q.lines.reduce((s, l) => s + l.lineTotal, 0);

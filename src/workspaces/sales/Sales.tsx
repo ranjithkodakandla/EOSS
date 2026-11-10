@@ -2,14 +2,17 @@ import React, { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Plus, Search, ChevronRight, ArrowUpRight, Calendar,
-  FileText, Briefcase, DollarSign, Clock, User, X, Pencil, XCircle, ArrowUpDown, ArrowUp, ArrowDown
+  FileText, Briefcase, DollarSign, Clock, User, X, Pencil, XCircle
 } from 'lucide-react';
 import { useStore, CUSTOMERS } from '../../store';
 import StatusChip from '../../components/layout/StatusChip';
 import clsx from 'clsx';
 import type { CustomerRFQ, CustomerPO } from '../../types';
+import SortableHeader from '../../components/layout/SortableHeader';
+import { sortRows } from '../../domain/tableSort';
 
 type POTab = 'pos' | 'rfqs' | 'customers';
+type SalesSortKey = 'number' | 'name' | 'date' | 'requiredBy' | 'value' | 'lines' | 'terms' | 'status' | 'channel' | 'quotation' | 'owner';
 
 export default function Sales() {
   const { rfqs, quotations, customerPos, jobs, currentUser, showToast, updateCustomerPo, updateRfq, addCustomerPO } = useStore();
@@ -19,7 +22,7 @@ export default function Sales() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [rfqStatusFilter, setRfqStatusFilter] = useState('all');
-  const [sortKey, setSortKey] = useState<'date' | 'value' | 'name'>('date');
+  const [sortKey, setSortKey] = useState<SalesSortKey>('date');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [selectedPoId, setSelectedPoId] = useState<string | null>(null);
   const [showNewRFQ, setShowNewRFQ] = useState(false);
@@ -42,27 +45,36 @@ export default function Sales() {
 
   const canCreate = ['owner', 'sales'].includes(currentUser.role);
 
-  const filteredPos = customerPos.filter(p => {
+  const filteredPosBase = customerPos.filter(p => {
     const q = search.toLowerCase();
     const matchSearch = !q || p.poNumber.toLowerCase().includes(q) || p.customerName.toLowerCase().includes(q);
     const matchStatus = statusFilter === 'all' || p.status === statusFilter;
     return matchSearch && matchStatus;
-  }).sort((a, b) => {
-    const av = sortKey === 'value' ? a.totalValue : sortKey === 'name' ? a.customerName : a.acceptedDate;
-    const bv = sortKey === 'value' ? b.totalValue : sortKey === 'name' ? b.customerName : b.acceptedDate;
-    const cmp = av < bv ? -1 : av > bv ? 1 : 0;
-    return sortDir === 'asc' ? cmp : -cmp;
+  });
+  const filteredPos = sortRows(filteredPosBase, sortKey, sortDir, (p, key) => {
+    const values: Record<string, unknown> = {
+      number: p.poNumber, name: p.customerName, date: p.acceptedDate, value: p.totalValue,
+      lines: p.lineCount, terms: p.paymentTerms, status: p.status,
+    };
+    return values[key] ?? p.acceptedDate;
   });
 
-  const filteredRfqs = rfqs.filter(r => {
+  const filteredRfqsBase = rfqs.filter(r => {
     const q = search.toLowerCase();
     return (rfqStatusFilter === 'all' || r.status === rfqStatusFilter) && (!q || r.rfqNumber.toLowerCase().includes(q) || r.customerName.toLowerCase().includes(q));
-  }).sort((a, b) => {
-    const av = sortKey === 'value' ? a.lineCount : sortKey === 'name' ? a.customerName : a.receivedDate;
-    const bv = sortKey === 'value' ? b.lineCount : sortKey === 'name' ? b.customerName : b.receivedDate;
-    const cmp = av < bv ? -1 : av > bv ? 1 : 0;
-    return sortDir === 'asc' ? cmp : -cmp;
   });
+  const filteredRfqs = sortRows(filteredRfqsBase, sortKey, sortDir, (r, key) => {
+    const values: Record<string, unknown> = {
+      number: r.rfqNumber, name: r.customerName, date: r.receivedDate, requiredBy: r.requiredBy, lines: r.lineCount,
+      channel: r.channel, quotation: r.status === 'quoted' ? 'Quoted' : 'Pending', status: r.status, owner: r.owner,
+    };
+    return values[key] ?? r.receivedDate;
+  });
+
+  const handleSort = (key: SalesSortKey) => {
+    if (sortKey === key) setSortDir(direction => direction === 'asc' ? 'desc' : 'asc');
+    else { setSortKey(key); setSortDir('asc'); }
+  };
 
   const selectedPo = customerPos.find(p => p.id === selectedPoId);
   const poJobs = selectedPo ? jobs.filter(j => j.customerPoId === selectedPo.id) : [];
@@ -164,7 +176,6 @@ export default function Sales() {
           </div>
         )}
         {tab === 'rfqs' && <select value={rfqStatusFilter} onChange={e => setRfqStatusFilter(e.target.value)} className="eoss-input text-xs py-1.5" aria-label="Customer RFQ status"><option value="all">All RFQ statuses</option>{['open', 'quoted', 'converted', 'lost', 'cancelled'].map(s => <option key={s} value={s}>{s}</option>)}</select>}
-        {(tab === 'pos' || tab === 'rfqs') && <button type="button" onClick={() => { const order: ['date' | 'value' | 'name', 'asc' | 'desc'][] = [['date', 'asc'], ['date', 'desc'], ['value', 'asc'], ['value', 'desc'], ['name', 'asc'], ['name', 'desc']]; const i = order.findIndex(([key, dir]) => key === sortKey && dir === sortDir); const [nextKey, nextDir] = order[(i + 1) % order.length]; setSortKey(nextKey); setSortDir(nextDir); }} className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border text-xs" style={{ borderColor: 'var(--border)', color: 'var(--text-2)' }}><ArrowUpDown size={13} /> Sort: {sortKey} <span>{sortDir === 'asc' ? <ArrowUp size={12} /> : <ArrowDown size={12} />}</span></button>}
         {search && (
           <button
             onClick={() => setSearch('')}
@@ -204,11 +215,10 @@ export default function Sales() {
             <table className="hidden md:table w-full text-sm border-collapse">
               <thead className="sticky top-0 z-10" style={{ background: 'var(--surface-2)' }}>
                 <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                  {['PO Number', 'Customer', 'Date', 'Value', 'Lines', 'Terms', 'Status', ''].map(h => (
-                    <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold font-medium" style={{ color: 'var(--text-3)' }}>
-                      {h}
-                    </th>
+                  {([['PO Number', 'number'], ['Customer', 'name'], ['Date', 'date'], ['Value', 'value'], ['Lines', 'lines'], ['Terms', 'terms'], ['Status', 'status']] as [string, SalesSortKey][]).map(([label, key]) => (
+                    <SortableHeader key={label} label={label} active={sortKey === key} direction={sortDir} onSort={() => handleSort(key)} className="text-left px-4 py-2.5 text-xs font-semibold font-medium" style={{ color: 'var(--text-3)' }} />
                   ))}
+                  <th />
                 </tr>
               </thead>
               <tbody>
@@ -272,9 +282,10 @@ export default function Sales() {
             <table className="w-full text-sm border-collapse">
               <thead className="sticky top-0 z-10" style={{ background: 'var(--surface-2)' }}>
                 <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                  {['RFQ Number', 'Customer', 'Received', 'Required By', 'Lines', 'Channel', 'Quotation', 'Status', 'Owner', ''].map(h => (
-                    <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold font-medium" style={{ color: 'var(--text-3)' }}>{h}</th>
+                  {([['RFQ Number', 'number'], ['Customer', 'name'], ['Received', 'date'], ['Required By', 'requiredBy'], ['Lines', 'lines'], ['Channel', 'channel'], ['Quotation', 'quotation'], ['Status', 'status'], ['Owner', 'owner']] as [string, SalesSortKey][]).map(([label, key]) => (
+                    <SortableHeader key={label} label={label} active={sortKey === key} direction={sortDir} onSort={() => handleSort(key)} className="text-left px-4 py-2.5 text-xs font-semibold font-medium" style={{ color: 'var(--text-3)' }} />
                   ))}
+                  <th />
                 </tr>
               </thead>
               <tbody>

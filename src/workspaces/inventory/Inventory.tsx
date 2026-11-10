@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Search, ArrowRightLeft, ArrowUpDown, ArrowUp, ArrowDown, ShieldAlert, Plus, Pencil, X } from 'lucide-react';
+import { Search, ArrowRightLeft, ShieldAlert, Plus, Pencil, X } from 'lucide-react';
 import { useStore } from '../../store';
 import SiteStoreField from '../../components/forms/SiteStoreField';
 import { placeLabel } from '../../domain/places';
@@ -9,6 +9,8 @@ import type { MaterialItem } from '../../types';
 import StatusChip from '../../components/layout/StatusChip';
 import StockWorkspaceNav from '../../components/layout/StockWorkspaceNav';
 import clsx from 'clsx';
+import SortableHeader from '../../components/layout/SortableHeader';
+import { sortRows } from '../../domain/tableSort';
 
 type SortKey = 'materialCode' | 'materialName' | 'locationName' | 'onHandQty' | 'reservedQty' | 'qcHoldQty' | 'inTransitQty' | 'availableQty' | 'reorderPoint';
 type SortDir = 'asc' | 'desc';
@@ -107,32 +109,20 @@ export default function Inventory() {
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
-    return inventory
+    const filteredRows = inventory
       .filter(i => {
         const matchLoc = selectedLocation === 'all' || i.locationId === selectedLocation;
         const matchSearch = !q || i.materialCode.toLowerCase().includes(q) || i.materialName.toLowerCase().includes(q) || i.categoryName.toLowerCase().includes(q) || i.locationName.toLowerCase().includes(q);
         const matchShortage = !shortagesOnly || i.shortage;
         return matchLoc && matchSearch && matchShortage;
       })
-      .sort((a, b) => {
-        let av: string | number = a[sortKey] ?? '';
-        let bv: string | number = b[sortKey] ?? '';
-        if (typeof av === 'string') av = av.toLowerCase();
-        if (typeof bv === 'string') bv = bv.toLowerCase();
-        const cmp = av < bv ? -1 : av > bv ? 1 : 0;
-        return sortDir === 'asc' ? cmp : -cmp;
-      });
+    return sortRows(filteredRows, sortKey, sortDir, (row, key) => row[key as SortKey]);
   }, [inventory, search, selectedLocation, shortagesOnly, sortKey, sortDir]);
 
   const raisePr = (item: { materialCode: string; materialName: string; primaryUom: string; reorderPoint: number; availableQty: number }) => {
     const qty = Math.max(item.reorderPoint - item.availableQty, item.reorderPoint || 1);
     const q = new URLSearchParams({ code: item.materialCode, name: item.materialName, qty: String(qty), uom: item.primaryUom });
     navigate(`/procurement/pr/new?${q.toString()}`);
-  };
-
-  const SortIcon = ({ k }: { k: SortKey }) => {
-    if (sortKey !== k) return <ArrowUpDown size={12} className="opacity-40" />;
-    return sortDir === 'asc' ? <ArrowUp size={12} /> : <ArrowDown size={12} />;
   };
 
   return (
@@ -325,17 +315,15 @@ export default function Inventory() {
                 ['reorderPoint', 'Reorder Pt'],
                 [null, 'Status'],
               ] as [SortKey | null, string][]).map(([key, label]) => (
-                <th
+                <SortableHeader
                   key={label}
-                  onClick={key ? () => handleSort(key) : undefined}
+                  label={label}
+                  onSort={key ? () => handleSort(key) : undefined}
+                  active={key === sortKey}
+                  direction={sortDir}
                   className={clsx('px-4 py-3 text-left text-xs font-semibold font-medium', key ? 'cursor-pointer select-none hover:opacity-70' : '')}
                   style={{ color: 'var(--text-3)', borderBottom: '1px solid var(--border)' }}
-                >
-                  <span className="flex items-center gap-1">
-                    {label}
-                    {key && <SortIcon k={key} />}
-                  </span>
-                </th>
+                />
               ))}
               <th className="px-4 py-3" style={{ borderBottom: '1px solid var(--border)' }} />
             </tr>

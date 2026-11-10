@@ -8,6 +8,10 @@ import { dispatchesReady, isReadyToShip, DEFAULT_SITE_ID, DEFAULT_SITE_NAME, SHI
 import SiteStoreField from '../../components/forms/SiteStoreField';
 import { placeLabel } from '../../domain/places';
 import StatusChip from '../../components/layout/StatusChip';
+import SortableHeader from '../../components/layout/SortableHeader';
+import { sortRows } from '../../domain/tableSort';
+
+type DispatchSortKey = 'number' | 'customer' | 'jobs' | 'carrier' | 'dispatchDate' | 'expectedDelivery' | 'qty' | 'status';
 
 let dspSeq = 100;
 
@@ -63,17 +67,24 @@ export default function DispatchWorkspace() {
   const dispatched  = base.filter(d => d.status === 'dispatched').length;
   const readyCount = dispatchesReady(base).length;
   const passesStatus = (status: string, focus: string | null) => !focus || (focus === 'ready' ? isReadyToShip(status) : status === focus);
-  const filtered = dispatches.filter(d =>
+  const filteredBase = dispatches.filter(d =>
     !deletedDispatchIds.has(d.id) &&
     passesStatus(d.status, statusFocus) &&
     (siteFilter === 'all' || d.sourceSiteId === siteFilter) &&
     (!search ||
     d.dispatchNumber.toLowerCase().includes(search.toLowerCase()) ||
     d.customerName.toLowerCase().includes(search.toLowerCase()))
-  ).sort((a, b) => {
-    const rank = (s: string) => s === 'pending_docs' ? 0 : s === 'dispatched' ? 1 : 2;
-    return rank(a.status) - rank(b.status);
-  });
+  );
+  const [sortKey, setSortKey] = useState<DispatchSortKey>('status');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+  const filtered = sortRows(filteredBase, sortKey, sortDir, (d, key) => ({
+    number: d.dispatchNumber, customer: d.customerName, jobs: (d.jobs ?? []).join(', '), carrier: d.carrier ?? d.vehicleNumber,
+    dispatchDate: d.dispatchDate, expectedDelivery: d.expectedDelivery, qty: d.totalQty, status: d.status,
+  }[key as DispatchSortKey]));
+  const handleSort = (key: DispatchSortKey) => {
+    if (sortKey === key) setSortDir(direction => direction === 'asc' ? 'desc' : 'asc');
+    else { setSortKey(key); setSortDir('asc'); }
+  };
 
   function handleCreate() {
     if (eligibleJob && eligibility && !eligibility.eligible) {
@@ -151,9 +162,10 @@ export default function DispatchWorkspace() {
         <table className="hidden md:table w-full text-sm border-separate border-spacing-0" style={{ minWidth: 800 }}>
           <thead style={{ position: 'sticky', top: 0, zIndex: 5 }}>
             <tr style={{ background: 'var(--surface-2)' }}>
-              {['Dispatch #', 'Customer', 'Jobs', 'Carrier / Vehicle', 'Dispatch Date', 'Expected Delivery', 'Qty', 'Status', ''].map(h => (
-                <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold font-medium" style={{ color: 'var(--text-3)', borderBottom: '1px solid var(--border)' }}>{h}</th>
+              {([['Dispatch #', 'number'], ['Customer', 'customer'], ['Jobs', 'jobs'], ['Carrier / Vehicle', 'carrier'], ['Dispatch Date', 'dispatchDate'], ['Expected Delivery', 'expectedDelivery'], ['Qty', 'qty'], ['Status', 'status']] as [string, DispatchSortKey][]).map(([label, key]) => (
+                <SortableHeader key={label} label={label} active={sortKey === key} direction={sortDir} onSort={() => handleSort(key)} className="text-left px-4 py-2.5 text-xs font-semibold font-medium" style={{ color: 'var(--text-3)', borderBottom: '1px solid var(--border)' }} />
               ))}
+              <th />
             </tr>
           </thead>
           <tbody>

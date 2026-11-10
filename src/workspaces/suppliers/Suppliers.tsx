@@ -4,6 +4,10 @@ import { Search, ChevronRight, Plus, X, Pencil } from 'lucide-react';
 import { useStore } from '../../store';
 import StatusChip from '../../components/layout/StatusChip';
 import type { Party } from '../../types';
+import SortableHeader from '../../components/layout/SortableHeader';
+import { sortRows } from '../../domain/tableSort';
+
+type SupplierSortKey = 'supplier' | 'category' | 'rating' | 'terms' | 'gstin' | 'status';
 
 export default function Suppliers() {
   const { currentUser, suppliers, showToast, updateSupplier, addSupplier } = useStore();
@@ -11,7 +15,14 @@ export default function Suppliers() {
   const [search, setSearch] = useState('');
   const [showAdd, setShowAdd] = useState(false);
   const [editSupplier, setEditSupplier] = useState<Party | null>(null);
-  const filtered = suppliers.filter(s => !search || s.tradingName.toLowerCase().includes(search.toLowerCase()) || s.legalName.toLowerCase().includes(search.toLowerCase()) || (s.city ?? '').toLowerCase().includes(search.toLowerCase()));
+  const [sortKey, setSortKey] = useState<SupplierSortKey>('supplier');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+  const filteredBase = suppliers.filter(s => !search || s.tradingName.toLowerCase().includes(search.toLowerCase()) || s.legalName.toLowerCase().includes(search.toLowerCase()) || (s.city ?? '').toLowerCase().includes(search.toLowerCase()));
+  const filtered = sortRows(filteredBase, sortKey, sortDir, (s, key) => ({ supplier: s.tradingName, category: s.category, rating: s.rating, terms: s.paymentTerms, gstin: s.gstin, status: s.status }[key as SupplierSortKey]));
+  const handleSort = (key: SupplierSortKey) => {
+    if (sortKey === key) setSortDir(direction => direction === 'asc' ? 'desc' : 'asc');
+    else { setSortKey(key); setSortDir('asc'); }
+  };
 
   return (
     <div className="p-4 md:p-6">
@@ -45,7 +56,10 @@ export default function Suppliers() {
       <div className="hidden md:block bg-[var(--surface)] border border-[var(--border)] rounded-xl overflow-hidden">
         <div className="overflow-x-auto">
           <table className="eoss-table">
-            <thead><tr><th>Supplier</th><th>Category</th><th>Rating</th><th>Payment Terms</th><th>GSTIN</th><th>Status</th><th></th></tr></thead>
+            <thead><tr>
+              {([['Supplier', 'supplier'], ['Category', 'category'], ['Rating', 'rating'], ['Payment Terms', 'terms'], ['GSTIN', 'gstin'], ['Status', 'status']] as [string, SupplierSortKey][]).map(([label, key]) => <SortableHeader key={label} label={label} active={sortKey === key} direction={sortDir} onSort={() => handleSort(key)} />)}
+              <th />
+            </tr></thead>
             <tbody>
               {filtered.map(s => (
                 <tr key={s.id} className="cursor-pointer" onClick={() => navigate(`/suppliers/${s.id}`)}>

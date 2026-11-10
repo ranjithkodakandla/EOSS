@@ -9,6 +9,10 @@ import RecordSheet from '../../components/layout/RecordSheet';
 import SiteStoreField from '../../components/forms/SiteStoreField';
 import StatusChip from '../../components/layout/StatusChip';
 import type { Job, JobStage } from '../../types';
+import SortableHeader from '../../components/layout/SortableHeader';
+import { sortRows } from '../../domain/tableSort';
+
+type JobSortKey = 'number' | 'customer' | 'description' | 'status' | 'priority' | 'stage' | 'plannedEnd' | 'projected' | 'material' | 'risk';
 
 const PRIORITY_COLOR: Record<string, string> = {
   urgent: 'var(--error)', high: 'var(--warning)', normal: 'var(--info)', low: 'var(--text-3)'
@@ -65,7 +69,17 @@ export default function Jobs() {
     const matchStatus = status === 'all' || j.status === status;
     return matchSearch && matchStatus && matchRisk && matchFocus && matchSite;
   };
-  const filtered = jobs.filter(j => matchJob(j, statusFilter));
+  const filteredBase = jobs.filter(j => matchJob(j, statusFilter));
+  const [sortKey, setSortKey] = useState<JobSortKey>('number');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+  const sortedJobs = sortRows(filteredBase, sortKey, sortDir, (j, key) => {
+    const status = statusByJob[j.id];
+    return ({ number: j.jobNumber, customer: j.customerName, description: j.description, status: j.status, priority: j.priority, stage: j.currentStage, plannedEnd: j.plannedEnd, projected: status.projectedCompletion, material: j.materialReadiness, risk: status.risk } as Record<JobSortKey, unknown>)[key as JobSortKey];
+  });
+  const handleSort = (key: JobSortKey) => {
+    if (sortKey === key) setSortDir(direction => direction === 'asc' ? 'desc' : 'asc');
+    else { setSortKey(key); setSortDir('asc'); }
+  };
 
   const statusCounts = {
     all: jobs.filter(j => matchJob(j, 'all')).length,
@@ -166,7 +180,7 @@ export default function Jobs() {
       )}
 
       <div className="md:hidden flex-1 overflow-auto p-3 space-y-2">
-        {filtered.map(j => {
+        {sortedJobs.map(j => {
           const status = statusByJob[j.id];
           return (
             <div
@@ -195,7 +209,7 @@ export default function Jobs() {
             </div>
           );
         })}
-        {filtered.length === 0 && <p className="text-center py-8 text-sm" style={{ color: 'var(--text-3)' }}>No jobs found</p>}
+        {sortedJobs.length === 0 && <p className="text-center py-8 text-sm" style={{ color: 'var(--text-3)' }}>No jobs found</p>}
       </div>
 
       {/* Table */}
@@ -203,13 +217,14 @@ export default function Jobs() {
         <table className="w-full text-sm border-separate border-spacing-0" style={{ minWidth: 900 }}>
           <thead style={{ position: 'sticky', top: 0, zIndex: 5 }}>
             <tr style={{ background: 'var(--surface-2)' }}>
-              {['Job #', 'Customer', 'Description', 'Status', 'Priority', 'Stage', 'Planned End', 'Projected', 'Material', 'Risk', ''].map(h => (
-                <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold font-medium" style={{ color: 'var(--text-3)', borderBottom: '1px solid var(--border)' }}>{h}</th>
+              {([['Job #', 'number'], ['Customer', 'customer'], ['Description', 'description'], ['Status', 'status'], ['Priority', 'priority'], ['Stage', 'stage'], ['Planned End', 'plannedEnd'], ['Projected', 'projected'], ['Material', 'material'], ['Risk', 'risk']] as [string, JobSortKey][]).map(([label, key]) => (
+                <SortableHeader key={label} label={label} active={sortKey === key} direction={sortDir} onSort={() => handleSort(key)} className="text-left px-4 py-2.5 text-xs font-semibold font-medium" style={{ color: 'var(--text-3)', borderBottom: '1px solid var(--border)' }} />
               ))}
+              <th />
             </tr>
           </thead>
           <tbody>
-            {filtered.map(j => {
+            {sortedJobs.map(j => {
               const dl = daysLeft(j.plannedEnd);
               const isLate = dl < 0 && j.status !== 'complete';
               const status = statusByJob[j.id];
@@ -271,7 +286,7 @@ export default function Jobs() {
                 </tr>
               );
             })}
-            {filtered.length === 0 && (
+            {sortedJobs.length === 0 && (
               <tr><td colSpan={11} className="px-4 py-10 text-center text-sm" style={{ color: 'var(--text-3)' }}>No jobs found</td></tr>
             )}
           </tbody>
