@@ -138,7 +138,7 @@ export default function SupplierRFQCreate() {
             <div className="flex items-center justify-between">
               <h2 className="text-sm font-bold text-[var(--text)]">Lines</h2>
               <button onClick={() => setLines(ls => [...ls, { id: `rl-${Date.now()}`, description: '', uom: 'kg', requiredQty: 0, targetRate: 0 }])}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white" style={{ background: 'var(--brand)' }}>
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white" style={{ background: 'var(--brand-fill)' }}>
                 <Plus size={13} /> Add Line
               </button>
             </div>
@@ -184,7 +184,7 @@ export default function SupplierRFQCreate() {
           Cancel
         </button>
         <button onClick={handleSend} disabled={!canSubmit}
-          className="px-5 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-40" style={{ background: 'var(--brand)' }}>
+          className="px-5 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-40" style={{ background: 'var(--brand-fill)' }}>
           Send RFQ to Supplier
         </button>
       </div>

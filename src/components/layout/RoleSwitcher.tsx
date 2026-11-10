@@ -53,7 +53,7 @@ export default function RoleSwitcher() {
                   currentUser.id === user.id ? 'bg-[var(--brand-50)]' : ''
                 }`}
               >
-                <span className="w-8 h-8 rounded-full bg-[var(--brand)] text-white text-xs font-semibold flex items-center justify-center flex-shrink-0">
+                <span className="w-8 h-8 rounded-full bg-[var(--brand-fill)] text-white text-xs font-semibold flex items-center justify-center flex-shrink-0">
                   {user.avatar}
                 </span>
                 <div className="flex-1 min-w-0">
@@ -61,7 +61,7 @@ export default function RoleSwitcher() {
                   <div className="text-xs text-[var(--text-2)] capitalize">{ROLE_ICONS[user.role]} {user.role}</div>
                 </div>
                 {currentUser.id === user.id && (
-                  <span className="w-2 h-2 rounded-full bg-[var(--brand)] flex-shrink-0" />
+                  <span className="w-2 h-2 rounded-full bg-[var(--brand-fill)] flex-shrink-0" />
                 )}
               </button>
             ))}

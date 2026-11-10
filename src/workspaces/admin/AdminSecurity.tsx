@@ -77,8 +77,8 @@ export default function AdminSecurity() {
     <div className="p-4 md:p-6 max-w-[1400px] mx-auto">
       {/* Header */}
       <div className="mb-5">
-        <h1 className="text-xl font-bold text-[var(--text)]">Admin & Security</h1>
-        <p className="text-sm text-[var(--text-2)] mt-0.5">Company configuration, users, roles, integrations and audit</p>
+        <h1 className="text-xl font-bold text-[var(--text)]">Admin & Settings</h1>
+        <p className="text-sm text-[var(--text-2)] mt-0.5">Company, people, and the audit trail. Edit is on the open tab.</p>
       </div>
 
       {/* Tabs */}
@@ -132,7 +132,7 @@ export default function AdminSecurity() {
                   updateCompanyConfig(companyForm);
                   setEditCompany(false);
                   showToast({ type: 'success', title: 'Company profile updated' });
-                }} className="px-4 py-2 bg-[var(--brand)] text-white rounded-xl text-sm font-medium">Save Changes</button>
+                }} className="px-4 py-2 bg-[var(--brand-fill)] text-white rounded-xl text-sm font-medium">Save Changes</button>
               </div>
             </div>
           ) : (
@@ -211,7 +211,7 @@ export default function AdminSecurity() {
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-base font-semibold text-[var(--text)]">Sites & Locations</h2>
             {!isReadOnly && (
-              <button onClick={() => setShowAddSite(true)} className="flex items-center gap-2 px-3.5 py-2 bg-[var(--brand)] text-white rounded-xl text-sm font-medium hover:opacity-90 transition-opacity">
+              <button onClick={() => setShowAddSite(true)} className="flex items-center gap-2 px-3.5 py-2 bg-[var(--brand-fill)] text-white rounded-xl text-sm font-medium hover:opacity-90 transition-opacity">
                 <Plus size={14} /> Add Site
               </button>
             )}
@@ -226,7 +226,7 @@ export default function AdminSecurity() {
                   <div>
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-semibold text-[var(--text)]">{site.name}</span>
-                      {site.isPrimary && <span className="text-[10px] font-bold bg-[var(--brand)] text-white px-2 py-0.5 rounded-full">Primary</span>}
+                      {site.isPrimary && <span className="text-[10px] font-bold bg-[var(--brand-fill)] text-white px-2 py-0.5 rounded-full">Primary</span>}
                     </div>
                     <div className="text-xs text-[var(--text-3)] mt-0.5">{site.type} · {site.city}, {site.state}</div>
                   </div>
@@ -257,7 +257,7 @@ export default function AdminSecurity() {
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-base font-semibold text-[var(--text)]">Users & Employees</h2>
             {!isReadOnly && (
-              <button onClick={() => setShowAddUser(true)} className="flex items-center gap-2 px-3.5 py-2 bg-[var(--brand)] text-white rounded-xl text-sm font-medium hover:opacity-90">
+              <button onClick={() => setShowAddUser(true)} className="flex items-center gap-2 px-3.5 py-2 bg-[var(--brand-fill)] text-white rounded-xl text-sm font-medium hover:opacity-90">
                 <Plus size={14} /> Add User
               </button>
             )}
@@ -274,7 +274,7 @@ export default function AdminSecurity() {
                     <tr key={u.id}>
                       <td>
                         <div className="flex items-center gap-2">
-                          <div className="w-7 h-7 rounded-full bg-[var(--brand)] text-white text-xs font-bold flex items-center justify-center flex-shrink-0">{u.avatar}</div>
+                          <div className="w-7 h-7 rounded-full bg-[var(--brand-fill)] text-white text-xs font-bold flex items-center justify-center flex-shrink-0">{u.avatar}</div>
                           <div>
                             <div className="text-sm font-medium text-[var(--text)]">{u.name}</div>
                             {emp && <div className="text-xs text-[var(--text-3)]">{emp.designation}</div>}
@@ -320,7 +320,7 @@ export default function AdminSecurity() {
               <button onClick={() => {
                 switchRole(demoRole);
                 showToast({ type: 'info', title: `Switched to ${ROLE_LABELS[demoRole] ?? demoRole}`, body: 'Navigation and permissions now reflect this role.' });
-              }} className="px-4 py-2 bg-[var(--brand)] text-white rounded-xl text-sm font-medium">
+              }} className="px-4 py-2 bg-[var(--brand-fill)] text-white rounded-xl text-sm font-medium">
                 Switch Role
               </button>
               <span className="text-xs text-[var(--text-3)]">Currently: <strong className="text-[var(--text)]">{ROLE_LABELS[currentUser.role] ?? currentUser.role}</strong></span>
@@ -404,7 +404,7 @@ export default function AdminSecurity() {
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-base font-semibold text-[var(--text)]">Approval Policies</h2>
             {!isReadOnly && (
-              <button className="flex items-center gap-2 px-3.5 py-2 bg-[var(--brand)] text-white rounded-xl text-sm font-medium hover:opacity-90">
+              <button className="flex items-center gap-2 px-3.5 py-2 bg-[var(--brand-fill)] text-white rounded-xl text-sm font-medium hover:opacity-90">
                 <Plus size={14} /> Add Policy
               </button>
             )}
@@ -466,7 +466,7 @@ export default function AdminSecurity() {
               <div className="text-sm font-medium text-[var(--text)] mb-2">AI Operating Mode</div>
               <div className="flex gap-2">
                 {(['Full', 'Limited', 'Paused'] as const).map(mode => (
-                  <button key={mode} className={`px-4 py-2 rounded-xl text-sm border transition-colors ${mode === 'Full' ? 'bg-[var(--brand)] text-white border-[var(--brand)]' : 'border-[var(--border)] text-[var(--text-2)]'}`}>
+                  <button key={mode} className={`px-4 py-2 rounded-xl text-sm border transition-colors ${mode === 'Full' ? 'bg-[var(--brand-fill)] text-white border-[var(--brand)]' : 'border-[var(--border)] text-[var(--text-2)]'}`}>
                     {mode}
                   </button>
                 ))}
@@ -578,7 +578,7 @@ function AddUserModal({ onClose, onSave }: { onClose: () => void; onSave: (name:
           <button onClick={() => {
             if (!form.name || !form.email) { setErr('Name and email required'); return; }
             onSave(form.name, form.role, form.email);
-          }} className="flex-1 py-2.5 bg-[var(--brand)] text-white rounded-xl text-sm font-medium">Invite User</button>
+          }} className="flex-1 py-2.5 bg-[var(--brand-fill)] text-white rounded-xl text-sm font-medium">Invite User</button>
         </div>
       </div>
     </div>
@@ -621,7 +621,7 @@ function AddSiteModal({ onClose, onSave }: { onClose: () => void; onSave: (name:
           <button onClick={() => {
             if (!form.name || !form.city) { setErr('Name and city required'); return; }
             onSave(form.name, form.type, form.city);
-          }} className="flex-1 py-2.5 bg-[var(--brand)] text-white rounded-xl text-sm font-medium">Add Site</button>
+          }} className="flex-1 py-2.5 bg-[var(--brand-fill)] text-white rounded-xl text-sm font-medium">Add Site</button>
         </div>
       </div>
     </div>
@@ -660,7 +660,7 @@ function EditUserModal({ user, onClose, onSave }: { user: DemoUser; onClose: () 
           <button onClick={() => {
             if (!form.name || !form.email) { setErr('Name and email required'); return; }
             onSave(form.name, form.role, form.email);
-          }} className="flex-1 py-2.5 bg-[var(--brand)] text-white rounded-xl text-sm font-medium">Save Changes</button>
+          }} className="flex-1 py-2.5 bg-[var(--brand-fill)] text-white rounded-xl text-sm font-medium">Save Changes</button>
         </div>
       </div>
     </div>

@@ -1,11 +1,16 @@
 import React, { useState, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Search, ArrowRightLeft, ArrowUpDown, ArrowUp, ArrowDown, ShieldAlert, Plus, Pencil, X } from 'lucide-react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Search, ArrowRightLeft, ShieldAlert, Plus, Pencil, X } from 'lucide-react';
 import { useStore } from '../../store';
-import { STORE_LOCATIONS } from '../../data/seed';
+import SiteStoreField from '../../components/forms/SiteStoreField';
+import { placeLabel } from '../../domain/places';
+import { SITES, STORE_LOCATIONS } from '../../data/seed';
 import type { MaterialItem } from '../../types';
 import StatusChip from '../../components/layout/StatusChip';
+import StockWorkspaceNav from '../../components/layout/StockWorkspaceNav';
 import clsx from 'clsx';
+import SortableHeader from '../../components/layout/SortableHeader';
+import { sortRows } from '../../domain/tableSort';
 
 type SortKey = 'materialCode' | 'materialName' | 'locationName' | 'onHandQty' | 'reservedQty' | 'qcHoldQty' | 'inTransitQty' | 'availableQty' | 'reorderPoint';
 type SortDir = 'asc' | 'desc';
@@ -13,18 +18,28 @@ type SortDir = 'asc' | 'desc';
 const emptyMaterialForm = {
   itemCode: '', name: '', categoryName: '', primaryUom: 'kg', standardGrade: '',
   dimensions: '', reorderPoint: 0, leadTimeDays: '', trackingMode: 'lot' as MaterialItem['trackingMode'],
+  siteId: 'site-hyd', siteName: 'Hyderabad Plant 1', storeId: 'loc-rm', storeName: 'Raw Material Store',
+  inventoryId: '' as string,
 };
 
 export default function Inventory() {
-  const { inventory, lots, currentUser, materials, addMaterial, updateMaterial, showToast } = useStore();
+  const { inventory, lots, sites, currentUser, materials, addMaterial, updateMaterial, addInventoryItem, updateInventoryItem, showToast } = useStore();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const shortageFocus = searchParams.get('focus') === 'shortage';
 
   const [search, setSearch] = useState('');
   const [selectedLocation, setSelectedLocation] = useState('all');
+  const [shortagesOnly, setShortagesOnly] = useState(shortageFocus);
   const [sortKey, setSortKey] = useState<SortKey>('materialCode');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
 
-  const shortageCount = inventory.filter(i => i.shortage).length;
+  const shortageCount = inventory.filter(i => {
+    if (!i.shortage) return false;
+    if (selectedLocation !== 'all' && i.locationId !== selectedLocation) return false;
+    const q = search.toLowerCase();
+    return !q || i.materialCode.toLowerCase().includes(q) || i.materialName.toLowerCase().includes(q) || i.categoryName.toLowerCase().includes(q) || i.locationName.toLowerCase().includes(q);
+  }).length;
 
   // Material Add/Edit Modal State
   const [materialModalOpen, setMaterialModalOpen] = useState(false);
@@ -37,13 +52,19 @@ export default function Inventory() {
     setMaterialModalOpen(true);
   };
 
-  const openEditMaterial = (m: MaterialItem, e?: React.MouseEvent) => {
+  const openEditMaterial = (m: MaterialItem, inventoryId?: string, e?: React.MouseEvent) => {
     e?.stopPropagation();
+    const row = inventory.find(i => i.id === inventoryId);
+    const loc = STORE_LOCATIONS.find(l => l.id === row?.locationId);
+    const site = SITES.find(s => s.id === loc?.siteId);
     setEditingMaterialId(m.id);
     setMaterialForm({
       itemCode: m.itemCode, name: m.name, categoryName: m.categoryName, primaryUom: m.primaryUom,
       standardGrade: m.standardGrade ?? '', dimensions: m.dimensions ?? '', reorderPoint: m.reorderPoint,
       leadTimeDays: m.leadTimeDays != null ? String(m.leadTimeDays) : '', trackingMode: m.trackingMode,
+      siteId: site?.id ?? 'site-hyd', siteName: site?.name ?? 'Hyderabad Plant 1',
+      storeId: loc?.id ?? 'loc-rm', storeName: loc?.name ?? row?.locationName ?? 'Raw Material Store',
+      inventoryId: inventoryId ?? '',
     });
     setMaterialModalOpen(true);
   };
@@ -56,7 +77,10 @@ export default function Inventory() {
         reorderPoint: Number(materialForm.reorderPoint), leadTimeDays: materialForm.leadTimeDays ? Number(materialForm.leadTimeDays) : undefined,
         trackingMode: materialForm.trackingMode,
       });
-      showToast({ type: 'success', title: 'Material updated', body: `${materialForm.name} saved.` });
+      if (materialForm.inventoryId) {
+        updateInventoryItem(materialForm.inventoryId, { locationId: materialForm.storeId, locationName: materialForm.storeName });
+      }
+      showToast({ type: 'success', title: 'Material updated', body: `${materialForm.name} saved at ${materialForm.storeName}.` });
     } else {
       const newMaterial: MaterialItem = {
         id: `mat-${Date.now()}`, itemCode: materialForm.itemCode || `MAT-${Date.now().toString().slice(-6)}`,
@@ -67,7 +91,13 @@ export default function Inventory() {
         active: true,
       };
       addMaterial(newMaterial);
-      showToast({ type: 'success', title: 'Material added', body: `${newMaterial.name} (${newMaterial.itemCode}) created.` });
+      addInventoryItem({
+        id: `inv-${Date.now()}`, materialItemId: newMaterial.id, materialCode: newMaterial.itemCode, materialName: newMaterial.name,
+        categoryName: newMaterial.categoryName, locationId: materialForm.storeId, locationName: materialForm.storeName,
+        onHandQty: 0, availableQty: 0, reservedQty: 0, qcHoldQty: 0, inTransitQty: 0, primaryUom: newMaterial.primaryUom,
+        reorderPoint: newMaterial.reorderPoint, shortage: newMaterial.reorderPoint > 0, lotCount: 0,
+      });
+      showToast({ type: 'success', title: 'Material added', body: `${newMaterial.name} is stocked at ${materialForm.storeName}.` });
     }
     setMaterialModalOpen(false);
   };
@@ -79,29 +109,25 @@ export default function Inventory() {
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
-    return inventory
+    const filteredRows = inventory
       .filter(i => {
-        const matchLoc = selectedLocation === 'all' || i.locationName === selectedLocation;
+        const matchLoc = selectedLocation === 'all' || i.locationId === selectedLocation;
         const matchSearch = !q || i.materialCode.toLowerCase().includes(q) || i.materialName.toLowerCase().includes(q) || i.categoryName.toLowerCase().includes(q) || i.locationName.toLowerCase().includes(q);
-        return matchLoc && matchSearch;
+        const matchShortage = !shortagesOnly || i.shortage;
+        return matchLoc && matchSearch && matchShortage;
       })
-      .sort((a, b) => {
-        let av: string | number = a[sortKey] ?? '';
-        let bv: string | number = b[sortKey] ?? '';
-        if (typeof av === 'string') av = av.toLowerCase();
-        if (typeof bv === 'string') bv = bv.toLowerCase();
-        const cmp = av < bv ? -1 : av > bv ? 1 : 0;
-        return sortDir === 'asc' ? cmp : -cmp;
-      });
-  }, [inventory, search, selectedLocation, sortKey, sortDir]);
+    return sortRows(filteredRows, sortKey, sortDir, (row, key) => row[key as SortKey]);
+  }, [inventory, search, selectedLocation, shortagesOnly, sortKey, sortDir]);
 
-  const SortIcon = ({ k }: { k: SortKey }) => {
-    if (sortKey !== k) return <ArrowUpDown size={12} className="opacity-40" />;
-    return sortDir === 'asc' ? <ArrowUp size={12} /> : <ArrowDown size={12} />;
+  const raisePr = (item: { materialCode: string; materialName: string; primaryUom: string; reorderPoint: number; availableQty: number }) => {
+    const qty = Math.max(item.reorderPoint - item.availableQty, item.reorderPoint || 1);
+    const q = new URLSearchParams({ code: item.materialCode, name: item.materialName, qty: String(qty), uom: item.primaryUom });
+    navigate(`/procurement/pr/new?${q.toString()}`);
   };
 
   return (
     <div className="flex flex-col h-full">
+      <StockWorkspaceNav />
       {/* Toolbar */}
       <div
         className="flex-shrink-0 flex items-center gap-3 px-5 py-3 border-b flex-wrap"
@@ -120,50 +146,29 @@ export default function Inventory() {
           />
         </div>
 
-        {/* Location filter chips */}
-        <div className="flex items-center gap-1.5 flex-wrap">
-          <button
-            onClick={() => setSelectedLocation('all')}
-            className="px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors"
-            style={{
-              background: selectedLocation === 'all' ? 'var(--brand)' : 'var(--surface)',
-              color: selectedLocation === 'all' ? '#fff' : 'var(--text-2)',
-              borderColor: selectedLocation === 'all' ? 'var(--brand)' : 'var(--border)',
-            }}
-          >
-            All Stores
-          </button>
-          {STORE_LOCATIONS.map(loc => (
-            <button
-              key={loc.id}
-              onClick={() => setSelectedLocation(loc.name)}
-              className="px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors whitespace-nowrap"
-              style={{
-                background: selectedLocation === loc.name ? 'var(--brand)' : 'var(--surface)',
-                color: selectedLocation === loc.name ? '#fff' : 'var(--text-2)',
-                borderColor: selectedLocation === loc.name ? 'var(--brand)' : 'var(--border)',
-              }}
-            >
-              {loc.code}
-            </button>
-          ))}
-        </div>
-
         <div className="flex-1" />
 
-        {/* Summary badges */}
         {shortageCount > 0 && (
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ background: 'var(--error-bg,#FEF2F2)', color: 'var(--error,#DC2626)' }}>
+          <button
+            type="button"
+            onClick={() => setShortagesOnly(v => !v)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border"
+            style={{
+              background: shortagesOnly ? 'var(--error-bg,#FEF2F2)' : 'var(--surface)',
+              color: 'var(--error,#DC2626)',
+              borderColor: shortagesOnly ? 'var(--error,#DC2626)' : 'var(--border)',
+            }}
+          >
             <ShieldAlert size={13} />
             {shortageCount} shortage{shortageCount !== 1 ? 's' : ''}
-          </div>
+          </button>
         )}
 
         {currentUser.role !== 'operator' && (
           <button
             onClick={() => navigate('/inventory/transfer')}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white"
-            style={{ background: 'var(--brand)' }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border"
+            style={{ borderColor: 'var(--border)', color: 'var(--text-2)', background: 'var(--surface)' }}
           >
             <ArrowRightLeft size={13} /> Transfer
           </button>
@@ -173,7 +178,7 @@ export default function Inventory() {
           <button
             onClick={openAddMaterial}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white"
-            style={{ background: 'var(--brand)' }}
+            style={{ background: 'var(--brand-fill)' }}
           >
             <Plus size={13} /> Add Material
           </button>
@@ -185,17 +190,30 @@ export default function Inventory() {
         className="flex-shrink-0 flex items-center gap-2 px-5 py-2.5 overflow-x-auto scrollbar-none border-b"
         style={{ borderColor: 'var(--border)', background: 'var(--surface-2)' }}
       >
-        {STORE_LOCATIONS.map(loc => {
-          const items = inventory.filter(i => i.locationName === loc.name);
+        <button
+          type="button"
+          onClick={() => setSelectedLocation('all')}
+          className="flex-shrink-0 px-3 py-2 rounded-xl border text-xs font-semibold"
+          style={{
+            borderColor: selectedLocation === 'all' ? 'var(--brand)' : 'var(--border)',
+            background: selectedLocation === 'all' ? 'var(--brand)' : 'var(--surface)',
+            color: selectedLocation === 'all' ? '#fff' : 'var(--text-2)',
+          }}
+        >
+          All stores
+        </button>
+        {STORE_LOCATIONS.filter(loc => inventory.some(i => i.locationId === loc.id)).map(loc => {
+          const items = inventory.filter(i => i.locationId === loc.id);
           const hasShortage = items.some(i => i.shortage);
-          const isSelected = selectedLocation === loc.name;
+          const isSelected = selectedLocation === loc.id;
+          const siteCode = SITES.find(s => s.id === loc.siteId)?.code;
           return (
             <button
               key={loc.id}
-              onClick={() => setSelectedLocation(isSelected ? 'all' : loc.name)}
+              onClick={() => setSelectedLocation(isSelected ? 'all' : loc.id)}
               className="flex-shrink-0 flex flex-col items-start px-3 py-2 rounded-xl border text-left transition-all hover:opacity-90"
               style={{
-                minWidth: 110,
+                minWidth: 120,
                 borderColor: isSelected ? 'var(--brand)' : 'var(--border)',
                 background: isSelected ? 'rgba(var(--brand-rgb,112,72,245),0.07)' : 'var(--surface)',
                 boxShadow: isSelected ? '0 0 0 1.5px var(--brand)' : undefined,
@@ -203,14 +221,14 @@ export default function Inventory() {
             >
               <div className="flex items-center justify-between w-full gap-1">
                 <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: isSelected ? 'var(--brand)' : 'var(--text-3)' }}>
-                  {loc.code}
+                  {siteCode ? `${siteCode} · ${loc.code}` : loc.code}
                 </span>
                 {hasShortage && <span className="w-1.5 h-1.5 rounded-full bg-red-500 flex-shrink-0" />}
               </div>
               <span className="text-xs font-semibold mt-0.5 leading-tight" style={{ color: 'var(--text)' }}>
-                {items.length} items
+                {items.length} item{items.length === 1 ? '' : 's'}
               </span>
-              <span className="text-[10px] mt-0.5 leading-tight truncate w-full" style={{ color: 'var(--text-3)', maxWidth: 100 }}>
+              <span className="text-[10px] mt-0.5 leading-tight truncate w-full" style={{ color: 'var(--text-3)', maxWidth: 120 }}>
                 {loc.name}
               </span>
             </button>
@@ -218,8 +236,70 @@ export default function Inventory() {
         })}
       </div>
 
+      {shortageFocus && (
+        <div className="px-4 py-2 text-sm border-b" style={{ borderColor: 'var(--border)', background: 'var(--surface-2)' }}>
+          Showing materials below what the shop needs. Raise a purchase request for the shortfall.
+        </div>
+      )}
+
+      <div className="md:hidden flex-1 overflow-auto p-3 space-y-2">
+        {filtered.length === 0 && (
+          <p className="px-2 py-8 text-center text-sm" style={{ color: 'var(--text-3)' }}>No inventory items match your filter.</p>
+        )}
+        {filtered.map(item => {
+          const isLow = item.shortage || item.availableQty <= item.reorderPoint * 0.5;
+          return (
+            <div
+              key={item.id}
+              role="link"
+              onClick={() => {
+                const firstLot = lots.find(l => l.materialItemId === item.materialItemId);
+                if (firstLot) navigate(`/inventory/lot/${firstLot.id}`);
+              }}
+              className="w-full text-left rounded-xl border p-3 cursor-pointer"
+              style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="text-sm font-semibold text-[var(--text)]">{item.materialName}</div>
+                  <div className="text-[11px] font-mono mt-0.5" style={{ color: 'var(--brand)' }}>{item.materialCode}</div>
+                </div>
+                <span className="text-xs font-semibold px-2 py-0.5 rounded-full flex-shrink-0" style={{
+                  background: item.shortage ? 'var(--error-bg,#FEF2F2)' : isLow ? 'var(--warning-bg,#FFFBEB)' : 'var(--success-bg,#F0FDF4)',
+                  color: item.shortage ? 'var(--error,#DC2626)' : isLow ? 'var(--warning,#D97706)' : 'var(--success,#16A34A)',
+                }}>
+                  {item.shortage ? 'Shortage' : isLow ? 'Low' : 'OK'}
+                </span>
+              </div>
+              <div className="mt-2 flex items-baseline justify-between gap-2">
+                <span className="text-xs" style={{ color: 'var(--text-2)' }}>{item.locationName}</span>
+                <span className="font-mono text-sm font-bold" style={{ color: item.shortage ? 'var(--error,#DC2626)' : 'var(--text)' }}>
+                  {item.availableQty.toLocaleString('en-IN')} <span className="text-[10px] font-medium" style={{ color: 'var(--text-3)' }}>{item.primaryUom} free</span>
+                </span>
+              </div>
+              {(item.reservedQty > 0 || item.qcHoldQty > 0) && (
+                <div className="mt-1 text-[11px]" style={{ color: 'var(--text-3)' }}>
+                  {item.onHandQty.toLocaleString('en-IN')} on hand
+                  {item.reservedQty > 0 && ` · ${item.reservedQty.toLocaleString('en-IN')} reserved`}
+                  {item.qcHoldQty > 0 && ` · ${item.qcHoldQty.toLocaleString('en-IN')} on QC hold`}
+                </div>
+              )}
+              {item.shortage && (
+                <div className="mt-2 flex gap-2">
+                  <button type="button" onClick={e => { e.stopPropagation(); raisePr(item); }}
+                    className="px-2.5 py-1 rounded-lg text-xs font-semibold text-white" style={{ background: 'var(--brand-fill)' }}>
+                    Raise PR
+                  </button>
+                  <MoveStockButton item={item} inventory={inventory} navigate={navigate} />
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
       {/* Table */}
-      <div className="flex-1 overflow-auto">
+      <div className="hidden md:block flex-1 overflow-auto">
         <table className="w-full text-sm border-separate border-spacing-0" style={{ minWidth: 900 }}>
           <thead style={{ position: 'sticky', top: 0, zIndex: 10 }}>
             <tr style={{ background: 'var(--surface-2)', borderBottom: '2px solid var(--border)' }}>
@@ -235,17 +315,15 @@ export default function Inventory() {
                 ['reorderPoint', 'Reorder Pt'],
                 [null, 'Status'],
               ] as [SortKey | null, string][]).map(([key, label]) => (
-                <th
+                <SortableHeader
                   key={label}
-                  onClick={key ? () => handleSort(key) : undefined}
+                  label={label}
+                  onSort={key ? () => handleSort(key) : undefined}
+                  active={key === sortKey}
+                  direction={sortDir}
                   className={clsx('px-4 py-3 text-left text-xs font-semibold font-medium', key ? 'cursor-pointer select-none hover:opacity-70' : '')}
                   style={{ color: 'var(--text-3)', borderBottom: '1px solid var(--border)' }}
-                >
-                  <span className="flex items-center gap-1">
-                    {label}
-                    {key && <SortIcon k={key} />}
-                  </span>
-                </th>
+                />
               ))}
               <th className="px-4 py-3" style={{ borderBottom: '1px solid var(--border)' }} />
             </tr>
@@ -288,7 +366,7 @@ export default function Inventory() {
                     </td>
                     <td className="px-4 py-3">
                       <span className="text-xs px-2 py-0.5 rounded-md border" style={{ borderColor: 'var(--border)', color: 'var(--text-2)', background: 'var(--surface)' }}>
-                        {item.locationName}
+                        {placeLabel(SITES.find(s => s.id === STORE_LOCATIONS.find(l => l.id === item.locationId)?.siteId)?.code, item.locationName)}
                       </span>
                     </td>
                     <QtyCell qty={item.onHandQty} uom={item.primaryUom} />
@@ -311,8 +389,16 @@ export default function Inventory() {
                         {item.lotCount > 0 && (
                           <span className="text-xs" style={{ color: 'var(--text-3)' }}>{item.lotCount} lot{item.lotCount !== 1 ? 's' : ''}</span>
                         )}
+                        {item.shortage && (
+                          <>
+                            <button type="button" onClick={() => raisePr(item)} className="px-2 py-1 rounded-lg text-xs font-semibold text-white" style={{ background: 'var(--brand-fill)' }}>
+                              Raise PR
+                            </button>
+                            <MoveStockButton item={item} inventory={inventory} navigate={navigate} />
+                          </>
+                        )}
                         {seedMaterial && currentUser.role !== 'operator' && (
-                          <button onClick={e => openEditMaterial(seedMaterial, e)} className="p-1 rounded hover:bg-[var(--surface-2)]" title="Edit material master">
+                          <button onClick={e => openEditMaterial(seedMaterial, item.id, e)} className="p-1 rounded hover:bg-[var(--surface-2)]" title="Edit material master">
                             <Pencil size={12} style={{ color: 'var(--text-3)' }} />
                           </button>
                         )}
@@ -362,6 +448,15 @@ export default function Inventory() {
               <Field2 label="UOM" value={materialForm.primaryUom} onChange={v => setMaterialForm(f => ({ ...f, primaryUom: v }))} placeholder="kg / pcs / m" />
               <Field2 label="Reorder Level" value={String(materialForm.reorderPoint)} onChange={v => setMaterialForm(f => ({ ...f, reorderPoint: Number(v) || 0 }))} type="number" />
               <Field2 label="Lead Time (days)" value={materialForm.leadTimeDays} onChange={v => setMaterialForm(f => ({ ...f, leadTimeDays: v }))} type="number" />
+              <div className="sm:col-span-2">
+                <SiteStoreField
+                  siteId={materialForm.siteId}
+                  storeId={materialForm.storeId}
+                  label="Site"
+                  storeLabel="Store"
+                  onChange={next => setMaterialForm(f => ({ ...f, siteId: next.siteId, siteName: next.siteName, storeId: next.storeId, storeName: next.storeName }))}
+                />
+              </div>
               <div>
                 <label className="block text-[11px] font-mono uppercase text-[var(--text-3)] mb-1">Tracking Mode</label>
                 <select
@@ -403,6 +498,29 @@ function Field2({ label, value, onChange, placeholder, type = 'text', disabled }
         className="w-full p-2 rounded-lg bg-[var(--surface-2)] border border-[var(--border)] text-[var(--text)] disabled:opacity-50"
       />
     </div>
+  );
+}
+
+function MoveStockButton({ item, inventory, navigate }: {
+  item: { materialItemId: string; materialName: string; locationId: string; locationName: string; availableQty: number; reorderPoint: number; primaryUom: string };
+  inventory: { materialItemId: string; locationId: string; locationName: string; availableQty: number }[];
+  navigate: (path: string) => void;
+}) {
+  const source = inventory.find(o => o.materialItemId === item.materialItemId && o.locationId !== item.locationId && o.availableQty > 0);
+  if (!source) return null;
+  const qty = Math.min(source.availableQty, Math.max(item.reorderPoint - item.availableQty, 1));
+  const q = new URLSearchParams({
+    material: item.materialName,
+    from: source.locationName,
+    to: item.locationName,
+    qty: String(qty),
+    uom: item.primaryUom,
+  });
+  return (
+    <button type="button" onClick={e => { e.stopPropagation(); navigate(`/transfers?${q.toString()}`); }}
+      className="px-2 py-1 rounded-lg text-xs font-semibold border" style={{ borderColor: 'var(--brand)', color: 'var(--brand)' }}>
+      Move stock
+    </button>
   );
 }
 

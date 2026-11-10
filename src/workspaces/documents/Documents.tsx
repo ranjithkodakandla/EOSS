@@ -1,5 +1,6 @@
-import React, { useRef, useState } from 'react';
-import { FileText, Download, Search, Plus, X, RefreshCw } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { FileText, Search, Plus, X, RefreshCw } from 'lucide-react';
 import { useStore } from '../../store';
 import { computeDocumentExpiry, listExpiringDocuments } from '../../domain/documentExpiry';
 import { DEMO_NOW } from '../../data/seed';
@@ -10,8 +11,14 @@ const CATEGORIES = ['All', 'Job Documents', 'Quality Documents', 'Material Certi
 
 export default function Documents() {
   const { documents: vaultDocuments, currentUser, addDocument, addDocumentVersion, showToast } = useStore();
-  const [search, setSearch] = useState('');
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const attentionParam = searchParams.get('attention');
+  const [search, setSearch] = useState(searchParams.get('search') ?? '');
   const [cat, setCat] = useState('All');
+  const [attention, setAttention] = useState<'all' | 'expiring' | 'expired' | 'due'>(
+    attentionParam === 'expiring' || attentionParam === 'expired' || attentionParam === 'due' ? attentionParam : 'all'
+  );
   const [showUpload, setShowUpload] = useState(false);
   const now = new Date(DEMO_NOW);
 
@@ -19,7 +26,11 @@ export default function Documents() {
   const filtered = visibleDocs.filter(d => {
     const matchSearch = !search || d.title.toLowerCase().includes(search.toLowerCase()) || d.docType.toLowerCase().includes(search.toLowerCase());
     const matchCat = cat === 'All' || d.category === cat;
-    return matchSearch && matchCat;
+    const expiry = computeDocumentExpiry(d, now);
+    const matchAttention = attention === 'all'
+      || (attention === 'due' && (expiry.status === 'expiring' || expiry.status === 'expired'))
+      || expiry.status === attention;
+    return matchSearch && matchCat && matchAttention;
   });
 
   const expiring = listExpiringDocuments(visibleDocs, now);
@@ -38,6 +49,16 @@ export default function Documents() {
     });
   };
 
+  const renewParam = searchParams.get('renew');
+  const renewed = useRef<string | null>(null);
+  useEffect(() => {
+    if (!renewParam || renewed.current === renewParam) return;
+    renewed.current = renewParam;
+    handleRenew(renewParam);
+    // Renew once when Home asks for this certificate.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [renewParam]);
+
   return (
     <div className="flex flex-col h-full">
       {/* Toolbar */}
@@ -48,7 +69,15 @@ export default function Documents() {
             className="w-full pl-8 pr-3 py-1.5 text-sm rounded-lg border outline-none"
             style={{ borderColor: 'var(--border)', background: 'var(--surface)', color: 'var(--text)' }} />
         </div>
-        <div className="flex gap-1.5 overflow-x-auto">
+        <select
+          value={cat}
+          onChange={e => setCat(e.target.value)}
+          className="md:hidden eoss-input text-xs py-1.5 max-w-[11rem]"
+          aria-label="Document category"
+        >
+          {CATEGORIES.map(c => <option key={c}>{c}</option>)}
+        </select>
+        <div className="hidden md:flex gap-1.5 overflow-x-auto">
           {CATEGORIES.map(c => (
             <button key={c} onClick={() => setCat(c)}
               className="px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors whitespace-nowrap"
@@ -62,55 +91,62 @@ export default function Documents() {
           ))}
         </div>
         <div className="flex-1" />
-        {expiringCount > 0 && <span className="px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ background: 'var(--warning-bg,#FFFBEB)', color: 'var(--warning,#D97706)' }}>{expiringCount} expiring</span>}
-        {expiredCount > 0 && <span className="px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ background: 'var(--error-bg,#FEF2F2)', color: 'var(--error,#DC2626)' }}>{expiredCount} expired</span>}
+        {expiringCount > 0 && (
+          <button type="button" onClick={() => setAttention(attention === 'expiring' ? 'all' : 'expiring')}
+            className="px-3 py-1.5 rounded-lg text-xs font-semibold border"
+            style={{ background: 'var(--warning-bg,#FFFBEB)', color: 'var(--warning,#D97706)', borderColor: attention === 'expiring' ? 'var(--warning,#D97706)' : 'transparent' }}>
+            {expiringCount} expiring
+          </button>
+        )}
+        {expiredCount > 0 && (
+          <button type="button" onClick={() => setAttention(attention === 'expired' ? 'all' : 'expired')}
+            className="px-3 py-1.5 rounded-lg text-xs font-semibold border"
+            style={{ background: 'var(--error-bg,#FEF2F2)', color: 'var(--error,#DC2626)', borderColor: attention === 'expired' ? 'var(--error,#DC2626)' : 'transparent' }}>
+            {expiredCount} expired
+          </button>
+        )}
         {['owner', 'buyer', 'qc'].includes(currentUser.role) && (
-          <button onClick={() => setShowUpload(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white" style={{ background: 'var(--brand)' }}>
+          <button onClick={() => setShowUpload(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white" style={{ background: 'var(--brand-fill)' }}>
             <Plus size={13} /> Upload
           </button>
         )}
       </div>
 
+      {attention !== 'all' && (
+        <div className="px-5 py-2 text-sm border-b" style={{ borderColor: 'var(--border)', background: 'var(--surface-2)' }}>
+          These documents are expiring or already expired. Renew extends the current certificate by a year.
+        </div>
+      )}
       <div className="flex-1 overflow-auto p-5">
         <div className="space-y-2 max-w-4xl">
           {filtered.map(doc => {
             const expiry = computeDocumentExpiry(doc, now);
             return (
-              <div key={doc.id} className="rounded-xl border p-4 flex items-center gap-3 hover:opacity-90 transition-opacity"
+              <div key={doc.id} role="button" tabIndex={0} onClick={() => navigate(`/documents/${doc.id}`)} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') navigate(`/documents/${doc.id}`); }} className="rounded-xl border p-4 flex items-center gap-3 hover:opacity-90 transition-opacity cursor-pointer"
                 style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
                 <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: 'var(--surface-2)' }}>
                   <FileText size={16} style={{ color: 'var(--brand)' }} />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-sm font-medium truncate" style={{ color: 'var(--text)' }}>{doc.title}</span>
-                    <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded" style={{ background: 'var(--surface-2)', color: 'var(--text-3)' }}>{doc.category}</span>
-                    {expiry.status === 'expired' && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded" style={{ background: 'var(--error-bg,#FEF2F2)', color: 'var(--error,#DC2626)' }}>EXPIRED</span>}
-                    {expiry.status === 'expiring' && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded" style={{ background: 'var(--warning-bg,#FFFBEB)', color: 'var(--warning,#D97706)' }}>EXPIRES IN {expiry.daysToExpiry}D</span>}
-                    {doc.linkedEntities.length > 0 && <span className="text-[10px]" style={{ color: 'var(--text-3)' }}>→ {doc.linkedEntities.map(e => e.ref).join(', ')}</span>}
+                    <span className="text-sm font-medium" style={{ color: 'var(--text)' }}>{doc.title}</span>
+                    {expiry.status === 'expired' && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded" style={{ background: 'var(--error-bg,#FEF2F2)', color: 'var(--error,#DC2626)' }}>Expired</span>}
+                    {expiry.status === 'expiring' && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded" style={{ background: 'var(--warning-bg,#FFFBEB)', color: 'var(--warning,#D97706)' }}>{expiry.daysToExpiry}d left</span>}
+                    {doc.certStatus && <StatusChip status={doc.certStatus} size="sm" />}
                   </div>
-                  <div className="flex items-center gap-3 mt-0.5 text-xs flex-wrap" style={{ color: 'var(--text-3)' }}>
-                    <span>{doc.docType}</span><span>·</span>
-                    <span>v{doc.version}</span><span>·</span>
-                    <span>{new Date(doc.uploadedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</span><span>·</span>
-                    <span>{doc.uploadedBy}</span>
-                    {doc.obligation && <><span>·</span><span>Owner: {doc.obligation.responsible}</span></>}
+                  <div className="mt-0.5 text-xs truncate" style={{ color: 'var(--text-3)' }}>
+                    {doc.category} · {doc.docType}
+                    {doc.linkedEntities.length > 0 && ` · ${doc.linkedEntities.map(e => e.ref).join(', ')}`}
                   </div>
                 </div>
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  {doc.certStatus && <StatusChip status={doc.certStatus} size="sm" />}
-                  {doc.expiryDate && (
-                    <span className="text-[10px]" style={{ color: 'var(--text-3)' }}>
-                      exp {new Date(doc.expiryDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' })}
-                    </span>
-                  )}
-                  {(expiry.status === 'expiring' || expiry.status === 'expired') && (
-                    <button onClick={() => handleRenew(doc.id)} className="flex items-center gap-1 text-xs font-medium" style={{ color: 'var(--brand)' }}>
-                      <RefreshCw size={12} /> Renew
-                    </button>
-                  )}
-                  <Download size={14} style={{ color: 'var(--text-3)' }} />
-                </div>
+                {(expiry.status === 'expiring' || expiry.status === 'expired') && (
+                  <button onClick={e => { e.stopPropagation(); handleRenew(doc.id); }} className="flex items-center gap-1 text-xs font-semibold flex-shrink-0" style={{ color: 'var(--brand)' }}>
+                    <RefreshCw size={12} /> Renew
+                  </button>
+                )}
+                <button type="button" onClick={e => { e.stopPropagation(); navigate(`/documents/${doc.id}`); }} className="text-xs font-semibold flex-shrink-0" style={{ color: 'var(--brand)' }}>
+                  Open document →
+                </button>
               </div>
             );
           })}
@@ -186,7 +222,7 @@ function UploadModal({ currentUser, onClose, onSave }: { currentUser: { name: st
         {err && <p className="text-xs text-[var(--danger)] mt-2">{err}</p>}
         <div className="flex gap-3 mt-5">
           <button onClick={onClose} className="flex-1 py-2.5 border border-[var(--border)] rounded-xl text-sm text-[var(--text-2)]">Cancel</button>
-          <button onClick={save} className="flex-1 py-2.5 bg-[var(--brand)] text-white rounded-xl text-sm font-medium">Upload</button>
+          <button onClick={save} className="flex-1 py-2.5 bg-[var(--brand-fill)] text-white rounded-xl text-sm font-medium">Upload</button>
         </div>
       </div>
     </div>

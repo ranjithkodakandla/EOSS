@@ -197,6 +197,20 @@ export const PURCHASE_REQS: PurchaseRequisition[] = [
 ];
 
 // ── Jobs ──
+function weekOut(id: string, jobNumber: string, customerId: string, customerName: string, plannedEnd: string, actualEnd: string | undefined, qty: number, uom: string, status: 'complete' | 'active'): Job {
+  const done = status === 'complete';
+  return {
+    id, jobNumber, customerId, customerName, description: `Dispatch ${jobNumber} — ${qty} ${uom}`,
+    siteId: 'site-hyd', siteName: 'Hyderabad Factory', status, priority: done ? 'normal' : 'high',
+    plannedStart: '2026-10-20', plannedEnd, actualStart: '2026-10-20', actualEnd, owner: 'Suresh Kumar',
+    currentStage: done ? 'Dispatched' : 'Dispatch', materialReadiness: 'ready', hasBlocker: false,
+    stages: [
+      { id: `${id}-s1`, jobId: id, sequence: 1, name: 'Fabrication', status: 'complete', plannedStart: '2026-10-20', plannedEnd: '2026-10-31', actualStart: '2026-10-20', actualEnd: '2026-10-31', owner: 'Mohan Das', workCentre: 'Fabrication Bay', inputQty: qty, completedGoodQty: qty, rejectedQty: 0, reworkQty: 0, scrapQty: 0, uom },
+      { id: `${id}-s2`, jobId: id, sequence: 2, name: 'Dispatch', status: done ? 'complete' : 'in_progress', plannedStart: plannedEnd, plannedEnd, actualStart: done ? plannedEnd : '2026-11-05', actualEnd: done ? plannedEnd : undefined, owner: 'Deepa Singh', workCentre: 'Dispatch Bay', inputQty: qty, completedGoodQty: done ? qty : 0, rejectedQty: 0, reworkQty: 0, scrapQty: 0, uom },
+    ],
+  };
+}
+
 export const JOBS: Job[] = [
   {
     id: 'job-101', jobNumber: 'J-101', customerId: 'cust-mer', customerName: 'Meridian Engineering', customerPoId: 'cpo-101', customerPoNumber: 'CPO-2024-101', drawingRef: 'MER-DWG-2024-RC-V3', description: 'Pressure vessel assembly – reactor chamber', siteId: 'site-hyd', siteName: 'Hyderabad Factory', status: 'active', priority: 'high', plannedStart: '2026-10-28', plannedEnd: '2026-11-18', actualStart: '2026-10-29', owner: 'Suresh Kumar', currentStage: 'Fit-up', materialReadiness: 'ready', hasBlocker: false, value: 185000,
@@ -268,6 +282,15 @@ export const JOBS: Job[] = [
       { id: 'stg-108-3', jobId: 'job-108', sequence: 3, name: 'Dispatch', status: 'complete', plannedStart: '2026-10-07', plannedEnd: '2026-10-10', actualStart: '2026-10-07', actualEnd: '2026-10-08', owner: 'Deepa Singh', workCentre: 'Dispatch Bay', inputQty: 48, completedGoodQty: 48, rejectedQty: 0, reworkQty: 0, scrapQty: 0, uom: 'pcs' },
     ]
   },
+  // Week of 2–7 Nov 2026 (demo clock Thu 5 Nov). Past and today have already been packed.
+  weekOut('job-109', 'J-109', 'cust-mer', 'Meridian Engineering', '2026-11-02', '2026-11-02', 4, 'crates', 'complete'),
+  weekOut('job-110', 'J-110', 'cust-bpe', 'Bharat Power Equipment', '2026-11-02', '2026-11-02', 6, 'pcs', 'complete'),
+  weekOut('job-111', 'J-111', 'cust-lt', 'L&T Hydrocarbon', '2026-11-03', '2026-11-03', 8, 'pcs', 'complete'),
+  weekOut('job-112', 'J-112', 'cust-sv', 'SV Industries', '2026-11-04', '2026-11-04', 2, 'units', 'complete'),
+  weekOut('job-113', 'J-113', 'cust-af', 'Anand Fabricators', '2026-11-05', '2026-11-05', 3, 'crates', 'complete'),
+  weekOut('job-114', 'J-114', 'cust-ntpc', 'NTPC Vendor Division', '2026-11-05', '2026-11-05', 12, 'pcs', 'complete'),
+  weekOut('job-115', 'J-115', 'cust-mer', 'Meridian Engineering', '2026-11-06', undefined, 5, 'crates', 'active'),
+  weekOut('job-116', 'J-116', 'cust-bpe', 'Bharat Power Equipment', '2026-11-06', undefined, 2, 'units', 'active'),
 ];
 
 // ── Job Blockers ──
@@ -359,6 +382,12 @@ export const DISPATCHES: Dispatch[] = [
   { id: 'dsp-001', dispatchNumber: 'DSP-2024-018', customerId: 'cust-af', customerName: 'Anand Fabricators', dispatchDate: '2026-10-27', carrier: 'SRS Transport', vehicleNumber: 'TS07CE3421', lrNumber: 'SRS-LR-5582', expectedDelivery: '2026-10-29', status: 'delivered', lineCount: 1, totalQty: 2, hasPoD: true, jobs: ['J-103'] },
   { id: 'dsp-002', dispatchNumber: 'DSP-2024-019', customerId: 'cust-mer', customerName: 'Meridian Engineering', dispatchDate: '2026-10-08', carrier: 'VRL Logistics', vehicleNumber: 'KA09MX7812', lrNumber: 'VRL-LR-9901', expectedDelivery: '2026-10-11', status: 'delivered', lineCount: 2, totalQty: 48, hasPoD: true, jobs: ['J-108'] },
   { id: 'dsp-003', dispatchNumber: 'DSP-2024-020', customerId: 'cust-mer', customerName: 'Meridian Engineering', dispatchDate: '', status: 'draft', lineCount: 0, totalQty: 0, hasPoD: false, jobs: ['J-101'] },
+  { id: 'dsp-109', dispatchNumber: 'DSP-2026-021', customerId: 'cust-mer', customerName: 'Meridian Engineering', jobId: 'job-109', jobNumber: 'J-109', dispatchDate: '2026-11-02', status: 'delivered', lineCount: 1, totalQty: 4, hasPoD: true, jobs: ['J-109'], carrier: 'SRS Transport', sourceSiteId: 'site-hyd', sourceStoreLocationName: 'Dispatch Bay' },
+  { id: 'dsp-110', dispatchNumber: 'DSP-2026-022', customerId: 'cust-bpe', customerName: 'Bharat Power Equipment', jobId: 'job-110', jobNumber: 'J-110', dispatchDate: '2026-11-02', status: 'delivered', lineCount: 1, totalQty: 6, hasPoD: true, jobs: ['J-110'], carrier: 'VRL Logistics', sourceSiteId: 'site-hyd', sourceStoreLocationName: 'Dispatch Bay' },
+  { id: 'dsp-111', dispatchNumber: 'DSP-2026-023', customerId: 'cust-lt', customerName: 'L&T Hydrocarbon', jobId: 'job-111', jobNumber: 'J-111', dispatchDate: '2026-11-03', status: 'dispatched', lineCount: 1, totalQty: 8, hasPoD: false, jobs: ['J-111'], carrier: 'TCI Freight', sourceSiteId: 'site-hyd', sourceStoreLocationName: 'Dispatch Bay' },
+  { id: 'dsp-112', dispatchNumber: 'DSP-2026-024', customerId: 'cust-sv', customerName: 'SV Industries', jobId: 'job-112', jobNumber: 'J-112', dispatchDate: '2026-11-04', status: 'delivered', lineCount: 1, totalQty: 2, hasPoD: true, jobs: ['J-112'], carrier: 'SRS Transport', sourceSiteId: 'site-hyd', sourceStoreLocationName: 'Dispatch Bay' },
+  { id: 'dsp-113', dispatchNumber: 'DSP-2026-025', customerId: 'cust-af', customerName: 'Anand Fabricators', jobId: 'job-113', jobNumber: 'J-113', dispatchDate: '2026-11-05', status: 'ready', lineCount: 1, totalQty: 3, hasPoD: false, jobs: ['J-113'], carrier: 'Loading bay', sourceSiteId: 'site-hyd', sourceStoreLocationName: 'Dispatch Bay' },
+  { id: 'dsp-114', dispatchNumber: 'DSP-2026-026', customerId: 'cust-ntpc', customerName: 'NTPC Vendor Division', jobId: 'job-114', jobNumber: 'J-114', dispatchDate: '2026-11-05', status: 'pending_docs', lineCount: 1, totalQty: 12, hasPoD: false, jobs: ['J-114'], sourceSiteId: 'site-hyd', sourceStoreLocationName: 'Dispatch Bay' },
 ];
 
 // ── Documents ──

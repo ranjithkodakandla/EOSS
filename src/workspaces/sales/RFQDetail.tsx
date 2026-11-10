@@ -93,7 +93,7 @@ export default function RFQDetail() {
               <button
                 onClick={() => navigate(`/sales/rfq/${rfq.id}/quotation/new`)}
                 className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white"
-                style={{ background: 'var(--brand)' }}
+                style={{ background: 'var(--brand-fill)' }}
               >
                 <Plus size={15} /> Create Quotation
               </button>

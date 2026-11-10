@@ -35,20 +35,25 @@ export default function LotDetail() {
   return (
     <div className="max-w-4xl mx-auto p-4 md:p-6">
       {/* Header */}
-      <div className="flex items-center gap-3 mb-5">
-        <button onClick={() => navigate('/inventory')} className="text-[var(--text-3)] hover:text-[var(--text)]"><ArrowLeft size={16} /></button>
+      <div className="flex flex-col sm:flex-row sm:items-start gap-3 mb-5">
+        <button onClick={() => navigate('/inventory')} className="text-[var(--text-3)] hover:text-[var(--text)] mt-1"><ArrowLeft size={16} /></button>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <h1 className="font-bold text-[var(--text)] font-mono">{lot.lotNumber}</h1>
             <StatusChip status={lot.status} />
-            {lot.parentLotId && <span className="text-xs text-[var(--text-3)] bg-[var(--surface-2)] px-2 py-0.5 rounded-full border border-[var(--border)]">Remnant lot</span>}
+            {lot.parentLotId && <span className="text-xs text-[var(--text-3)] bg-[var(--surface-2)] px-2 py-0.5 rounded-full border border-[var(--border)]">Remnant</span>}
           </div>
           <p className="text-sm text-[var(--text-2)] mt-0.5">{lot.materialName} · {lot.supplierName}</p>
+          <p className="text-sm mt-1">
+            <span className="font-semibold text-[var(--text)]">{lot.primaryQty.toLocaleString()} {lot.primaryUom}</span>
+            {lot.secondaryQty !== undefined && <span className="text-[var(--text-2)]"> · {lot.secondaryQty} {lot.secondaryUom}</span>}
+            <span className="text-[var(--text-2)]"> · {lot.storeLocationName}</span>
+          </p>
         </div>
         {canEdit && lot.status === 'qc_hold' && (
           <div className="flex gap-2">
             <button onClick={() => setConfirm({ action: 'release', body: 'Release this lot from QC hold and make it available?' })} className="px-3 py-1.5 bg-[var(--success)] text-white rounded-lg text-sm font-medium">Release</button>
-            <button onClick={() => setConfirm({ action: 'return', body: 'Mark this lot for return to supplier? This will change its status to Scrapped.' })} className="px-3 py-1.5 bg-[var(--error)] text-white rounded-lg text-sm font-medium">Return</button>
+            <button onClick={() => setConfirm({ action: 'return', body: 'Mark this lot for return to supplier? This will change its status to Scrapped.' })} className="px-3 py-1.5 border border-[var(--error)] text-[var(--error)] rounded-lg text-sm font-medium">Return</button>
           </div>
         )}
       </div>
@@ -59,34 +64,13 @@ export default function LotDetail() {
           <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
             <h3 className="font-semibold text-sm text-[var(--text)] mb-3">Lot Details</h3>
             <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
-              <Field label="Lot Number" value={lot.lotNumber} mono />
               <Field label="Heat Number" value={lot.heatNumber ?? '—'} mono />
-              <Field label="Material" value={lot.materialName} />
               <Field label="Grade" value={lot.grade ?? '—'} />
-              <Field label="Supplier" value={lot.supplierName} />
+              <Field label="Received" value={lot.receivedDate ? new Date(lot.receivedDate).toLocaleDateString('en-IN') : '—'} />
               <Field label="GRN" value={lot.grnId ?? '—'} />
-              <Field label="Received Date" value={lot.receivedDate ? new Date(lot.receivedDate).toLocaleDateString('en-IN') : '—'} />
-              <Field label="Location" value={lot.storeLocationName} />
               <Field label="Certificate" value={<StatusChip status={lot.certStatus} size="sm" />} />
               {lot.parentLotId && <Field label="Parent Lot" value={lot.parentLotId} mono />}
             </dl>
-          </div>
-
-          {/* Quantity */}
-          <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
-            <h3 className="font-semibold text-sm text-[var(--text)] mb-3">Quantity</h3>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-              <div className="bg-[var(--surface-2)] rounded-lg p-3">
-                <div className="text-2xl font-bold text-[var(--text)]">{lot.primaryQty.toLocaleString()}</div>
-                <div className="text-xs text-[var(--text-3)] mt-0.5">{lot.primaryUom} (primary)</div>
-              </div>
-              {lot.secondaryQty !== undefined && (
-                <div className="bg-[var(--surface-2)] rounded-lg p-3">
-                  <div className="text-2xl font-bold text-[var(--text)]">{lot.secondaryQty}</div>
-                  <div className="text-xs text-[var(--text-3)] mt-0.5">{lot.secondaryUom} (secondary)</div>
-                </div>
-              )}
-            </div>
           </div>
 
           {/* Movement ledger */}
@@ -94,7 +78,24 @@ export default function LotDetail() {
             <div className="px-4 py-3 border-b border-[var(--border)] bg-[var(--surface-2)]">
               <h3 className="font-semibold text-sm text-[var(--text)]">Stock Movement Ledger</h3>
             </div>
-            <table className="eoss-table">
+            <div className="md:hidden divide-y" style={{ borderColor: 'var(--border)' }}>
+              {lotMovements.length === 0 && <p className="px-4 py-6 text-sm text-center text-[var(--text-3)]">No movements recorded</p>}
+              {lotMovements.map(m => (
+                <div key={m.id} className="px-4 py-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <StatusChip status={m.movementType.toLowerCase().replace(/\s|-/g, '_')} label={m.movementType} size="sm" />
+                    <span className="font-mono text-sm font-semibold">{m.primaryQty} {m.uom}</span>
+                  </div>
+                  <div className="text-xs text-[var(--text-2)] mt-1">
+                    {(m.fromLocation ?? '—')} → {(m.toLocation ?? '—')}
+                  </div>
+                  <div className="text-[11px] text-[var(--text-3)] mt-0.5">
+                    {new Date(m.timestamp).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} · {m.referenceNumber} · {m.performedBy}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <table className="eoss-table hidden md:table">
               <thead>
                 <tr><th>Timestamp</th><th>Movement</th><th>Qty</th><th>From</th><th>To</th><th>Reference</th><th>By</th></tr>
               </thead>

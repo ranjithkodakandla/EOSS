@@ -135,7 +135,7 @@ export default function QuotationCreate() {
 
           {/* Lines */}
           <Card title="Quotation Lines" trailing={
-            <button onClick={addLine} className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold text-white" style={{ background: 'var(--brand)' }}>
+            <button onClick={addLine} className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold text-white" style={{ background: 'var(--brand-fill)' }}>
               <Plus size={12} /> Add Line
             </button>
           }>
@@ -203,7 +203,7 @@ export default function QuotationCreate() {
           onClick={handleSubmit}
           disabled={lines.some(l => !l.drawingNumber || !l.productName)}
           className="flex items-center gap-1.5 px-5 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-40"
-          style={{ background: 'var(--brand)' }}
+          style={{ background: 'var(--brand-fill)' }}
         >
           <Check size={15} /> Save Quotation
         </button>

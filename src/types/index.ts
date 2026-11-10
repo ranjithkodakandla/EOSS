@@ -135,6 +135,9 @@ export interface CustomerRFQ {
   lineCount: number;
   channel: string;
   owner: string;
+  quotationId?: ID;
+  quotationRef?: string;
+  quotationStatus?: CustomerQuotation['status'];
   title?: string;
   customerContactPerson?: string;
   customerEmail?: string;
@@ -197,8 +200,14 @@ export interface CustomerPO {
   currency: string;
   lineCount: number;
   quotationRef?: string;
+  quotationId?: ID;
+  rfqId?: ID;
+  rfqRef?: string;
   deliveryTerms: string;
   hasAmendment?: boolean;
+  commercialLocked?: boolean;
+  commercialLockReason?: string;
+  creditApprovalId?: ID;
   revision?: number;
   lastAmendedAt?: string;
 }
@@ -234,13 +243,19 @@ export interface SupplierPO {
   currency: string;
   paymentTerms: string;
   prId?: ID;
-  supplierQuotationId?: ID;
-  supplierQuotationRef?: string;
-  siteId?: ID;
-  siteName?: string;
   jobRef?: string;
   lineCount: number;
   hasAmendment?: boolean;
+  deliverToSiteId?: ID;
+  deliverToSiteName?: string;
+  deliverToStoreId?: ID;
+  deliverToStoreName?: string;
+  supplierQuotationId?: ID;
+  supplierQuotationRef?: string;
+  supplierRfqId?: ID;
+  supplierRfqRef?: string;
+  directProcurement?: boolean;
+  directProcurementReason?: string;
   revision?: number;
   lastAmendedAt?: string;
 }
@@ -263,19 +278,8 @@ export interface POAmendment {
   approvedAt?: string;
   attachmentName?: string;
   lineId?: ID;
-  lineChanges?: {
-    description?: string;
-    drawingRevision?: string;
-    materialName?: string;
-    quantity?: number;
-    rate?: number;
-    requiredDate?: string;
-  };
-  headerChanges?: {
-    paymentTerms?: string;
-    deliveryTerms?: string;
-    committedDate?: string;
-  };
+  lineChanges?: { description?: string; drawingRevision?: string; materialName?: string; quantity?: number; rate?: number; requiredDate?: string };
+  headerChanges?: { paymentTerms?: string; deliveryTerms?: string; committedDate?: string };
   beforeSnapshot: Record<string, unknown>;
 }
 
@@ -310,8 +314,10 @@ export interface PurchaseRequisition {
   lineCount: number;
   totalQty: number;
   priority: 'low' | 'normal' | 'high' | 'urgent';
-  siteId?: ID;
-  siteName?: string;
+  deliverToSiteId?: ID;
+  deliverToSiteName?: string;
+  deliverToStoreId?: ID;
+  deliverToStoreName?: string;
 }
 
 // ── Jobs ──
@@ -426,6 +432,10 @@ export interface GoodsReceipt {
   status: 'draft' | 'pending_qc' | 'qc_hold' | 'accepted' | 'partial';
   lineCount: number;
   hasOfflineDraft?: boolean;
+  siteId?: ID;
+  siteName?: string;
+  storeLocationId?: ID;
+  storeLocationName?: string;
 }
 
 // ── Stock Movements ──
@@ -727,6 +737,7 @@ export interface Dispatch {
   jobNumber?: string;
   qualityReleaseId?: ID;
   sourceSiteId?: ID;
+  sourceStoreLocationId?: ID;
   sourceStoreLocationName?: string;
   destination?: string;
   dispatchDate: string;
@@ -782,6 +793,11 @@ export interface ApprovalRequest {
   thresholdValue?: number;
   currentValue?: number;
   notes?: string;
+  siteId?: ID;
+  siteName?: string;
+  decisionAt?: string;
+  approvalCycle?: number;
+  previousRequestId?: ID;
 }
 
 // ── Notifications ──
@@ -859,6 +875,9 @@ export interface SupplierQuotation {
   deliveryDays: number;
   lines: SupplierQuotationLine[];
   notes?: string;
+  supplierRfqId?: ID;
+  supplierRfqRef?: string;
+  recordType?: 'rfq' | 'quotation';
 }
 
 export interface SupplierQuotationLine {

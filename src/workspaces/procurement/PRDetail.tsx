@@ -1,10 +1,9 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { ArrowLeft, ChevronRight, CheckCircle2, XCircle, CheckCircle, Send } from 'lucide-react';
+import { ArrowLeft, ChevronRight, CheckCircle2, XCircle } from 'lucide-react';
 import { useStore } from '../../store';
 import StatusChip from '../../components/layout/StatusChip';
 import type { SupplierPO } from '../../types';
-import DocumentActions from '../../components/workflow/DocumentActions';
 
 const fmt = (d: string) => d ? new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
 const fmtMoney = (n: number) => n ? `₹${n.toLocaleString('en-IN')}` : '—';
@@ -14,7 +13,7 @@ let spoSeq = 200;
 export default function PRDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { purchaseReqs, supplierPos, supplierQuotations, currentUser, updatePurchaseReq, addSupplierPO, selectQuotation, showToast } = useStore();
+  const { purchaseReqs, supplierPos, currentUser, updatePurchaseReq, addSupplierPO, showToast } = useStore();
 
   const pr = purchaseReqs.find(p => p.id === id) as (typeof purchaseReqs[0] & Record<string, any>) | undefined;
   const [confirming, setConfirming] = useState<'approve' | 'reject' | 'convert' | null>(null);
@@ -30,8 +29,6 @@ export default function PRDetail() {
   const lines: any[] = pr.lines ?? [];
   const totalEstValue = lines.reduce((s: number, l: any) => s + (l.targetRate ?? 0) * (l.requiredQty ?? 0), 0);
   const linkedSpo = supplierPos.find(s => s.prId === pr.id);
-  const linkedQuotes = supplierQuotations.filter(q => q.prId === pr.id);
-  const selectedQuote = linkedQuotes.find(q => q.status === 'selected');
 
   const handleApprove = () => {
     updatePurchaseReq(pr.id, { status: 'approved' });
@@ -48,15 +45,11 @@ export default function PRDetail() {
   const handleConvert = () => {
     const seq = ++spoSeq;
     const spoId = `spo-pr-${seq}`;
-    if (!selectedQuote) {
-      showToast({ type: 'error', title: 'Select a supplier quotation first', body: 'Compare the quotations and finalize one before creating the Supplier PO.' });
-      return;
-    }
     const spo: SupplierPO = {
       id: spoId,
       poNumber: `SPO-${String(seq).padStart(4, '0')}`,
-      supplierId: selectedQuote.supplierId,
-      supplierName: selectedQuote.supplierName,
+      supplierId: 'supp-tbd',
+      supplierName: 'TBD — Pending Vendor Selection',
       raisedDate: '2026-11-05',
       committedDate: pr.requiredBy,
       status: 'draft',
@@ -64,10 +57,7 @@ export default function PRDetail() {
       currency: 'INR',
       paymentTerms: 'Net 30',
       prId: pr.id,
-      supplierQuotationId: selectedQuote.id,
-      supplierQuotationRef: selectedQuote.quoteNumber,
-      siteId: pr.siteId,
-      siteName: pr.siteName,
+      jobRef: pr.jobNumber,
       lineCount: lines.length,
     };
     addSupplierPO(spo);
@@ -107,7 +97,6 @@ export default function PRDetail() {
             </div>
           </div>
           <div className="flex items-center gap-2 mt-0.5 flex-shrink-0">
-            <DocumentActions documentType="Purchase Requisition" reference={pr.prNumber} date={pr.raisedDate} partyName="Internal procurement" status={pr.status} total={totalEstValue} lines={lines.map((l: any) => ({ description: l.description, quantity: l.requiredQty, uom: l.uom, amount: l.targetRate && l.requiredQty ? l.targetRate * l.requiredQty : undefined }))} references={[pr.siteName ? `Delivery site: ${pr.siteName}` : ''].filter(Boolean)} />
             {pr.status === 'pending' && canApprove && (
               <>
                 <button onClick={() => setConfirming('reject')}
@@ -122,11 +111,11 @@ export default function PRDetail() {
                 </button>
               </>
             )}
-            {pr.status === 'approved' && canApprove && !linkedSpo && selectedQuote && (
+            {pr.status === 'approved' && canApprove && !linkedSpo && (
               <button onClick={() => setConfirming('convert')}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white"
-                style={{ background: 'var(--brand)' }}>
-                <ChevronRight size={13} /> Create Supplier PO
+                style={{ background: 'var(--brand-fill)' }}>
+                <ChevronRight size={13} /> Convert to SPO
               </button>
             )}
             {linkedSpo && (
@@ -157,10 +146,6 @@ export default function PRDetail() {
 
       {/* Body */}
       <div className="flex-1 overflow-auto p-6 space-y-5">
-        <div className="rounded-xl border p-4" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
-          <div className="flex items-center justify-between gap-3 mb-3"><div><h2 className="text-sm font-bold text-[var(--text)]">Supplier Quotations</h2><p className="text-xs text-[var(--text-3)]">One PR can collect multiple offers. Select one before creating the Supplier PO.</p></div>{pr.status === 'approved' && !linkedSpo && <button onClick={() => navigate(`/procurement/supplier-rfq/new?prId=${pr.id}`)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold" style={{ borderColor: 'var(--brand)', color: 'var(--brand)' }}><Send size={13} /> Request another quote</button>}</div>
-          {linkedQuotes.length === 0 ? <p className="text-sm text-[var(--text-3)]">No supplier quotations requested yet.</p> : <div className="space-y-2">{linkedQuotes.map(q => { const total = q.lines.reduce((sum, line) => sum + line.lineTotal, 0); return <div key={q.id} className="flex items-center justify-between gap-3 rounded-lg border px-3 py-2" style={{ borderColor: q.status === 'selected' ? 'var(--brand)' : 'var(--border)', background: q.status === 'selected' ? 'var(--brand-50,rgba(112,72,245,.06))' : 'var(--surface-2)' }}><div><div className="font-mono text-xs font-bold" style={{ color: 'var(--brand)' }}>{q.quoteNumber}</div><div className="text-sm font-medium text-[var(--text)]">{q.supplierName} · ₹{total.toLocaleString('en-IN')} · {q.deliveryDays} days</div></div><div className="flex items-center gap-2">{q.status === 'selected' ? <span className="flex items-center gap-1 text-xs font-semibold" style={{ color: 'var(--success,#16A34A)' }}><CheckCircle size={14} /> Selected</span> : q.status !== 'rejected' && !linkedSpo ? <button onClick={() => { selectQuotation(q.id); showToast({ type: 'success', title: 'Quotation selected', body: `${q.quoteNumber} will drive the Supplier PO.` }); }} className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white" style={{ background: 'var(--brand)' }}>Select</button> : <StatusChip status={q.status} size="sm" />}</div></div> })}</div>}
-        </div>
         {/* Lines table */}
         <div>
           <h2 className="text-sm font-bold text-[var(--text)] mb-3">Material Lines</h2>
@@ -248,7 +233,7 @@ export default function PRDetail() {
             <p className="text-xs text-[var(--text-3)] mb-5">Lines: {lines.length} · Est. value: {fmtMoney(totalEstValue)}</p>
             <div className="flex gap-3">
               <button onClick={() => setConfirming(null)} className="flex-1 py-2 border border-[var(--border)] text-[var(--text)] rounded-lg text-sm">Cancel</button>
-              <button onClick={handleConvert} className="flex-1 py-2 text-white rounded-lg text-sm font-semibold" style={{ background: 'var(--brand)' }}>Create SPO</button>
+              <button onClick={handleConvert} className="flex-1 py-2 text-white rounded-lg text-sm font-semibold" style={{ background: 'var(--brand-fill)' }}>Create SPO</button>
             </div>
           </div>
         </div>

@@ -145,7 +145,7 @@ export default function RFQCreate() {
               <button
                 onClick={() => done || active ? setStep(s.n) : undefined}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors flex-shrink-0 ${
-                  active ? 'bg-[var(--brand)] text-white' :
+                  active ? 'bg-[var(--brand-fill)] text-white' :
                   done ? 'text-[var(--brand)] hover:bg-[var(--surface-2)]' :
                   'text-[var(--text-3)] cursor-default'
                 }`}
@@ -220,7 +220,7 @@ export default function RFQCreate() {
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <p className="text-sm text-[var(--text-2)]">Add each part / drawing to be quoted.</p>
-                <button onClick={addLine} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white" style={{ background: 'var(--brand)' }}>
+                <button onClick={addLine} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white" style={{ background: 'var(--brand-fill)' }}>
                   <Plus size={13} /> Add Line
                 </button>
               </div>
@@ -392,7 +392,7 @@ export default function RFQCreate() {
             onClick={() => setStep((step + 1) as Step)}
             disabled={!canNext[step]}
             className="flex items-center gap-1.5 px-5 py-2 rounded-lg text-sm font-semibold text-white transition-opacity disabled:opacity-40"
-            style={{ background: 'var(--brand)' }}
+            style={{ background: 'var(--brand-fill)' }}
           >
             Next <ArrowRight size={15} />
           </button>
@@ -400,7 +400,7 @@ export default function RFQCreate() {
           <button
             onClick={handleSubmit}
             className="flex items-center gap-1.5 px-5 py-2 rounded-lg text-sm font-semibold text-white"
-            style={{ background: 'var(--brand)' }}
+            style={{ background: 'var(--brand-fill)' }}
           >
             <Check size={15} /> Submit RFQ
           </button>

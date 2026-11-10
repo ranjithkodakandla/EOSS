@@ -49,19 +49,13 @@ export default function Reports() {
         <KpiCard label="In-Progress Jobs" value={inProgressJobs} trend="flat" />
       </div>
 
-      {/* Report tiles */}
-      <h2 className="text-sm font-semibold text-[var(--text-2)] font-medium mb-3">Available Reports</h2>
-      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-3 mb-6">
+      <div className="flex flex-wrap gap-2 mb-4">
         {REPORT_TYPES.map(r => (
-          <div key={r.id} onClick={() => setActiveReport(r.id === activeReport ? null : r.id)} className={`bg-[var(--surface)] border rounded-xl p-4 cursor-pointer transition-colors ${activeReport === r.id ? 'border-[var(--brand)] ring-1 ring-[var(--brand)]' : 'border-[var(--border)] hover:border-[var(--brand)]'}`}>
-            <div className="text-2xl mb-2">{r.icon}</div>
-            <div className="font-semibold text-sm text-[var(--text)]">{r.label}</div>
-            <div className="text-xs text-[var(--text-3)] mt-1">{r.desc}</div>
-            <div className="mt-3 flex items-center gap-2">
-              <button onClick={e => { e.stopPropagation(); setActiveReport(r.id === activeReport ? null : r.id); }} className="text-xs text-[var(--brand)] font-medium hover:underline">View Report →</button>
-              <button onClick={e => { e.stopPropagation(); showToast({ type: 'info', title: 'Export queued', body: `${r.label} (${dateFrom} – ${dateTo}) will download shortly.` }); }} className="ml-auto text-[var(--text-3)] hover:text-[var(--brand)]"><Download size={13} /></button>
-            </div>
-          </div>
+          <button key={r.id} type="button" onClick={() => setActiveReport(r.id === activeReport ? null : r.id)}
+            className="px-3 py-2 rounded-lg text-sm font-medium border"
+            style={{ borderColor: activeReport === r.id ? 'var(--brand)' : 'var(--border)', color: activeReport === r.id ? 'var(--brand)' : 'var(--text)', background: 'var(--surface)' }}>
+            {r.label}
+          </button>
         ))}
       </div>
 
@@ -77,7 +71,7 @@ export default function Reports() {
             <table className="eoss-table">
               <thead><tr><th>Job #</th><th>Customer</th><th>Status</th><th>Priority</th><th>Planned End</th></tr></thead>
               <tbody>
-                {jobs.slice(0, 5).map(j => (
+                {jobs.map(j => (
                   <tr key={j.id}>
                     <td className="font-mono text-xs text-[var(--brand)]">{j.jobNumber}</td>
                     <td className="text-sm text-[var(--text)]">{j.customerName}</td>
@@ -115,7 +109,7 @@ export default function Reports() {
             <table className="eoss-table">
               <thead><tr><th>Material</th><th>Location</th><th>On Hand</th><th>Available</th><th>Status</th></tr></thead>
               <tbody>
-                {inventory.slice(0, 10).map(i => (
+                {inventory.map(i => (
                   <tr key={i.id}>
                     <td className="text-sm font-medium text-[var(--text)]">{i.materialName}</td>
                     <td className="text-xs text-[var(--text-2)]">{i.locationName}</td>
@@ -142,7 +136,7 @@ export default function Reports() {
             <table className="eoss-table">
               <thead><tr><th>PO Number</th><th>Supplier</th><th>Raised</th><th>Value</th><th>Status</th></tr></thead>
               <tbody>
-                {supplierPos.slice(0, 8).map(p => (
+                {supplierPos.map(p => (
                   <tr key={p.id}>
                     <td className="font-mono text-xs font-bold text-[var(--brand)]">{p.poNumber}</td>
                     <td className="text-sm text-[var(--text)]">{p.supplierName}</td>
@@ -169,7 +163,7 @@ export default function Reports() {
             <table className="eoss-table">
               <thead><tr><th>Dispatch #</th><th>Customer</th><th>Date</th><th>Vehicle</th><th>Status</th></tr></thead>
               <tbody>
-                {dispatches.slice(0, 8).map(d => (
+                {dispatches.map(d => (
                   <tr key={d.id}>
                     <td className="font-mono text-xs font-bold text-[var(--brand)]">{d.dispatchNumber}</td>
                     <td className="text-sm text-[var(--text)]">{d.customerName}</td>
@@ -259,7 +253,7 @@ export default function Reports() {
               <table className="eoss-table">
                 <thead><tr><th>Invoice #</th><th>Customer</th><th>Amount</th><th>Due Date</th><th>Status</th></tr></thead>
                 <tbody>
-                  {customerInvoices.slice(0, 8).map(i => (
+                  {customerInvoices.map(i => (
                     <tr key={i.id}>
                       <td className="font-mono text-xs font-bold text-[var(--brand)]">{i.invoiceNumber}</td>
                       <td className="text-sm text-[var(--text)]">{i.customerName}</td>

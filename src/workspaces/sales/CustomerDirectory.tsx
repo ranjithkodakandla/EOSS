@@ -4,13 +4,15 @@ import { Search, Plus, Building2, Phone, Mail, ChevronRight, Star, X, Pencil } f
 import { useStore } from '../../store';
 import StatusChip from '../../components/layout/StatusChip';
 import EmptyState from '../../components/feedback/EmptyState';
-import WorkspaceNav from '../../components/workflow/WorkspaceNav';
+import type { Party } from '../../types';
 
 export default function CustomerDirectory() {
   const navigate = useNavigate();
-  const { customers } = useStore();
+  const { customers, customerPos, rfqs, showToast, updateCustomer, addCustomer } = useStore();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
+  const [showAdd, setShowAdd] = useState(false);
+  const [editCustomer, setEditCustomer] = useState<Party | null>(null);
 
   const filtered = customers.filter(c => {
     const q = search.toLowerCase();
@@ -20,17 +22,7 @@ export default function CustomerDirectory() {
   });
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="flex-shrink-0 px-6 py-4 border-b" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
-        <h1 className="text-lg font-bold" style={{ color: 'var(--text)' }}>Sales · Customers</h1>
-        <p className="text-xs mt-0.5" style={{ color: 'var(--text-2)' }}>Customer master data and related sales records</p>
-      </div>
-      <WorkspaceNav activeId="customers" items={[
-        { id: 'pos', label: 'Customer POs', to: '/sales?tab=pos' },
-        { id: 'rfqs', label: 'Customer RFQs', to: '/sales?tab=rfqs' },
-        { id: 'customers', label: 'Customers', to: '/sales/customers' },
-      ]} />
-      <div className="flex-1 overflow-auto p-4 md:p-6 max-w-6xl w-full mx-auto space-y-5">
+    <div className="p-4 md:p-6 max-w-6xl mx-auto space-y-5">
       {/* Header */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
@@ -40,9 +32,9 @@ export default function CustomerDirectory() {
           </p>
         </div>
         <button
-          onClick={() => navigate('/sales/customers/new')}
+          onClick={() => setShowAdd(true)}
           className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white cursor-pointer hover:opacity-90 transition-opacity"
-          style={{ background: 'var(--brand)' }}
+          style={{ background: 'var(--brand-fill)' }}
         >
           <Plus size={15} />
           Add Customer
@@ -67,7 +59,7 @@ export default function CustomerDirectory() {
             key={s}
             onClick={() => setStatusFilter(s)}
             className={`px-3 py-1.5 rounded-lg text-xs font-semibold capitalize border transition-colors cursor-pointer ${statusFilter === s ? 'text-white border-transparent' : 'border-transparent bg-transparent'}`}
-            style={statusFilter === s ? { background: 'var(--brand)' } : { color: 'var(--text-2)' }}
+            style={statusFilter === s ? { background: 'var(--brand-fill)' } : { color: 'var(--text-2)' }}
           >
             {s === 'all' ? 'All' : s.charAt(0).toUpperCase() + s.slice(1)}
           </button>
@@ -85,7 +77,7 @@ export default function CustomerDirectory() {
           <table className="w-full text-sm">
             <thead>
               <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface-2)' }}>
-                {['Customer', 'GSTIN / State', 'Contact', 'Terms', 'Rating', 'Status', ''].map(h => (
+                {['Customer', 'GSTIN / State', 'Contact', 'Terms', 'Customer POs', 'RFQs', 'Rating', 'Status', ''].map(h => (
                   <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold text-[var(--text-2)] font-medium">
                     {h}
                   </th>
@@ -118,6 +110,24 @@ export default function CustomerDirectory() {
                   </td>
                   <td className="px-4 py-3 text-xs text-[var(--text-2)]">{c.paymentTerms}</td>
                   <td className="px-4 py-3">
+                    <button
+                      type="button"
+                      onClick={e => { e.stopPropagation(); navigate(`/sales?tab=pos&customer=${encodeURIComponent(c.id)}`); }}
+                      className="text-xs font-semibold text-[var(--brand)] hover:underline"
+                    >
+                      {customerPos.filter(po => po.customerId === c.id).length} PO{customerPos.filter(po => po.customerId === c.id).length !== 1 ? 's' : ''}
+                    </button>
+                  </td>
+                  <td className="px-4 py-3">
+                    <button
+                      type="button"
+                      onClick={e => { e.stopPropagation(); navigate(`/sales?tab=rfqs&customer=${encodeURIComponent(c.id)}`); }}
+                      className="text-xs font-semibold text-[var(--brand)] hover:underline"
+                    >
+                      {rfqs.filter(rfq => rfq.customerId === c.id).length} RFQ{rfqs.filter(rfq => rfq.customerId === c.id).length !== 1 ? 's' : ''}
+                    </button>
+                  </td>
+                  <td className="px-4 py-3">
                     {c.rating != null && (
                       <div className="flex items-center gap-1 text-xs">
                         <Star size={11} className="text-amber-400 fill-amber-400" />
@@ -129,7 +139,7 @@ export default function CustomerDirectory() {
                     <StatusChip status={c.status as 'active' | 'archived'} />
                   </td>
                   <td className="px-4 py-3 text-right flex items-center justify-end gap-1">
-                    <button onClick={e => { e.stopPropagation(); navigate(`/sales/customers/${c.id}?edit=1`); }} className="p-1 rounded hover:bg-[var(--surface-2)]" title="Edit customer">
+                    <button onClick={e => { e.stopPropagation(); setEditCustomer(c); }} className="p-1 rounded hover:bg-[var(--surface-2)]" title="Edit customer">
                       <Pencil size={13} className="text-[var(--text-3)]" />
                     </button>
                     <ChevronRight size={15} className="text-[var(--text-2)]" />
@@ -141,6 +151,76 @@ export default function CustomerDirectory() {
         </div>
       )}
 
+      {showAdd && (
+        <AddCustomerModal
+          onClose={() => setShowAdd(false)}
+          onSave={(form) => {
+            const customer: Party = { id: `cust-${Date.now()}`, partyType: 'Customer', legalName: form.legalName, tradingName: form.tradingName || form.legalName, panNumber: form.pan, gstin: form.gstin, state: form.state, paymentTerms: form.paymentTerms, currency: 'INR', status: 'active', contactPerson: form.contactPerson, phone: form.phone, email: form.email, city: form.city, since: new Date().getFullYear().toString() };
+            addCustomer(customer);
+            showToast({ type: 'success', title: 'Customer added', body: `${customer.tradingName} has been registered.` });
+            setShowAdd(false);
+          }}
+        />
+      )}
+      {editCustomer && (
+        <AddCustomerModal
+          editMode
+          initialValues={{ legalName: editCustomer.legalName, tradingName: editCustomer.tradingName ?? '', gstin: editCustomer.gstin, pan: editCustomer.panNumber, city: editCustomer.city, state: editCustomer.state, phone: editCustomer.phone, email: editCustomer.email, paymentTerms: editCustomer.paymentTerms, contactPerson: editCustomer.contactPerson }}
+          onClose={() => setEditCustomer(null)}
+          onSave={(form) => {
+            updateCustomer(editCustomer.id, { legalName: form.legalName, tradingName: form.tradingName || form.legalName, city: form.city, state: form.state, phone: form.phone, email: form.email, contactPerson: form.contactPerson, paymentTerms: form.paymentTerms });
+            showToast({ type: 'success', title: 'Customer updated', body: `${form.tradingName || form.legalName} has been updated.` });
+            setEditCustomer(null);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function AddCustomerModal({ onClose, onSave, initialValues, editMode }: { onClose: () => void; onSave: (form: Record<string, string>) => void; initialValues?: Record<string, string>; editMode?: boolean }) {
+  const [form, setForm] = useState({ legalName: '', tradingName: '', gstin: '', pan: '', city: '', state: '', phone: '', email: '', paymentTerms: 'Net 30', contactPerson: '', ...initialValues });
+  const [err, setErr] = useState('');
+  const save = () => {
+    if (!form.legalName || !form.city) { setErr('Legal name and city are required'); return; }
+    onSave(form);
+  };
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl w-full max-w-md p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="font-bold text-[var(--text)]">{editMode ? 'Edit Customer' : 'Add Customer'}</h3>
+          <button onClick={onClose}><X size={16} className="text-[var(--text-3)]" /></button>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          {[
+            { label: 'Legal Name *', key: 'legalName', placeholder: 'As per company registration', span: true },
+            { label: 'Trading Name', key: 'tradingName', placeholder: 'Short name', span: false },
+            { label: 'City *', key: 'city', placeholder: '', span: false },
+            { label: 'State', key: 'state', placeholder: '', span: false },
+            { label: 'GSTIN', key: 'gstin', placeholder: '', span: false },
+            { label: 'PAN', key: 'pan', placeholder: '', span: false },
+            { label: 'Contact Person', key: 'contactPerson', placeholder: '', span: false },
+            { label: 'Phone', key: 'phone', placeholder: '', span: false },
+            { label: 'Email', key: 'email', placeholder: '', span: true },
+          ].map(f => (
+            <div key={f.key} className={f.span ? 'col-span-2' : ''}>
+              <label className="block text-xs font-medium text-[var(--text-2)] mb-1">{f.label}</label>
+              <input className="eoss-input w-full" value={(form as any)[f.key]} onChange={e => setForm(prev => ({ ...prev, [f.key]: e.target.value }))} placeholder={f.placeholder} />
+            </div>
+          ))}
+          <div>
+            <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Payment Terms</label>
+            <select className="eoss-input w-full" value={form.paymentTerms} onChange={e => setForm(f => ({ ...f, paymentTerms: e.target.value }))}>
+              {['Advance', 'Net 15', 'Net 30', 'Net 45', 'Net 60'].map(t => <option key={t}>{t}</option>)}
+            </select>
+          </div>
+        </div>
+        {err && <p className="text-xs text-[var(--danger)] mt-2">{err}</p>}
+        <div className="flex gap-3 mt-5">
+          <button onClick={onClose} className="flex-1 py-2.5 border border-[var(--border)] rounded-xl text-sm text-[var(--text-2)]">Cancel</button>
+          <button onClick={save} className="flex-1 py-2.5 bg-[var(--brand-fill)] text-white rounded-xl text-sm font-medium">Save Customer</button>
+        </div>
       </div>
     </div>
   );

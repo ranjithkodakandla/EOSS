@@ -1,34 +1,39 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, ChevronRight, Plus, X, Pencil } from 'lucide-react';
-import { useStore, SUPPLIERS } from '../../store';
+import { useStore } from '../../store';
 import StatusChip from '../../components/layout/StatusChip';
+import type { Party } from '../../types';
+import SortableHeader from '../../components/layout/SortableHeader';
+import { sortRows } from '../../domain/tableSort';
+
+type SupplierSortKey = 'supplier' | 'category' | 'rating' | 'terms' | 'gstin' | 'status';
 
 export default function Suppliers() {
-  const { currentUser, showToast } = useStore();
+  const { currentUser, suppliers, showToast, updateSupplier, addSupplier } = useStore();
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
   const [showAdd, setShowAdd] = useState(false);
-  const [editSupplier, setEditSupplier] = useState<typeof SUPPLIERS[0] | null>(null);
-  const filtered = SUPPLIERS.filter(s => !search || s.tradingName.toLowerCase().includes(search.toLowerCase()) || s.legalName.toLowerCase().includes(search.toLowerCase()) || (s.city ?? '').toLowerCase().includes(search.toLowerCase()));
+  const [editSupplier, setEditSupplier] = useState<Party | null>(null);
+  const [sortKey, setSortKey] = useState<SupplierSortKey>('supplier');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+  const filteredBase = suppliers.filter(s => !search || s.tradingName.toLowerCase().includes(search.toLowerCase()) || s.legalName.toLowerCase().includes(search.toLowerCase()) || (s.city ?? '').toLowerCase().includes(search.toLowerCase()));
+  const filtered = sortRows(filteredBase, sortKey, sortDir, (s, key) => ({ supplier: s.tradingName, category: s.category, rating: s.rating, terms: s.paymentTerms, gstin: s.gstin, status: s.status }[key as SupplierSortKey]));
+  const handleSort = (key: SupplierSortKey) => {
+    if (sortKey === key) setSortDir(direction => direction === 'asc' ? 'desc' : 'asc');
+    else { setSortKey(key); setSortDir('asc'); }
+  };
 
   return (
     <div className="p-4 md:p-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
         <div>
           <h1 className="text-xl font-bold text-[var(--text)]">Suppliers</h1>
-          <p className="text-sm text-[var(--text-2)]">{SUPPLIERS.length} suppliers registered</p>
+          <p className="text-sm text-[var(--text-2)]">{suppliers.length} suppliers registered</p>
         </div>
         {['owner', 'buyer'].includes(currentUser.role) && (
-          <button onClick={() => setShowAdd(true)} className="flex items-center gap-2 px-4 py-2 bg-[var(--brand)] text-white rounded-lg text-sm font-medium"><Plus size={16} /> Add Supplier</button>
+          <button onClick={() => setShowAdd(true)} className="flex items-center gap-2 px-4 py-2 bg-[var(--brand-fill)] text-white rounded-lg text-sm font-medium"><Plus size={16} /> Add Supplier</button>
         )}
-      </div>
-
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
-        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4"><div className="text-xl font-bold text-[var(--text)]">{SUPPLIERS.length}</div><div className="text-xs text-[var(--text-2)] mt-0.5">Total Suppliers</div></div>
-        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4"><div className="text-xl font-bold text-[var(--success)]">{SUPPLIERS.filter(s => s.status === 'active').length}</div><div className="text-xs text-[var(--text-2)] mt-0.5">Active</div></div>
-        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4"><div className="text-xl font-bold text-[var(--warning)]">{SUPPLIERS.filter(s => (s.rating ?? 0) >= 4).length}</div><div className="text-xs text-[var(--text-2)] mt-0.5">High Rated (≥4)</div></div>
-        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4"><div className="text-xl font-bold text-[var(--text)]">{[...new Set(SUPPLIERS.map(s => s.category))].length}</div><div className="text-xs text-[var(--text-2)] mt-0.5">Categories</div></div>
       </div>
 
       <div className="relative mb-4">
@@ -36,10 +41,25 @@ export default function Suppliers() {
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search suppliers…" className="w-full pl-9 pr-4 py-2 rounded-lg border border-[var(--border)] bg-[var(--surface)] text-sm text-[var(--text)] placeholder:text-[var(--text-3)] focus:outline-none focus:border-[var(--brand)]" />
       </div>
 
-      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl overflow-hidden">
+      <div className="md:hidden space-y-2 mb-3">
+        {filtered.map(s => (
+          <button key={s.id} type="button" onClick={() => navigate(`/suppliers/${s.id}`)}
+            className="w-full text-left rounded-xl border p-3" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-sm font-semibold text-[var(--text)]">{s.tradingName}</span>
+              <StatusChip status={s.status} size="sm" />
+            </div>
+            <div className="text-xs text-[var(--text-2)] mt-1">{s.category} · {s.city} · {s.paymentTerms}</div>
+          </button>
+        ))}
+      </div>
+      <div className="hidden md:block bg-[var(--surface)] border border-[var(--border)] rounded-xl overflow-hidden">
         <div className="overflow-x-auto">
           <table className="eoss-table">
-            <thead><tr><th>Supplier</th><th>Category</th><th>Rating</th><th>Payment Terms</th><th>GSTIN</th><th>Status</th><th></th></tr></thead>
+            <thead><tr>
+              {([['Supplier', 'supplier'], ['Category', 'category'], ['Rating', 'rating'], ['Payment Terms', 'terms'], ['GSTIN', 'gstin'], ['Status', 'status']] as [string, SupplierSortKey][]).map(([label, key]) => <SortableHeader key={label} label={label} active={sortKey === key} direction={sortDir} onSort={() => handleSort(key)} />)}
+              <th />
+            </tr></thead>
             <tbody>
               {filtered.map(s => (
                 <tr key={s.id} className="cursor-pointer" onClick={() => navigate(`/suppliers/${s.id}`)}>
@@ -75,8 +95,10 @@ export default function Suppliers() {
       {showAdd && (
         <AddSupplierModal
           onClose={() => setShowAdd(false)}
-          onSave={(name) => {
-            showToast({ type: 'success', title: 'Supplier added', body: `${name} has been registered.` });
+          onSave={(form) => {
+            const supplier: Party = { id: `supp-${Date.now()}`, partyType: 'Supplier', legalName: form.legalName, tradingName: form.tradingName || form.legalName, panNumber: form.pan, gstin: form.gstin, state: form.state, paymentTerms: form.paymentTerms, currency: 'INR', status: 'active', contactPerson: form.contactPerson, phone: form.phone, email: form.email, city: form.city, since: new Date().getFullYear().toString(), category: form.category };
+            addSupplier(supplier);
+            showToast({ type: 'success', title: 'Supplier added', body: `${supplier.tradingName} has been registered.` });
             setShowAdd(false);
           }}
         />
@@ -86,8 +108,9 @@ export default function Suppliers() {
           initialValues={{ tradingName: editSupplier.tradingName, legalName: editSupplier.legalName, category: editSupplier.category ?? 'Raw Material', city: editSupplier.city ?? '', state: editSupplier.state ?? '', gstin: editSupplier.gstin ?? '', pan: editSupplier.panNumber ?? '', paymentTerms: editSupplier.paymentTerms, contactPerson: editSupplier.contactPerson, phone: editSupplier.phone, email: editSupplier.email }}
           editMode
           onClose={() => setEditSupplier(null)}
-          onSave={(name) => {
-            showToast({ type: 'success', title: 'Supplier updated', body: `${name} has been updated.` });
+          onSave={(form) => {
+            updateSupplier(editSupplier.id, { legalName: form.legalName, tradingName: form.tradingName || form.legalName, category: form.category, city: form.city, state: form.state, phone: form.phone, email: form.email, contactPerson: form.contactPerson, paymentTerms: form.paymentTerms });
+            showToast({ type: 'success', title: 'Supplier updated', body: `${form.tradingName || form.legalName} has been updated.` });
             setEditSupplier(null);
           }}
         />
@@ -96,12 +119,12 @@ export default function Suppliers() {
   );
 }
 
-function AddSupplierModal({ onClose, onSave, initialValues, editMode }: { onClose: () => void; onSave: (name: string) => void; initialValues?: Record<string, string>; editMode?: boolean }) {
+function AddSupplierModal({ onClose, onSave, initialValues, editMode }: { onClose: () => void; onSave: (form: Record<string, string>) => void; initialValues?: Record<string, string>; editMode?: boolean }) {
   const [form, setForm] = useState({ tradingName: '', legalName: '', category: 'Raw Material', city: '', state: '', gstin: '', pan: '', paymentTerms: 'Net 30', contactPerson: '', phone: '', email: '', ...initialValues });
   const [err, setErr] = useState('');
   const save = () => {
     if (!form.legalName || !form.city) { setErr('Legal name and city are required'); return; }
-    onSave(form.tradingName || form.legalName);
+    onSave(form);
   };
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
@@ -143,7 +166,7 @@ function AddSupplierModal({ onClose, onSave, initialValues, editMode }: { onClos
         {err && <p className="text-xs text-[var(--danger)] mt-2">{err}</p>}
         <div className="flex gap-3 mt-5">
           <button onClick={onClose} className="flex-1 py-2.5 border border-[var(--border)] rounded-xl text-sm text-[var(--text-2)]">Cancel</button>
-          <button onClick={save} className="flex-1 py-2.5 bg-[var(--brand)] text-white rounded-xl text-sm font-medium">Save Supplier</button>
+          <button onClick={save} className="flex-1 py-2.5 bg-[var(--brand-fill)] text-white rounded-xl text-sm font-medium">Save Supplier</button>
         </div>
       </div>
     </div>

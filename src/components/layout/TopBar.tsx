@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
-import { Search, HelpCircle, ChevronDown, Check, X, User, Settings } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Search, HelpCircle, ChevronDown, Check, X, Menu, Settings } from 'lucide-react';
 import { useStore, type EOSSTheme } from '../../store';
 import NotificationDropdown from './NotificationDropdown';
 import GlobalSearchModal from '../search/GlobalSearchModal';
 import clsx from 'clsx';
 
-export default function TopBar() {
-  const { sidebarCollapsed, currentUser, eossTheme, setEOSSTheme, showToast } = useStore();
+export default function TopBar({ onOpenMenu }: { onOpenMenu?: () => void }) {
+  const { sidebarCollapsed, currentUser, eossTheme, theme, setEOSSTheme, setTheme, showToast } = useStore();
   const navigate = useNavigate();
   const [searchOpen, setSearchOpen] = useState(false);
   const [themeMenuOpen, setThemeMenuOpen] = useState(false);
@@ -33,7 +33,18 @@ export default function TopBar() {
         }}
       >
         {/* Left: Company Selector */}
-        <div className="flex items-center gap-1.5 sm:gap-3 flex-shrink-0">
+        <div className="flex items-center gap-1.5 sm:gap-3 flex-shrink-0 min-w-0">
+          {onOpenMenu && (
+            <button
+              type="button"
+              onClick={onOpenMenu}
+              className="md:hidden w-8 h-8 rounded-full border flex items-center justify-center text-[var(--text)] bg-[var(--surface)] flex-shrink-0"
+              style={{ borderColor: 'var(--border, #E5E0F5)' }}
+              aria-label="Open menu"
+            >
+              <Menu size={16} />
+            </button>
+          )}
           <button
             type="button"
             onClick={() => navigate('/admin')}
@@ -42,7 +53,7 @@ export default function TopBar() {
             aria-label="Open Company Details in Admin & Settings"
           >
             <div className="flex items-center gap-1">
-              <span className="text-sm sm:text-base font-extrabold text-[var(--text)] tracking-tight whitespace-nowrap">
+              <span className="text-sm sm:text-base font-extrabold text-[var(--text)] tracking-tight whitespace-nowrap max-w-[7.5rem] sm:max-w-none truncate">
                 Apex Precision Engineering
               </span>
               <ChevronDown size={13} className="text-[var(--text-2)] hidden sm:inline" />
@@ -119,7 +130,25 @@ export default function TopBar() {
                   }}
                 >
                   <div className="px-3 py-1.5 text-[11px] font-bold text-[var(--text-2)] uppercase tracking-wider">
-                    EOSS Theme Presets
+                    Appearance
+                  </div>
+                  <div className="grid grid-cols-2 gap-1 px-1 pb-1">
+                    {(['light', 'dark'] as const).map(mode => (
+                      <button
+                        key={mode}
+                        type="button"
+                        onClick={() => setTheme(mode)}
+                        className={clsx(
+                          'px-2 py-1.5 rounded-lg text-xs font-semibold capitalize',
+                          theme === mode ? 'bg-[var(--brand-fill)] text-white' : 'text-[var(--text)] hover:bg-[var(--surface-2)]'
+                        )}
+                      >
+                        {mode}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="px-3 py-1.5 text-[11px] font-bold text-[var(--text-2)] uppercase tracking-wider">
+                    Palette
                   </div>
                   {themes.map(t => (
                     <button
@@ -149,18 +178,6 @@ export default function TopBar() {
 
           {/* Notifications */}
           <NotificationDropdown />
-
-          {/* Admin & Settings Link */}
-          <NavLink
-            to="/admin"
-            className={({ isActive }) => clsx(
-              "p-1.5 rounded-full text-[var(--text-2)] hover:text-[var(--text)] hover:bg-[var(--surface-2)] transition-colors cursor-pointer flex items-center justify-center",
-              isActive && "text-[var(--brand)] bg-[var(--surface-2)]"
-            )}
-            title="Admin & Settings"
-          >
-            <Settings size={18} />
-          </NavLink>
 
           {/* Help Button */}
           <div className="relative hidden sm:block">
@@ -282,7 +299,7 @@ function ProfileModal({ currentUser, eossTheme, themes, onThemeChange, onClose, 
         </div>
         <div className="px-6 pb-5 flex gap-3">
           <button onClick={onClose} className="flex-1 py-2.5 border border-[var(--border)] rounded-xl text-sm text-[var(--text-2)]">Cancel</button>
-          <button onClick={onSave} className="flex-1 py-2.5 bg-[var(--brand)] text-white rounded-xl text-sm font-medium">Save Preferences</button>
+          <button onClick={onSave} className="flex-1 py-2.5 bg-[var(--brand-fill)] text-white rounded-xl text-sm font-medium">Save Preferences</button>
         </div>
       </div>
     </div>

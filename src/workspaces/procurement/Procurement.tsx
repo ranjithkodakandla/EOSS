@@ -3,13 +3,20 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Plus, AlertTriangle, Search, ChevronRight, X, Pencil, Trash2, Send } from 'lucide-react';
 import { useStore } from '../../store';
 import StatusChip from '../../components/layout/StatusChip';
-import type { SupplierPO, SupplierQuotation } from '../../types';
+import type { GoodsReceipt, SupplierPO, SupplierPOLine, SupplierQuotation } from '../../types';
+import { DEFAULT_SITE_ID, DEFAULT_SITE_NAME, DEFAULT_STORE_ID, DEFAULT_STORE_NAME, GRN_STORE_ID, GRN_STORE_NAME } from '../../domain/recordLists';
+import { placeLabel } from '../../domain/places';
+import SiteStoreField from '../../components/forms/SiteStoreField';
+import SortableHeader from '../../components/layout/SortableHeader';
+import { sortRows } from '../../domain/tableSort';
 
 type ProcTab = 'spo' | 'pr' | 'grn' | 'approvals' | 'quotes';
+type ProcurementSortKey = 'number' | 'supplier' | 'date' | 'committedDate' | 'value' | 'lines' | 'job' | 'status' | 'raisedBy' | 'requiredBy' | 'priority' | 'poRef' | 'receivedBy' | 'challan' | 'validUntil' | 'leadTime' | 'terms';
 
 export default function Procurement() {
-  const { supplierPos, grns, approvalRequests, supplierQuotations, purchaseReqs, currentUser, showToast, addSupplierPO, resolveApproval, updateSupplierPo, selectQuotation } = useStore();
+  const { supplierPos, grns, approvalRequests, supplierQuotations, purchaseReqs, sites, currentUser, showToast, addSupplierPO, resolveApproval, updateSupplierPo, addGRN, supplierPoLines } = useStore();
   const [searchParams] = useSearchParams();
+  const receiveParam = searchParams.get('receive');
   const [editSpo, setEditSpo] = useState<SupplierPO | null>(null);
 
   const handleDeleteSpo = (id: string) => {
@@ -19,24 +26,70 @@ export default function Procurement() {
     showToast({ type: 'success', title: 'Supplier PO cancelled' });
   };
   const navigate = useNavigate();
-  const [tab, setTab] = useState<ProcTab>((searchParams.get('tab') as ProcTab) ?? 'spo');
+  const [tab, setTab] = useState<ProcTab>(receiveParam ? 'grn' : ((searchParams.get('tab') as ProcTab) ?? 'spo'));
   const [search, setSearch] = useState('');
   const [showNewPO, setShowNewPO] = useState(false);
-
-  const overduePOs = supplierPos.filter(p => p.status === 'overdue').length;
-  const pendingApprovals = approvalRequests.filter(a => a.status === 'pending').length;
-  const canCreate = ['owner', 'buyer'].includes(currentUser.role);
-
-  const filteredSpo = supplierPos.filter(p =>
-    !search || p.poNumber.toLowerCase().includes(search.toLowerCase()) ||
-    p.supplierName.toLowerCase().includes(search.toLowerCase())
+  const [siteFilter, setSiteFilter] = useState('all');
+  const [overdueOnly, setOverdueOnly] = useState(false);
+  const [approvalView, setApprovalView] = useState<'pending' | 'approved' | 'rejected' | 'all'>('pending');
+  const [sortKey, setSortKey] = useState<ProcurementSortKey>('number');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+  const receivablePos = supplierPos.filter(p => ['confirmed', 'partial', 'overdue', 'sent'].includes(p.status));
+  const [receivePoId, setReceivePoId] = useState<string | null>(
+    receiveParam ? (supplierPos.find(p => p.id === receiveParam)?.id ?? receivablePos[0]?.id ?? null) : null
   );
 
+  const pendingApprovals = approvalRequests.filter(a => a.status === 'pending').length;
+  const canCreate = ['owner', 'buyer'].includes(currentUser.role);
+  const canApprove = currentUser.role === 'owner';
+
+  const q = search.toLowerCase();
+  const matchSite = (siteId?: string) => siteFilter === 'all' || siteId === siteFilter;
+  const filteredSpoBase = supplierPos.filter(p =>
+    matchSite(p.deliverToSiteId) && (!overdueOnly || p.status === 'overdue') &&
+    (!q || p.poNumber.toLowerCase().includes(q) || p.supplierName.toLowerCase().includes(q))
+  );
+  const filteredSpo = sortRows(filteredSpoBase, sortKey, sortDir, (p, key) => {
+    const values: Record<string, unknown> = { number: p.poNumber, supplier: p.supplierName, date: p.raisedDate, committedDate: p.committedDate, value: p.totalValue, lines: p.lineCount, job: p.jobRef, status: p.status };
+    return values[key] ?? p.raisedDate;
+  });
+  const filteredPrsBase = purchaseReqs.filter(pr =>
+    matchSite(pr.deliverToSiteId) &&
+    (!q || pr.prNumber.toLowerCase().includes(q) || pr.raisedBy.toLowerCase().includes(q) || (pr.jobNumber ?? '').toLowerCase().includes(q))
+  );
+  const filteredPrs = sortRows(filteredPrsBase, sortKey, sortDir, (pr, key) => {
+    const values: Record<string, unknown> = { number: pr.prNumber, raisedBy: pr.raisedBy, date: pr.raisedDate, requiredBy: pr.requiredBy, job: pr.jobNumber, lines: pr.lineCount, priority: pr.priority, status: pr.status };
+    return values[key] ?? pr.raisedDate;
+  });
+  const filteredGrnsBase = grns.filter(g =>
+    matchSite(g.siteId) &&
+    (!q || g.grnNumber.toLowerCase().includes(q) || g.supplierName.toLowerCase().includes(q))
+  );
+  const filteredGrns = sortRows(filteredGrnsBase, sortKey, sortDir, (g, key) => {
+    const values: Record<string, unknown> = { number: g.grnNumber, supplier: g.supplierName, poRef: g.spoNumber, date: g.receivedDate, receivedBy: g.receivedBy, challan: g.deliveryChallan, status: g.status };
+    return values[key] ?? g.receivedDate;
+  });
+  const filteredQuotesBase = supplierQuotations.filter(qt =>
+    !q || qt.quoteNumber.toLowerCase().includes(q) || qt.supplierName.toLowerCase().includes(q)
+  );
+  const filteredQuotes = sortRows(filteredQuotesBase, sortKey, sortDir, (qt, key) => {
+    const values: Record<string, unknown> = { number: qt.quoteNumber, supplier: qt.supplierName, date: qt.quoteDate, validUntil: qt.validUntil, leadTime: qt.deliveryDays, terms: qt.paymentTerms, value: qt.lines.reduce((s, l) => s + l.lineTotal, 0), status: qt.status };
+    return values[key] ?? qt.quoteDate;
+  });
+  const overduePOs = supplierPos.filter(p => p.status === 'overdue' && matchSite(p.deliverToSiteId) && (!q || p.poNumber.toLowerCase().includes(q) || p.supplierName.toLowerCase().includes(q))).length;
+  const approvalSiteId = (id: string) => supplierPos.find(p => p.id === id)?.deliverToSiteId ?? purchaseReqs.find(p => p.id === id)?.deliverToSiteId ?? grns.find(g => g.id === id)?.siteId;
+  const visibleApprovals = approvalRequests.filter(a => (approvalView === 'all' || a.status === approvalView) && matchSite(approvalSiteId(a.entityId)));
+
+  const handleSort = (key: ProcurementSortKey) => {
+    if (sortKey === key) setSortDir(direction => direction === 'asc' ? 'desc' : 'asc');
+    else { setSortKey(key); setSortDir('asc'); }
+  };
+
   const TABS = [
-    { id: 'spo' as ProcTab, label: `Supplier POs (${supplierPos.length})` },
-    { id: 'pr' as ProcTab, label: `PRs (${purchaseReqs.length})` },
-    { id: 'grn' as ProcTab, label: `GRNs (${grns.length})` },
-    { id: 'quotes' as ProcTab, label: `Quotations (${supplierQuotations.length})` },
+    { id: 'spo' as ProcTab, label: `Supplier POs (${filteredSpo.length})` },
+    { id: 'pr' as ProcTab, label: `PRs (${filteredPrs.length})` },
+    { id: 'grn' as ProcTab, label: `GRNs (${filteredGrns.length})` },
+    { id: 'quotes' as ProcTab, label: `Quotations (${filteredQuotes.length})` },
     { id: 'approvals' as ProcTab, label: `Approvals${pendingApprovals > 0 ? ` · ${pendingApprovals}` : ''}` },
   ];
   const [compareQuotes, setCompareQuotes] = useState<SupplierQuotation[] | null>(null);
@@ -48,48 +101,67 @@ export default function Procurement() {
         style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
         <div className="relative flex-1 min-w-[180px] max-w-xs">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-3)' }} />
-          <input type="text" placeholder="Search PO, supplier…" value={search} onChange={e => setSearch(e.target.value)}
+          <input type="text" placeholder="Search this list…" value={search} onChange={e => setSearch(e.target.value)}
             className="w-full pl-8 pr-3 py-1.5 text-sm rounded-lg border outline-none"
             style={{ borderColor: 'var(--border)', background: 'var(--surface)', color: 'var(--text)' }} />
         </div>
+        <select value={siteFilter} onChange={e => setSiteFilter(e.target.value)} className="eoss-input text-xs py-1.5 max-w-[11rem]" aria-label="Deliver-to site">
+          <option value="all">All sites</option>
+          {sites.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+        </select>
         <div className="flex-1" />
         {overduePOs > 0 && (
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
+          <button type="button" onClick={() => { setTab('spo'); setOverdueOnly(v => !v); }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
             style={{ background: 'var(--error-bg,#FEF2F2)', color: 'var(--error,#DC2626)' }}>
             <AlertTriangle size={13} /> {overduePOs} overdue
-          </div>
+          </button>
         )}
         {pendingApprovals > 0 && (
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
+          <button type="button" onClick={() => setTab('approvals')}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
             style={{ background: 'var(--warning-bg,#FFFBEB)', color: 'var(--warning,#D97706)' }}>
-            {pendingApprovals} pending approval
-          </div>
+            {pendingApprovals} to approve
+          </button>
         )}
-        {canCreate && (
-          <>
-            <button onClick={() => navigate('/procurement/supplier-return')}
-              className="px-3 py-1.5 rounded-lg border text-xs font-medium hover:opacity-80"
-              style={{ borderColor: 'var(--border)', color: 'var(--text-2)' }}>
-              Supplier Return
-            </button>
-            <button onClick={() => navigate('/procurement/pr/new')}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white"
-              style={{ background: 'var(--brand)' }}>
-              <Plus size={13} /> New Purchase Requisition
-            </button>
-          </>
+        {canCreate && tab === 'spo' && (
+          <button onClick={() => navigate('/procurement/supplier-return')}
+            className="px-3 py-1.5 rounded-lg border text-xs font-medium"
+            style={{ borderColor: 'var(--border)', color: 'var(--text-2)' }}>
+            Return
+          </button>
+        )}
+        {canCreate && tab === 'pr' && (
+          <button onClick={() => navigate('/procurement/pr/new')}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white"
+            style={{ background: 'var(--brand-fill)' }}>
+            <Plus size={13} /> New PR
+          </button>
+        )}
+        {canCreate && tab === 'quotes' && (
+          <button onClick={() => navigate('/procurement/supplier-rfq/new')}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white"
+            style={{ background: 'var(--brand-fill)' }}>
+            <Send size={13} /> Send enquiry
+          </button>
+        )}
+        {canCreate && tab === 'spo' && (
+          <button onClick={() => setShowNewPO(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white"
+            style={{ background: 'var(--brand-fill)' }}>
+            <Plus size={13} /> New PO
+          </button>
         )}
       </div>
 
       {/* Tabs */}
-      <div className="flex-shrink-0 flex items-center border-b px-5"
+      <div className="flex-shrink-0 flex items-center border-b px-3 overflow-x-auto"
         style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
         {TABS.map(t => (
           <button key={t.id} onClick={() => setTab(t.id)}
             className="relative px-4 py-3 text-sm font-medium transition-colors whitespace-nowrap"
             style={{ color: tab === t.id ? 'var(--brand)' : 'var(--text-2)' }}>
             {t.label}
-            {tab === t.id && <span className="absolute bottom-0 left-0 right-0 h-0.5 rounded-t-full" style={{ background: 'var(--brand)' }} />}
+            {tab === t.id && <span className="absolute bottom-0 left-0 right-0 h-0.5 rounded-t-full" style={{ background: 'var(--brand-fill)' }} />}
           </button>
         ))}
       </div>
@@ -97,12 +169,27 @@ export default function Procurement() {
       {/* Content */}
       <div className="flex-1 overflow-auto">
         {tab === 'spo' && (
-          <table className="w-full text-sm border-separate border-spacing-0">
+          <>
+          <div className="md:hidden p-3 space-y-2">
+            {filteredSpo.map(p => (
+              <button key={p.id} type="button" onClick={() => navigate(`/procurement/spo/${p.id}`)}
+                className="w-full text-left rounded-xl border p-3" style={{ borderColor: 'var(--border)', background: p.status === 'overdue' ? 'var(--error-bg,#FEF2F2)' : 'var(--surface)' }}>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-mono text-xs font-bold" style={{ color: 'var(--brand)' }}>{p.poNumber}</span>
+                  <StatusChip status={p.status} size="sm" />
+                </div>
+                <div className="text-sm font-semibold text-[var(--text)] mt-1">{p.supplierName}</div>
+                <div className="text-xs text-[var(--text-2)] mt-1">₹{(p.totalValue / 1000).toFixed(1)}k{p.jobRef ? ` · ${p.jobRef}` : ''}</div>
+              </button>
+            ))}
+          </div>
+          <table className="hidden md:table w-full text-sm border-separate border-spacing-0">
             <thead style={{ position: 'sticky', top: 0, zIndex: 5 }}>
               <tr style={{ background: 'var(--surface-2)', borderBottom: '1px solid var(--border)' }}>
-                {['PO Number', 'Supplier', 'Raised', 'Committed', 'Lines', 'Value', 'Job Ref', 'Status', ''].map(h => (
-                  <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold font-medium" style={{ color: 'var(--text-3)', borderBottom: '1px solid var(--border)' }}>{h}</th>
+                {([['PO Number', 'number'], ['Supplier', 'supplier'], ['Raised', 'date'], ['Committed', 'committedDate'], ['Lines', 'lines'], ['Value', 'value'], ['Job Ref', 'job'], ['Status', 'status']] as [string, ProcurementSortKey][]).map(([label, key]) => (
+                  <SortableHeader key={label} label={label} active={sortKey === key} direction={sortDir} onSort={() => handleSort(key)} className="text-left px-4 py-2.5 text-xs font-semibold font-medium" style={{ color: 'var(--text-3)', borderBottom: '1px solid var(--border)' }} />
                 ))}
+                <th />
               </tr>
             </thead>
             <tbody>
@@ -118,7 +205,10 @@ export default function Procurement() {
                     <div className="font-mono text-xs font-bold" style={{ color: 'var(--brand)' }}>{p.poNumber}</div>
                     {p.hasAmendment && <div className="text-[11px]" style={{ color: 'var(--warning,#D97706)' }}>Amendment</div>}
                   </td>
-                  <td className="px-4 py-3 text-sm font-medium" style={{ color: 'var(--text)' }}>{p.supplierName}</td>
+                  <td className="px-4 py-3 text-sm font-medium" style={{ color: 'var(--text)' }}>
+                    {p.supplierName}
+                    <div className="text-[11px] font-normal text-[var(--text-3)]">{placeLabel(p.deliverToSiteName, p.deliverToStoreName)}</div>
+                  </td>
                   <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-2)' }}>{new Date(p.raisedDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</td>
                   <td className="px-4 py-3 text-xs" style={{ color: p.status === 'overdue' ? 'var(--error,#DC2626)' : 'var(--text-2)', fontWeight: p.status === 'overdue' ? 600 : undefined }}>
                     {p.committedDate ? new Date(p.committedDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '—'}
@@ -129,11 +219,11 @@ export default function Procurement() {
                   <td className="px-4 py-3"><StatusChip status={p.status} size="sm" /></td>
                   <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                     <div className="flex items-center gap-1">
-                      {canCreate && !['cancelled', 'received'].includes(p.status) && (
-                        <button onClick={() => setEditSpo(p)} className="p-1 rounded hover:bg-[var(--surface-2)]" title="Edit Supplier PO"><Pencil size={12} style={{ color: 'var(--text-3)' }} /></button>
+                      {canCreate && p.status !== 'cancelled' && (
+                        <button onClick={() => setEditSpo(p)} className="p-1 rounded hover:bg-[var(--surface-2)]" title="Edit"><Pencil size={12} style={{ color: 'var(--text-3)' }} /></button>
                       )}
-                      {canCreate && !['cancelled', 'received'].includes(p.status) && !grns.some(g => g.spoId === p.id) && (
-                        <button onClick={() => handleDeleteSpo(p.id)} className="p-1 rounded hover:bg-[var(--surface-2)]" title="Cancel Supplier PO"><Trash2 size={12} style={{ color: 'var(--error,#DC2626)' }} /></button>
+                      {canCreate && p.status !== 'cancelled' && (
+                        <button onClick={() => handleDeleteSpo(p.id)} className="p-1 rounded hover:bg-[var(--surface-2)]" title="Cancel"><Trash2 size={12} style={{ color: 'var(--error,#DC2626)' }} /></button>
                       )}
                       <ChevronRight size={14} style={{ color: 'var(--text-3)' }} />
                     </div>
@@ -142,28 +232,33 @@ export default function Procurement() {
               ))}
             </tbody>
           </table>
+          </>
         )}
 
         {tab === 'pr' && (
           <table className="w-full text-sm border-separate border-spacing-0">
             <thead style={{ position: 'sticky', top: 0, zIndex: 5 }}>
               <tr style={{ background: 'var(--surface-2)' }}>
-                {['PR Number', 'Raised By', 'Raised Date', 'Required By', 'Job Ref', 'Lines', 'Priority', 'Status', ''].map(h => (
-                  <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold font-medium" style={{ color: 'var(--text-3)', borderBottom: '1px solid var(--border)' }}>{h}</th>
+                {([['PR Number', 'number'], ['Raised By', 'raisedBy'], ['Raised Date', 'date'], ['Required By', 'requiredBy'], ['Job Ref', 'job'], ['Lines', 'lines'], ['Priority', 'priority'], ['Status', 'status']] as [string, ProcurementSortKey][]).map(([label, key]) => (
+                  <SortableHeader key={label} label={label} active={sortKey === key} direction={sortDir} onSort={() => handleSort(key)} className="text-left px-4 py-2.5 text-xs font-semibold font-medium" style={{ color: 'var(--text-3)', borderBottom: '1px solid var(--border)' }} />
                 ))}
+                <th />
               </tr>
             </thead>
             <tbody>
-              {purchaseReqs.length === 0 && (
+              {filteredPrs.length === 0 && (
                 <tr><td colSpan={9} className="px-4 py-10 text-center text-sm" style={{ color: 'var(--text-3)' }}>No PRs found</td></tr>
               )}
-              {purchaseReqs.map(pr => (
+              {filteredPrs.map(pr => (
                 <tr key={pr.id} className="cursor-pointer" style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}
                   onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--surface-2)'; }}
                   onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'var(--surface)'; }}
                   onClick={() => navigate(`/procurement/pr/${pr.id}`)}>
                   <td className="px-4 py-3 font-mono text-xs font-bold" style={{ color: 'var(--brand)' }}>{pr.prNumber}</td>
-                  <td className="px-4 py-3 text-sm" style={{ color: 'var(--text)' }}>{pr.raisedBy}</td>
+                  <td className="px-4 py-3 text-sm" style={{ color: 'var(--text)' }}>
+                    {pr.raisedBy}
+                    <div className="text-[11px] text-[var(--text-3)]">{placeLabel(pr.deliverToSiteName, pr.deliverToStoreName)}</div>
+                  </td>
                   <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-2)' }}>{new Date(pr.raisedDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</td>
                   <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-2)' }}>{new Date(pr.requiredBy).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</td>
                   <td className="px-4 py-3 font-mono text-xs" style={{ color: 'var(--text-2)' }}>{pr.jobNumber ?? '—'}</td>
@@ -190,19 +285,23 @@ export default function Procurement() {
           <table className="w-full text-sm border-separate border-spacing-0">
             <thead style={{ position: 'sticky', top: 0, zIndex: 5 }}>
               <tr style={{ background: 'var(--surface-2)' }}>
-                {['GRN Number', 'Supplier', 'PO Ref', 'Received', 'By', 'Challan', 'Status', ''].map(h => (
-                  <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold font-medium" style={{ color: 'var(--text-3)', borderBottom: '1px solid var(--border)' }}>{h}</th>
+                {([['GRN Number', 'number'], ['Supplier', 'supplier'], ['PO Ref', 'poRef'], ['Received', 'date'], ['By', 'receivedBy'], ['Challan', 'challan'], ['Status', 'status']] as [string, ProcurementSortKey][]).map(([label, key]) => (
+                  <SortableHeader key={label} label={label} active={sortKey === key} direction={sortDir} onSort={() => handleSort(key)} className="text-left px-4 py-2.5 text-xs font-semibold font-medium" style={{ color: 'var(--text-3)', borderBottom: '1px solid var(--border)' }} />
                 ))}
+                <th />
               </tr>
             </thead>
             <tbody>
-              {grns.map(g => (
+              {filteredGrns.map(g => (
                 <tr key={g.id} className="cursor-pointer" style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}
                   onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--surface-2)'; }}
                   onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'var(--surface)'; }}
                   onClick={() => navigate(`/procurement/grn/${g.id}`)}>
                   <td className="px-4 py-3 font-mono text-xs font-bold" style={{ color: 'var(--brand)' }}>{g.grnNumber}</td>
-                  <td className="px-4 py-3 text-sm font-medium" style={{ color: 'var(--text)' }}>{g.supplierName}</td>
+                  <td className="px-4 py-3 text-sm font-medium" style={{ color: 'var(--text)' }}>
+                    {g.supplierName}
+                    <div className="text-[11px] font-normal text-[var(--text-3)]">{placeLabel(g.siteName, g.storeLocationName)}</div>
+                  </td>
                   <td className="px-4 py-3 font-mono text-xs" style={{ color: 'var(--text-2)' }}>{g.spoNumber}</td>
                   <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-2)' }}>{new Date(g.receivedDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</td>
                   <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-2)' }}>{g.receivedBy}</td>
@@ -216,17 +315,48 @@ export default function Procurement() {
         )}
 
         {tab === 'quotes' && (
-          <div className="p-5">
-            <div className="overflow-x-auto">
+          <div className="p-3 md:p-5">
+            <div className="md:hidden space-y-2">
+              {filteredQuotes.map(qt => {
+                const total = qt.lines.reduce((s, l) => s + l.lineTotal, 0);
+                const grouped = supplierQuotations.filter(x => x.prId && x.prId === qt.prId);
+                return (
+                  <div key={qt.id} className="rounded-xl border p-3" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-mono text-xs font-bold" style={{ color: 'var(--brand)' }}>{qt.quoteNumber}</span>
+                      <StatusChip status={qt.status} size="sm" />
+                    </div>
+                    <div className="text-sm font-medium text-[var(--text)] mt-1">{qt.supplierName}</div>
+                    <div className="text-xs text-[var(--text-2)] mt-1">
+                      ₹{(total / 1000).toFixed(1)}k · {qt.deliveryDays} days · {qt.paymentTerms}
+                    </div>
+                    {grouped.length > 1 && grouped[0]?.id === qt.id && (
+                      <button onClick={() => setCompareQuotes(grouped)}
+                        className="mt-2 text-xs px-2 py-1 rounded-lg border font-medium"
+                        style={{ borderColor: 'var(--brand)', color: 'var(--brand)' }}>
+                        Compare {grouped.length} quotes
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+              {filteredQuotes.length === 0 && <p className="text-center py-10 text-sm" style={{ color: 'var(--text-3)' }}>No quotations received yet</p>}
+            </div>
+            <div className="hidden md:block overflow-x-auto">
               <table className="eoss-table">
-                <thead><tr><th>Quote #</th><th>Supplier</th><th>Date</th><th>Valid Until</th><th>Lead Time</th><th>Payment Terms</th><th>Total Value</th><th>Status</th><th></th></tr></thead>
+                <thead><tr>
+                  {([['Quote #', 'number'], ['Supplier', 'supplier'], ['Date', 'date'], ['Valid Until', 'validUntil'], ['Lead Time', 'leadTime'], ['Payment Terms', 'terms'], ['Total Value', 'value'], ['Status', 'status']] as [string, ProcurementSortKey][]).map(([label, key]) => (
+                    <SortableHeader key={label} label={label} active={sortKey === key} direction={sortDir} onSort={() => handleSort(key)} />
+                  ))}
+                  <th />
+                </tr></thead>
                 <tbody>
-                  {supplierQuotations.map(q => {
+                  {filteredQuotes.map(q => {
                     const total = q.lines.reduce((s, l) => s + l.lineTotal, 0);
                     const grouped = supplierQuotations.filter(x => x.prId && x.prId === q.prId);
                     return (
                       <tr key={q.id} style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}>
-                        <td className="font-mono text-xs font-bold" style={{ color: 'var(--brand)' }}>{q.prId ? <button onClick={() => navigate(`/procurement/pr/${q.prId}`)} className="hover:underline">{q.quoteNumber}</button> : q.quoteNumber}</td>
+                        <td className="font-mono text-xs font-bold" style={{ color: 'var(--brand)' }}>{q.quoteNumber}</td>
                         <td className="text-sm font-medium" style={{ color: 'var(--text)' }}>{q.supplierName}</td>
                         <td className="text-xs" style={{ color: 'var(--text-2)' }}>{new Date(q.quoteDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</td>
                         <td className="text-xs" style={{ color: 'var(--text-2)' }}>{new Date(q.validUntil).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</td>
@@ -235,7 +365,7 @@ export default function Procurement() {
                         <td className="font-mono text-sm font-semibold" style={{ color: 'var(--text)' }}>₹{(total / 1000).toFixed(1)}k</td>
                         <td><StatusChip status={q.status} size="sm" /></td>
                         <td>
-                          {grouped.length > 1 && (
+                          {grouped.length > 1 && grouped[0]?.id === q.id && (
                             <button onClick={() => setCompareQuotes(grouped)}
                               className="text-xs px-2 py-1 rounded-lg border font-medium transition-colors"
                               style={{ borderColor: 'var(--brand)', color: 'var(--brand)' }}>
@@ -246,7 +376,7 @@ export default function Procurement() {
                       </tr>
                     );
                   })}
-                  {supplierQuotations.length === 0 && <tr><td colSpan={9} className="text-center py-10 text-sm" style={{ color: 'var(--text-3)' }}>No quotations received yet</td></tr>}
+                  {filteredQuotes.length === 0 && <tr><td colSpan={9} className="text-center py-10 text-sm" style={{ color: 'var(--text-3)' }}>No quotations received yet</td></tr>}
                 </tbody>
               </table>
             </div>
@@ -255,34 +385,34 @@ export default function Procurement() {
 
         {tab === 'approvals' && (
           <div className="p-5">
-            <div className="mb-4 p-3 rounded-xl bg-[var(--surface-2)] border border-[var(--border)] text-xs text-[var(--text-2)]">
-              <strong className="text-[var(--text)]">Auto-Approval Rules:</strong> PRs &lt; ₹10,000 and repeat purchases from approved vendors are auto-approved <span className="font-bold text-green-600 bg-green-100 px-1.5 py-0.5 rounded ml-1">Auto</span>. Items above threshold or new vendors require manual approval <span className="font-bold text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded ml-1">Manual</span>.
-            </div>
-            {approvalRequests.filter(a => a.status === 'pending').length === 0 ? (
+            <div className="flex items-center justify-between gap-3 mb-4 flex-wrap"><p className="text-xs text-[var(--text-2)]">Pending is the action queue; decisions remain available in the history views.</p><select value={approvalView} onChange={e => setApprovalView(e.target.value as typeof approvalView)} className="eoss-input text-xs py-1.5" aria-label="Approval history view"><option value="pending">Pending</option><option value="approved">Approved</option><option value="rejected">Rejected</option><option value="all">All history</option></select></div>
+            {visibleApprovals.length === 0 ? (
               <div className="rounded-xl border p-10 text-center" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
                 <p className="text-sm" style={{ color: 'var(--text-3)' }}>No pending approvals.</p>
               </div>
             ) : (
               <div className="space-y-3 max-w-3xl">
-                {approvalRequests.filter(a => a.status === 'pending').map(a => (
+                {visibleApprovals.map(a => (
                   <div key={a.id} className="rounded-xl border p-4 flex items-start justify-between gap-4"
                     style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
                     <div className="flex-1 min-w-0">
                       <div className="text-sm font-semibold" style={{ color: 'var(--text)' }}>{a.entityRef}</div>
-                      <div className="text-xs mt-0.5" style={{ color: 'var(--text-3)' }}>{a.requestedBy} · {new Date(a.requestedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</div>
+                      <div className="text-xs mt-0.5" style={{ color: 'var(--text-3)' }}>{a.requestedBy} · {new Date(a.requestedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} · {a.siteName ?? 'Company-wide / unassigned'}</div>
                       {a.description && <div className="text-xs mt-1" style={{ color: 'var(--text-2)' }}>{a.description}</div>}
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
-                      <button onClick={() => resolveApproval(a.id, 'rejected', currentUser.name)}
+                      {a.status !== 'pending' && <StatusChip status={a.status} size="sm" />}
+                      {a.status === 'pending' && canApprove && <button onClick={() => resolveApproval(a.id, 'rejected', currentUser.name, 'Rejected in approval review')}
                         className="px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors"
                         style={{ borderColor: 'var(--error,#DC2626)', color: 'var(--error,#DC2626)', background: 'transparent' }}>
                         Reject
-                      </button>
-                      <button onClick={() => resolveApproval(a.id, 'approved', currentUser.name)}
+                      </button>}
+                      {a.status === 'pending' && canApprove && <button onClick={() => resolveApproval(a.id, 'approved', currentUser.name, 'Approved in approval review')}
                         className="px-3 py-1.5 text-xs font-semibold rounded-lg text-white transition-colors"
                         style={{ background: 'var(--success,#16A34A)' }}>
                         Approve
-                      </button>
+                      </button>}
+                      {a.status === 'pending' && !canApprove && <span className="text-[11px] text-[var(--text-3)]">Owner approval required</span>}
                     </div>
                   </div>
                 ))}
@@ -291,6 +421,22 @@ export default function Procurement() {
           </div>
         )}
       </div>
+
+      {receivePoId && (
+        <ReceiveStockModal
+          poId={receivePoId}
+          pos={receivablePos}
+          lines={supplierPoLines}
+          receivedBy={currentUser.name}
+          onClose={() => setReceivePoId(null)}
+          onSave={(grn) => {
+            addGRN(grn);
+            showToast({ type: 'success', title: 'Stock received', body: `${grn.grnNumber} recorded against ${grn.spoNumber}.` });
+            setReceivePoId(null);
+            setTab('grn');
+          }}
+        />
+      )}
 
       {showNewPO && (
         <NewSupplierPOModal
@@ -306,7 +452,7 @@ export default function Procurement() {
 
       {compareQuotes && (
         <QuoteCompareModal quotes={compareQuotes} onClose={() => setCompareQuotes(null)}
-          onSelect={(q) => { selectQuotation(q.id); showToast({ type: 'success', title: 'Quote selected', body: `Quote from ${q.supplierName} has been selected for ${q.prNumber ?? 'the PR'}.` }); setCompareQuotes(null); }} />
+          onSelect={(q) => { showToast({ type: 'success', title: 'Quote selected', body: `Quote from ${q.supplierName} has been selected.` }); setCompareQuotes(null); }} />
       )}
 
       {editSpo && (
@@ -331,7 +477,7 @@ function EditSPOForm({ spo, onSave, onCancel }: { spo: SupplierPO; onSave: (p: P
       <div><label className="text-xs text-[var(--text-3)] block mb-1">PO Number</label><input value={form.poNumber} onChange={e => setForm(f => ({ ...f, poNumber: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--surface)] text-sm text-[var(--text)]" /></div>
       <div><label className="text-xs text-[var(--text-3)] block mb-1">Payment Terms</label><input value={form.paymentTerms} onChange={e => setForm(f => ({ ...f, paymentTerms: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--surface)] text-sm text-[var(--text)]" /></div>
       <div><label className="text-xs text-[var(--text-3)] block mb-1">Total Value (₹)</label><input type="number" value={form.totalValue} onChange={e => setForm(f => ({ ...f, totalValue: Number(e.target.value) }))} className="w-full px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--surface)] text-sm text-[var(--text)]" /></div>
-      <div className="flex gap-2 mt-4"><button onClick={onCancel} className="flex-1 py-2 border border-[var(--border)] text-[var(--text)] rounded-lg text-sm">Cancel</button><button onClick={() => onSave(form)} className="flex-1 py-2 bg-[var(--brand)] text-white rounded-lg text-sm font-medium">Save</button></div>
+      <div className="flex gap-2 mt-4"><button onClick={onCancel} className="flex-1 py-2 border border-[var(--border)] text-[var(--text)] rounded-lg text-sm">Cancel</button><button onClick={() => onSave(form)} className="flex-1 py-2 bg-[var(--brand-fill)] text-white rounded-lg text-sm font-medium">Save</button></div>
     </div>
   );
 }
@@ -393,16 +539,113 @@ function QuoteCompareModal({ quotes, onClose, onSelect }: { quotes: SupplierQuot
   );
 }
 
+function ReceiveStockModal({ poId, pos, lines, receivedBy, onClose, onSave }: {
+  poId: string;
+  pos: SupplierPO[];
+  lines: SupplierPOLine[];
+  receivedBy: string;
+  onClose: () => void;
+  onSave: (grn: GoodsReceipt) => void;
+}) {
+  const [selectedId, setSelectedId] = useState(poId);
+  const [challan, setChallan] = useState('');
+  const [date, setDate] = useState('2026-11-09');
+  const [place, setPlace] = useState({ siteId: DEFAULT_SITE_ID, siteName: DEFAULT_SITE_NAME, storeId: GRN_STORE_ID, storeName: GRN_STORE_NAME });
+  const po = pos.find(p => p.id === selectedId) ?? pos[0];
+  const poLines = lines.filter(l => l.spoId === po?.id);
+  const save = () => {
+    if (!po || !challan) return;
+    const seq = String(Date.now()).slice(-4);
+    onSave({
+      id: `grn-${Date.now()}`,
+      grnNumber: `GRN-2026-${seq}`,
+      supplierId: po.supplierId,
+      supplierName: po.supplierName,
+      spoId: po.id,
+      spoNumber: po.poNumber,
+      receivedDate: date,
+      receivedBy,
+      deliveryChallan: challan,
+      siteId: place.siteId,
+      siteName: place.siteName,
+      storeLocationId: place.storeId,
+      storeLocationName: place.storeName,
+      status: 'pending_qc',
+      lineCount: poLines.length || po.lineCount,
+    });
+  };
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl w-full max-w-md p-6 shadow-2xl">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="font-bold text-[var(--text)]">Receive stock</h3>
+          <button onClick={onClose}><X size={16} className="text-[var(--text-3)]" /></button>
+        </div>
+        <div className="space-y-3">
+          <div>
+            <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Supplier PO</label>
+            <select className="eoss-input w-full" value={po?.id ?? ''} onChange={e => setSelectedId(e.target.value)}>
+              {pos.map(p => <option key={p.id} value={p.id}>{p.poNumber} · {p.supplierName}</option>)}
+            </select>
+          </div>
+          {po && (
+            <div className="rounded-lg border p-3 text-xs space-y-1" style={{ borderColor: 'var(--border)', background: 'var(--surface-2)' }}>
+              <div className="font-semibold text-[var(--text)]">{po.supplierName}</div>
+              <div className="text-[var(--text-2)]">Committed {po.committedDate ? new Date(po.committedDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '—'}</div>
+              {poLines.length === 0 && <div className="text-[var(--text-2)]">{po.lineCount} lines on this PO</div>}
+              {poLines.map(l => (
+                <div key={l.id} className="flex justify-between gap-2 text-[var(--text)]">
+                  <span>{l.materialName}</span>
+                  <span className="font-mono">{Math.max(l.orderedQty - l.receivedQty, 0)} {l.uom} due</span>
+                </div>
+              ))}
+            </div>
+          )}
+          <SiteStoreField
+            siteId={place.siteId}
+            storeId={place.storeId}
+            label="Receiving site"
+            storeLabel="Receiving store"
+            onChange={next => setPlace({ siteId: next.siteId, siteName: next.siteName, storeId: next.storeId, storeName: next.storeName })}
+          />
+          <div>
+            <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Delivery challan *</label>
+            <input className="eoss-input w-full" value={challan} onChange={e => setChallan(e.target.value)} placeholder="DC-1042" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Received date</label>
+            <input type="date" className="eoss-input w-full" value={date} onChange={e => setDate(e.target.value)} />
+          </div>
+          <div className="text-xs text-[var(--text-2)]">Received by {receivedBy}. Goods go to incoming QC.</div>
+        </div>
+        <div className="flex gap-3 mt-5">
+          <button onClick={onClose} className="flex-1 py-2.5 border border-[var(--border)] rounded-xl text-sm text-[var(--text-2)]">Cancel</button>
+          <button disabled={!challan || !po} onClick={save} className="flex-1 py-2.5 bg-[var(--brand-fill)] text-white rounded-xl text-sm font-medium disabled:opacity-50">Record GRN</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 import { SUPPLIERS } from '../../store';
 
 function NewSupplierPOModal({ onClose, onSave }: { onClose: () => void; onSave: (po: SupplierPO) => void }) {
-  const [form, setForm] = useState({ supplierId: '', supplierName: '', committedDate: '', paymentTerms: 'Net 30', notes: '' });
+  const [form, setForm] = useState({
+    supplierId: '', supplierName: '', committedDate: '', paymentTerms: 'Net 30', notes: '',
+    deliverToSiteId: DEFAULT_SITE_ID, deliverToSiteName: DEFAULT_SITE_NAME,
+    deliverToStoreId: DEFAULT_STORE_ID, deliverToStoreName: DEFAULT_STORE_NAME,
+  });
   const [err, setErr] = useState('');
   const save = () => {
     if (!form.supplierId || !form.committedDate) { setErr('Supplier and committed delivery date required'); return; }
     const id = `spo-${Date.now()}`;
     const num = `SPO-2026-${String(Math.floor(Math.random() * 900 + 100))}`;
-    onSave({ id, poNumber: num, supplierId: form.supplierId, supplierName: form.supplierName, raisedDate: '2026-11-05', committedDate: form.committedDate, status: 'draft', totalValue: 0, currency: 'INR', paymentTerms: form.paymentTerms, lineCount: 0 });
+    onSave({
+      id, poNumber: num, supplierId: form.supplierId, supplierName: form.supplierName, raisedDate: '2026-11-05',
+      committedDate: form.committedDate, status: 'draft', totalValue: 0, currency: 'INR', paymentTerms: form.paymentTerms, lineCount: 0,
+      deliverToSiteId: form.deliverToSiteId, deliverToSiteName: form.deliverToSiteName,
+      deliverToStoreId: form.deliverToStoreId, deliverToStoreName: form.deliverToStoreName,
+    });
   };
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
@@ -412,6 +655,13 @@ function NewSupplierPOModal({ onClose, onSave }: { onClose: () => void; onSave: 
           <button onClick={onClose}><X size={16} className="text-[var(--text-3)]" /></button>
         </div>
         <div className="space-y-3">
+          <SiteStoreField
+            siteId={form.deliverToSiteId}
+            storeId={form.deliverToStoreId}
+            label="Deliver-to site"
+            storeLabel="Deliver-to store"
+            onChange={next => setForm(f => ({ ...f, deliverToSiteId: next.siteId, deliverToSiteName: next.siteName, deliverToStoreId: next.storeId, deliverToStoreName: next.storeName }))}
+          />
           <div>
             <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Supplier *</label>
             <select className="eoss-input w-full" value={form.supplierId} onChange={e => {
@@ -436,7 +686,7 @@ function NewSupplierPOModal({ onClose, onSave }: { onClose: () => void; onSave: 
         {err && <p className="text-xs text-[var(--danger)] mt-2">{err}</p>}
         <div className="flex gap-3 mt-5">
           <button onClick={onClose} className="flex-1 py-2.5 border border-[var(--border)] rounded-xl text-sm text-[var(--text-2)]">Cancel</button>
-          <button onClick={save} className="flex-1 py-2.5 bg-[var(--brand)] text-white rounded-xl text-sm font-medium">Create PO</button>
+          <button onClick={save} className="flex-1 py-2.5 bg-[var(--brand-fill)] text-white rounded-xl text-sm font-medium">Create PO</button>
         </div>
       </div>
     </div>

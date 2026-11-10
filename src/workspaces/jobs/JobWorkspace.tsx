@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft, AlertTriangle, Activity, Check, X,
   ExternalLink, ChevronRight, FileCheck, ShieldAlert
@@ -15,8 +15,9 @@ const TABS = ['Overview', 'Stages', 'Materials', 'Procurement', 'Quality', 'NCR 
 export default function JobWorkspace() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const {
-    jobs, setJobStatus, updateJobStage, resolveBlocker, currentUser, showToast,
+    jobs, setJobStatus, updateJobStage, resolveBlocker, currentUser, showToast, inventory,
     inspections, ncrs, lots, issueMaterial, addInspection, addNCR,
     jobBlockers: allJobBlockers, jobMaterialReqs, materials,
   } = useStore();
@@ -30,12 +31,26 @@ export default function JobWorkspace() {
   const [selectedEmployee, setSelectedEmployee] = useState<string>(EMPLOYEES[5]?.name || 'Mohan Das');
 
   const job = jobs.find(j => j.id === id);
-  if (!job) return <div className="p-8 text-sm text-[var(--text-2)]">Job not found: {id}</div>;
+  const activeStage = job?.stages.find(s => s.status === 'in_progress') || job?.stages[0];
+
+  useEffect(() => {
+    if (searchParams.get('update') === '1' && activeStage) {
+      const rem = Math.max(0, activeStage.inputQty - activeStage.completedGoodQty);
+      setSelectedStageId(activeStage.id);
+      setGoodQtyInput(rem || activeStage.inputQty);
+      setRejectQtyInput(0);
+      setStageNotes('');
+      setStageModalOpen(true);
+    }
+    // Open the stage form once when Home asks to update this job.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  if (!job || !activeStage) return <div className="p-8 text-sm text-[var(--text-2)]">Job not found: {id}</div>;
 
   const blockers = allJobBlockers.filter(b => b.jobId === id && b.status === 'open');
   const jobReqs = jobMaterialReqs.filter(r => r.jobId === job.id);
   const isBlocked = job.hasBlocker || blockers.length > 0;
-  const activeStage = job.stages.find(s => s.status === 'in_progress') || job.stages[0];
 
   // Open Stage Update Modal (Streamlined 2-click capture)
   const openStageUpdate = (stageId?: string) => {
@@ -161,21 +176,6 @@ export default function JobWorkspace() {
           </div>
         </div>
 
-        {isBlocked ? (
-          <button
-            onClick={() => blockers[0] && handleResolveJobBlocker(blockers[0].id)}
-            className="text-xs text-[var(--error)] hover:underline font-bold whitespace-nowrap self-start sm:self-auto"
-          >
-            Clear Blocker →
-          </button>
-        ) : (
-          <button
-            onClick={() => openStageUpdate(activeStage.id)}
-            className="text-xs text-[var(--brand)] hover:underline font-bold whitespace-nowrap self-start sm:self-auto"
-          >
-            Record Next Output →
-          </button>
-        )}
       </div>
 
       {/* ── 3. Production Stage Progression Stepper (Calm & Linear) ── */}
@@ -235,7 +235,7 @@ export default function JobWorkspace() {
           >
             {t}
             {tab === t && (
-              <span className="absolute bottom-0 left-0 right-0 h-0.5 rounded-t-full" style={{ background: 'var(--brand)' }} />
+              <span className="absolute bottom-0 left-0 right-0 h-0.5 rounded-t-full" style={{ background: 'var(--brand-fill)' }} />
             )}
           </button>
         ))}
@@ -244,43 +244,32 @@ export default function JobWorkspace() {
       {/* ── 5. Tab Content: Overview (Crisp 4-Pillar Readiness) ── */}
       {tab === 'Overview' && (
         <div className="space-y-4">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             <div className="p-3.5 rounded-xl bg-[var(--surface)] border border-[var(--border)]">
-              <div className="text-xs text-[var(--text-3)] font-medium">1. Materials</div>
-              <div className={clsx('text-sm font-bold mt-1', job.materialReadiness === 'shortage' ? 'text-[var(--error)]' : 'text-[var(--text)]')}>
-                {job.materialReadiness === 'ready' ? 'All BOM Reserved' : job.materialReadiness === 'shortage' ? 'Shortage Alert' : 'Partially Reserved'}
+              <div className="text-xs text-[var(--text-3)] font-medium">Materials</div>
+              <div className={clsx('text-sm font-bold mt-1 capitalize', job.materialReadiness === 'shortage' ? 'text-[var(--error)]' : 'text-[var(--text)]')}>
+                {job.materialReadiness}
               </div>
               <div className="text-xs text-[var(--text-3)] mt-0.5">
                 {jobReqs[0] ? `${jobReqs[0].materialName} (${jobReqs[0].reservedQty}/${jobReqs[0].requiredQty} ${jobReqs[0].uom})` : 'No BOM captured'}
               </div>
             </div>
-
             <div className="p-3.5 rounded-xl bg-[var(--surface)] border border-[var(--border)]">
-              <div className="text-xs text-[var(--text-3)] font-medium">2. Machinery</div>
-              <div className="text-sm font-bold text-emerald-400 mt-1">Bays Online</div>
-              <div className="text-xs text-[var(--text-3)] mt-0.5">Lincoln WM-01 nominal</div>
+              <div className="text-xs text-[var(--text-3)] font-medium">Current stage</div>
+              <div className="text-sm font-bold text-[var(--text)] mt-1">{activeStage?.name ?? job.currentStage}</div>
+              <div className="text-xs text-[var(--text-3)] mt-0.5">
+                {activeStage ? `${activeStage.completedGoodQty}/${activeStage.inputQty} ${activeStage.uom}` : '—'}
+              </div>
             </div>
-
             <div className="p-3.5 rounded-xl bg-[var(--surface)] border border-[var(--border)]">
-              <div className="text-xs text-[var(--text-3)] font-medium">3. Quality</div>
-              <div className="text-sm font-bold text-emerald-400 mt-1">100% Passed</div>
-              <div className="text-xs text-[var(--text-3)] mt-0.5">Weld visual check passed</div>
-            </div>
-
-            <div className="p-3.5 rounded-xl bg-[var(--surface)] border border-[var(--border)]">
-              <div className="text-xs text-[var(--text-3)] font-medium">4. Dispatch</div>
-              <div className="text-sm font-bold text-[var(--text)] mt-1">Target 18 Nov</div>
-              <div className="text-xs text-[var(--text-3)] mt-0.5">Bengaluru Plant</div>
+              <div className="text-xs text-[var(--text-3)] font-medium">Open inspections</div>
+              <div className="text-sm font-bold text-[var(--text)] mt-1">
+                {inspections.filter(i => i.jobId === job.id && (i.result === 'pending' || i.result === 'fail')).length}
+              </div>
+              <button type="button" onClick={() => setTab('Quality')} className="text-xs text-[var(--brand)] mt-0.5">Open quality</button>
             </div>
           </div>
 
-          {/* AI Insight (1 Sentence) */}
-          <div className="p-3 rounded-lg bg-[var(--surface)] border border-[var(--border)] text-xs text-[var(--text-2)] flex items-center gap-2">
-            <span className="text-[var(--cyan-bright)] font-bold">💡 AI Note:</span>
-            <span>Production tracking nominally. Next planned handover is Stage 3 Welding on 6 Nov.</span>
-          </div>
-
-          {/* Commercial & Drawing Metadata */}
           <div className="p-4 rounded-xl bg-[var(--surface)] border border-[var(--border)] space-y-2 text-xs">
             <div className="font-bold text-[var(--text)]">Engineering & Commercial Specifications</div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs pt-1">
@@ -332,7 +321,21 @@ export default function JobWorkspace() {
                     <td className="py-3 px-4 font-mono font-bold text-emerald-400">{r.reservedQty} {r.uom}</td>
                     <td className="py-3 px-4">
                       {r.shortage ? (
-                        <span className="text-xs font-bold text-[var(--error)]">Shortage ({r.requiredQty - r.reservedQty} {r.uom})</span>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-xs font-bold text-[var(--error)]">Shortage ({r.requiredQty - r.reservedQty} {r.uom})</span>
+                          <button type="button" onClick={() => {
+                            const source = inventory.find(i => i.materialItemId === r.materialItemId && i.availableQty > 0);
+                            const q = new URLSearchParams({
+                              material: r.materialName,
+                              from: source?.locationName || '',
+                              to: job.siteName,
+                              qty: String(r.requiredQty - r.reservedQty),
+                              uom: r.uom,
+                              job: job.jobNumber,
+                            });
+                            navigate(`/transfers?${q.toString()}`);
+                          }} className="text-xs font-semibold text-[var(--brand)]">Move stock</button>
+                        </div>
                       ) : (
                         <span className="text-xs font-bold text-emerald-400">Allocated</span>
                       )}
@@ -402,7 +405,7 @@ export default function JobWorkspace() {
               <h3 className="text-sm font-bold text-[var(--text)]">Inspections for {job.jobNumber}</h3>
               {['owner', 'qc'].includes(currentUser.role) && (
                 <button onClick={() => navigate(`/quality?newFor=${job.id}`)}
-                  className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-white" style={{ background: 'var(--brand)' }}>
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-white" style={{ background: 'var(--brand-fill)' }}>
                   + New Inspection
                 </button>
               )}

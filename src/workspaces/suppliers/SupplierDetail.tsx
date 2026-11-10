@@ -1,19 +1,19 @@
 import React from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
-import { useStore, SUPPLIERS } from '../../store';
+import { useStore } from '../../store';
 import StatusChip from '../../components/layout/StatusChip';
 
 export default function SupplierDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { supplierPos, supplierPoLines, materials } = useStore();
+  const { suppliers, supplierPos, materials } = useStore();
 
-  const supplier = SUPPLIERS.find(s => s.id === id);
+  const supplier = suppliers.find(s => s.id === id);
   if (!supplier) return <div className="p-6 text-[var(--text-2)]">Supplier not found</div>;
 
   const pos = supplierPos.filter(p => p.supplierId === id);
-  const suppliedItems = Array.from(new Map(supplierPoLines.filter(line => pos.some(po => po.id === line.spoId)).map(line => [line.materialItemId, line])).values());
+  const suppliedItems = materials.filter(m => m.preferredSupplierIds?.includes(id ?? ''));
 
   return (
     <div className="max-w-4xl mx-auto p-4 md:p-6">
@@ -58,11 +58,11 @@ export default function SupplierDetail() {
 
         <div className="space-y-4">
           <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
-            <h3 className="font-semibold text-sm text-[var(--text)] mb-3">Purchase Orders ({pos.length})</h3>
+            <h3 className="font-semibold text-sm text-[var(--text)] mb-3">Supplier Purchase Orders ({pos.length})</h3>
             {pos.length === 0 ? <p className="text-sm text-[var(--text-3)]">No POs placed with this supplier</p> : (
               <div className="space-y-2">
                 {pos.map(p => (
-                  <div key={p.id} className="flex items-center justify-between cursor-pointer hover:bg-[var(--surface-2)] -mx-2 px-2 py-1.5 rounded-lg" onClick={() => navigate(`/procurement/spo/${p.id}?from=${encodeURIComponent(`/suppliers/${supplier.id}`)}`)}>
+                  <div key={p.id} className="flex items-center justify-between cursor-pointer hover:bg-[var(--surface-2)] -mx-2 px-2 py-1.5 rounded-lg" onClick={() => navigate(`/procurement/${p.id}`)}>
                     <div>
                       <div className="font-mono text-xs font-semibold text-[var(--brand)]">{p.spoNumber ?? p.id}</div>
                       {p.orderDate && <div className="text-xs text-[var(--text-3)]">{new Date(p.orderDate).toLocaleDateString('en-IN')}</div>}
@@ -77,8 +77,8 @@ export default function SupplierDetail() {
             )}
           </div>
           <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
-            <h3 className="font-semibold text-sm text-[var(--text)] mb-3">Supplied Inventory Items</h3>
-            {suppliedItems.length === 0 ? <p className="text-sm text-[var(--text-3)]">Not Specified — supplier-item associations are optional.</p> : <div className="space-y-2">{suppliedItems.map(line => { const material = materials.find(item => item.id === line.materialItemId); return <div key={line.materialItemId} className="flex items-center justify-between rounded-lg border px-3 py-2" style={{ borderColor: 'var(--border)' }}><div><div className="text-sm font-medium text-[var(--text)]">{line.materialName}</div><div className="text-xs text-[var(--text-3)]">{material?.itemCode ?? '—'} · {material?.categoryName ?? 'Category not specified'} · {line.uom}</div></div><StatusChip status="active" size="sm" /></div>; })}</div>}
+            <h3 className="font-semibold text-sm text-[var(--text)] mb-3">Supplied Inventory Items ({suppliedItems.length})</h3>
+            {suppliedItems.length === 0 ? <p className="text-sm text-[var(--text-3)]">No supplier-item associations are recorded.</p> : <div className="space-y-2">{suppliedItems.map(item => <div key={item.id} className="flex items-center justify-between rounded-lg border p-2.5" style={{ borderColor: 'var(--border)' }}><div><div className="text-sm font-medium text-[var(--text)]">{item.name}</div><div className="text-xs text-[var(--text-2)]">{item.itemCode} · {item.categoryName}</div></div><span className="text-xs text-[var(--text-2)]">{item.primaryUom}</span></div>)}</div>}
           </div>
         </div>
       </div>

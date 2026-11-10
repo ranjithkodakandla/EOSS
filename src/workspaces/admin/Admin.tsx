@@ -50,7 +50,7 @@ export default function Admin() {
             className="relative px-4 py-3 text-sm font-medium transition-colors whitespace-nowrap"
             style={{ color: tab === id ? 'var(--brand)' : 'var(--text-2)' }}>
             {label}
-            {tab === id && <span className="absolute bottom-0 left-0 right-0 h-0.5 rounded-t-full" style={{ background: 'var(--brand)' }} />}
+            {tab === id && <span className="absolute bottom-0 left-0 right-0 h-0.5 rounded-t-full" style={{ background: 'var(--brand-fill)' }} />}
           </button>
         ))}
       </div>
@@ -72,7 +72,7 @@ export default function Admin() {
                   onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'var(--surface)'; }}>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
-                      <div className="w-7 h-7 rounded-full text-white text-xs font-bold flex items-center justify-center flex-shrink-0" style={{ background: 'var(--brand)' }}>{u.name[0]}</div>
+                      <div className="w-7 h-7 rounded-full text-white text-xs font-bold flex items-center justify-center flex-shrink-0" style={{ background: 'var(--brand-fill)' }}>{u.name[0]}</div>
                       <div className="text-sm font-medium" style={{ color: 'var(--text)' }}>{u.name}</div>
                     </div>
                   </td>

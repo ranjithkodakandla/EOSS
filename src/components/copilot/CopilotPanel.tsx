@@ -25,7 +25,7 @@ interface Props {
 
 export default function CopilotPanel({ isDrawer, onClose }: Props) {
   const navigate = useNavigate();
-  const { jobs, inventory, eossTheme } = useStore();
+  const { eossTheme } = useStore();
 
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
@@ -64,10 +64,10 @@ export default function CopilotPanel({ isDrawer, onClose }: Props) {
       : '0 16px 40px -8px rgba(112,72,245,0.45)',
     sparkleColor: isGraphite ? '#F59E0B' : isOcean ? '#22D3EE' : '#FCD34D',
 sendBtnBg: isGraphite
-      ? 'linear-gradient(135deg, #E58A36, #F59E0B)'
+      ? '#9A3412'
       : isOcean
-      ? 'linear-gradient(135deg, #087F8C, #0EA5A5)'
-      : 'linear-gradient(135deg, #7048F5, #A855F7)',
+      ? '#155E75'
+      : '#5B21B6',
     sendBtnShadow: isGraphite
       ? '0 4px 14px rgba(229,138,54,0.4)'
       : isOcean
@@ -85,28 +85,28 @@ sendBtnBg: isGraphite
       id: 'plan-prod',
       icon: <Zap size={17} style={{ color: themeConfig.iconColorZap }} strokeWidth={2.5} />,
       text: 'Plan production for pending orders',
-      response: `Analyzing 4 in-progress orders. SO-1245 (60%) is approaching CNC Lathe NL-2500 turn, while SO-1246 (35%) is waiting on SS 304 round bar inspection. Recommended action: Allocate Machine NL-2500 to SO-1245 finishing passes.`,
-      action: { label: 'Open Job J-101', path: '/jobs/J-101' },
+      response: `Look at the active jobs and stage the next machine slot for the one already on the lathe. I can open that job so you can record the stage yourself.`,
+      action: { label: 'Open Job J-101', path: '/jobs/job-101' },
     },
     {
       id: 'suggest-po',
       icon: <Package size={17} style={{ color: themeConfig.iconColorBox }} strokeWidth={2.5} />,
       text: 'Suggest material purchase',
-      response: `Current stock of SS 304 Rod 25mm is 45 kg (below reorder threshold of 100 kg). Projected stockout in 5 days based on SO-1245 & SO-1246 consumption. Recommended PO: 250 kg from Stainless Source India.`,
+      response: `A raw-material line is sitting under its reorder point. Open procurement and raise a supplier order from the preferred vendor — I will not place it for you.`,
       action: { label: 'Create Supplier PO', path: '/procurement' },
     },
     {
       id: 'check-status',
       icon: <BarChart3 size={17} style={{ color: themeConfig.iconColorChart }} strokeWidth={2.5} />,
       text: 'Check order status',
-      response: `Overall shop floor status: 12 open sales orders, 4 jobs active in production, 2 batches in quarantine awaiting QC release, and 6 dispatches staged and ready for pickup.`,
+      response: `Open production to see which jobs are moving and which stage each one is on. I can take you to the job list — the counts on Home already match those lists.`,
       action: { label: 'View All Jobs', path: '/jobs' },
     },
     {
       id: 'stock-risk',
       icon: <AlertTriangle size={17} style={{ color: themeConfig.iconColorWarn }} strokeWidth={2.5} />,
       text: 'Show stock at risk',
-      response: `2 items at risk: 1) SS 304 Rod 25mm (depleting in 5 days), 2) EN8 Round Bar 50mm (reserved for Job J-103, no buffer stock). Suggested reorder initiated for approval.`,
+      response: `A couple of grades are tight against open jobs. Open inventory and raise a purchase request from the row if you want more stock in.`,
       action: { label: 'View Inventory Alerts', path: '/inventory' },
     },
   ];
@@ -130,7 +130,7 @@ sendBtnBg: isGraphite
       const matched = suggestions.find(s => s.text.toLowerCase() === query.toLowerCase());
       const replyText = matched
         ? matched.response
-        : `Based on current shop floor telemetry and ERP ledger records, plant health score is 92%. We are tracking ${jobs.length} jobs with ${inventory.filter(i => i.shortage).length} material shortage alerts. Let me know if you want me to draft a purchase order or reassign machine schedules.`;
+        : `I can open a job, a purchase request, or the inventory list. I won't repeat the attention board — use Home for what is blocked, short, or overdue.`;
 
       const aiMsg: Message = {
         id: `a-${Date.now()}`,
@@ -205,7 +205,7 @@ sendBtnBg: isGraphite
             <div className="flex items-center gap-1 font-extrabold text-white text-[13px] leading-none whitespace-nowrap">
               EOSS Copilot
               <span style={{ color: themeConfig.sparkleColor }} className="text-xs mx-0.5">✦</span>
-              <span className="text-[10px] text-white/60 font-normal">Your intelligent partner</span>
+              <span className="text-[10px] font-medium" style={{ color: '#F5F3FF' }}>Your intelligent partner</span>
             </div>
           </div>
 
@@ -310,18 +310,18 @@ sendBtnBg: isGraphite
                   )}
                 </div>
 
-                <span className="text-[10px] text-white/60 px-1">{msg.timestamp}</span>
+                <span className="text-[10px] px-1" style={{ color: '#F5F3FF' }}>{msg.timestamp}</span>
               </div>
             ))}
 
             {isTyping && (
-              <div className="flex items-center gap-2 text-xs text-white/80 p-2">
+              <div className="flex items-center gap-2 text-xs p-2" style={{ color: '#F5F3FF' }}>
                 <Bot size={14} className="animate-bounce" />
                 <span className="italic">EOSS Copilot is analyzing telemetry...</span>
               </div>
             )}
 
-            <div className="p-2 rounded-lg bg-white/10 text-[10px] text-white/70 text-center flex items-center justify-center gap-1.5">
+            <div className="p-2 rounded-lg bg-white/10 text-[10px] text-center flex items-center justify-center gap-1.5" style={{ color: '#F5F3FF' }}>
               <RefreshCw size={10} className="text-amber-300" />
               <span>Simulated AI telemetry · Human sign-off required for PO release</span>
             </div>
@@ -331,10 +331,9 @@ sendBtnBg: isGraphite
         <div ref={chatBottomRef} />
       </div>
 
-      {/* ── Guardrails disclaimer ── */}
-      <div className="px-4 py-1.5 flex items-center gap-1.5 border-t border-white/10 bg-black/10 flex-shrink-0">
-        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-white/10 text-white/60">⚠ Guardrails active</span>
-        <span className="text-[9px] text-white/40 truncate">AI suggestions are advisory — verify before acting · Simulated, no data sent externally</span>
+      <div className="h-8 px-3 flex items-center gap-2 border-t border-white/10 bg-black/15 flex-shrink-0">
+        <span className="inline-flex items-center h-5 px-2 rounded-full bg-black/25 text-[10px] font-semibold leading-none whitespace-nowrap" style={{ color: '#F5F3FF' }}>Guardrails active</span>
+        <span className="text-[10px] leading-none truncate" style={{ color: '#F5F3FF' }}>Advisory only · Simulated · Nothing leaves this browser</span>
       </div>
 
       {/* ── Bottom composer ── */}
@@ -346,7 +345,7 @@ sendBtnBg: isGraphite
             onChange={e => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Ask a question..."
-            className="w-full bg-white text-gray-900 placeholder-gray-400 text-xs md:text-sm rounded-full py-2.5 pl-4 pr-11 focus:outline-none focus:ring-2 focus:ring-white/80"
+            className="copilot-ask w-full bg-white text-xs md:text-sm rounded-full py-2.5 pl-4 pr-11 focus:outline-none focus:ring-2 focus:ring-white/80"
             style={{
               color: '#1A1F36',
               boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.08)',

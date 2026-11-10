@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Plus, AlertTriangle, ChevronRight, Wrench, Search, X, Trash2 } from 'lucide-react';
 import { useStore } from '../../store';
 import { computeMaintenanceDue } from '../../domain/maintenanceDue';
+import { maintenanceDueSoon, maintenanceOverdue } from '../../domain/recordLists';
 import { DEMO_NOW } from '../../data/seed';
 import StatusChip from '../../components/layout/StatusChip';
 import clsx from 'clsx';
@@ -11,9 +12,21 @@ import type { MaintenanceEvent } from '../../types';
 export default function Assets() {
   const { assets, maintenanceEvents, meterReadings, currentUser, addMaintenanceEvent, showToast } = useStore();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const focusParam = searchParams.get('focus');
   const [tab, setTab] = useState<'assets' | 'maintenance'>('assets');
   const [search, setSearch] = useState('');
-  const [showLogEvent, setShowLogEvent] = useState(false);
+  const [focus, setFocus] = useState<'all' | 'breakdown' | 'overdue' | 'due'>(
+    focusParam === 'breakdown' || focusParam === 'overdue' || focusParam === 'due' ? focusParam : 'all'
+  );
+  const logParam = searchParams.get('log');
+  const [showLogEvent, setShowLogEvent] = useState(!!logParam);
+  const [logAssetId, setLogAssetId] = useState<string | undefined>(logParam ?? undefined);
+  useEffect(() => {
+    if (!logParam) return;
+    setLogAssetId(logParam);
+    setShowLogEvent(true);
+  }, [logParam]);
   const [deletedAssetIds, setDeletedAssetIds] = useState<Set<string>>(new Set());
   const canManage = ['owner', 'maintenance', 'supervisor'].includes(currentUser.role);
 
@@ -28,13 +41,22 @@ export default function Assets() {
   const now = new Date(DEMO_NOW);
   const dueByAsset = Object.fromEntries(assets.map(a => [a.id, computeMaintenanceDue(a, meterReadings, now)]));
 
-  const breakdowns = assets.filter(a => a.status === 'breakdown').length;
-  const pmOverdue = assets.filter(a => a.status === 'pm_overdue' || dueByAsset[a.id]?.status === 'overdue').length;
-  const upcoming = assets.filter(a => dueByAsset[a.id]?.status === 'upcoming' || dueByAsset[a.id]?.status === 'due').length;
+  const liveAssets = assets.filter(a => !deletedAssetIds.has(a.id));
+  const breakdowns = liveAssets.filter(a => a.status === 'breakdown').length;
+  const pmOverdue = maintenanceOverdue(liveAssets, meterReadings, now).length;
+  const upcoming = maintenanceDueSoon(liveAssets, meterReadings, now).length;
   const inMaint = assets.filter(a => a.status === 'in_maintenance').length;
   const openEvents = maintenanceEvents.filter(m => m.status !== 'closed').length;
 
-  const filteredAssets = assets.filter(a => !deletedAssetIds.has(a.id) && (!search || a.name.toLowerCase().includes(search.toLowerCase()) || a.assetCode.toLowerCase().includes(search.toLowerCase())));
+  const filteredAssets = assets.filter(a => {
+    if (deletedAssetIds.has(a.id)) return false;
+    if (search && !a.name.toLowerCase().includes(search.toLowerCase()) && !a.assetCode.toLowerCase().includes(search.toLowerCase())) return false;
+    const due = dueByAsset[a.id];
+    if (focus === 'breakdown') return a.status === 'breakdown';
+    if (focus === 'overdue') return maintenanceOverdue([a], meterReadings, now).length > 0;
+    if (focus === 'due') return maintenanceDueSoon([a], meterReadings, now).length > 0;
+    return true;
+  });
   const filteredME = maintenanceEvents.filter(m => !search || m.eventNumber.toLowerCase().includes(search.toLowerCase()) || m.assetName.toLowerCase().includes(search.toLowerCase()));
 
   const canCreate = ['owner', 'maintenance', 'supervisor'].includes(currentUser.role);
@@ -50,11 +72,29 @@ export default function Assets() {
             style={{ borderColor: 'var(--border)', background: 'var(--surface)', color: 'var(--text)' }} />
         </div>
         <div className="flex-1" />
-        {breakdowns > 0 && <span className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ background: 'var(--error-bg,#FEF2F2)', color: 'var(--error,#DC2626)' }}><AlertTriangle size={12} /> {breakdowns} breakdown</span>}
-        {pmOverdue > 0 && <span className="px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ background: 'var(--warning-bg,#FFFBEB)', color: 'var(--warning,#D97706)' }}>{pmOverdue} PM overdue</span>}
-        {upcoming > 0 && <span className="px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ background: 'var(--warning-bg,#FFFBEB)', color: 'var(--warning,#D97706)' }}>{upcoming} due soon</span>}
+        {breakdowns > 0 && (
+          <button type="button" onClick={() => { setTab('assets'); setFocus(focus === 'breakdown' ? 'all' : 'breakdown'); }}
+            className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold border"
+            style={{ background: 'var(--error-bg,#FEF2F2)', color: 'var(--error,#DC2626)', borderColor: focus === 'breakdown' ? 'var(--error,#DC2626)' : 'transparent' }}>
+            <AlertTriangle size={12} /> {breakdowns} breakdown
+          </button>
+        )}
+        {pmOverdue > 0 && (
+          <button type="button" onClick={() => { setTab('assets'); setFocus(focus === 'overdue' ? 'all' : 'overdue'); }}
+            className="px-3 py-1.5 rounded-lg text-xs font-semibold border"
+            style={{ background: 'var(--warning-bg,#FFFBEB)', color: 'var(--warning,#D97706)', borderColor: focus === 'overdue' ? 'var(--warning,#D97706)' : 'transparent' }}>
+            {pmOverdue} overdue
+          </button>
+        )}
+        {upcoming > 0 && (
+          <button type="button" onClick={() => { setTab('assets'); setFocus(focus === 'due' ? 'all' : 'due'); }}
+            className="px-3 py-1.5 rounded-lg text-xs font-semibold border"
+            style={{ background: 'var(--surface)', color: 'var(--text-2)', borderColor: focus === 'due' ? 'var(--brand)' : 'var(--border)' }}>
+            {upcoming} due soon
+          </button>
+        )}
         {canCreate && (
-          <button onClick={() => setShowLogEvent(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white" style={{ background: 'var(--brand)' }}>
+          <button onClick={() => setShowLogEvent(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white" style={{ background: 'var(--brand-fill)' }}>
             <Plus size={13} /> Log Event
           </button>
         )}
@@ -62,19 +102,53 @@ export default function Assets() {
 
       {/* Tabs */}
       <div className="flex-shrink-0 flex items-center border-b px-5" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
-        {([['assets', `Assets (${assets.length})`], ['maintenance', `Maintenance Events (${maintenanceEvents.length})`]] as [string, string][]).map(([id, label]) => (
+        {([['assets', `Assets (${filteredAssets.length})`], ['maintenance', `Maintenance Events (${filteredME.length})`]] as [string, string][]).map(([id, label]) => (
           <button key={id} onClick={() => setTab(id as any)}
             className="relative px-4 py-3 text-sm font-medium transition-colors whitespace-nowrap"
             style={{ color: tab === id ? 'var(--brand)' : 'var(--text-2)' }}>
             {label}
-            {tab === id && <span className="absolute bottom-0 left-0 right-0 h-0.5 rounded-t-full" style={{ background: 'var(--brand)' }} />}
+            {tab === id && <span className="absolute bottom-0 left-0 right-0 h-0.5 rounded-t-full" style={{ background: 'var(--brand-fill)' }} />}
           </button>
         ))}
       </div>
 
       <div className="flex-1 overflow-auto">
+      {(focus === 'overdue' || focus === 'due') && (
+        <div className="px-4 py-2 text-sm border-b" style={{ borderColor: 'var(--border)', background: 'var(--surface-2)' }}>
+          {focus === 'overdue' ? 'These assets are overdue. Schedule a service, or complete an open work order.' : 'These assets are due soon. Schedule the service.'}
+        </div>
+      )}
       {tab === 'assets' && (
-        <table className="w-full text-sm border-separate border-spacing-0" style={{ minWidth: 900 }}>
+        <>
+        <div className="md:hidden p-3 space-y-2">
+          {filteredAssets.map(a => {
+            const due = dueByAsset[a.id];
+            const next = due?.drivingCondition === 'hours' && due.remainingHours != null
+              ? `${due.remainingHours} hrs left`
+              : a.nextServiceDate
+                ? new Date(a.nextServiceDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+                : 'No service date';
+            return (
+              <div key={a.id} onClick={() => navigate(`/assets/${a.id}`)}
+                className="w-full text-left rounded-xl border p-3 cursor-pointer"
+                style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-mono text-xs font-bold" style={{ color: 'var(--brand)' }}>{a.assetCode}</span>
+                  <StatusChip status={a.status} size="sm" />
+                </div>
+                <div className="text-sm font-semibold text-[var(--text)] mt-1">{a.name}</div>
+                <div className="mt-2 flex items-center justify-between gap-2">
+                  <span className="text-xs text-[var(--text-2)]">{a.workCentre ?? a.category} · next {next}</span>
+                  {(focus === 'overdue' || focus === 'due') && (
+                    <AssetAction asset={a} events={maintenanceEvents} onSchedule={id => { setLogAssetId(id); setShowLogEvent(true); }} onComplete={id => navigate(`/assets/me/${id}`)} />
+                  )}
+                </div>
+              </div>
+            );
+          })}
+          {filteredAssets.length === 0 && <p className="text-center py-8 text-sm" style={{ color: 'var(--text-3)' }}>No assets match</p>}
+        </div>
+        <table className="hidden md:table w-full text-sm border-separate border-spacing-0" style={{ minWidth: 900 }}>
           <thead style={{ position: 'sticky', top: 0, zIndex: 5 }}>
             <tr style={{ background: 'var(--surface-2)' }}>
               {['Code', 'Asset', 'Category', 'Work Centre', 'Criticality', 'Meter', 'Last Service', 'Next Service', 'Status', ''].map(h => (
@@ -133,6 +207,9 @@ export default function Assets() {
                 <td className="px-4 py-3"><StatusChip status={a.status} size="sm" /></td>
                 <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                   <div className="flex items-center gap-1">
+                    {(focus === 'overdue' || focus === 'due') && (
+                      <AssetAction asset={a} events={maintenanceEvents} onSchedule={id => { setLogAssetId(id); setShowLogEvent(true); }} onComplete={id => navigate(`/assets/me/${id}`)} />
+                    )}
                     {canManage && (
                       <button onClick={e => handleDeleteAsset(a.id, e)} className="p-1 rounded hover:bg-[var(--surface-2)]" title="Remove asset"><Trash2 size={12} style={{ color: 'var(--error,#DC2626)' }} /></button>
                     )}
@@ -143,6 +220,7 @@ export default function Assets() {
             ))}
           </tbody>
         </table>
+        </>
       )}
 
       {tab === 'maintenance' && (
@@ -177,6 +255,7 @@ export default function Assets() {
 
       {showLogEvent && (
         <LogEventModal
+          initialAssetId={logAssetId}
           assets={assets}
           onClose={() => setShowLogEvent(false)}
           onSave={(event) => {
@@ -191,8 +270,31 @@ export default function Assets() {
   );
 }
 
-function LogEventModal({ assets, onClose, onSave }: { assets: { id: string; name: string; assetCode: string }[]; onClose: () => void; onSave: (e: MaintenanceEvent) => void }) {
-  const [form, setForm] = useState({ assetId: assets[0]?.id ?? '', type: 'Breakdown' as MaintenanceEvent['type'], symptom: '', technicianName: '', severity: 'Medium' as NonNullable<MaintenanceEvent['severity']> });
+function AssetAction({ asset, events, onSchedule, onComplete }: {
+  asset: { id: string };
+  events: { id: string; assetId: string; status: string }[];
+  onSchedule: (id: string) => void;
+  onComplete: (id: string) => void;
+}) {
+  const open = events.find(m => m.assetId === asset.id && m.status !== 'closed');
+  if (open) {
+    return (
+      <button type="button" onClick={e => { e.stopPropagation(); onComplete(open.id); }}
+        className="px-2 py-1 rounded-lg text-xs font-semibold text-white" style={{ background: 'var(--brand-fill)' }}>
+        Complete
+      </button>
+    );
+  }
+  return (
+    <button type="button" onClick={e => { e.stopPropagation(); onSchedule(asset.id); }}
+      className="px-2 py-1 rounded-lg text-xs font-semibold text-white" style={{ background: 'var(--brand-fill)' }}>
+      Schedule
+    </button>
+  );
+}
+
+function LogEventModal({ assets, initialAssetId, onClose, onSave }: { assets: { id: string; name: string; assetCode: string }[]; initialAssetId?: string; onClose: () => void; onSave: (e: MaintenanceEvent) => void }) {
+  const [form, setForm] = useState({ assetId: initialAssetId || assets[0]?.id || '', type: (initialAssetId ? 'Preventive' : 'Breakdown') as MaintenanceEvent['type'], symptom: initialAssetId ? 'Scheduled service from overdue maintenance' : '', technicianName: '', severity: 'Medium' as NonNullable<MaintenanceEvent['severity']> });
   const [barcodeInput, setBarcodeInput] = useState('');
   const [err, setErr] = useState('');
   const handleBarcodeScan = (code: string) => {
@@ -255,7 +357,7 @@ function LogEventModal({ assets, onClose, onSave }: { assets: { id: string; name
         {err && <p className="text-xs text-[var(--danger)] mt-2">{err}</p>}
         <div className="flex gap-3 mt-5">
           <button onClick={onClose} className="flex-1 py-2.5 border border-[var(--border)] rounded-xl text-sm text-[var(--text-2)]">Cancel</button>
-          <button onClick={save} className="flex-1 py-2.5 bg-[var(--brand)] text-white rounded-xl text-sm font-medium">Log Event</button>
+          <button onClick={save} className="flex-1 py-2.5 bg-[var(--brand-fill)] text-white rounded-xl text-sm font-medium">Log Event</button>
         </div>
       </div>
     </div>

@@ -13,9 +13,9 @@ export default function ProductionProgressCard() {
   const navigate = useNavigate();
 
   const orders: OrderProgress[] = [
-    { orderId: 'SO-1245', jobId: 'J-101', progress: 60, barColor: 'linear-gradient(90deg, #22C55E 0%, #16A34A 100%)' },
-    { orderId: 'SO-1246', jobId: 'J-102', progress: 35, barColor: 'linear-gradient(90deg, #A855F7 0%, #9333EA 100%)' },
-    { orderId: 'SO-1247', jobId: 'J-103', progress: 90, barColor: 'linear-gradient(90deg, #22C55E 0%, #16A34A 100%)' },
+    { orderId: 'SO-1245', jobId: 'job-101', progress: 60, barColor: 'linear-gradient(90deg, #22C55E 0%, #16A34A 100%)' },
+    { orderId: 'SO-1246', jobId: 'job-105', progress: 35, barColor: 'linear-gradient(90deg, #A855F7 0%, #9333EA 100%)' },
+    { orderId: 'SO-1247', jobId: 'job-107', progress: 90, barColor: 'linear-gradient(90deg, #22C55E 0%, #16A34A 100%)' },
   ];
 
   return (
