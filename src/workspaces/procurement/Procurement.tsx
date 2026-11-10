@@ -26,7 +26,7 @@ export default function Procurement() {
     showToast({ type: 'success', title: 'Supplier PO cancelled' });
   };
   const navigate = useNavigate();
-  const [tab, setTab] = useState<ProcTab>(receiveParam ? 'grn' : ((searchParams.get('tab') as ProcTab) ?? 'spo'));
+  const [tab, setTab] = useState<ProcTab>(receiveParam ? 'grn' : ((searchParams.get('tab') as ProcTab) ?? 'pr'));
   const [search, setSearch] = useState('');
   const [showNewPO, setShowNewPO] = useState(false);
   const [siteFilter, setSiteFilter] = useState('all');
@@ -86,11 +86,10 @@ export default function Procurement() {
   };
 
   const TABS = [
+    { id: 'pr' as ProcTab, label: `Purchase Requisitions (${filteredPrs.length})` },
+    { id: 'quotes' as ProcTab, label: `Supplier Quotations (${filteredQuotes.length})` },
     { id: 'spo' as ProcTab, label: `Supplier POs (${filteredSpo.length})` },
-    { id: 'pr' as ProcTab, label: `PRs (${filteredPrs.length})` },
-    { id: 'grn' as ProcTab, label: `GRNs (${filteredGrns.length})` },
-    { id: 'quotes' as ProcTab, label: `Quotations (${filteredQuotes.length})` },
-    { id: 'approvals' as ProcTab, label: `Approvals${pendingApprovals > 0 ? ` · ${pendingApprovals}` : ''}` },
+    { id: 'grn' as ProcTab, label: `Receiving & Inventory (${filteredGrns.length})` },
   ];
   const [compareQuotes, setCompareQuotes] = useState<SupplierQuotation[] | null>(null);
 
@@ -124,13 +123,6 @@ export default function Procurement() {
             {pendingApprovals} to approve
           </button>
         )}
-        {canCreate && tab === 'spo' && (
-          <button onClick={() => navigate('/procurement/supplier-return')}
-            className="px-3 py-1.5 rounded-lg border text-xs font-medium"
-            style={{ borderColor: 'var(--border)', color: 'var(--text-2)' }}>
-            Return
-          </button>
-        )}
         {canCreate && tab === 'pr' && (
           <button onClick={() => navigate('/procurement/pr/new')}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white"
@@ -142,15 +134,13 @@ export default function Procurement() {
           <button onClick={() => navigate('/procurement/supplier-rfq/new')}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white"
             style={{ background: 'var(--brand-fill)' }}>
-            <Send size={13} /> Send enquiry
+            <Send size={13} /> Request quotations
           </button>
         )}
-        {canCreate && tab === 'spo' && (
-          <button onClick={() => setShowNewPO(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white"
-            style={{ background: 'var(--brand-fill)' }}>
-            <Plus size={13} /> New PO
-          </button>
-        )}
+      </div>
+
+      <div className="flex-shrink-0 px-5 py-2.5 border-b text-xs font-semibold" style={{ borderColor: 'var(--border)', background: 'var(--surface-2)', color: 'var(--text-2)' }}>
+        <span style={{ color: tab === 'pr' ? 'var(--brand)' : undefined }}>PR</span><span className="mx-2 text-[var(--text-3)]">→</span><span style={{ color: tab === 'quotes' ? 'var(--brand)' : undefined }}>Supplier Quotations</span><span className="mx-2 text-[var(--text-3)]">→</span><span style={{ color: tab === 'spo' ? 'var(--brand)' : undefined }}>Selected Quotation / Supplier PO</span><span className="mx-2 text-[var(--text-3)]">→</span><span style={{ color: tab === 'grn' ? 'var(--brand)' : undefined }}>Quality / GRN / Inventory</span>
       </div>
 
       {/* Tabs */}

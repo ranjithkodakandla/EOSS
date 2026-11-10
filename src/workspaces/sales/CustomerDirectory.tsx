@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, Plus, Building2, Phone, Mail, ChevronRight, Star, X, Pencil } from 'lucide-react';
 import { useStore } from '../../store';
-import StatusChip from '../../components/layout/StatusChip';
+import StatusChip, { getStatusLabel } from '../../components/layout/StatusChip';
 import EmptyState from '../../components/feedback/EmptyState';
 import type { Party } from '../../types';
 
@@ -31,14 +31,7 @@ export default function CustomerDirectory() {
             {customers.filter(c => c.status === 'active').length} active customers
           </p>
         </div>
-        <button
-          onClick={() => setShowAdd(true)}
-          className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white cursor-pointer hover:opacity-90 transition-opacity"
-          style={{ background: 'var(--brand-fill)' }}
-        >
-          <Plus size={15} />
-          Add Customer
-        </button>
+        <span className="text-xs text-[var(--text-3)]">Customer master records linked to Customer POs and RFQs</span>
       </div>
 
       {/* Filters */}
@@ -61,7 +54,7 @@ export default function CustomerDirectory() {
             className={`px-3 py-1.5 rounded-lg text-xs font-semibold capitalize border transition-colors cursor-pointer ${statusFilter === s ? 'text-white border-transparent' : 'border-transparent bg-transparent'}`}
             style={statusFilter === s ? { background: 'var(--brand-fill)' } : { color: 'var(--text-2)' }}
           >
-            {s === 'all' ? 'All' : s.charAt(0).toUpperCase() + s.slice(1)}
+            {s === 'all' ? 'All' : getStatusLabel(s)}
           </button>
         ))}
       </div>
@@ -139,7 +132,7 @@ export default function CustomerDirectory() {
                     <StatusChip status={c.status as 'active' | 'archived'} />
                   </td>
                   <td className="px-4 py-3 text-right flex items-center justify-end gap-1">
-                    <button onClick={e => { e.stopPropagation(); setEditCustomer(c); }} className="p-1 rounded hover:bg-[var(--surface-2)]" title="Edit customer">
+                    <button onClick={e => { e.stopPropagation(); navigate(`/sales/customers/${c.id}/edit`); }} className="p-1 rounded hover:bg-[var(--surface-2)]" title="Edit customer">
                       <Pencil size={13} className="text-[var(--text-3)]" />
                     </button>
                     <ChevronRight size={15} className="text-[var(--text-2)]" />

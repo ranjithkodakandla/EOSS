@@ -62,6 +62,10 @@ const STATUS_MAP: Record<string, { label: string; cls: string }> = {
   low: { label: 'Low', cls: 'bg-[var(--surface-2)] text-[var(--text-2)]' },
 };
 
+export function getStatusLabel(status: string) {
+  return STATUS_MAP[status]?.label ?? status.replaceAll('_', ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
+
 interface Props {
   status: string;
   label?: string;

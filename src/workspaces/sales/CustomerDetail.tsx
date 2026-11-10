@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, ChevronRight, Edit2, Building2, Phone, Mail, MapPin, FileText, Star, X } from 'lucide-react';
+import { ArrowLeft, ChevronRight, Edit2, Building2, Phone, Mail, MapPin, FileText, Star, X, Upload } from 'lucide-react';
 import { useStore } from '../../store';
 import StatusChip from '../../components/layout/StatusChip';
 
@@ -9,7 +9,7 @@ type Tab = 'overview' | 'orders' | 'rfqs' | 'contacts' | 'documents';
 export default function CustomerDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { customers, customerPos, rfqs, documents, updateCustomer, showToast } = useStore();
+  const { customers, customerPos, rfqs, documents, updateCustomer, addDocument, currentUser, showToast } = useStore();
   const [tab, setTab] = useState<Tab>('overview');
   const [showEdit, setShowEdit] = useState(false);
 
@@ -130,9 +130,9 @@ export default function CustomerDetail() {
                     style={{ borderColor: 'var(--border)', background: 'var(--surface-2)', color: 'var(--text-2)' }}>
                     {customerRfqs.length} Customer RFQ{customerRfqs.length !== 1 ? 's' : ''}
                   </button>
-                  <button onClick={() => navigate('/documents')} className="w-full text-left px-3 py-2 rounded-lg border text-xs font-medium hover:opacity-80"
+                  <button onClick={() => setTab('documents')} className="w-full text-left px-3 py-2 rounded-lg border text-xs font-medium hover:opacity-80"
                     style={{ borderColor: 'var(--border)', background: 'var(--surface-2)', color: 'var(--text-2)' }}>
-                    Document Vault →
+                    {customerDocuments.length} Customer Document{customerDocuments.length !== 1 ? 's' : ''} →
                   </button>
                 </div>
               </Card>
@@ -224,12 +224,8 @@ export default function CustomerDetail() {
         {tab === 'documents' && (
           <div className="max-w-2xl">
             <Card title="Documents">
-              {customerDocuments.length === 0 ? <p className="text-sm text-center py-6" style={{ color: 'var(--text-3)' }}>No customer-linked documents. Documents are managed in the Document Vault.</p> : <div className="space-y-2 mb-4">{customerDocuments.map(d => <button key={d.id} type="button" onClick={() => navigate(`/documents/${d.id}`)} className="w-full text-left rounded-lg border p-3 hover:bg-[var(--surface-2)]" style={{ borderColor: 'var(--border)' }}><div className="text-sm font-semibold text-[var(--text)]">{d.title}</div><div className="text-xs text-[var(--text-2)]">{d.docType} · Uploaded {d.uploadedAt}</div><div className="text-xs font-semibold mt-2" style={{ color: 'var(--brand)' }}>Open document →</div></button>)}</div>}
-              <div className="text-center">
-                <button onClick={() => navigate('/documents')} className="px-4 py-2 rounded-lg text-sm font-semibold text-white" style={{ background: 'var(--brand-fill)' }}>
-                  Open Document Vault
-                </button>
-              </div>
+              <label className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold text-white cursor-pointer mb-4" style={{ background: 'var(--brand-fill)' }}><Upload size={14} /> Upload Customer Document<input type="file" className="hidden" onChange={e => { const file = e.target.files?.[0]; if (!file) return; addDocument({ id: `doc-customer-${Date.now()}`, title: file.name, docType: 'Customer Document', category: 'Customer Documents', uploadedBy: currentUser.name, uploadedAt: new Date().toISOString().slice(0, 10), version: 1, fileSize: `${Math.max(1, Math.round(file.size / 1024))} KB`, linkedEntities: [{ type: 'Customer', ref: customer.id }, { type: 'Customer', ref: customer.tradingName }] }); showToast({ type: 'success', title: 'Customer document uploaded', body: `${file.name} is associated with ${customer.tradingName}.` }); e.target.value = ''; }} /></label>
+              {customerDocuments.length === 0 ? <p className="text-sm text-center py-6" style={{ color: 'var(--text-3)' }}>No customer documents attached.</p> : <div className="space-y-2">{customerDocuments.map(d => <button key={d.id} type="button" onClick={() => navigate(`/documents/${d.id}`)} className="w-full text-left rounded-lg border p-3 hover:bg-[var(--surface-2)]" style={{ borderColor: 'var(--border)' }}><div className="text-sm font-semibold text-[var(--text)]">{d.title}</div><div className="text-xs text-[var(--text-2)]">{d.docType} · Uploaded {d.uploadedAt}</div></button>)}</div>}
             </Card>
           </div>
         )}

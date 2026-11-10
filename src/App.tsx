@@ -15,6 +15,7 @@ import QuotationDetail from './workspaces/sales/QuotationDetail';
 import CustomerPOCreate from './workspaces/sales/CustomerPOCreate';
 import CustomerCreate from './workspaces/sales/CustomerCreate';
 import CustomerDetail from './workspaces/sales/CustomerDetail';
+import CustomerEdit from './workspaces/sales/CustomerEdit';
 import POAmend from './workspaces/sales/POAmend';
 import Suppliers from './workspaces/suppliers/Suppliers';
 import SupplierDetail from './workspaces/suppliers/SupplierDetail';
@@ -140,6 +141,7 @@ export default function App() {
           <Route path="sales/po/:id/amend" element={<POAmend />} />
           <Route path="sales/customers" element={<Navigate to="/sales?tab=customers" replace />} />
           <Route path="sales/customers/:id" element={<CustomerDetail />} />
+          <Route path="sales/customers/:id/edit" element={<CustomerEdit />} />
           <Route path="sales/customers/new" element={<CustomerCreate />} />
           <Route path="suppliers" element={<Suppliers />} />
           <Route path="suppliers/:id" element={<SupplierDetail />} />

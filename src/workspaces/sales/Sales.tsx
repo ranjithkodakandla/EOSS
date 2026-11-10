@@ -5,7 +5,7 @@ import {
   FileText, Briefcase, DollarSign, Clock, User, X, Pencil, XCircle
 } from 'lucide-react';
 import { useStore, CUSTOMERS } from '../../store';
-import StatusChip from '../../components/layout/StatusChip';
+import StatusChip, { getStatusLabel } from '../../components/layout/StatusChip';
 import clsx from 'clsx';
 import type { CustomerRFQ, CustomerPO } from '../../types';
 import SortableHeader from '../../components/layout/SortableHeader';
@@ -85,7 +85,7 @@ export default function Sales() {
 
   const totalActive = customerPos.filter(p => p.status === 'active').reduce((s, p) => s + p.totalValue, 0);
 
-  const poStatuses = ['all', 'active', 'complete', 'cancelled'];
+  const poStatuses = ['all', 'pending', 'active', 'partial', 'complete', 'cancelled'];
 
   const fmt = (d: string) => new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' });
 
@@ -100,14 +100,16 @@ export default function Sales() {
           <h1 className="text-lg font-bold" style={{ color: 'var(--text)' }}>Sales</h1>
           <p className="text-xs mt-0.5" style={{ color: 'var(--text-2)' }}>
             <button type="button" onClick={() => { setTab('pos'); setStatusFilter('active'); }} className="font-semibold" style={{ color: 'var(--brand)' }}>
-              {customerPos.filter(p => p.status === 'active').length} active POs
+              {customerPos.filter(p => p.status === 'active').length} Active Customer POs
             </button>
             {' '}· ₹{(totalActive / 100000).toFixed(1)}L in progress
           </p>
         </div>
-        {canCreate && (
-          <div className="flex items-center gap-2"><button onClick={() => navigate('/sales/rfq/new')} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white transition-opacity hover:opacity-90" style={{ background: 'var(--brand-fill)' }}><Plus size={15} /> New RFQ</button><button onClick={() => setShowDirectOrder(true)} className="px-3 py-2 rounded-lg text-xs font-semibold border" style={{ borderColor: 'var(--brand)', color: 'var(--brand)' }}>Direct customer order</button></div>
-        )}
+        {canCreate && <div className="flex items-center gap-2">
+          {tab === 'pos' && <button onClick={() => navigate('/sales/po/new')} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white" style={{ background: 'var(--brand-fill)' }}><Plus size={15} /> Add Customer PO</button>}
+          {tab === 'rfqs' && <button onClick={() => navigate('/sales/rfq/new')} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white" style={{ background: 'var(--brand-fill)' }}><Plus size={15} /> Add RFQ</button>}
+          {tab === 'customers' && <button onClick={() => navigate('/sales/customers/new')} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white" style={{ background: 'var(--brand-fill)' }}><Plus size={15} /> Add New Customer</button>}
+        </div>}
       </div>
 
       {/* Workspace Tabs — amber underline style */}
@@ -166,25 +168,8 @@ export default function Sales() {
             }}
           />
         </div>
-        {tab === 'pos' && (
-          <div className="flex items-center gap-1.5">
-            {poStatuses.map(s => (
-              <button
-                key={s}
-                onClick={() => setStatusFilter(s)}
-                className="px-3 py-1 rounded-full text-xs font-medium transition-colors capitalize"
-                style={
-                  statusFilter === s
-                    ? { background: 'var(--brand-fill)', color: '#fff' }
-                    : { background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text-2)' }
-                }
-              >
-                {s === 'all' ? `All (${customerPos.filter(p => !search || p.poNumber.toLowerCase().includes(search.toLowerCase()) || p.customerName.toLowerCase().includes(search.toLowerCase())).length})` : `${s} (${customerPos.filter(p => p.status === s && (!search || p.poNumber.toLowerCase().includes(search.toLowerCase()) || p.customerName.toLowerCase().includes(search.toLowerCase()))).length})`}
-              </button>
-            ))}
-          </div>
-        )}
-        {tab === 'rfqs' && <select value={rfqStatusFilter} onChange={e => setRfqStatusFilter(e.target.value)} className="eoss-input text-xs py-1.5" aria-label="Customer RFQ status"><option value="all">All RFQ statuses</option>{['open', 'quoted', 'converted', 'lost', 'cancelled'].map(s => <option key={s} value={s}>{s}</option>)}</select>}
+        {tab === 'pos' && <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="eoss-input text-xs py-1.5" aria-label="Customer PO status"><option value="all">All Customer PO statuses</option>{poStatuses.filter(s => s !== 'all').map(s => <option key={s} value={s}>{getStatusLabel(s)}</option>)}</select>}
+        {tab === 'rfqs' && <select value={rfqStatusFilter} onChange={e => setRfqStatusFilter(e.target.value)} className="eoss-input text-xs py-1.5" aria-label="Customer RFQ status"><option value="all">All Customer RFQ statuses</option>{['open', 'quoted', 'converted', 'lost', 'cancelled'].map(s => <option key={s} value={s}>{getStatusLabel(s)}</option>)}</select>}
         {search && (
           <button
             onClick={() => setSearch('')}
@@ -400,7 +385,7 @@ export default function Sales() {
                       >
                         <div>
                           <div className="text-xs font-mono font-bold" style={{ color: 'var(--brand)' }}>{j.jobNumber}</div>
-                          <div className="text-xs mt-0.5" style={{ color: 'var(--text-2)' }}>{j.currentStage} · {j.status}</div>
+                          <div className="text-xs mt-0.5" style={{ color: 'var(--text-2)' }}>{j.currentStage} · {getStatusLabel(j.status)}</div>
                         </div>
                         <div className="flex items-center gap-2">
                           <StatusChip status={j.status} size="sm" />
