@@ -44,6 +44,12 @@ export default function Home() {
       : eossTheme === 'ocean'
       ? '0 8px 24px -4px rgba(8,127,140,0.5), 0 2px 8px rgba(0,0,0,0.5)'
       : '0 8px 24px -4px rgba(112,72,245,0.5), 0 2px 8px rgba(0,0,0,0.5)';
+  const copilotMascotFilter =
+    eossTheme === 'graphite'
+      ? 'hue-rotate(118deg) saturate(1.15)'
+      : eossTheme === 'ocean'
+      ? 'hue-rotate(-92deg) saturate(1.05)'
+      : 'none';
 
   // Fallback to 'Ranjith' if owner demo or display name
   const nameParts = currentUser?.name ? currentUser.name.trim().split(' ') : ['Ranjith'];
@@ -159,9 +165,10 @@ export default function Home() {
           title="Open EOSS Copilot"
         >
           <img
-            src={`/assets/copilot/robot_${eossTheme}.png`}
+            src="/assets/copilot/robot_aurora.png"
             alt="Copilot Mascot"
             className="w-7 h-7 object-contain drop-shadow"
+            style={{ filter: copilotMascotFilter }}
           />
           <span className="text-xs font-bold tracking-wide">Copilot</span>
           <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse -ml-0.5" />

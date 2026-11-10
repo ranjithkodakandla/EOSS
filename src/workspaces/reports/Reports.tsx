@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { BarChart2, Download, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { useStore } from '../../store';
 import { SITES } from '../../store';
+import StatusChip from '../../components/layout/StatusChip';
 
 const REPORT_TYPES = [
   { id: 'production', label: 'Production Summary', desc: 'Job completion rates, stage cycle times, OEE', icon: '🏭' },
@@ -80,8 +81,8 @@ export default function Reports() {
                   <tr key={j.id}>
                     <td className="font-mono text-xs text-[var(--brand)]">{j.jobNumber}</td>
                     <td className="text-sm text-[var(--text)]">{j.customerName}</td>
-                    <td><span className="text-xs text-[var(--text-2)]">{j.status}</span></td>
-                    <td><span className="text-xs text-[var(--text-2)]">{j.priority}</span></td>
+                    <td><StatusChip status={j.status} size="sm" /></td>
+                    <td><StatusChip status={j.priority} size="sm" /></td>
                     <td className="text-sm text-[var(--text-2)]">{j.plannedEnd ? new Date(j.plannedEnd).toLocaleDateString('en-IN') : '—'}</td>
                   </tr>
                 ))}
@@ -147,7 +148,7 @@ export default function Reports() {
                     <td className="text-sm text-[var(--text)]">{p.supplierName}</td>
                     <td className="text-xs text-[var(--text-2)]">{new Date(p.raisedDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</td>
                     <td className="font-mono text-sm text-[var(--text)]">₹{(p.totalValue / 1000).toFixed(1)}k</td>
-                    <td><span className="text-xs text-[var(--text-2)]">{p.status}</span></td>
+                    <td><StatusChip status={p.status} size="sm" /></td>
                   </tr>
                 ))}
               </tbody>
@@ -174,7 +175,7 @@ export default function Reports() {
                     <td className="text-sm text-[var(--text)]">{d.customerName}</td>
                     <td className="text-xs text-[var(--text-2)]">{new Date(d.dispatchDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</td>
                     <td className="text-xs text-[var(--text-2)]">{d.vehicleNumber ?? '—'}</td>
-                    <td><span className="text-xs text-[var(--text-2)]">{d.status}</span></td>
+                    <td><StatusChip status={d.status} size="sm" /></td>
                   </tr>
                 ))}
                 {dispatches.length === 0 && <tr><td colSpan={5} className="text-center py-6 text-sm text-[var(--text-3)]">No dispatch records found</td></tr>}
@@ -264,7 +265,7 @@ export default function Reports() {
                       <td className="text-sm text-[var(--text)]">{i.customerName}</td>
                       <td className="font-mono text-sm text-[var(--text)]">{fmtINR(i.amount)}</td>
                       <td className="text-xs text-[var(--text-2)]">{new Date(i.dueDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</td>
-                      <td><span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${i.status === 'paid' ? 'bg-green-50 text-green-700' : i.status === 'overdue' ? 'bg-red-50 text-red-600' : 'bg-amber-50 text-amber-700'}`}>{i.status}</span></td>
+                      <td><StatusChip status={i.status} size="sm" /></td>
                     </tr>
                   ))}
                 </tbody>

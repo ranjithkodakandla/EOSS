@@ -11,7 +11,7 @@ export default function SupplierRFQCreate() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const prId = searchParams.get('prId') ?? '';
-  const { purchaseReqs, supplierPos, currentUser, addSupplierQuotation, showToast } = useStore();
+  const { purchaseReqs, supplierQuotations, addSupplierQuotation, showToast } = useStore();
 
   const pr = purchaseReqs.find(p => p.id === prId) as (typeof purchaseReqs[0] & Record<string, any>) | undefined;
   const prLines: any[] = pr?.lines ?? [];
@@ -47,7 +47,9 @@ export default function SupplierRFQCreate() {
     setForm(f => ({ ...f, supplierId, supplierName: s?.name ?? '' }));
   };
 
-  const canSubmit = form.supplierId && lines.length > 0 && lines.every(l => l.description && l.requiredQty > 0);
+  const alreadyRequested = !!form.supplierId && supplierQuotations.some(q => q.prId === prId && q.supplierId === form.supplierId && q.status !== 'rejected');
+
+  const canSubmit = form.supplierId && !alreadyRequested && lines.length > 0 && lines.every(l => l.description && l.requiredQty > 0);
 
   const handleSend = () => {
     const seq = ++rfqSeq;
@@ -108,6 +110,7 @@ export default function SupplierRFQCreate() {
                   <option value="">— Select supplier —</option>
                   {MOCK_SUPPLIERS.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                 </select>
+                {alreadyRequested && <p className="text-xs mt-1 text-[var(--error,#DC2626)]">A quotation request already exists for this supplier on this PR.</p>}
               </div>
               <div>
                 <label className="block text-xs font-medium text-[var(--text-3)] mb-1">Quote Valid For (days)</label>

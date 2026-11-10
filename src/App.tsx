@@ -13,17 +13,21 @@ const Loading = () => (
 const Home = lazy(() => import('./workspaces/home/Home'));
 const Sales = lazy(() => import('./workspaces/sales/Sales'));
 const SalesPODetail = lazy(() => import('./workspaces/sales/PODetail'));
+const CustomerPOCreate = lazy(() => import('./workspaces/sales/CustomerPOCreate'));
 const RFQCreate = lazy(() => import('./workspaces/sales/RFQCreate'));
 const RFQDetail = lazy(() => import('./workspaces/sales/RFQDetail'));
+const RFQEdit = lazy(() => import('./workspaces/sales/RFQEdit'));
 const QuotationCreate = lazy(() => import('./workspaces/sales/QuotationCreate'));
 const QuotationDetail = lazy(() => import('./workspaces/sales/QuotationDetail'));
 const CustomerDirectory = lazy(() => import('./workspaces/sales/CustomerDirectory'));
 const CustomerDetail = lazy(() => import('./workspaces/sales/CustomerDetail'));
+const CustomerCreate = lazy(() => import('./workspaces/sales/CustomerCreate'));
 const POAmend = lazy(() => import('./workspaces/sales/POAmend'));
 const Suppliers = lazy(() => import('./workspaces/suppliers/Suppliers'));
 const SupplierDetail = lazy(() => import('./workspaces/suppliers/SupplierDetail'));
 const Procurement = lazy(() => import('./workspaces/procurement/Procurement'));
 const SupplierPODetail = lazy(() => import('./workspaces/procurement/SupplierPODetail'));
+const SupplierPOAmend = lazy(() => import('./workspaces/procurement/SupplierPOAmend'));
 const GRNDetail = lazy(() => import('./workspaces/procurement/GRNDetail'));
 const SupplierReturn = lazy(() => import('./workspaces/procurement/SupplierReturn'));
 const PRCreate = lazy(() => import('./workspaces/procurement/PRCreate'));
@@ -68,11 +72,14 @@ export default function App() {
           <Route path="sales" element={<Sales />} />
           <Route path="sales/rfq/new" element={<RFQCreate />} />
           <Route path="sales/rfq/:id" element={<RFQDetail />} />
+          <Route path="sales/rfq/:id/edit" element={<RFQEdit />} />
           <Route path="sales/rfq/:rfqId/quotation/new" element={<QuotationCreate />} />
           <Route path="sales/quotation/:id" element={<QuotationDetail />} />
           <Route path="sales/po/:id" element={<SalesPODetail />} />
+          <Route path="sales/po/new" element={<CustomerPOCreate />} />
           <Route path="sales/po/:id/amend" element={<POAmend />} />
           <Route path="sales/customers" element={<CustomerDirectory />} />
+          <Route path="sales/customers/new" element={<CustomerCreate />} />
           <Route path="sales/customers/:id" element={<CustomerDetail />} />
           <Route path="suppliers" element={<Suppliers />} />
           <Route path="suppliers/:id" element={<SupplierDetail />} />
@@ -81,6 +88,7 @@ export default function App() {
           <Route path="procurement/pr/:id" element={<PRDetail />} />
           <Route path="procurement/supplier-rfq/new" element={<SupplierRFQCreate />} />
           <Route path="procurement/spo/:id" element={<SupplierPODetail />} />
+          <Route path="procurement/spo/:id/amend" element={<SupplierPOAmend />} />
           <Route path="procurement/grn/:id" element={<GRNDetail />} />
           <Route path="procurement/supplier-return" element={<SupplierReturn />} />
           <Route path="inventory" element={<Inventory />} />

@@ -8,7 +8,7 @@ import type { SupplierPO, SupplierQuotation } from '../../types';
 type ProcTab = 'spo' | 'pr' | 'grn' | 'approvals' | 'quotes';
 
 export default function Procurement() {
-  const { supplierPos, grns, approvalRequests, supplierQuotations, purchaseReqs, currentUser, showToast, addSupplierPO, resolveApproval, updateSupplierPo } = useStore();
+  const { supplierPos, grns, approvalRequests, supplierQuotations, purchaseReqs, currentUser, showToast, addSupplierPO, resolveApproval, updateSupplierPo, selectQuotation } = useStore();
   const [searchParams] = useSearchParams();
   const [editSpo, setEditSpo] = useState<SupplierPO | null>(null);
 
@@ -73,13 +73,9 @@ export default function Procurement() {
               Supplier Return
             </button>
             <button onClick={() => navigate('/procurement/pr/new')}
-              className="px-3 py-1.5 rounded-lg border text-xs font-medium hover:opacity-80"
-              style={{ borderColor: 'var(--border)', color: 'var(--text-2)' }}>
-              New PR
-            </button>
-            <button onClick={() => setShowNewPO(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white"
               style={{ background: 'var(--brand)' }}>
-              <Plus size={13} /> New PO
+              <Plus size={13} /> New Purchase Requisition
             </button>
           </>
         )}
@@ -133,11 +129,11 @@ export default function Procurement() {
                   <td className="px-4 py-3"><StatusChip status={p.status} size="sm" /></td>
                   <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                     <div className="flex items-center gap-1">
-                      {canCreate && p.status !== 'cancelled' && (
-                        <button onClick={() => setEditSpo(p)} className="p-1 rounded hover:bg-[var(--surface-2)]" title="Edit"><Pencil size={12} style={{ color: 'var(--text-3)' }} /></button>
+                      {canCreate && !['cancelled', 'received'].includes(p.status) && (
+                        <button onClick={() => setEditSpo(p)} className="p-1 rounded hover:bg-[var(--surface-2)]" title="Edit Supplier PO"><Pencil size={12} style={{ color: 'var(--text-3)' }} /></button>
                       )}
-                      {canCreate && p.status !== 'cancelled' && (
-                        <button onClick={() => handleDeleteSpo(p.id)} className="p-1 rounded hover:bg-[var(--surface-2)]" title="Cancel"><Trash2 size={12} style={{ color: 'var(--error,#DC2626)' }} /></button>
+                      {canCreate && !['cancelled', 'received'].includes(p.status) && !grns.some(g => g.spoId === p.id) && (
+                        <button onClick={() => handleDeleteSpo(p.id)} className="p-1 rounded hover:bg-[var(--surface-2)]" title="Cancel Supplier PO"><Trash2 size={12} style={{ color: 'var(--error,#DC2626)' }} /></button>
                       )}
                       <ChevronRight size={14} style={{ color: 'var(--text-3)' }} />
                     </div>
@@ -230,7 +226,7 @@ export default function Procurement() {
                     const grouped = supplierQuotations.filter(x => x.prId && x.prId === q.prId);
                     return (
                       <tr key={q.id} style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}>
-                        <td className="font-mono text-xs font-bold" style={{ color: 'var(--brand)' }}>{q.quoteNumber}</td>
+                        <td className="font-mono text-xs font-bold" style={{ color: 'var(--brand)' }}>{q.prId ? <button onClick={() => navigate(`/procurement/pr/${q.prId}`)} className="hover:underline">{q.quoteNumber}</button> : q.quoteNumber}</td>
                         <td className="text-sm font-medium" style={{ color: 'var(--text)' }}>{q.supplierName}</td>
                         <td className="text-xs" style={{ color: 'var(--text-2)' }}>{new Date(q.quoteDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</td>
                         <td className="text-xs" style={{ color: 'var(--text-2)' }}>{new Date(q.validUntil).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</td>
@@ -310,7 +306,7 @@ export default function Procurement() {
 
       {compareQuotes && (
         <QuoteCompareModal quotes={compareQuotes} onClose={() => setCompareQuotes(null)}
-          onSelect={(q) => { showToast({ type: 'success', title: 'Quote selected', body: `Quote from ${q.supplierName} has been selected.` }); setCompareQuotes(null); }} />
+          onSelect={(q) => { selectQuotation(q.id); showToast({ type: 'success', title: 'Quote selected', body: `Quote from ${q.supplierName} has been selected for ${q.prNumber ?? 'the PR'}.` }); setCompareQuotes(null); }} />
       )}
 
       {editSpo && (

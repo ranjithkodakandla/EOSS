@@ -24,7 +24,7 @@ let prSeq = 100;
 
 export default function PRCreate() {
   const navigate = useNavigate();
-  const { currentUser, jobs, addPurchaseReq, showToast } = useStore();
+  const { currentUser, jobs, sites, addPurchaseReq, showToast } = useStore();
 
   const [step, setStep] = useState<Step>(1);
 
@@ -33,6 +33,7 @@ export default function PRCreate() {
     jobId: '',
     raisedBy: currentUser.name,
     requiredBy: '',
+    siteId: currentUser.site,
     priority: 'normal' as PurchaseRequisition['priority'],
     purpose: '',
     notes: '',
@@ -69,6 +70,8 @@ export default function PRCreate() {
       raisedBy: header.raisedBy,
       raisedDate: TODAY,
       requiredBy: header.requiredBy,
+      siteId: header.siteId,
+      siteName: sites.find(s => s.id === header.siteId)?.name,
       jobId: header.jobId || undefined,
       jobNumber: selectedJob?.jobNumber,
       status: ['owner', 'buyer'].includes(currentUser.role) ? 'approved' : 'pending',
@@ -134,6 +137,12 @@ export default function PRCreate() {
                 <div>
                   <label className="block text-xs font-medium text-[var(--text-3)] mb-1">Required By *</label>
                   <input type="date" className="eoss-input w-full" value={header.requiredBy} onChange={e => setHeader(h => ({ ...h, requiredBy: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-[var(--text-3)] mb-1">Delivery / Receiving Site *</label>
+                  <select className="eoss-input w-full" value={header.siteId} onChange={e => setHeader(h => ({ ...h, siteId: e.target.value }))}>
+                    {sites.filter(s => s.status !== 'inactive').map(site => <option key={site.id} value={site.id}>{site.name}</option>)}
+                  </select>
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-[var(--text-3)] mb-1">Priority</label>

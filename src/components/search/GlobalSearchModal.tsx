@@ -181,8 +181,9 @@ export default function GlobalSearchModal({ isOpen, onClose }: Props) {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-16 md:pt-24 px-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-150">
+    <div className="fixed inset-0 z-50 flex items-start justify-center pt-16 md:pt-24 px-4 bg-black/20 animate-in fade-in duration-150" onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}>
       <div
+        onMouseDown={e => e.stopPropagation()}
         className="w-full max-w-2xl rounded-2xl overflow-hidden shadow-2xl border"
         style={{
           background: 'var(--surface, #FFFFFF)',
@@ -216,6 +217,7 @@ export default function GlobalSearchModal({ isOpen, onClose }: Props) {
               ESC
             </kbd>
           )}
+          <button onClick={onClose} className="px-2 py-1 rounded-md text-xs font-medium text-[var(--text-2)] hover:bg-[var(--surface-2)]" aria-label="Close search">Close</button>
         </div>
 
         {/* Results Area */}

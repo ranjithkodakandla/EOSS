@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import type {
-  DemoUser, RoleKey, Job, JobStage, JobUpdate, MaterialLot,
+  DemoUser, RoleKey, Job, JobStage, JobUpdate, MaterialLot, Party,
   InventoryItem, StockMovement, Asset, MaintenanceEvent,
   Dispatch, VaultDocument, ApprovalRequest, AppNotification,
   PulseException, CustomerPO, SupplierPO, CustomerRFQ, GoodsReceipt,
@@ -12,7 +12,7 @@ import type {
   FinishedProduct, SiteAllocation, CustomerQuotation, CustomerQuotationLine, POLine,
   PurchaseRequisition, Site, MaterialItem,
   MeterReading, QualityRelease, InspectionTemplate, StageTemplate,
-  JobMaterialReq, JobBlocker, SupplierPOLine
+  JobMaterialReq, JobBlocker, SupplierPOLine, POAmendment
 } from '../types';
 import {
   DEMO_USERS, JOBS, MATERIAL_LOTS, INVENTORY, STOCK_MOVEMENTS,
@@ -36,6 +36,7 @@ import {
   INSPECTIONS_DEMO, NCRS_DEMO, QUALITY_RELEASES_DEMO, DISPATCHES_DEMO,
   VAULT_DOCUMENTS_DEMO, AUDIT_EVENTS_DEMO,
 } from '../data/seed';
+import { RFQS_FULL } from '../db/seedData';
 
 // ── App State ──
 
@@ -64,8 +65,10 @@ interface EOSSState {
   approvalRequests: ApprovalRequest[];
   pulseExceptions: PulseException[];
   customerPos: CustomerPO[];
+  customers: Party[];
   supplierPos: SupplierPO[];
   supplierPoLines: SupplierPOLine[];
+  poAmendments: POAmendment[];
   rfqs: CustomerRFQ[];
   quotations: CustomerQuotation[];
   quotationLines: CustomerQuotationLine[];
@@ -131,6 +134,8 @@ interface EOSSState {
   addPurchaseReq: (pr: PurchaseRequisition) => void;
   updatePurchaseReq: (id: string, partial: Partial<PurchaseRequisition>) => void;
   setSupplierPoStatus: (spoId: string, status: SupplierPO['status']) => void;
+  addPoAmendment: (amendment: POAmendment) => void;
+  resolvePoAmendment: (amendmentId: string, resolution: 'approved' | 'rejected', by: string) => void;
 
   // Approval actions
   resolveApproval: (aprId: string, resolution: 'approved' | 'rejected', by: string, notes?: string) => void;
@@ -193,6 +198,8 @@ interface EOSSState {
 
   // Update / soft-delete actions
   updateCustomerPo: (id: string, partial: Partial<CustomerPO>) => void;
+  updateCustomer: (id: string, partial: Partial<Party>) => void;
+  addCustomer: (customer: Party) => void;
   updateRfq: (id: string, partial: Partial<CustomerRFQ>) => void;
   updateSupplierPo: (id: string, partial: Partial<SupplierPO>) => void;
   updateJob: (id: string, partial: Partial<Job>) => void;
@@ -254,10 +261,12 @@ function buildInitialData() {
     approvalRequests: [...APPROVAL_REQUESTS],
     pulseExceptions: [...PULSE_EXCEPTIONS],
     customerPos: [...CUSTOMER_POS, FLAGSHIP_PO, ...CUSTOMER_POS_DEMO],
+    customers: [...CUSTOMERS_BASE],
     supplierPos: [...SUPPLIER_POS, ...SUPPLIER_POS_DEMO],
     supplierPoLines: [...SUPPLIER_PO_LINES, ...SUPPLIER_PO_LINES_DEMO],
+    poAmendments: [],
     purchaseReqs: [...PURCHASE_REQS, ...FLAGSHIP_PURCHASE_REQS],
-    rfqs: [...RFQS, FLAGSHIP_RFQ, ADDITIONAL_RFQ],
+    rfqs: [...RFQS, { ...RFQS_FULL[0], lineCount: RFQS_FULL[0].lines.length }, ADDITIONAL_RFQ],
     quotations: [FLAGSHIP_QUOTATION],
     quotationLines: [...FLAGSHIP_QUOTATION_LINES],
     poLines: [...FLAGSHIP_PO_LINES],
@@ -469,6 +478,74 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
     supplierPos: s.supplierPos.map(po => po.id !== spoId ? po : { ...po, status }),
   })),
 
+  addPoAmendment: (amendment) => set(s => ({
+    poAmendments: [amendment, ...s.poAmendments],
+    customerPos: amendment.entityType === 'customer_po'
+      ? s.customerPos.map(po => po.id === amendment.poId ? { ...po, hasAmendment: true } : po)
+      : s.customerPos,
+    supplierPos: amendment.entityType === 'supplier_po'
+      ? s.supplierPos.map(po => po.id === amendment.poId ? { ...po, hasAmendment: true } : po)
+      : s.supplierPos,
+  })),
+
+  resolvePoAmendment: (amendmentId, resolution, by) => {
+    const amendment = get().poAmendments.find(a => a.id === amendmentId);
+    if (!amendment || amendment.status !== 'pending_approval') return;
+    const now = new Date().toISOString();
+    set(s => {
+      const poAmendments = s.poAmendments.map(a => a.id === amendmentId
+        ? { ...a, status: resolution, approvedBy: by, approvedAt: now }
+        : a);
+      if (resolution === 'rejected') return { poAmendments };
+
+      if (amendment.entityType === 'customer_po') {
+        const customerPos = s.customerPos.map(po => po.id !== amendment.poId ? po : {
+          ...po,
+          ...(amendment.headerChanges?.paymentTerms ? { paymentTerms: amendment.headerChanges.paymentTerms } : {}),
+          ...(amendment.headerChanges?.deliveryTerms ? { deliveryTerms: amendment.headerChanges.deliveryTerms } : {}),
+          revision: amendment.revision,
+          lastAmendedAt: now,
+          hasAmendment: true,
+        });
+        const poLines = amendment.lineId && amendment.lineChanges
+          ? s.poLines.map(line => line.id !== amendment.lineId ? line : {
+            ...line,
+            ...(amendment.lineChanges.description ? { description: amendment.lineChanges.description } : {}),
+            ...(amendment.lineChanges.drawingRevision ? { revision: amendment.lineChanges.drawingRevision } : {}),
+            ...(amendment.lineChanges.quantity !== undefined ? { orderedQty: amendment.lineChanges.quantity, value: amendment.lineChanges.quantity * line.rate } : {}),
+            ...(amendment.lineChanges.rate !== undefined ? { rate: amendment.lineChanges.rate, value: line.orderedQty * amendment.lineChanges.rate } : {}),
+            ...(amendment.lineChanges.requiredDate ? { requiredDate: amendment.lineChanges.requiredDate } : {}),
+          })
+          : s.poLines;
+        return { poAmendments, customerPos, poLines };
+      }
+
+      const supplierPos = s.supplierPos.map(po => po.id !== amendment.poId ? po : {
+        ...po,
+        ...(amendment.headerChanges?.paymentTerms ? { paymentTerms: amendment.headerChanges.paymentTerms } : {}),
+        ...(amendment.headerChanges?.committedDate ? { committedDate: amendment.headerChanges.committedDate } : {}),
+        revision: amendment.revision,
+        lastAmendedAt: now,
+        hasAmendment: true,
+      });
+      const supplierPoLines = amendment.lineId && amendment.lineChanges
+        ? s.supplierPoLines.map(line => line.id !== amendment.lineId ? line : {
+          ...line,
+          ...(amendment.lineChanges.materialName ? { materialName: amendment.lineChanges.materialName } : {}),
+          ...(amendment.lineChanges.quantity !== undefined ? { orderedQty: amendment.lineChanges.quantity, value: amendment.lineChanges.quantity * line.rate } : {}),
+          ...(amendment.lineChanges.rate !== undefined ? { rate: amendment.lineChanges.rate, value: line.orderedQty * amendment.lineChanges.rate } : {}),
+          ...(amendment.lineChanges.requiredDate ? { committedDate: amendment.lineChanges.requiredDate } : {}),
+        })
+        : s.supplierPoLines;
+      return { poAmendments, supplierPos, supplierPoLines };
+    });
+    get().showToast({
+      type: resolution === 'approved' ? 'success' : 'info',
+      title: resolution === 'approved' ? 'Amendment approved' : 'Amendment rejected',
+      body: resolution === 'approved' ? `${amendment.poNumber} revised to Rev ${amendment.revision}.` : `${amendment.poNumber} remains on its previous revision.`,
+    });
+  },
+
   // ── Approval Actions ──
   resolveApproval: (aprId, resolution, by, notes) => {
     set(s => ({
@@ -588,6 +665,8 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
 
   // ── Update / Soft-delete Actions ──
   updateCustomerPo: (id, partial) => set(s => ({ customerPos: s.customerPos.map(p => p.id === id ? { ...p, ...partial } : p) })),
+  updateCustomer: (id, partial) => set(s => ({ customers: s.customers.map(c => c.id === id ? { ...c, ...partial } : c) })),
+  addCustomer: (customer) => set(s => ({ customers: [customer, ...s.customers] })),
   updateRfq: (id, partial) => set(s => ({ rfqs: s.rfqs.map(r => r.id === id ? { ...r, ...partial } : r) })),
   updateSupplierPo: (id, partial) => set(s => ({ supplierPos: s.supplierPos.map(p => p.id === id ? { ...p, ...partial } : p) })),
   updateJob: (id, partial) => set(s => ({ jobs: s.jobs.map(j => j.id === id ? { ...j, ...partial } : j) })),

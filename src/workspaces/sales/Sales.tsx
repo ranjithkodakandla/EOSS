@@ -8,6 +8,7 @@ import { useStore, CUSTOMERS } from '../../store';
 import StatusChip from '../../components/layout/StatusChip';
 import clsx from 'clsx';
 import type { CustomerRFQ, CustomerPO } from '../../types';
+import WorkspaceNav from '../../components/workflow/WorkspaceNav';
 
 type POTab = 'pos' | 'rfqs' | 'customers';
 
@@ -44,19 +45,21 @@ export default function Sales() {
     const matchSearch = !q || p.poNumber.toLowerCase().includes(q) || p.customerName.toLowerCase().includes(q);
     const matchStatus = statusFilter === 'all' || p.status === statusFilter;
     return matchSearch && matchStatus;
-  });
+  }).sort((a, b) => new Date(b.acceptedDate).getTime() - new Date(a.acceptedDate).getTime());
 
   const filteredRfqs = rfqs.filter(r => {
     const q = search.toLowerCase();
-    return !q || r.rfqNumber.toLowerCase().includes(q) || r.customerName.toLowerCase().includes(q);
-  });
+    const matchSearch = !q || r.rfqNumber.toLowerCase().includes(q) || r.customerName.toLowerCase().includes(q);
+    const matchStatus = statusFilter === 'all' || r.status === statusFilter;
+    return matchSearch && matchStatus;
+  }).sort((a, b) => new Date(b.receivedDate).getTime() - new Date(a.receivedDate).getTime());
 
   const selectedPo = customerPos.find(p => p.id === selectedPoId);
   const poJobs = selectedPo ? jobs.filter(j => j.customerPoId === selectedPo.id) : [];
 
   const totalActive = customerPos.filter(p => p.status === 'active').reduce((s, p) => s + p.totalValue, 0);
 
-  const poStatuses = ['all', 'active', 'complete', 'cancelled'];
+  const poStatuses = ['all', 'pending', 'active', 'partial', 'complete', 'cancelled'];
 
   const fmt = (d: string) => new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' });
 
@@ -70,51 +73,25 @@ export default function Sales() {
         <div>
           <h1 className="text-lg font-bold" style={{ color: 'var(--text)' }}>Sales</h1>
           <p className="text-xs mt-0.5" style={{ color: 'var(--text-2)' }}>
-            {customerPos.filter(p => p.status === 'active').length} active POs · ₹{(totalActive / 100000).toFixed(1)}L in progress
+            {customerPos.filter(p => p.status === 'active').length} Active Customer POs · ₹{(totalActive / 100000).toFixed(1)}L in progress
           </p>
         </div>
         {canCreate && (
           <button
-            onClick={() => navigate('/sales/rfq/new')}
+            onClick={() => navigate(tab === 'pos' ? '/sales/po/new' : tab === 'rfqs' ? '/sales/rfq/new' : '/sales/customers/new')}
             className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white transition-opacity hover:opacity-90"
             style={{ background: 'var(--brand)' }}
           >
-            <Plus size={15} /> New RFQ
+            <Plus size={15} /> {tab === 'pos' ? 'Add Customer PO' : tab === 'rfqs' ? 'Add RFQ' : 'Add New Customer'}
           </button>
         )}
       </div>
 
-      {/* Workspace Tabs — amber underline style */}
-      <div
-        className="flex-shrink-0 flex items-center gap-0 px-6 border-b"
-        style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
-      >
-        {([
-          { id: 'pos', label: `Customer POs (${customerPos.length})` },
-          { id: 'rfqs', label: `RFQs (${rfqs.length})` },
-          { id: 'customers', label: 'Customer Directory' },
-        ] as { id: POTab; label: string }[]).map(t => (
-          <button
-            key={t.id}
-            onClick={() => { setTab(t.id); if (t.id === 'customers') navigate('/sales/customers'); }}
-            className={clsx(
-              'px-4 py-3 text-sm font-medium transition-colors relative whitespace-nowrap',
-              tab === t.id
-                ? 'font-semibold'
-                : 'hover:opacity-80'
-            )}
-            style={{ color: tab === t.id ? 'var(--brand)' : 'var(--text-2)' }}
-          >
-            {t.label}
-            {tab === t.id && (
-              <span
-                className="absolute bottom-0 left-0 right-0 h-0.5 rounded-t-full"
-                style={{ background: 'var(--brand)' }}
-              />
-            )}
-          </button>
-        ))}
-      </div>
+      <WorkspaceNav activeId={tab} items={[
+        { id: 'pos', label: `Customer POs (${customerPos.length})`, to: '/sales?tab=pos' },
+        { id: 'rfqs', label: `Customer RFQs (${rfqs.length})`, to: '/sales?tab=rfqs' },
+        { id: 'customers', label: 'Customers', to: '/sales/customers' },
+      ]} />
 
       {/* Filter Bar */}
       <div
@@ -126,7 +103,7 @@ export default function Sales() {
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}
-            placeholder="Search PO number, customer…"
+            placeholder={tab === 'pos' ? 'Search Customer PO number or customer name' : tab === 'rfqs' ? 'Search RFQ' : 'Search customer name'}
             className="w-full pl-8 pr-3 py-1.5 rounded-lg text-sm border focus:outline-none focus:ring-1"
             style={{
               borderColor: 'var(--border)',
@@ -152,6 +129,11 @@ export default function Sales() {
               </button>
             ))}
           </div>
+        )}
+        {tab === 'rfqs' && (
+          <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="px-3 py-1.5 rounded-lg text-xs border" style={{ borderColor: 'var(--border)', background: 'var(--surface)', color: 'var(--text-2)' }} aria-label="Filter Customer RFQs by status">
+            {['all', 'open', 'quoted', 'converted', 'lost', 'cancelled'].map(s => <option key={s} value={s}>{s === 'all' ? 'All RFQ statuses' : s.charAt(0).toUpperCase() + s.slice(1)}</option>)}
+          </select>
         )}
         {search && (
           <button
@@ -227,7 +209,7 @@ export default function Sales() {
                           {canCreate && p.status !== 'cancelled' && (
                             <button onClick={() => setEditPo(p)} className="p-1 rounded hover:bg-[var(--surface-2)]" title="Edit PO"><Pencil size={12} style={{ color: 'var(--text-3)' }} /></button>
                           )}
-                          {canCreate && p.status !== 'cancelled' && (
+                          {canCreate && !['cancelled', 'complete'].includes(p.status) && jobs.filter(j => j.customerPoId === p.id).every(j => j.status === 'cancelled' || j.status === 'complete') && (
                             <button onClick={() => handleDeletePo(p.id)} className="p-1 rounded hover:bg-[var(--surface-2)]" title="Cancel PO"><Trash2 size={12} style={{ color: 'var(--error,#DC2626)' }} /></button>
                           )}
                         </div>

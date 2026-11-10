@@ -40,6 +40,11 @@ export default function CopilotPanel({ isDrawer, onClose }: Props) {
 
   const isGraphite = eossTheme === 'graphite';
   const isOcean = eossTheme === 'ocean';
+  const mascotFilter = isGraphite
+    ? 'hue-rotate(118deg) saturate(1.15)'
+    : isOcean
+    ? 'hue-rotate(-92deg) saturate(1.05)'
+    : 'none';
 
   const themeConfig = {
     panelBg: isGraphite
@@ -164,31 +169,22 @@ sendBtnBg: isGraphite
         className="relative flex-shrink-0 overflow-hidden"
         style={{ height: 200, background: themeConfig.panelBg }}
       >
-        {/* All 3 hero images pre-rendered; opacity switch avoids flicker on theme change */}
-        {([
-          { theme: 'aurora', src: '/assets/copilot/hero_aurora.png', right: 0, mask: '38%' },
-          { theme: 'ocean',  src: '/assets/copilot/hero_ocean.png',  right: 0, mask: '46%' },
-          { theme: 'graphite', src: '/assets/copilot/hero_graphite.png', right: 14, mask: '28%' },
-        ] as const).map(({ theme, src, right, mask }) => (
-          <img
-            key={theme}
-            src={src}
-            alt=""
-            aria-hidden
-            style={{
-              position: 'absolute',
-              right,
-              top: 20,
-              height: '108%',
-              width: 'auto',
-              WebkitMaskImage: `linear-gradient(to right, transparent 0%, black ${mask})`,
-              maskImage: `linear-gradient(to right, transparent 0%, black ${mask})`,
-              opacity: eossTheme === theme ? 1 : 0,
-              transition: 'opacity 0.2s ease',
-              pointerEvents: 'none',
-            }}
-          />
-        ))}
+        <img
+          src="/assets/copilot/hero_aurora.png"
+          alt=""
+          aria-hidden
+          style={{
+            position: 'absolute',
+            right: 0,
+            top: 20,
+            height: '108%',
+            width: 'auto',
+            WebkitMaskImage: 'linear-gradient(to right, transparent 0%, black 38%)',
+            maskImage: 'linear-gradient(to right, transparent 0%, black 38%)',
+            filter: mascotFilter,
+            pointerEvents: 'none',
+          }}
+        />
 
         {/* Bottom fade into panel bg */}
         <div style={{

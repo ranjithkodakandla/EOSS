@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, CheckCircle, XCircle, FileText, Send, RotateCcw } from 'lucide-react';
 import { useStore } from '../../store';
 import StatusChip from '../../components/layout/StatusChip';
 import type { CustomerPO, POLine } from '../../types';
+import DocumentActions from '../../components/workflow/DocumentActions';
 
 const fmt = (d: string) => d ? new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
 const fmtMoney = (n: number) => `₹${n.toLocaleString('en-IN')}`;
@@ -11,6 +12,7 @@ const fmtMoney = (n: number) => `₹${n.toLocaleString('en-IN')}`;
 export default function QuotationDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { quotations, quotationLines, rfqs, customerPos, currentUser, updateQuotation, convertQuotationToPO, updateRfq, showToast } = useStore();
   const [confirming, setConfirming] = useState<'accept' | 'convert' | null>(null);
 
@@ -24,6 +26,7 @@ export default function QuotationDetail() {
   const lines = quotationLines.filter(l => l.quotationId === quotation.id);
   const rfq = rfqs.find(r => r.id === quotation.rfqId);
   const existingPO = customerPos.find(p => (p as any).quotationRef === quotation.quotationNumber);
+  const returnTo = searchParams.get('from') || (rfq ? `/sales/rfq/${rfq.id}` : '/sales?tab=rfqs');
 
   const canSubmit = quotation.status === 'draft' && ['owner', 'sales'].includes(currentUser.role);
   const canAccept = quotation.status === 'submitted' && ['owner', 'sales'].includes(currentUser.role);
@@ -95,15 +98,13 @@ export default function QuotationDetail() {
       <div className="flex-shrink-0 px-6 py-4 border-b" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-center gap-3">
-            <button onClick={() => rfq ? navigate(`/sales/rfq/${rfq.id}`) : navigate('/sales?tab=rfqs')} className="p-1.5 rounded-lg hover:bg-[var(--surface-2)]">
+            <button onClick={() => navigate(returnTo)} className="p-1.5 rounded-lg hover:bg-[var(--surface-2)]">
               <ArrowLeft size={18} className="text-[var(--text-2)]" />
             </button>
             <div>
               <div className="flex items-center gap-2">
                 <span className="font-mono text-sm font-bold text-[var(--brand)]">{quotation.quotationNumber}</span>
-                <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${statusColor[quotation.status] ?? 'bg-gray-100 text-gray-600'}`}>
-                  {quotation.status.toUpperCase()}
-                </span>
+                <StatusChip status={quotation.status} size="sm" />
               </div>
               <h1 className="text-lg font-bold text-[var(--text)] mt-0.5">{quotation.customerName}</h1>
               <p className="text-xs text-[var(--text-2)]">
@@ -112,6 +113,7 @@ export default function QuotationDetail() {
             </div>
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
+            <DocumentActions documentType="Customer Quotation" reference={quotation.quotationNumber} date={quotation.quotationDate} partyName={quotation.customerName} status={quotation.status} total={quotation.totalValue} lines={lines.map(l => ({ description: l.productName, quantity: l.orderedQty, uom: l.uom, amount: l.value }))} references={[`Originating RFQ: ${quotation.rfqNumber}`, `Revision: ${quotation.revision ?? 1}`]} />
             {canSubmit && (
               <button onClick={() => setConfirming('accept')} className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold border" style={{ borderColor: 'var(--brand)', color: 'var(--brand)' }}>
                 <Send size={14} /> Submit to Customer

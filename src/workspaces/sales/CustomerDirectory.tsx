@@ -1,19 +1,18 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, Plus, Building2, Phone, Mail, ChevronRight, Star, X, Pencil } from 'lucide-react';
-import { CUSTOMERS, useStore } from '../../store';
+import { useStore } from '../../store';
 import StatusChip from '../../components/layout/StatusChip';
 import EmptyState from '../../components/feedback/EmptyState';
+import WorkspaceNav from '../../components/workflow/WorkspaceNav';
 
 export default function CustomerDirectory() {
   const navigate = useNavigate();
-  const { showToast } = useStore();
+  const { customers } = useStore();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
-  const [showAdd, setShowAdd] = useState(false);
-  const [editCustomer, setEditCustomer] = useState<typeof CUSTOMERS[0] | null>(null);
 
-  const filtered = CUSTOMERS.filter(c => {
+  const filtered = customers.filter(c => {
     const q = search.toLowerCase();
     const matchSearch = !q || c.legalName.toLowerCase().includes(q) || c.tradingName.toLowerCase().includes(q) || c.gstin.includes(q) || c.city.toLowerCase().includes(q);
     const matchStatus = statusFilter === 'all' || c.status === statusFilter;
@@ -21,17 +20,27 @@ export default function CustomerDirectory() {
   });
 
   return (
-    <div className="p-4 md:p-6 max-w-6xl mx-auto space-y-5">
+    <div className="flex flex-col h-full">
+      <div className="flex-shrink-0 px-6 py-4 border-b" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
+        <h1 className="text-lg font-bold" style={{ color: 'var(--text)' }}>Sales · Customers</h1>
+        <p className="text-xs mt-0.5" style={{ color: 'var(--text-2)' }}>Customer master data and related sales records</p>
+      </div>
+      <WorkspaceNav activeId="customers" items={[
+        { id: 'pos', label: 'Customer POs', to: '/sales?tab=pos' },
+        { id: 'rfqs', label: 'Customer RFQs', to: '/sales?tab=rfqs' },
+        { id: 'customers', label: 'Customers', to: '/sales/customers' },
+      ]} />
+      <div className="flex-1 overflow-auto p-4 md:p-6 max-w-6xl w-full mx-auto space-y-5">
       {/* Header */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
           <h1 className="text-xl font-bold text-[var(--text)]">Customer Directory</h1>
           <p className="text-sm text-[var(--text-2)] mt-0.5">
-            {CUSTOMERS.filter(c => c.status === 'active').length} active customers
+            {customers.filter(c => c.status === 'active').length} active customers
           </p>
         </div>
         <button
-          onClick={() => setShowAdd(true)}
+          onClick={() => navigate('/sales/customers/new')}
           className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white cursor-pointer hover:opacity-90 transition-opacity"
           style={{ background: 'var(--brand)' }}
         >
@@ -120,7 +129,7 @@ export default function CustomerDirectory() {
                     <StatusChip status={c.status as 'active' | 'archived'} />
                   </td>
                   <td className="px-4 py-3 text-right flex items-center justify-end gap-1">
-                    <button onClick={e => { e.stopPropagation(); setEditCustomer(c); }} className="p-1 rounded hover:bg-[var(--surface-2)]" title="Edit customer">
+                    <button onClick={e => { e.stopPropagation(); navigate(`/sales/customers/${c.id}?edit=1`); }} className="p-1 rounded hover:bg-[var(--surface-2)]" title="Edit customer">
                       <Pencil size={13} className="text-[var(--text-3)]" />
                     </button>
                     <ChevronRight size={15} className="text-[var(--text-2)]" />
@@ -132,73 +141,6 @@ export default function CustomerDirectory() {
         </div>
       )}
 
-      {showAdd && (
-        <AddCustomerModal
-          onClose={() => setShowAdd(false)}
-          onSave={(name) => {
-            showToast({ type: 'success', title: 'Customer added', body: `${name} has been registered.` });
-            setShowAdd(false);
-          }}
-        />
-      )}
-      {editCustomer && (
-        <AddCustomerModal
-          editMode
-          initialValues={{ legalName: editCustomer.legalName, tradingName: editCustomer.tradingName ?? '', gstin: editCustomer.gstin, pan: editCustomer.panNumber, city: editCustomer.city, state: editCustomer.state, phone: editCustomer.phone, email: editCustomer.email, paymentTerms: editCustomer.paymentTerms, contactPerson: editCustomer.contactPerson }}
-          onClose={() => setEditCustomer(null)}
-          onSave={(name) => {
-            showToast({ type: 'success', title: 'Customer updated', body: `${name} has been updated.` });
-            setEditCustomer(null);
-          }}
-        />
-      )}
-    </div>
-  );
-}
-
-function AddCustomerModal({ onClose, onSave, initialValues, editMode }: { onClose: () => void; onSave: (name: string) => void; initialValues?: Record<string, string>; editMode?: boolean }) {
-  const [form, setForm] = useState({ legalName: '', tradingName: '', gstin: '', pan: '', city: '', state: '', phone: '', email: '', paymentTerms: 'Net 30', contactPerson: '', ...initialValues });
-  const [err, setErr] = useState('');
-  const save = () => {
-    if (!form.legalName || !form.city) { setErr('Legal name and city are required'); return; }
-    onSave(form.tradingName || form.legalName);
-  };
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl w-full max-w-md p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="font-bold text-[var(--text)]">{editMode ? 'Edit Customer' : 'Add Customer'}</h3>
-          <button onClick={onClose}><X size={16} className="text-[var(--text-3)]" /></button>
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          {[
-            { label: 'Legal Name *', key: 'legalName', placeholder: 'As per company registration', span: true },
-            { label: 'Trading Name', key: 'tradingName', placeholder: 'Short name', span: false },
-            { label: 'City *', key: 'city', placeholder: '', span: false },
-            { label: 'State', key: 'state', placeholder: '', span: false },
-            { label: 'GSTIN', key: 'gstin', placeholder: '', span: false },
-            { label: 'PAN', key: 'pan', placeholder: '', span: false },
-            { label: 'Contact Person', key: 'contactPerson', placeholder: '', span: false },
-            { label: 'Phone', key: 'phone', placeholder: '', span: false },
-            { label: 'Email', key: 'email', placeholder: '', span: true },
-          ].map(f => (
-            <div key={f.key} className={f.span ? 'col-span-2' : ''}>
-              <label className="block text-xs font-medium text-[var(--text-2)] mb-1">{f.label}</label>
-              <input className="eoss-input w-full" value={(form as any)[f.key]} onChange={e => setForm(prev => ({ ...prev, [f.key]: e.target.value }))} placeholder={f.placeholder} />
-            </div>
-          ))}
-          <div>
-            <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Payment Terms</label>
-            <select className="eoss-input w-full" value={form.paymentTerms} onChange={e => setForm(f => ({ ...f, paymentTerms: e.target.value }))}>
-              {['Advance', 'Net 15', 'Net 30', 'Net 45', 'Net 60'].map(t => <option key={t}>{t}</option>)}
-            </select>
-          </div>
-        </div>
-        {err && <p className="text-xs text-[var(--danger)] mt-2">{err}</p>}
-        <div className="flex gap-3 mt-5">
-          <button onClick={onClose} className="flex-1 py-2.5 border border-[var(--border)] rounded-xl text-sm text-[var(--text-2)]">Cancel</button>
-          <button onClick={save} className="flex-1 py-2.5 bg-[var(--brand)] text-white rounded-xl text-sm font-medium">Save Customer</button>
-        </div>
       </div>
     </div>
   );
