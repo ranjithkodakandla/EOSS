@@ -40,6 +40,11 @@ export default function CopilotPanel({ isDrawer, onClose }: Props) {
 
   const isGraphite = eossTheme === 'graphite';
   const isOcean = eossTheme === 'ocean';
+  const mascotFilter = isGraphite
+    ? 'hue-rotate(118deg) saturate(1.15)'
+    : isOcean
+    ? 'hue-rotate(-92deg) saturate(1.05)'
+    : 'none';
 
   const themeConfig = {
     panelBg: isGraphite
@@ -164,7 +169,6 @@ sendBtnBg: isGraphite
         className="relative flex-shrink-0 overflow-hidden"
         style={{ height: 200, background: themeConfig.panelBg }}
       >
-        {/* One robot, always. Swapping themed artwork flashes the mascot. */}
         <img
           src="/assets/copilot/hero_aurora.png"
           alt=""
@@ -177,6 +181,7 @@ sendBtnBg: isGraphite
             width: 'auto',
             WebkitMaskImage: 'linear-gradient(to right, transparent 0%, black 38%)',
             maskImage: 'linear-gradient(to right, transparent 0%, black 38%)',
+            filter: mascotFilter,
             pointerEvents: 'none',
           }}
         />

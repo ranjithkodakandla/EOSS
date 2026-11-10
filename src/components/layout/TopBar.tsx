@@ -8,6 +8,7 @@ import clsx from 'clsx';
 
 export default function TopBar({ onOpenMenu }: { onOpenMenu?: () => void }) {
   const { sidebarCollapsed, currentUser, eossTheme, theme, setEOSSTheme, setTheme, showToast } = useStore();
+  const navigate = useNavigate();
   const [searchOpen, setSearchOpen] = useState(false);
   const [themeMenuOpen, setThemeMenuOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
@@ -45,8 +46,11 @@ export default function TopBar({ onOpenMenu }: { onOpenMenu?: () => void }) {
             </button>
           )}
           <button
+            type="button"
+            onClick={() => navigate('/admin')}
             className="flex flex-col text-left group transition-opacity hover:opacity-90 cursor-pointer"
-            title="Active Organization Profile"
+            title="Open Company Details in Admin & Settings"
+            aria-label="Open Company Details in Admin & Settings"
           >
             <div className="flex items-center gap-1">
               <span className="text-sm sm:text-base font-extrabold text-[var(--text)] tracking-tight whitespace-nowrap max-w-[7.5rem] sm:max-w-none truncate">

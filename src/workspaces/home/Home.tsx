@@ -34,6 +34,12 @@ export default function Home() {
       : eossTheme === 'ocean'
       ? '0 8px 24px -4px rgba(8,127,140,0.5), 0 2px 8px rgba(0,0,0,0.5)'
       : '0 8px 24px -4px rgba(112,72,245,0.5), 0 2px 8px rgba(0,0,0,0.5)';
+  const copilotMascotFilter =
+    eossTheme === 'graphite'
+      ? 'hue-rotate(118deg) saturate(1.15)'
+      : eossTheme === 'ocean'
+      ? 'hue-rotate(-92deg) saturate(1.05)'
+      : 'none';
 
   const nameParts = currentUser?.name ? currentUser.name.trim().split(' ') : ['Ranjith'];
   const firstName = nameParts[0] || 'Ranjith';
@@ -107,10 +113,14 @@ export default function Home() {
         <button
           type="button"
           onClick={() => setCopilotDrawerOpen(true)}
-          className="flex items-center gap-2.5 px-4 py-2.5 rounded-full text-white"
+          aria-label="Open EOSS Copilot"
+          title="Open EOSS Copilot"
+          className="flex items-center justify-center gap-2.5 px-3 py-2 rounded-full text-white"
           style={{ background: copilotBtnBg, border: copilotBtnBorder, boxShadow: copilotBtnShadow }}
         >
-          <img src="/assets/copilot/robot_aurora.png" alt="" className="w-7 h-7 object-contain" />
+          <span className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0 border border-white/25 shadow-inner">
+            <img src="/assets/copilot/robot_aurora.png" alt="" aria-hidden className="w-full h-full object-cover" style={{ filter: copilotMascotFilter }} />
+          </span>
           <span className="text-xs font-bold tracking-wide">Copilot</span>
           <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
         </button>
