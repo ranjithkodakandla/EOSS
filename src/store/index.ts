@@ -12,7 +12,7 @@ import type {
   FinishedProduct, SiteAllocation, CustomerQuotation, CustomerQuotationLine, POLine,
   PurchaseRequisition, Site, MaterialItem, InventoryTransfer, MaterialReturn, JobCancellationDisposition,
   MeterReading, QualityRelease, InspectionTemplate, StageTemplate,
-  JobMaterialReq, JobBlocker, SupplierPOLine
+  JobMaterialReq, JobBlocker, SupplierPOLine, POAmendment
   , Party
 } from '../types';
 import { stampPlaces } from '../domain/places';
@@ -38,6 +38,7 @@ import {
   INSPECTIONS_DEMO, NCRS_DEMO, QUALITY_RELEASES_DEMO, DISPATCHES_DEMO,
   VAULT_DOCUMENTS_DEMO, AUDIT_EVENTS_DEMO,
 } from '../data/seed';
+import { RFQS_FULL } from '../db/seedData';
 
 // ── App State ──
 
@@ -73,6 +74,7 @@ interface EOSSState {
   customerPos: CustomerPO[];
   supplierPos: SupplierPO[];
   supplierPoLines: SupplierPOLine[];
+  poAmendments: POAmendment[];
   rfqs: CustomerRFQ[];
   quotations: CustomerQuotation[];
   quotationLines: CustomerQuotationLine[];
@@ -148,6 +150,8 @@ interface EOSSState {
   addPurchaseReq: (pr: PurchaseRequisition) => void;
   updatePurchaseReq: (id: string, partial: Partial<PurchaseRequisition>) => void;
   setSupplierPoStatus: (spoId: string, status: SupplierPO['status']) => void;
+  addPoAmendment: (amendment: POAmendment) => void;
+  resolvePoAmendment: (amendmentId: string, resolution: 'approved' | 'rejected', by: string) => void;
 
   // Approval actions
   resolveApproval: (aprId: string, resolution: 'approved' | 'rejected', by: string, notes?: string) => void;
@@ -300,8 +304,9 @@ function buildSeed() {
     customerPos: [...CUSTOMER_POS, FLAGSHIP_PO, ...CUSTOMER_POS_DEMO],
     supplierPos: [...SUPPLIER_POS, ...SUPPLIER_POS_DEMO],
     supplierPoLines: [...SUPPLIER_PO_LINES, ...SUPPLIER_PO_LINES_DEMO],
+    poAmendments: [],
     purchaseReqs: [...PURCHASE_REQS, ...FLAGSHIP_PURCHASE_REQS],
-    rfqs: [...RFQS, FLAGSHIP_RFQ, ADDITIONAL_RFQ],
+    rfqs: [...RFQS, { ...RFQS_FULL[0], lineCount: RFQS_FULL[0].lines.length }, ADDITIONAL_RFQ],
     quotations: [FLAGSHIP_QUOTATION],
     quotationLines: [...FLAGSHIP_QUOTATION_LINES],
     poLines: [...FLAGSHIP_PO_LINES],
@@ -698,6 +703,54 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
     supplierPos: s.supplierPos.map(po => po.id !== spoId ? po : { ...po, status }),
   })),
 
+  addPoAmendment: (amendment) => set(s => ({
+    poAmendments: [amendment, ...s.poAmendments],
+    customerPos: amendment.entityType === 'customer_po' ? s.customerPos.map(po => po.id === amendment.poId ? { ...po, hasAmendment: true } : po) : s.customerPos,
+    supplierPos: amendment.entityType === 'supplier_po' ? s.supplierPos.map(po => po.id === amendment.poId ? { ...po, hasAmendment: true } : po) : s.supplierPos,
+  })),
+
+  resolvePoAmendment: (amendmentId, resolution, by) => {
+    const amendment = get().poAmendments.find(a => a.id === amendmentId);
+    if (!amendment || amendment.status !== 'pending_approval') return;
+    const now = new Date().toISOString();
+    set(s => {
+      const poAmendments = s.poAmendments.map(a => a.id === amendmentId ? { ...a, status: resolution, approvedBy: by, approvedAt: now } : a);
+      if (resolution === 'rejected') return { poAmendments };
+      if (amendment.entityType === 'customer_po') {
+        const customerPos = s.customerPos.map(po => po.id !== amendment.poId ? po : {
+          ...po,
+          ...(amendment.headerChanges?.paymentTerms ? { paymentTerms: amendment.headerChanges.paymentTerms } : {}),
+          ...(amendment.headerChanges?.deliveryTerms ? { deliveryTerms: amendment.headerChanges.deliveryTerms } : {}),
+          revision: amendment.revision, lastAmendedAt: now, hasAmendment: true,
+        });
+        const poLines = amendment.lineId && amendment.lineChanges ? s.poLines.map(line => line.id !== amendment.lineId ? line : {
+          ...line,
+          ...(amendment.lineChanges.description ? { description: amendment.lineChanges.description } : {}),
+          ...(amendment.lineChanges.drawingRevision ? { revision: amendment.lineChanges.drawingRevision } : {}),
+          ...(amendment.lineChanges.quantity !== undefined ? { orderedQty: amendment.lineChanges.quantity, value: amendment.lineChanges.quantity * line.rate } : {}),
+          ...(amendment.lineChanges.rate !== undefined ? { rate: amendment.lineChanges.rate, value: line.orderedQty * amendment.lineChanges.rate } : {}),
+          ...(amendment.lineChanges.requiredDate ? { requiredDate: amendment.lineChanges.requiredDate } : {}),
+        }) : s.poLines;
+        return { poAmendments, customerPos, poLines };
+      }
+      const supplierPos = s.supplierPos.map(po => po.id !== amendment.poId ? po : {
+        ...po,
+        ...(amendment.headerChanges?.paymentTerms ? { paymentTerms: amendment.headerChanges.paymentTerms } : {}),
+        ...(amendment.headerChanges?.committedDate ? { committedDate: amendment.headerChanges.committedDate } : {}),
+        revision: amendment.revision, lastAmendedAt: now, hasAmendment: true,
+      });
+      const supplierPoLines = amendment.lineId && amendment.lineChanges ? s.supplierPoLines.map(line => line.id !== amendment.lineId ? line : {
+        ...line,
+        ...(amendment.lineChanges.materialName ? { materialName: amendment.lineChanges.materialName } : {}),
+        ...(amendment.lineChanges.quantity !== undefined ? { orderedQty: amendment.lineChanges.quantity, value: amendment.lineChanges.quantity * line.rate } : {}),
+        ...(amendment.lineChanges.rate !== undefined ? { rate: amendment.lineChanges.rate, value: amendment.lineChanges.quantity !== undefined ? amendment.lineChanges.quantity * amendment.lineChanges.rate : line.orderedQty * amendment.lineChanges.rate } : {}),
+        ...(amendment.lineChanges.requiredDate ? { committedDate: amendment.lineChanges.requiredDate } : {}),
+      }) : s.supplierPoLines;
+      return { poAmendments, supplierPos, supplierPoLines };
+    });
+    get().showToast({ type: resolution === 'approved' ? 'success' : 'info', title: resolution === 'approved' ? 'Amendment approved' : 'Amendment rejected', body: resolution === 'approved' ? `${amendment.poNumber} revised to Rev ${amendment.revision}.` : `${amendment.poNumber} remains on its previous revision.` });
+  },
+
   // ── Approval Actions ──
   resolveApproval: (aprId, resolution, by, notes) => {
     set(s => {
@@ -814,7 +867,7 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
     };
     return {
       quotations: s.quotations.map(q => q.id === quotationId ? { ...q, status: 'accepted' as const } : q),
-      rfqs: s.rfqs.map(r => r.id === quotation?.rfqId ? { ...r, status: 'converted' as const, quotationId, quotationRef: quotation?.quotationNumber, quotationStatus: 'accepted' as const } : r),
+      rfqs: s.rfqs.map(r => r.id === quotation?.rfqId ? { ...r, status: 'converted' as const, quotationId, quotationRef: quotation?.quotationNumber, quotationStatus: 'accepted' as const, convertedPoId: nextPo.id } : r),
       customerPos: [nextPo, ...s.customerPos],
       poLines: [...s.poLines, ...lines],
       ...(approval ? { approvalRequests: [approval, ...s.approvalRequests] } : {}),

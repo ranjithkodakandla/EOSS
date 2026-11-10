@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, Link, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft, FileText, Package, Paperclip, MessageSquare,
   Clock, ChevronRight, Plus, CheckCircle, XCircle, AlertCircle
@@ -11,12 +11,13 @@ import type { CustomerRFQ } from '../../types';
 const fmt = (d: string) => d ? new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
 const fmtMoney = (n: number) => `₹${n.toLocaleString('en-IN')}`;
 
-type Tab = 'lines' | 'technical' | 'documents' | 'clarifications' | 'history';
+type Tab = 'overview' | 'lines' | 'technical' | 'commercial' | 'documents' | 'clarifications' | 'history';
 
 export default function RFQDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { rfqs, quotations, updateRfq, currentUser, showToast } = useStore();
+  const [searchParams] = useSearchParams();
+  const { rfqs, quotations, customerPos, currentUser } = useStore();
   const [tab, setTab] = useState<Tab>('lines');
 
   const rfq = rfqs.find(r => r.id === id) as (CustomerRFQ & Record<string, any>) | undefined;
@@ -27,14 +28,25 @@ export default function RFQDetail() {
   );
 
   const linkedQuotation = quotations.find(q => q.rfqId === rfq.id);
+  const convertedPo = customerPos.find(po => po.id === rfq.convertedPoId || po.rfqId === rfq.id || po.quotationRef === linkedQuotation?.quotationNumber);
   const canQuote = ['owner', 'sales'].includes(currentUser.role) && rfq.status === 'open';
   const canConvert = linkedQuotation?.status === 'accepted' && rfq.status !== 'converted';
+  const returnTo = searchParams.get('from') || '/sales?tab=rfqs';
 
   const lines: any[] = rfq.lines ?? [];
   const documents: any[] = rfq.documents ?? [];
   const clarifications: any[] = rfq.clarifications ?? [];
-  const revisions: any[] = rfq.revisions ?? [];
-  const techReqs = rfq.technicalRequirements ?? {};
+  const revisions: any[] = rfq.revisions ?? [{ id: `${rfq.id}-rev-1`, revision: rfq.revisionNumber ?? 1, changedBy: rfq.owner, changeDescription: 'Initial issue', changedAt: rfq.receivedDate }];
+  const techReqs = {
+    ...(rfq.technicalRequirements ?? {}),
+    standards: (rfq.technicalRequirements as any)?.standards ?? (rfq.applicableStandards ? rfq.applicableStandards.split(',').map(s => s.trim()) : []),
+    inspectionLevel: (rfq.technicalRequirements as any)?.inspectionLevel ?? (rfq.dimensionalInspection ? 'Dimensional inspection' : ''),
+    surfaceFinish: (rfq.technicalRequirements as any)?.surfaceFinish ?? rfq.surfaceTreatment,
+    heatTreatment: (rfq.technicalRequirements as any)?.heatTreatment ?? (rfq.heatTreatment ? 'Required' : ''),
+    packagingRequirements: (rfq.technicalRequirements as any)?.packagingRequirements ?? rfq.packagingPreservation,
+    traceability: (rfq.technicalRequirements as any)?.traceability ?? rfq.traceabilityRequired,
+    specialNotes: (rfq.technicalRequirements as any)?.specialNotes ?? rfq.specialQualityReqs,
+  };
 
   const statusColor: Record<string, string> = {
     open: 'bg-blue-50 text-blue-700 border-blue-200',
@@ -47,8 +59,10 @@ export default function RFQDetail() {
   };
 
   const tabs: { id: Tab; label: string; count?: number }[] = [
+    { id: 'overview', label: 'Overview' },
     { id: 'lines', label: 'Line Items', count: lines.length },
     { id: 'technical', label: 'Technical & Quality' },
+    { id: 'commercial', label: 'Commercial & Delivery' },
     { id: 'documents', label: 'Documents', count: documents.length },
     { id: 'clarifications', label: 'Clarifications', count: clarifications.length },
     { id: 'history', label: 'Revision History', count: revisions.length },
@@ -60,15 +74,13 @@ export default function RFQDetail() {
       <div className="flex-shrink-0 px-6 py-4 border-b" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-center gap-3">
-            <button onClick={() => navigate('/sales?tab=rfqs')} className="p-1.5 rounded-lg hover:bg-[var(--surface-2)] transition-colors">
+            <button onClick={() => navigate(returnTo)} className="p-1.5 rounded-lg hover:bg-[var(--surface-2)] transition-colors">
               <ArrowLeft size={18} className="text-[var(--text-2)]" />
             </button>
             <div>
               <div className="flex items-center gap-2">
                 <span className="font-mono text-sm font-bold text-[var(--brand)]">{rfq.rfqNumber}</span>
-                <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${statusColor[rfq.status] ?? 'bg-gray-100 text-gray-600 border-gray-200'}`}>
-                  {rfq.status.replace('_', ' ').toUpperCase()}
-                </span>
+                <StatusChip status={rfq.status} size="sm" />
               </div>
               <h1 className="text-lg font-bold text-[var(--text)] mt-0.5">{rfq.customerName}</h1>
               <p className="text-xs text-[var(--text-2)]">
@@ -77,6 +89,7 @@ export default function RFQDetail() {
             </div>
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
+            {['owner', 'sales'].includes(currentUser.role) && !['converted', 'cancelled'].includes(rfq.status) && <button onClick={() => navigate(`/sales/rfq/${rfq.id}/edit`)} className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold border" style={{ borderColor: 'var(--border)', color: 'var(--text-2)' }}>Edit RFQ</button>}
             {canQuote && (
               <button
                 onClick={() => navigate(`/sales/rfq/${rfq.id}/quotation/new`)}
@@ -88,7 +101,7 @@ export default function RFQDetail() {
             )}
             {linkedQuotation && !canConvert && (
               <button
-                onClick={() => navigate(`/sales/quotation/${linkedQuotation.id}`)}
+                onClick={() => navigate(`/sales/quotation/${linkedQuotation.id}?from=${encodeURIComponent(`/sales/rfq/${rfq.id}`)}`)}
                 className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold border"
                 style={{ borderColor: 'var(--brand)', color: 'var(--brand)' }}
               >
@@ -97,10 +110,15 @@ export default function RFQDetail() {
             )}
             {canConvert && linkedQuotation && (
               <button
-                onClick={() => navigate(`/sales/quotation/${linkedQuotation.id}`)}
+                onClick={() => navigate(`/sales/quotation/${linkedQuotation.id}?from=${encodeURIComponent(`/sales/rfq/${rfq.id}`)}`)}
                 className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white bg-green-600 hover:bg-green-700"
               >
                 <CheckCircle size={15} /> Convert to PO
+              </button>
+            )}
+            {rfq.status === 'converted' && convertedPo && (
+              <button onClick={() => navigate(`/sales/po/${convertedPo.id}?from=${encodeURIComponent(`/sales/rfq/${rfq.id}`)}`)} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold border" style={{ borderColor: 'var(--brand)', color: 'var(--brand)' }}>
+                <FileText size={15} /> View Customer PO
               </button>
             )}
           </div>
@@ -125,7 +143,7 @@ export default function RFQDetail() {
           <div className="mt-3 flex items-center gap-2 text-xs text-[var(--text-2)] bg-[var(--surface-2)] rounded-lg px-3 py-2 border" style={{ borderColor: 'var(--border)' }}>
             <FileText size={13} className="text-[var(--brand)]" />
             <span>Quotation: </span>
-            <Link to={`/sales/quotation/${linkedQuotation.id}`} className="font-mono font-semibold text-[var(--brand)] hover:underline">
+            <Link to={`/sales/quotation/${linkedQuotation.id}?from=${encodeURIComponent(`/sales/rfq/${rfq.id}`)}`} className="font-mono font-semibold text-[var(--brand)] hover:underline">
               {linkedQuotation.quotationNumber}
             </Link>
             <span className="text-[var(--text-3)]">·</span>
@@ -154,6 +172,26 @@ export default function RFQDetail() {
 
       {/* Tab content */}
       <div className="flex-1 overflow-auto p-6">
+        {tab === 'overview' && (
+          <div className="grid lg:grid-cols-2 gap-4 max-w-5xl">
+            <Section title="Enquiry & Customer">
+              <DetailGrid fields={[
+                ['RFQ Number', rfq.rfqNumber], ['Title', rfq.title], ['Customer', rfq.customerName],
+                ['Contact Person', rfq.customerContactPerson], ['Email', rfq.customerEmail], ['Phone', rfq.customerPhone],
+                ['Customer Enquiry Ref', rfq.customerEnquiryRef], ['Project Ref', rfq.customerProjectRef],
+                ['Received', fmt(rfq.receivedDate)], ['Required By', fmt(rfq.requiredBy)], ['Channel', rfq.channel], ['Priority', rfq.priority],
+              ]} />
+              {rfq.requirementsSummary && <p className="mt-4 text-sm text-[var(--text-2)]">{rfq.requirementsSummary}</p>}
+            </Section>
+            <Section title="Instructions & Internal Context">
+              <DetailGrid fields={[
+                ['Owner', rfq.owner], ['Delivery Location', rfq.deliveryLocation], ['Customer Instructions', rfq.customerInstructions],
+                ['Internal Notes', rfq.internalNotes], ['Quote Due', rfq.quotationDueDate ? fmt(rfq.quotationDueDate) : undefined],
+              ]} />
+            </Section>
+          </div>
+        )}
+
         {tab === 'lines' && (
           <div>
             {lines.length === 0 ? (
@@ -251,6 +289,20 @@ export default function RFQDetail() {
           </div>
         )}
 
+        {tab === 'commercial' && (
+          <div className="grid lg:grid-cols-2 gap-4 max-w-5xl">
+            <Section title="Commercial Terms"><DetailGrid fields={[
+              ['Currency', rfq.currency ?? 'INR'], ['Payment Terms', rfq.paymentTerms], ['Payment Expectation', rfq.paymentExpectation],
+              ['Price Expectation', rfq.priceExpectation], ['Quote Validity', rfq.quoteValidityExpected], ['Special Conditions', rfq.specialCommercialConditions],
+            ]} /></Section>
+            <Section title="Delivery & Quality Commitments"><DetailGrid fields={[
+              ['Delivery Terms', rfq.deliveryTerms], ['Freight Responsibility', rfq.freightResponsibility], ['Material Standards', rfq.materialStandards],
+              ['MTC Required', rfq.mtcRequired ? 'Yes' : 'No'], ['Dimensional Inspection', rfq.dimensionalInspection ? 'Yes' : 'No'], ['NDT Required', rfq.ndtRequired ? 'Yes' : 'No'],
+              ['Customer Witness', rfq.customerWitnessRequired ? 'Yes' : 'No'], ['Required Quality Docs', rfq.requiredQualityDocs], ['Packaging / Preservation', rfq.packagingPreservation],
+            ]} /></Section>
+          </div>
+        )}
+
         {tab === 'documents' && (
           <div className="space-y-2 max-w-2xl">
             {documents.length === 0 ? (
@@ -260,8 +312,8 @@ export default function RFQDetail() {
                 <div key={d.id ?? i} className="flex items-center gap-3 p-3 rounded-lg border" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
                   <Paperclip size={16} className="text-[var(--brand)] flex-shrink-0" />
                   <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium text-[var(--text)] truncate">{d.name ?? d.fileName}</div>
-                    <div className="text-xs text-[var(--text-3)]">{d.type ?? d.documentType ?? 'Document'} · Rev {d.revision ?? '—'}</div>
+                    <div className="text-sm font-medium text-[var(--text)] truncate">{d.name ?? d.fileName ?? d.filename}</div>
+                    <div className="text-xs text-[var(--text-3)]">{d.type ?? d.documentType ?? d.docType ?? 'Document'} · Rev {d.revision ?? d.version ?? '—'}</div>
                   </div>
                   <span className="text-xs text-[var(--text-3)] flex-shrink-0">{d.uploadedAt ? fmt(d.uploadedAt) : ''}</span>
                 </div>
@@ -280,7 +332,7 @@ export default function RFQDetail() {
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <div className="text-sm font-semibold text-[var(--text)]">{c.question}</div>
-                      {c.answer && <div className="mt-2 text-sm text-[var(--text-2)] bg-[var(--surface-2)] rounded p-2">{c.answer}</div>}
+                      {(c.answer ?? c.customerResponse) && <div className="mt-2 text-sm text-[var(--text-2)] bg-[var(--surface-2)] rounded p-2">{c.answer ?? c.customerResponse}</div>}
                     </div>
                     <span className={`text-xs font-semibold px-2 py-0.5 rounded-full flex-shrink-0 ${
                       c.status === 'answered' ? 'bg-green-50 text-green-700' : 'bg-yellow-50 text-yellow-700'
@@ -290,7 +342,7 @@ export default function RFQDetail() {
                   </div>
                   <div className="mt-2 flex items-center gap-3 text-xs text-[var(--text-3)]">
                     <MessageSquare size={11} />
-                    <span>{c.raisedBy} · {c.raisedAt ? fmt(c.raisedAt) : ''}</span>
+                    <span>{c.raisedBy} · {fmt(c.raisedAt ?? c.date)}</span>
                     {c.answeredBy && <span>→ Answered by {c.answeredBy}</span>}
                   </div>
                 </div>
@@ -329,4 +381,8 @@ function Section({ title, children }: { title: string; children: React.ReactNode
       {children}
     </div>
   );
+}
+
+function DetailGrid({ fields }: { fields: [string, unknown][] }) {
+  return <dl className="grid md:grid-cols-2 gap-x-6 gap-y-3">{fields.map(([label, value]) => value !== undefined && value !== '' && <div key={label}><dt className="text-xs text-[var(--text-3)]">{label}</dt><dd className="text-sm mt-0.5 text-[var(--text)] whitespace-pre-wrap">{String(value)}</dd></div>)}</dl>;
 }

@@ -90,9 +90,12 @@ export default function Sidebar({ mobileOpen = false, onClose }: { mobileOpen?: 
       }}
     >
       {/* Brand Header */}
-      <div
+      <NavLink
+        to="/"
+        end
+        aria-label="Go to EOSS Home"
         className={clsx(
-          'flex items-center flex-shrink-0 h-[64px] border-b',
+          'flex items-center flex-shrink-0 h-[64px] border-b hover:bg-white/5 transition-colors',
           collapsed ? 'justify-center' : 'px-4 gap-3'
         )}
         style={{ borderColor: 'var(--sidebar-border, rgba(255,255,255,0.08))' }}
@@ -120,7 +123,7 @@ export default function Sidebar({ mobileOpen = false, onClose }: { mobileOpen?: 
             </div>
           </div>
         )}
-      </div>
+      </NavLink>
 
       {/* Nav Items */}
       <nav className="flex-1 overflow-y-auto py-2 px-2 space-y-0.5 relative z-10">

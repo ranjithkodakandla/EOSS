@@ -5,7 +5,7 @@ import {
   FileText, Briefcase, DollarSign, Clock, User, X, Pencil, XCircle
 } from 'lucide-react';
 import { useStore, CUSTOMERS } from '../../store';
-import StatusChip from '../../components/layout/StatusChip';
+import StatusChip, { getStatusLabel } from '../../components/layout/StatusChip';
 import clsx from 'clsx';
 import type { CustomerRFQ, CustomerPO } from '../../types';
 import SortableHeader from '../../components/layout/SortableHeader';
@@ -16,7 +16,7 @@ type POTab = 'pos' | 'rfqs' | 'customers';
 type SalesSortKey = 'number' | 'name' | 'date' | 'requiredBy' | 'value' | 'lines' | 'terms' | 'status' | 'channel' | 'quotation' | 'owner';
 
 export default function Sales() {
-  const { rfqs, quotations, customerPos, jobs, currentUser, showToast, updateCustomerPo, updateRfq, addCustomerPO } = useStore();
+  const { rfqs, quotations, customerPos, customers, jobs, currentUser, showToast, updateCustomerPo, updateRfq, addCustomerPO } = useStore();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [tab, setTab] = useState<POTab>((searchParams.get('tab') as POTab) ?? 'pos');
@@ -24,23 +24,26 @@ export default function Sales() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [rfqStatusFilter, setRfqStatusFilter] = useState('all');
-  const [sortKey, setSortKey] = useState<SalesSortKey>('number');
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+  const [sortKey, setSortKey] = useState<SalesSortKey>('date');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [selectedPoId, setSelectedPoId] = useState<string | null>(null);
   const [showNewRFQ, setShowNewRFQ] = useState(false);
   const [showDirectOrder, setShowDirectOrder] = useState(false);
   const [selectedRfq, setSelectedRfq] = useState<CustomerRFQ | null>(null);
 
   const handleCancelPo = (id: string) => {
-    const hasActiveJobs = jobs.some(j => j.customerPoId === id && j.status !== 'cancelled');
-    if (hasActiveJobs) { showToast({ type: 'error', title: 'Cannot cancel PO', body: 'PO has active jobs. Cancel jobs first.' }); return; }
+    const po = customerPos.find(p => p.id === id);
+    const linkedJobs = jobs.filter(j => j.customerPoId === id);
+    const hasActiveJobs = linkedJobs.some(j => !['cancelled', 'complete'].includes(j.status));
+    if (!po || po.status === 'complete' || po.status === 'cancelled' || hasActiveJobs) { showToast({ type: 'error', title: 'Cannot cancel PO', body: hasActiveJobs ? 'PO has active jobs. Cancel jobs first.' : 'This Customer PO is already closed or cancelled.' }); return; }
     updateCustomerPo(id, { status: 'cancelled' });
     showToast({ type: 'success', title: 'Customer PO cancelled', body: 'The record remains available in history.' });
   };
 
   const handleDeleteRfq = (id: string) => {
     const linked = customerPos.some(p => (p as any).rfqId === id);
-    if (linked) { showToast({ type: 'error', title: 'Cannot cancel RFQ', body: 'RFQ has an associated PO.' }); return; }
+    const rfq = rfqs.find(r => r.id === id);
+    if (linked || rfq?.status === 'converted') { showToast({ type: 'error', title: 'Cannot cancel RFQ', body: linked ? 'RFQ has an associated PO.' : 'A converted RFQ is preserved as transaction history.' }); return; }
     updateRfq(id, { status: 'cancelled' });
     showToast({ type: 'success', title: 'RFQ cancelled' });
   };
@@ -85,7 +88,7 @@ export default function Sales() {
 
   const totalActive = customerPos.filter(p => p.status === 'active').reduce((s, p) => s + p.totalValue, 0);
 
-  const poStatuses = ['all', 'active', 'complete', 'cancelled'];
+  const poStatuses = ['all', 'pending', 'active', 'partial', 'complete', 'cancelled'];
 
   const fmt = (d: string) => new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' });
 
@@ -97,17 +100,19 @@ export default function Sales() {
         style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
       >
         <div>
-          <h1 className="text-lg font-bold" style={{ color: 'var(--text)' }}>Sales</h1>
+          <h1 className="text-lg font-bold" style={{ color: 'var(--text)' }}>{tab === 'pos' ? 'Customer POs' : tab === 'rfqs' ? 'Customer RFQs' : 'Customer Directory'}</h1>
           <p className="text-xs mt-0.5" style={{ color: 'var(--text-2)' }}>
             <button type="button" onClick={() => { setTab('pos'); setStatusFilter('active'); }} className="font-semibold" style={{ color: 'var(--brand)' }}>
-              {customerPos.filter(p => p.status === 'active').length} active POs
+              {customerPos.filter(p => p.status === 'active').length} Active Customer POs
             </button>
-            {' '}· ₹{(totalActive / 100000).toFixed(1)}L in progress
+            {' '}· {customers.filter(c => c.status === 'active').length} Active Customers · ₹{(totalActive / 100000).toFixed(1)}L in progress
           </p>
         </div>
-        {canCreate && (
-          <div className="flex items-center gap-2"><button onClick={() => navigate('/sales/rfq/new')} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white transition-opacity hover:opacity-90" style={{ background: 'var(--brand-fill)' }}><Plus size={15} /> New RFQ</button><button onClick={() => setShowDirectOrder(true)} className="px-3 py-2 rounded-lg text-xs font-semibold border" style={{ borderColor: 'var(--brand)', color: 'var(--brand)' }}>Direct customer order</button></div>
-        )}
+        {canCreate && <div className="flex items-center gap-2">
+          {tab === 'pos' && <button onClick={() => navigate('/sales/po/new')} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white" style={{ background: 'var(--brand-fill)' }}><Plus size={15} /> Add Customer PO</button>}
+          {tab === 'rfqs' && <button onClick={() => navigate('/sales/rfq/new')} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white" style={{ background: 'var(--brand-fill)' }}><Plus size={15} /> Add RFQ</button>}
+          {tab === 'customers' && <button onClick={() => navigate('/sales/customers/new')} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white" style={{ background: 'var(--brand-fill)' }}><Plus size={15} /> Add New Customer</button>}
+        </div>}
       </div>
 
       {/* Workspace Tabs — amber underline style */}
@@ -152,39 +157,17 @@ export default function Sales() {
         className="flex-shrink-0 flex items-center gap-3 px-6 py-3 border-b"
         style={{ borderColor: 'var(--border)', background: 'var(--surface-2)' }}
       >
-        <div className="relative flex-1 max-w-xs">
+        <div className="eoss-search-wrap flex-1">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-3)' }} />
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}
-            placeholder={tab === 'rfqs' ? 'Search RFQ number, customer…' : 'Search Customer PO number, customer…'}
-            className="w-full pl-8 pr-3 py-1.5 rounded-lg text-sm border focus:outline-none focus:ring-1"
-            style={{
-              borderColor: 'var(--border)',
-              background: 'var(--surface)',
-              color: 'var(--text)',
-            }}
+            placeholder={tab === 'rfqs' ? 'Search RFQ number or customer name' : 'Search Customer PO number or customer name'}
+            className="eoss-search-input"
           />
         </div>
-        {tab === 'pos' && (
-          <div className="flex items-center gap-1.5">
-            {poStatuses.map(s => (
-              <button
-                key={s}
-                onClick={() => setStatusFilter(s)}
-                className="px-3 py-1 rounded-full text-xs font-medium transition-colors capitalize"
-                style={
-                  statusFilter === s
-                    ? { background: 'var(--brand-fill)', color: '#fff' }
-                    : { background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text-2)' }
-                }
-              >
-                {s === 'all' ? `All (${customerPos.filter(p => !search || p.poNumber.toLowerCase().includes(search.toLowerCase()) || p.customerName.toLowerCase().includes(search.toLowerCase())).length})` : `${s} (${customerPos.filter(p => p.status === s && (!search || p.poNumber.toLowerCase().includes(search.toLowerCase()) || p.customerName.toLowerCase().includes(search.toLowerCase()))).length})`}
-              </button>
-            ))}
-          </div>
-        )}
-        {tab === 'rfqs' && <select value={rfqStatusFilter} onChange={e => setRfqStatusFilter(e.target.value)} className="eoss-input text-xs py-1.5" aria-label="Customer RFQ status"><option value="all">All RFQ statuses</option>{['open', 'quoted', 'converted', 'lost', 'cancelled'].map(s => <option key={s} value={s}>{s}</option>)}</select>}
+        {tab === 'pos' && <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="eoss-input min-h-[36px]" aria-label="Customer PO status"><option value="all">All Customer PO statuses</option>{poStatuses.filter(s => s !== 'all').map(s => <option key={s} value={s}>{getStatusLabel(s)}</option>)}</select>}
+        {tab === 'rfqs' && <select value={rfqStatusFilter} onChange={e => setRfqStatusFilter(e.target.value)} className="eoss-input min-h-[36px]" aria-label="Customer RFQ status"><option value="all">All Customer RFQ statuses</option>{['open', 'quoted', 'converted', 'lost', 'cancelled'].map(s => <option key={s} value={s}>{getStatusLabel(s)}</option>)}</select>}
         {search && (
           <button
             onClick={() => setSearch('')}
@@ -214,14 +197,14 @@ export default function Sales() {
                   className="w-full text-left rounded-xl border p-3" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-mono text-xs font-bold" style={{ color: 'var(--brand)' }}>{p.poNumber}</span>
-                    <StatusChip status={p.status} size="sm" />
+                    <StatusChip status={p.status} />
                   </div>
                   <div className="text-sm font-semibold text-[var(--text)] mt-1">{p.customerName}</div>
                   <div className="text-xs text-[var(--text-2)] mt-1">₹{(p.totalValue / 100000).toFixed(1)}L · {p.paymentTerms}</div>
                 </button>
               ))}
             </div>
-            <table className="hidden md:table w-full text-sm border-collapse">
+            <table className="eoss-table hidden md:table">
               <thead className="sticky top-0 z-10" style={{ background: 'var(--surface-2)' }}>
                 <tr style={{ borderBottom: '1px solid var(--border)' }}>
                   {([['PO Number', 'number'], ['Customer', 'name'], ['Date', 'date'], ['Value', 'value'], ['Lines', 'lines'], ['Terms', 'terms'], ['Status', 'status']] as [string, SalesSortKey][]).map(([label, key]) => (
@@ -260,7 +243,7 @@ export default function Sales() {
                       <td className="px-4 py-3 text-center text-xs" style={{ color: 'var(--text-2)' }}>{p.lineCount}</td>
                       <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-2)' }}>{p.paymentTerms}</td>
                       <td className="px-4 py-3">
-                        <StatusChip status={p.status} size="sm" />
+                        <StatusChip status={p.status} />
                       </td>
                       <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                         <div className="flex items-center gap-1">
@@ -268,10 +251,10 @@ export default function Sales() {
                             className="text-xs px-2 py-1 rounded-lg font-semibold text-white" style={{ background: 'var(--brand-fill)' }}>
                             Open
                           </button>
-                          {canCreate && p.status !== 'cancelled' && (
+                          {canCreate && p.status !== 'cancelled' && p.status !== 'complete' && jobs.filter(j => j.customerPoId === p.id).every(j => !['in_progress', 'complete'].includes(j.status)) && (
                             <button onClick={() => navigate(`/sales/po/${p.id}/amend`)} className="p-1 rounded hover:bg-[var(--surface-2)]" title="Amend Customer PO"><Pencil size={12} style={{ color: 'var(--text-3)' }} /></button>
                           )}
-                          {canCreate && p.status !== 'cancelled' && (
+                          {canCreate && p.status !== 'cancelled' && p.status !== 'complete' && jobs.filter(j => j.customerPoId === p.id).every(j => ['cancelled', 'complete'].includes(j.status)) && (
                             <button onClick={() => handleCancelPo(p.id)} className="p-1 rounded hover:bg-[var(--surface-2)]" title="Cancel Customer PO"><XCircle size={12} style={{ color: 'var(--error,#DC2626)' }} /></button>
                           )}
                         </div>
@@ -288,7 +271,7 @@ export default function Sales() {
           )}
 
           {tab === 'rfqs' && (
-            <table className="w-full text-sm border-collapse">
+            <table className="eoss-table">
               <thead className="sticky top-0 z-10" style={{ background: 'var(--surface-2)' }}>
                 <tr style={{ borderBottom: '1px solid var(--border)' }}>
                   {([['RFQ Number', 'number'], ['Customer', 'name'], ['Received', 'date'], ['Required By', 'requiredBy'], ['Lines', 'lines'], ['Channel', 'channel'], ['Quotation', 'quotation'], ['Status', 'status'], ['Owner', 'owner']] as [string, SalesSortKey][]).map(([label, key]) => (
@@ -305,7 +288,7 @@ export default function Sales() {
                     style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}
                     onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--surface-2)'; }}
                     onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'var(--surface)'; }}
-                    onClick={() => navigate(`/sales/rfq/${r.id}`)}
+                    onClick={() => navigate(`/sales/rfq/${r.id}?from=${encodeURIComponent('/sales?tab=rfqs')}`)}
                   >
                     <td className="px-4 py-3 font-mono text-xs font-bold" style={{ color: 'var(--brand)' }}>{r.rfqNumber}</td>
                     <td className="px-4 py-3 font-medium" style={{ color: 'var(--text)' }}>{r.customerName}</td>
@@ -319,7 +302,7 @@ export default function Sales() {
                         return q ? <button type="button" onClick={() => navigate(`/sales/quotation/${q.id}`)} className="font-mono font-semibold text-[var(--brand)] hover:underline">{q.quotationNumber}</button> : <span className="text-[var(--text-3)]">Pending</span>;
                       })()}
                     </td>
-                    <td className="px-4 py-3"><StatusChip status={r.status} size="sm" /></td>
+                    <td className="px-4 py-3"><StatusChip status={r.status} /></td>
                     <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-2)' }}>{r.owner}</td>
                     <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                       <div className="flex items-center gap-1">
@@ -329,7 +312,7 @@ export default function Sales() {
                             Quote
                           </button>
                         )}
-                        {canCreate && r.status !== 'cancelled' && (
+                        {canCreate && !['cancelled', 'converted'].includes(r.status) && (
                           <button onClick={e => { e.stopPropagation(); handleDeleteRfq(r.id); }} className="p-1 rounded hover:bg-[var(--surface-2)]" title="Cancel Customer RFQ"><XCircle size={12} style={{ color: 'var(--error,#DC2626)' }} /></button>
                         )}
                       </div>
@@ -400,10 +383,10 @@ export default function Sales() {
                       >
                         <div>
                           <div className="text-xs font-mono font-bold" style={{ color: 'var(--brand)' }}>{j.jobNumber}</div>
-                          <div className="text-xs mt-0.5" style={{ color: 'var(--text-2)' }}>{j.currentStage} · {j.status}</div>
+                          <div className="text-xs mt-0.5" style={{ color: 'var(--text-2)' }}>{j.currentStage} · {getStatusLabel(j.status)}</div>
                         </div>
                         <div className="flex items-center gap-2">
-                          <StatusChip status={j.status} size="sm" />
+                          <StatusChip status={j.status} />
                           <ChevronRight size={12} style={{ color: 'var(--text-3)' }} />
                         </div>
                       </button>
@@ -463,7 +446,7 @@ export default function Sales() {
               </div>
               <div className="flex justify-between">
                 <span className="text-[var(--text-3)]">Status</span>
-                <StatusChip status={selectedRfq.status} size="sm" />
+                <StatusChip status={selectedRfq.status} />
               </div>
               <div className="flex justify-between">
                 <span className="text-[var(--text-3)]">Received</span>

@@ -1,26 +1,36 @@
 import React, { useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, FilePlus, ExternalLink, ChevronRight, Lock } from 'lucide-react';
+import { useParams, useNavigate, Link, useSearchParams } from 'react-router-dom';
+import { ArrowLeft, FilePlus, ExternalLink, ChevronRight, Ban, CheckCircle2 } from 'lucide-react';
 import { useStore } from '../../store';
 import StatusChip from '../../components/layout/StatusChip';
 import clsx from 'clsx';
+import DocumentActions from '../../components/workflow/DocumentActions';
+import WorkflowTimeline from '../../components/workflow/WorkflowTimeline';
 
 type DetailTab = 'overview' | 'lines' | 'amendments' | 'jobs' | 'documents';
 
 export default function PODetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { customerPos, quotations, rfqs, jobs, currentUser } = useStore();
+  const { customerPos, poLines, poAmendments, jobs, quotations, rfqs, currentUser, updateCustomerPo, resolvePoAmendment, showToast } = useStore();
   const [activeTab, setActiveTab] = useState<DetailTab>('overview');
+  const [searchParams] = useSearchParams();
 
   const po = customerPos.find(p => p.id === id);
   if (!po) return <div className="p-6 text-sm" style={{ color: 'var(--text-2)' }}>PO not found</div>;
 
   const poJobs = jobs.filter(j => j.customerPoId === po.id);
+  const amendments = poAmendments.filter(a => a.entityType === 'customer_po' && a.poId === po.id);
+  const pendingAmendment = amendments.find(a => a.status === 'pending_approval');
+  const actualLines = poLines.filter(line => line.poId === po.id);
+  const displayLines = actualLines.length > 0 ? actualLines : Array.from({ length: po.lineCount }, (_, i) => ({ id: `fallback-${i}`, drawingNumber: `Component-${i + 1}`, revision: 'A', description: i === 0 ? 'SS 304 Precision Component' : i === 1 ? 'EN8 Machined Part' : `Component Line ${i + 1}`, orderedQty: 10 + i * 5, uom: 'pcs', requiredDate: '', rate: (po.totalValue / po.lineCount) / (10 + i * 5), value: po.totalValue / po.lineCount, status: 'pending' as const }));
+  const quotation = quotations.find(q => q.quotationNumber === po.quotationRef);
+  const originatingRfq = rfqs.find(r => r.id === po.rfqId) ?? (quotation ? rfqs.find(r => r.id === quotation.rfqId) : undefined);
   const canEdit = ['owner', 'sales'].includes(currentUser.role);
-  const sourceQuotation = quotations.find(q => q.id === po.quotationId || q.quotationNumber === po.quotationRef);
-  const sourceRfq = rfqs.find(r => r.id === po.rfqId || r.id === sourceQuotation?.rfqId);
-  const workStarted = poJobs.some(j => j.status !== 'draft' && j.status !== 'cancelled') || po.commercialLocked;
+  const canApprove = currentUser.role === 'owner';
+  const returnTo = searchParams.get('from') || '/sales?tab=pos';
+  const canCancel = canEdit && po.status !== 'complete' && po.status !== 'cancelled' && poJobs.every(j => j.status === 'cancelled' || j.status === 'complete');
+  const canAmend = canEdit && !['complete', 'cancelled'].includes(po.status) && poJobs.every(j => !['in_progress', 'complete'].includes(j.status));
   const fmt = (d: string) => new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
 
   const TABS: { id: DetailTab; label: string }[] = [
@@ -40,9 +50,9 @@ export default function PODetail() {
       >
         {/* Breadcrumb */}
         <div className="flex items-center gap-1.5 text-xs mb-3" style={{ color: 'var(--text-3)' }}>
-          <button onClick={() => navigate('/sales')} className="hover:underline" style={{ color: 'var(--brand)' }}>Sales</button>
+          <button onClick={() => navigate(returnTo)} className="hover:underline" style={{ color: 'var(--brand)' }}>Sales</button>
           <ChevronRight size={12} />
-          <button onClick={() => navigate('/sales')} className="hover:underline">Customer POs</button>
+          <button onClick={() => navigate(returnTo)} className="hover:underline">Customer POs</button>
           <ChevronRight size={12} />
           <span style={{ color: 'var(--text)' }}>{po.poNumber}</span>
         </div>
@@ -50,7 +60,7 @@ export default function PODetail() {
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div className="flex items-start gap-4">
             <button
-              onClick={() => navigate('/sales')}
+              onClick={() => navigate(returnTo)}
               className="mt-0.5 p-1.5 rounded-lg hover:opacity-70 transition-opacity"
               style={{ color: 'var(--text-3)' }}
             >
@@ -60,11 +70,8 @@ export default function PODetail() {
               <div className="flex items-center gap-2.5 flex-wrap">
                 <h1 className="text-xl font-bold font-mono" style={{ color: 'var(--text)' }}>{po.poNumber}</h1>
                 <StatusChip status={po.status} />
-                {po.hasAmendment && (
-                  <span className="text-xs px-2.5 py-0.5 rounded-full border font-semibold" style={{ background: 'var(--warning-bg)', color: 'var(--warning)', borderColor: 'var(--warning)' }}>
-                    Amendment Pending
-                  </span>
-                )}
+                {pendingAmendment && <StatusChip status="pending_approval" size="sm" />}
+                {po.revision && <span className="text-xs text-[var(--text-3)]">Rev {po.revision}</span>}
               </div>
               <p className="text-sm mt-0.5 font-medium" style={{ color: 'var(--text-2)' }}>{po.customerName}</p>
             </div>
@@ -72,26 +79,29 @@ export default function PODetail() {
 
           {/* Contextual Actions */}
           <div className="flex items-center gap-2">
-            {canEdit && (
+            {canApprove && po.status === 'pending' && (
+              <button onClick={() => { updateCustomerPo(po.id, { status: 'active' }); showToast({ type: 'success', title: 'Customer PO approved', body: `${po.poNumber} is now released for execution.` }); }} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold text-white" style={{ background: 'var(--success,#16A34A)' }}><CheckCircle2 size={14} /> Approve Customer PO</button>
+            )}
+            {canApprove && pendingAmendment && <><button onClick={() => resolvePoAmendment(pendingAmendment.id, 'approved', currentUser.name)} className="px-3 py-1.5 rounded-lg text-sm font-semibold text-white" style={{ background: 'var(--success,#16A34A)' }}>Approve Amendment</button><button onClick={() => resolvePoAmendment(pendingAmendment.id, 'rejected', currentUser.name)} className="px-3 py-1.5 rounded-lg text-sm font-semibold border" style={{ borderColor: 'var(--error)', color: 'var(--error)' }}>Reject Amendment</button></>}
+            {canCancel && (
+              <button onClick={() => { updateCustomerPo(po.id, { status: 'cancelled' }); showToast({ type: 'success', title: 'Customer PO cancelled', body: `${po.poNumber} preserved in history.` }); }} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium" style={{ borderColor: 'var(--error,#DC2626)', color: 'var(--error,#DC2626)' }}><Ban size={14} /> Cancel PO</button>
+            )}
+            {canAmend && (
               <>
                 <button
                   onClick={() => navigate(`/sales/po/${po.id}/amend`)}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium hover:opacity-80 transition-opacity"
                   style={{ borderColor: 'var(--border)', color: 'var(--text-2)' }}
                 >
-                  <FilePlus size={14} /> Record Amendment
+                  <FilePlus size={14} /> Create Revised PO
                 </button>
-                {!workStarted && <button
-                  onClick={() => navigate(`/sales/po/${po.id}/amend`)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-white hover:opacity-90"
-                  style={{ background: 'var(--brand-fill)' }}
-                >
-                  <FilePlus size={14} /> Amend PO
-                </button>}
               </>
             )}
+            <DocumentActions documentType="Customer PO" reference={po.poNumber} date={po.acceptedDate} partyName={po.customerName} recipient={undefined} status={po.status} total={po.totalValue} lines={Array.from({ length: po.lineCount }, (_, i) => ({ description: `Customer PO line ${i + 1}`, quantity: '—' }))} references={[po.quotationRef ? `Quotation: ${po.quotationRef}` : '', originatingRfq ? `Originating RFQ: ${originatingRfq.rfqNumber}` : ''].filter(Boolean)} />
           </div>
         </div>
+
+        <WorkflowTimeline steps={['Customer RFQ', 'Quotation', 'Customer PO', 'Jobs / Delivery', 'Invoice / Payment']} current={2} />
 
         {/* Value Summary Bar */}
         <div className="mt-4 flex items-center gap-6 flex-wrap">
@@ -101,8 +111,6 @@ export default function PODetail() {
           <SummaryBadge label="Delivery Terms" value={po.deliveryTerms} />
           <SummaryBadge label="Currency" value={po.currency} />
           {po.quotationRef && <SummaryBadge label="Quotation Ref" value={po.quotationRef} mono />}
-          {!po.quotationRef && <SummaryBadge label="Source" value="DIRECT ORDER — NO QUOTATION" />}
-          {workStarted && <SummaryBadge label="Commercial changes" value="Locked after work started" />}
           <SummaryBadge label="Accepted" value={fmt(po.acceptedDate)} />
         </div>
       </div>
@@ -121,7 +129,7 @@ export default function PODetail() {
           >
             {t.label}
             {activeTab === t.id && (
-              <span className="absolute bottom-0 left-0 right-0 h-0.5 rounded-t-full" style={{ background: 'var(--brand-fill)' }} />
+              <span className="absolute bottom-0 left-0 right-0 h-0.5 rounded-t-full" style={{ background: 'var(--brand)' }} />
             )}
           </button>
         ))}
@@ -141,11 +149,8 @@ export default function PODetail() {
                   <DL label="Payment Terms" value={po.paymentTerms} />
                   <DL label="Delivery Terms" value={po.deliveryTerms} />
                   <DL label="Currency" value={po.currency} />
-                  {po.quotationRef && <DL label="Quotation Reference" value={po.quotationRef} mono />}
-                  {sourceQuotation && <button type="button" onClick={() => navigate(`/sales/quotation/${sourceQuotation.id}`)} className="text-left"><DL label="Quotation" value={sourceQuotation.quotationNumber} mono /></button>}
-                  {sourceRfq && <button type="button" onClick={() => navigate(`/sales/rfq/${sourceRfq.id}`)} className="text-left"><DL label="Originating RFQ" value={sourceRfq.rfqNumber} mono /></button>}
-                  {!sourceQuotation && <DL label="Source" value="DIRECT ORDER — NO QUOTATION" />}
-                  {workStarted && <div className="col-span-2 flex items-center gap-2 rounded-lg px-3 py-2 text-xs" style={{ background: 'var(--warning-bg)', color: 'var(--warning)' }}><Lock size={13} /> Commercial amendments are locked because work has started against this Customer PO.</div>}
+                  {po.quotationRef && <div><dt className="text-xs" style={{ color: 'var(--text-3)' }}>Quotation Reference</dt><dd className="text-sm mt-0.5"><Link to={`/sales/quotation/${quotation?.id ?? ''}`} className="font-mono font-semibold" style={{ color: quotation ? 'var(--brand)' : 'var(--text-2)' }}>{po.quotationRef}</Link></dd></div>}
+                  {originatingRfq && <div><dt className="text-xs" style={{ color: 'var(--text-3)' }}>Originating RFQ</dt><dd className="text-sm mt-0.5"><Link to={`/sales/rfq/${originatingRfq.id}`} className="font-mono font-semibold" style={{ color: 'var(--brand)' }}>{originatingRfq.rfqNumber}</Link></dd></div>}
                 </dl>
               </Card>
 
@@ -211,13 +216,13 @@ export default function PODetail() {
                       <ChevronRight size={12} style={{ color: 'var(--text-3)' }} />
                     </button>
                   ))}
-                  {canEdit && (
+                  {canAmend && (
                     <button
                       onClick={() => navigate(`/sales/po/${po.id}/amend`)}
                       className="w-full py-2 rounded-lg border text-xs font-medium hover:opacity-80 transition-opacity"
                       style={{ borderColor: 'var(--border)', color: 'var(--text-2)' }}
                     >
-                      Record Amendment
+                      Create Revised PO
                     </button>
                   )}
                 </div>
@@ -241,26 +246,26 @@ export default function PODetail() {
                   </tr>
                 </thead>
                 <tbody>
-                  {Array.from({ length: po.lineCount }, (_, i) => (
-                    <tr key={i} style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}>
+                  {displayLines.map((line, i) => (
+                    <tr key={line.id} style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}>
                       <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-3)' }}>{i + 1}</td>
                       <td className="px-4 py-3">
                         <div className="text-sm font-medium" style={{ color: 'var(--text)' }}>
-                          {i === 0 ? 'SS 304 Precision Component' : i === 1 ? 'EN8 Machined Part' : `Component Line ${i + 1}`}
+                          {line.description}
                         </div>
                         <div className="text-xs mt-0.5" style={{ color: 'var(--text-3)' }}>
-                          {i === 0 ? 'Tolerance ±0.02mm · Surface Ra 1.6' : 'As per drawing rev. A'}
+                          {line.drawingNumber} · Rev {line.revision}
                         </div>
                       </td>
                       <td className="px-4 py-3 font-mono text-sm font-semibold" style={{ color: 'var(--text)' }}>
-                        {(10 + i * 5).toFixed(0)}
+                        {line.orderedQty}
                       </td>
-                      <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-2)' }}>pcs</td>
+                      <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-2)' }}>{line.uom}</td>
                       <td className="px-4 py-3 font-mono text-sm" style={{ color: 'var(--text)' }}>
-                        ₹{((po.totalValue / po.lineCount) / (10 + i * 5)).toFixed(0)}
+                        ₹{line.rate.toLocaleString('en-IN')}
                       </td>
                       <td className="px-4 py-3 font-mono text-sm font-semibold" style={{ color: 'var(--text)' }}>
-                        ₹{((po.totalValue / po.lineCount)).toLocaleString('en-IN')}
+                        ₹{line.value.toLocaleString('en-IN')}
                       </td>
                     </tr>
                   ))}
@@ -278,39 +283,20 @@ export default function PODetail() {
 
         {activeTab === 'amendments' && (
           <div className="p-6 max-w-4xl">
-            {!po.hasAmendment ? (
+            {amendments.length === 0 ? (
               <div className="rounded-xl border p-10 text-center" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
                 <p className="text-sm" style={{ color: 'var(--text-3)' }}>No amendments recorded for this PO.</p>
-                {canEdit && (
+                {canAmend && (
                   <button
                     onClick={() => navigate(`/sales/po/${po.id}/amend`)}
                     className="mt-3 px-4 py-2 rounded-lg text-sm font-semibold text-white"
-                    style={{ background: 'var(--brand-fill)' }}
+                    style={{ background: 'var(--brand)' }}
                   >
-                    Record Amendment
+                    Create Revised PO
                   </button>
                 )}
               </div>
-            ) : (
-              <div className="rounded-xl border overflow-hidden" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
-                <div className="px-4 py-3 border-b flex items-center justify-between" style={{ borderColor: 'var(--border)', background: 'var(--surface-2)' }}>
-                  <span className="text-sm font-semibold" style={{ color: 'var(--text)' }}>Amendment History</span>
-                  <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: 'var(--warning-bg)', color: 'var(--warning)' }}>Pending Review</span>
-                </div>
-                <div className="p-4">
-                  <div className="flex gap-3">
-                    <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold text-white" style={{ background: 'var(--warning)' }}>A1</div>
-                    <div className="flex-1">
-                      <div className="text-sm font-semibold" style={{ color: 'var(--text)' }}>Amendment #1 — Quantity Revision</div>
-                      <div className="text-xs mt-0.5" style={{ color: 'var(--text-3)' }}>Requested by customer · Pending internal approval</div>
-                      <div className="mt-2 p-3 rounded-lg text-xs" style={{ background: 'var(--surface-2)', color: 'var(--text-2)' }}>
-                        Line 1 qty: 10 pcs → 15 pcs (+5 pcs). Impact on value and delivery schedule under review.
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
+            ) : <div className="space-y-3">{amendments.map(amendment => <div key={amendment.id} className="rounded-xl border p-4" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}><div className="flex items-start justify-between gap-3"><div><div className="text-sm font-semibold" style={{ color: 'var(--text)' }}>Rev {amendment.revision} · {amendment.reason.replaceAll('_', ' ')}</div><div className="text-xs mt-0.5" style={{ color: 'var(--text-3)' }}>Requested by {amendment.requestedBy} · {fmt(amendment.requestedAt)}</div></div><StatusChip status={amendment.status} size="sm" /></div><p className="mt-3 text-sm" style={{ color: 'var(--text-2)' }}>{amendment.changeNote}</p><div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3 text-xs"><div className="rounded-lg p-3" style={{ background: 'var(--surface-2)' }}><div className="font-semibold mb-1" style={{ color: 'var(--text-2)' }}>Previous effective version</div><div style={{ color: 'var(--text-3)' }}>PO and line snapshot preserved at submission</div></div><div className="rounded-lg p-3" style={{ background: 'var(--surface-2)' }}><div className="font-semibold mb-1" style={{ color: 'var(--text-2)' }}>{amendment.status === 'approved' ? 'Current effective revision' : 'Proposed revision'}</div><div style={{ color: 'var(--text-3)' }}>{amendment.headerChanges?.paymentTerms ? `Payment terms → ${amendment.headerChanges.paymentTerms}` : ''}{amendment.lineChanges?.quantity !== undefined ? ` · Quantity → ${amendment.lineChanges.quantity}` : ''}{amendment.lineChanges?.rate !== undefined ? ` · Rate → ₹${amendment.lineChanges.rate.toLocaleString('en-IN')}` : ''}{!amendment.headerChanges?.paymentTerms && amendment.lineChanges?.quantity === undefined && amendment.lineChanges?.rate === undefined ? 'See change description above' : ''}</div></div></div>{amendment.attachmentName && <div className="mt-2 text-xs" style={{ color: 'var(--text-3)' }}>Evidence: {amendment.attachmentName}</div>}</div>)}</div>}
           </div>
         )}
 

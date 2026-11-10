@@ -184,6 +184,54 @@ export interface CustomerRFQ {
   quotationId?: ID;
   quotationRef?: string;
   quotationStatus?: CustomerQuotation['status'];
+  title?: string;
+  customerContactPerson?: string;
+  customerEmail?: string;
+  customerPhone?: string;
+  customerEnquiryRef?: string;
+  customerProjectRef?: string;
+  quotationDueDate?: string;
+  priority?: 'Low' | 'Normal' | 'High' | 'Urgent';
+  currency?: string;
+  deliveryLocation?: string;
+  requirementsSummary?: string;
+  customerInstructions?: string;
+  internalNotes?: string;
+  paymentTerms?: string;
+  deliveryTerms?: string;
+  freightResponsibility?: string;
+  paymentExpectation?: string;
+  quoteValidityExpected?: string;
+  priceExpectation?: string;
+  specialCommercialConditions?: string;
+  applicableStandards?: string;
+  materialStandards?: string;
+  mtcRequired?: boolean;
+  dimensionalInspection?: boolean;
+  ndtRequired?: boolean;
+  heatTreatment?: boolean;
+  surfaceTreatment?: string;
+  traceabilityRequired?: boolean;
+  customerWitnessRequired?: boolean;
+  requiredQualityDocs?: string;
+  packagingPreservation?: string;
+  specialQualityReqs?: string;
+  lines?: RFQLine[];
+  documents?: RFQDocument[];
+  clarifications?: RFQClarification[];
+  revisions?: RFQRevision[];
+  revisionNumber?: number;
+  quotationIds?: ID[];
+  convertedPoId?: ID;
+  technicalRequirements?: Record<string, unknown>;
+}
+
+export interface RFQRevision {
+  id: ID;
+  revision: number;
+  changedBy: string;
+  changeDescription: string;
+  changedAt: string;
 }
 
 export interface CustomerPO {
@@ -193,7 +241,7 @@ export interface CustomerPO {
   customerName: string;
   acceptedDate: string;
   paymentTerms: string;
-  status: 'active' | 'partial' | 'complete' | 'cancelled' | 'on_hold';
+  status: 'pending' | 'active' | 'partial' | 'complete' | 'cancelled' | 'on_hold';
   totalValue: number;
   currency: string;
   lineCount: number;
@@ -206,6 +254,8 @@ export interface CustomerPO {
   commercialLocked?: boolean;
   commercialLockReason?: string;
   creditApprovalId?: ID;
+  revision?: number;
+  lastAmendedAt?: string;
 }
 
 export interface POLine {
@@ -234,7 +284,7 @@ export interface SupplierPO {
   supplierName: string;
   raisedDate: string;
   committedDate: string;
-  status: 'draft' | 'sent' | 'confirmed' | 'partial' | 'received' | 'overdue' | 'cancelled';
+  status: 'draft' | 'pending_approval' | 'sent' | 'confirmed' | 'partial' | 'received' | 'overdue' | 'cancelled';
   totalValue: number;
   currency: string;
   paymentTerms: string;
@@ -252,6 +302,32 @@ export interface SupplierPO {
   supplierRfqRef?: string;
   directProcurement?: boolean;
   directProcurementReason?: string;
+  revision?: number;
+  lastAmendedAt?: string;
+}
+
+export type POAmendmentEntity = 'customer_po' | 'supplier_po';
+export type POAmendmentStatus = 'draft' | 'pending_approval' | 'approved' | 'rejected';
+
+export interface POAmendment {
+  id: ID;
+  entityType: POAmendmentEntity;
+  poId: ID;
+  poNumber: string;
+  revision: number;
+  reason: string;
+  changeNote: string;
+  status: POAmendmentStatus;
+  requestedBy: string;
+  requestedAt: string;
+  approvedBy?: string;
+  approvedAt?: string;
+  attachmentName?: string;
+  lineId?: ID;
+  lineChanges?: { description?: string; drawingRevision?: string; materialName?: string; quantity?: number; rate?: number; requiredDate?: string };
+  headerChanges?: { paymentTerms?: string; deliveryTerms?: string; committedDate?: string };
+  beforeSnapshot: Record<string, unknown>;
+  afterSnapshot?: Record<string, unknown>;
 }
 
 export interface SupplierPOLine {

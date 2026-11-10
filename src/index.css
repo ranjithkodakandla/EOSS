@@ -366,7 +366,7 @@ body {
 :focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; border-radius: 4px; }
 
 /* ── EOSS Table ── */
-.eoss-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.eoss-table { width: 100%; border-collapse: collapse; font-size: 13px; line-height: 1.35; }
 .eoss-table th {
   background: var(--surface-2);
   color: var(--text-2);
@@ -387,6 +387,7 @@ body {
   border-bottom: 1px solid var(--border);
   vertical-align: middle;
   color: var(--text);
+  line-height: 1.35;
 }
 .eoss-table tbody tr { transition: background 0.1s; }
 .eoss-table tbody tr:hover td { background: var(--surface-2); }
@@ -690,6 +691,23 @@ body {
 }
 .eoss-input::placeholder { color: var(--text-3); }
 select.eoss-input { cursor: pointer; }
+
+/* Shared workspace controls: search and filters use the same footprint everywhere. */
+.eoss-search-input {
+  width: 100%;
+  min-height: 36px;
+  padding: 8px 12px 8px 34px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control, 10px);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.eoss-search-input:focus { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(112, 72, 245, 0.08); }
+.eoss-search-input::placeholder { color: var(--text-3); }
+.eoss-search-wrap { position: relative; width: min(100%, 360px); min-width: 240px; }
 
 /* Palette on <html> wins over the later :root / system-light blocks. */
 html.theme-aurora[data-theme="light"] {

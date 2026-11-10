@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Plus, AlertTriangle, Search, ChevronRight, X, Pencil, Trash2, Send } from 'lucide-react';
 import { useStore } from '../../store';
-import StatusChip from '../../components/layout/StatusChip';
+import StatusChip, { getStatusLabel } from '../../components/layout/StatusChip';
 import type { GoodsReceipt, SupplierPO, SupplierPOLine, SupplierQuotation } from '../../types';
 import { DEFAULT_SITE_ID, DEFAULT_SITE_NAME, DEFAULT_STORE_ID, DEFAULT_STORE_NAME, GRN_STORE_ID, GRN_STORE_NAME } from '../../domain/recordLists';
 import { placeLabel } from '../../domain/places';
@@ -26,10 +26,11 @@ export default function Procurement() {
     showToast({ type: 'success', title: 'Supplier PO cancelled' });
   };
   const navigate = useNavigate();
-  const [tab, setTab] = useState<ProcTab>(receiveParam ? 'grn' : ((searchParams.get('tab') as ProcTab) ?? 'spo'));
+  const [tab, setTab] = useState<ProcTab>(receiveParam ? 'grn' : ((searchParams.get('tab') as ProcTab) ?? 'pr'));
   const [search, setSearch] = useState('');
   const [showNewPO, setShowNewPO] = useState(false);
   const [siteFilter, setSiteFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all');
   const [overdueOnly, setOverdueOnly] = useState(false);
   const [approvalView, setApprovalView] = useState<'pending' | 'approved' | 'rejected' | 'all'>('pending');
   const [sortKey, setSortKey] = useState<ProcurementSortKey>('number');
@@ -45,8 +46,16 @@ export default function Procurement() {
 
   const q = search.toLowerCase();
   const matchSite = (siteId?: string) => siteFilter === 'all' || siteId === siteFilter;
+  const statusOptions = tab === 'pr'
+    ? ['draft', 'pending', 'approved', 'converted', 'cancelled']
+    : tab === 'quotes'
+      ? ['draft', 'sent', 'received', 'selected', 'rejected', 'expired']
+      : tab === 'spo'
+        ? ['draft', 'pending_approval', 'sent', 'confirmed', 'partial', 'received', 'overdue', 'cancelled']
+        : ['draft', 'pending_qc', 'accepted', 'partial', 'rejected'];
+  const matchStatus = (status: string) => statusFilter === 'all' || status === statusFilter;
   const filteredSpoBase = supplierPos.filter(p =>
-    matchSite(p.deliverToSiteId) && (!overdueOnly || p.status === 'overdue') &&
+    matchSite(p.deliverToSiteId) && matchStatus(p.status) && (!overdueOnly || p.status === 'overdue') &&
     (!q || p.poNumber.toLowerCase().includes(q) || p.supplierName.toLowerCase().includes(q))
   );
   const filteredSpo = sortRows(filteredSpoBase, sortKey, sortDir, (p, key) => {
@@ -54,7 +63,7 @@ export default function Procurement() {
     return values[key] ?? p.raisedDate;
   });
   const filteredPrsBase = purchaseReqs.filter(pr =>
-    matchSite(pr.deliverToSiteId) &&
+    matchSite(pr.deliverToSiteId) && matchStatus(pr.status) &&
     (!q || pr.prNumber.toLowerCase().includes(q) || pr.raisedBy.toLowerCase().includes(q) || (pr.jobNumber ?? '').toLowerCase().includes(q))
   );
   const filteredPrs = sortRows(filteredPrsBase, sortKey, sortDir, (pr, key) => {
@@ -62,7 +71,7 @@ export default function Procurement() {
     return values[key] ?? pr.raisedDate;
   });
   const filteredGrnsBase = grns.filter(g =>
-    matchSite(g.siteId) &&
+    matchSite(g.siteId) && matchStatus(g.status) &&
     (!q || g.grnNumber.toLowerCase().includes(q) || g.supplierName.toLowerCase().includes(q))
   );
   const filteredGrns = sortRows(filteredGrnsBase, sortKey, sortDir, (g, key) => {
@@ -70,7 +79,7 @@ export default function Procurement() {
     return values[key] ?? g.receivedDate;
   });
   const filteredQuotesBase = supplierQuotations.filter(qt =>
-    !q || qt.quoteNumber.toLowerCase().includes(q) || qt.supplierName.toLowerCase().includes(q)
+    matchStatus(qt.status) && (!q || qt.quoteNumber.toLowerCase().includes(q) || qt.supplierName.toLowerCase().includes(q))
   );
   const filteredQuotes = sortRows(filteredQuotesBase, sortKey, sortDir, (qt, key) => {
     const values: Record<string, unknown> = { number: qt.quoteNumber, supplier: qt.supplierName, date: qt.quoteDate, validUntil: qt.validUntil, leadTime: qt.deliveryDays, terms: qt.paymentTerms, value: qt.lines.reduce((s, l) => s + l.lineTotal, 0), status: qt.status };
@@ -86,11 +95,10 @@ export default function Procurement() {
   };
 
   const TABS = [
+    { id: 'pr' as ProcTab, label: `Purchase Requisitions (${filteredPrs.length})` },
+    { id: 'quotes' as ProcTab, label: `Supplier Quotations (${filteredQuotes.length})` },
     { id: 'spo' as ProcTab, label: `Supplier POs (${filteredSpo.length})` },
-    { id: 'pr' as ProcTab, label: `PRs (${filteredPrs.length})` },
-    { id: 'grn' as ProcTab, label: `GRNs (${filteredGrns.length})` },
-    { id: 'quotes' as ProcTab, label: `Quotations (${filteredQuotes.length})` },
-    { id: 'approvals' as ProcTab, label: `Approvals${pendingApprovals > 0 ? ` · ${pendingApprovals}` : ''}` },
+    { id: 'grn' as ProcTab, label: `Receiving & Inventory (${filteredGrns.length})` },
   ];
   const [compareQuotes, setCompareQuotes] = useState<SupplierQuotation[] | null>(null);
 
@@ -99,36 +107,28 @@ export default function Procurement() {
       {/* Toolbar */}
       <div className="flex-shrink-0 flex items-center gap-3 px-5 py-3 border-b flex-wrap"
         style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
-        <div className="relative flex-1 min-w-[180px] max-w-xs">
+        <div className="eoss-search-wrap flex-1">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-3)' }} />
-          <input type="text" placeholder="Search this list…" value={search} onChange={e => setSearch(e.target.value)}
-            className="w-full pl-8 pr-3 py-1.5 text-sm rounded-lg border outline-none"
-            style={{ borderColor: 'var(--border)', background: 'var(--surface)', color: 'var(--text)' }} />
+          <input type="text" placeholder={tab === 'pr' ? 'Search PR number, requester or job' : tab === 'quotes' ? 'Search quote number or supplier' : tab === 'spo' ? 'Search Supplier PO number or supplier' : 'Search GRN number or supplier'} value={search} onChange={e => setSearch(e.target.value)} className="eoss-search-input" />
         </div>
-        <select value={siteFilter} onChange={e => setSiteFilter(e.target.value)} className="eoss-input text-xs py-1.5 max-w-[11rem]" aria-label="Deliver-to site">
+        <select value={siteFilter} onChange={e => setSiteFilter(e.target.value)} className="eoss-input min-h-[36px]" aria-label="Deliver-to site">
           <option value="all">All sites</option>
           {sites.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
         </select>
+        {tab !== 'approvals' && <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="eoss-input min-h-[36px]" aria-label="Procurement status"><option value="all">All {tab === 'pr' ? 'PR' : tab === 'quotes' ? 'quotation' : tab === 'spo' ? 'Supplier PO' : 'GRN'} statuses</option>{statusOptions.map(status => <option key={status} value={status}>{getStatusLabel(status)}</option>)}</select>}
         <div className="flex-1" />
         {overduePOs > 0 && (
-          <button type="button" onClick={() => { setTab('spo'); setOverdueOnly(v => !v); }}
+          <button type="button" onClick={() => { setTab('spo'); setStatusFilter('all'); setOverdueOnly(v => !v); }}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
             style={{ background: 'var(--error-bg,#FEF2F2)', color: 'var(--error,#DC2626)' }}>
             <AlertTriangle size={13} /> {overduePOs} overdue
           </button>
         )}
         {pendingApprovals > 0 && (
-          <button type="button" onClick={() => setTab('approvals')}
+          <button type="button" onClick={() => { setTab('approvals'); setStatusFilter('all'); }}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
             style={{ background: 'var(--warning-bg,#FFFBEB)', color: 'var(--warning,#D97706)' }}>
             {pendingApprovals} to approve
-          </button>
-        )}
-        {canCreate && tab === 'spo' && (
-          <button onClick={() => navigate('/procurement/supplier-return')}
-            className="px-3 py-1.5 rounded-lg border text-xs font-medium"
-            style={{ borderColor: 'var(--border)', color: 'var(--text-2)' }}>
-            Return
           </button>
         )}
         {canCreate && tab === 'pr' && (
@@ -142,22 +142,20 @@ export default function Procurement() {
           <button onClick={() => navigate('/procurement/supplier-rfq/new')}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white"
             style={{ background: 'var(--brand-fill)' }}>
-            <Send size={13} /> Send enquiry
+            <Send size={13} /> Request quotations
           </button>
         )}
-        {canCreate && tab === 'spo' && (
-          <button onClick={() => setShowNewPO(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white"
-            style={{ background: 'var(--brand-fill)' }}>
-            <Plus size={13} /> New PO
-          </button>
-        )}
+      </div>
+
+      <div className="flex-shrink-0 px-5 py-2.5 border-b text-xs font-semibold" style={{ borderColor: 'var(--border)', background: 'var(--surface-2)', color: 'var(--text-2)' }}>
+        <span style={{ color: tab === 'pr' ? 'var(--brand)' : undefined }}>PR</span><span className="mx-2 text-[var(--text-3)]">→</span><span style={{ color: tab === 'quotes' ? 'var(--brand)' : undefined }}>Supplier Quotations</span><span className="mx-2 text-[var(--text-3)]">→</span><span style={{ color: tab === 'spo' ? 'var(--brand)' : undefined }}>Selected Quotation / Supplier PO</span><span className="mx-2 text-[var(--text-3)]">→</span><span style={{ color: tab === 'grn' ? 'var(--brand)' : undefined }}>Quality / GRN / Inventory</span>
       </div>
 
       {/* Tabs */}
       <div className="flex-shrink-0 flex items-center border-b px-3 overflow-x-auto"
         style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
         {TABS.map(t => (
-          <button key={t.id} onClick={() => setTab(t.id)}
+          <button key={t.id} onClick={() => { setTab(t.id); setStatusFilter('all'); setOverdueOnly(false); }}
             className="relative px-4 py-3 text-sm font-medium transition-colors whitespace-nowrap"
             style={{ color: tab === t.id ? 'var(--brand)' : 'var(--text-2)' }}>
             {t.label}
@@ -176,14 +174,14 @@ export default function Procurement() {
                 className="w-full text-left rounded-xl border p-3" style={{ borderColor: 'var(--border)', background: p.status === 'overdue' ? 'var(--error-bg,#FEF2F2)' : 'var(--surface)' }}>
                 <div className="flex items-center justify-between gap-2">
                   <span className="font-mono text-xs font-bold" style={{ color: 'var(--brand)' }}>{p.poNumber}</span>
-                  <StatusChip status={p.status} size="sm" />
+                  <StatusChip status={p.status} />
                 </div>
                 <div className="text-sm font-semibold text-[var(--text)] mt-1">{p.supplierName}</div>
                 <div className="text-xs text-[var(--text-2)] mt-1">₹{(p.totalValue / 1000).toFixed(1)}k{p.jobRef ? ` · ${p.jobRef}` : ''}</div>
               </button>
             ))}
           </div>
-          <table className="hidden md:table w-full text-sm border-separate border-spacing-0">
+          <table className="eoss-table hidden md:table">
             <thead style={{ position: 'sticky', top: 0, zIndex: 5 }}>
               <tr style={{ background: 'var(--surface-2)', borderBottom: '1px solid var(--border)' }}>
                 {([['PO Number', 'number'], ['Supplier', 'supplier'], ['Raised', 'date'], ['Committed', 'committedDate'], ['Lines', 'lines'], ['Value', 'value'], ['Job Ref', 'job'], ['Status', 'status']] as [string, ProcurementSortKey][]).map(([label, key]) => (
@@ -216,7 +214,7 @@ export default function Procurement() {
                   <td className="px-4 py-3 text-sm text-center" style={{ color: 'var(--text-2)' }}>{p.lineCount}</td>
                   <td className="px-4 py-3 font-mono text-sm font-semibold" style={{ color: 'var(--text)' }}>₹{(p.totalValue / 1000).toFixed(1)}k</td>
                   <td className="px-4 py-3 text-xs font-mono" style={{ color: 'var(--text-2)' }}>{p.jobRef ?? '—'}</td>
-                  <td className="px-4 py-3"><StatusChip status={p.status} size="sm" /></td>
+                  <td className="px-4 py-3"><StatusChip status={p.status} /></td>
                   <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                     <div className="flex items-center gap-1">
                       {canCreate && p.status !== 'cancelled' && (
@@ -236,7 +234,7 @@ export default function Procurement() {
         )}
 
         {tab === 'pr' && (
-          <table className="w-full text-sm border-separate border-spacing-0">
+          <table className="eoss-table">
             <thead style={{ position: 'sticky', top: 0, zIndex: 5 }}>
               <tr style={{ background: 'var(--surface-2)' }}>
                 {([['PR Number', 'number'], ['Raised By', 'raisedBy'], ['Raised Date', 'date'], ['Required By', 'requiredBy'], ['Job Ref', 'job'], ['Lines', 'lines'], ['Priority', 'priority'], ['Status', 'status']] as [string, ProcurementSortKey][]).map(([label, key]) => (
@@ -263,8 +261,8 @@ export default function Procurement() {
                   <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-2)' }}>{new Date(pr.requiredBy).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</td>
                   <td className="px-4 py-3 font-mono text-xs" style={{ color: 'var(--text-2)' }}>{pr.jobNumber ?? '—'}</td>
                   <td className="px-4 py-3 text-sm text-center" style={{ color: 'var(--text-2)' }}>{pr.lineCount}</td>
-                  <td className="px-4 py-3"><StatusChip status={pr.priority} size="sm" /></td>
-                  <td className="px-4 py-3"><StatusChip status={pr.status} size="sm" /></td>
+                  <td className="px-4 py-3"><StatusChip status={pr.priority} /></td>
+                  <td className="px-4 py-3"><StatusChip status={pr.status} /></td>
                   <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                     {pr.status === 'approved' && (
                       <button onClick={() => navigate(`/procurement/supplier-rfq/new?prId=${pr.id}`)}
@@ -282,7 +280,7 @@ export default function Procurement() {
         )}
 
         {tab === 'grn' && (
-          <table className="w-full text-sm border-separate border-spacing-0">
+          <table className="eoss-table">
             <thead style={{ position: 'sticky', top: 0, zIndex: 5 }}>
               <tr style={{ background: 'var(--surface-2)' }}>
                 {([['GRN Number', 'number'], ['Supplier', 'supplier'], ['PO Ref', 'poRef'], ['Received', 'date'], ['By', 'receivedBy'], ['Challan', 'challan'], ['Status', 'status']] as [string, ProcurementSortKey][]).map(([label, key]) => (
@@ -306,7 +304,7 @@ export default function Procurement() {
                   <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-2)' }}>{new Date(g.receivedDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</td>
                   <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-2)' }}>{g.receivedBy}</td>
                   <td className="px-4 py-3 font-mono text-xs" style={{ color: 'var(--text-2)' }}>{g.deliveryChallan}</td>
-                  <td className="px-4 py-3"><StatusChip status={g.status} size="sm" /></td>
+                  <td className="px-4 py-3"><StatusChip status={g.status} /></td>
                   <td className="px-4 py-3"><ChevronRight size={14} style={{ color: 'var(--text-3)' }} /></td>
                 </tr>
               ))}
@@ -324,7 +322,7 @@ export default function Procurement() {
                   <div key={qt.id} className="rounded-xl border p-3" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
                     <div className="flex items-center justify-between gap-2">
                       <span className="font-mono text-xs font-bold" style={{ color: 'var(--brand)' }}>{qt.quoteNumber}</span>
-                      <StatusChip status={qt.status} size="sm" />
+                      <StatusChip status={qt.status} />
                     </div>
                     <div className="text-sm font-medium text-[var(--text)] mt-1">{qt.supplierName}</div>
                     <div className="text-xs text-[var(--text-2)] mt-1">
@@ -342,8 +340,7 @@ export default function Procurement() {
               })}
               {filteredQuotes.length === 0 && <p className="text-center py-10 text-sm" style={{ color: 'var(--text-3)' }}>No quotations received yet</p>}
             </div>
-            <div className="hidden md:block overflow-x-auto">
-              <table className="eoss-table">
+            <table className="eoss-table hidden md:table">
                 <thead><tr>
                   {([['Quote #', 'number'], ['Supplier', 'supplier'], ['Date', 'date'], ['Valid Until', 'validUntil'], ['Lead Time', 'leadTime'], ['Payment Terms', 'terms'], ['Total Value', 'value'], ['Status', 'status']] as [string, ProcurementSortKey][]).map(([label, key]) => (
                     <SortableHeader key={label} label={label} active={sortKey === key} direction={sortDir} onSort={() => handleSort(key)} />
@@ -363,7 +360,7 @@ export default function Procurement() {
                         <td className="text-xs" style={{ color: 'var(--text-2)' }}>{q.deliveryDays} days</td>
                         <td className="text-xs" style={{ color: 'var(--text-2)' }}>{q.paymentTerms}</td>
                         <td className="font-mono text-sm font-semibold" style={{ color: 'var(--text)' }}>₹{(total / 1000).toFixed(1)}k</td>
-                        <td><StatusChip status={q.status} size="sm" /></td>
+                        <td><StatusChip status={q.status} /></td>
                         <td>
                           {grouped.length > 1 && grouped[0]?.id === q.id && (
                             <button onClick={() => setCompareQuotes(grouped)}
@@ -378,14 +375,13 @@ export default function Procurement() {
                   })}
                   {filteredQuotes.length === 0 && <tr><td colSpan={9} className="text-center py-10 text-sm" style={{ color: 'var(--text-3)' }}>No quotations received yet</td></tr>}
                 </tbody>
-              </table>
-            </div>
+            </table>
           </div>
         )}
 
         {tab === 'approvals' && (
           <div className="p-5">
-            <div className="flex items-center justify-between gap-3 mb-4 flex-wrap"><p className="text-xs text-[var(--text-2)]">Pending is the action queue; decisions remain available in the history views.</p><select value={approvalView} onChange={e => setApprovalView(e.target.value as typeof approvalView)} className="eoss-input text-xs py-1.5" aria-label="Approval history view"><option value="pending">Pending</option><option value="approved">Approved</option><option value="rejected">Rejected</option><option value="all">All history</option></select></div>
+            <div className="flex items-center justify-between gap-3 mb-4 flex-wrap"><p className="text-xs text-[var(--text-2)]">Pending is the action queue; decisions remain available in the history views.</p><select value={approvalView} onChange={e => setApprovalView(e.target.value as typeof approvalView)} className="eoss-input min-h-[36px]" aria-label="Approval history view"><option value="pending">Pending</option><option value="approved">Approved</option><option value="rejected">Rejected</option><option value="all">All history</option></select></div>
             {visibleApprovals.length === 0 ? (
               <div className="rounded-xl border p-10 text-center" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
                 <p className="text-sm" style={{ color: 'var(--text-3)' }}>No pending approvals.</p>
@@ -401,7 +397,7 @@ export default function Procurement() {
                       {a.description && <div className="text-xs mt-1" style={{ color: 'var(--text-2)' }}>{a.description}</div>}
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
-                      {a.status !== 'pending' && <StatusChip status={a.status} size="sm" />}
+                      {a.status !== 'pending' && <StatusChip status={a.status} />}
                       {a.status === 'pending' && canApprove && <button onClick={() => resolveApproval(a.id, 'rejected', currentUser.name, 'Rejected in approval review')}
                         className="px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors"
                         style={{ borderColor: 'var(--error,#DC2626)', color: 'var(--error,#DC2626)', background: 'transparent' }}>
@@ -493,7 +489,7 @@ function QuoteCompareModal({ quotes, onClose, onSelect }: { quotes: SupplierQuot
           <button onClick={onClose}><X size={16} className="text-[var(--text-3)]" /></button>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-sm border-collapse">
+              <table className="eoss-table">
             <thead>
               <tr style={{ borderBottom: '2px solid var(--border)', background: 'var(--surface-2)' }}>
                 <th className="text-left p-3 text-xs font-semibold text-[var(--text-2)]">Criteria</th>

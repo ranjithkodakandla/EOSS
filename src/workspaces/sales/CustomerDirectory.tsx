@@ -1,16 +1,22 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Plus, Building2, Phone, Mail, ChevronRight, Star, X, Pencil } from 'lucide-react';
+import { Search, Building2, Phone, Mail, ChevronRight, Star, X, Pencil } from 'lucide-react';
 import { useStore } from '../../store';
-import StatusChip from '../../components/layout/StatusChip';
+import StatusChip, { getStatusLabel } from '../../components/layout/StatusChip';
 import EmptyState from '../../components/feedback/EmptyState';
 import type { Party } from '../../types';
+import SortableHeader from '../../components/layout/SortableHeader';
+import { sortRows } from '../../domain/tableSort';
+
+type CustomerSortKey = 'customer' | 'gstin' | 'contact' | 'terms' | 'pos' | 'rfqs' | 'rating' | 'status';
 
 export default function CustomerDirectory() {
   const navigate = useNavigate();
   const { customers, customerPos, rfqs, showToast, updateCustomer, addCustomer } = useStore();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
+  const [sortKey, setSortKey] = useState<CustomerSortKey>('customer');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [showAdd, setShowAdd] = useState(false);
   const [editCustomer, setEditCustomer] = useState<Party | null>(null);
 
@@ -20,72 +26,54 @@ export default function CustomerDirectory() {
     const matchStatus = statusFilter === 'all' || c.status === statusFilter;
     return matchSearch && matchStatus;
   });
+  const sortedCustomers = sortRows(filtered, sortKey, sortDir, (customer, key) => {
+    const poCount = customerPos.filter(po => po.customerId === customer.id).length;
+    const rfqCount = rfqs.filter(rfq => rfq.customerId === customer.id).length;
+    const values: Record<string, unknown> = { customer: customer.tradingName, gstin: customer.gstin, contact: customer.contactPerson, terms: customer.paymentTerms, pos: poCount, rfqs: rfqCount, rating: customer.rating ?? 0, status: customer.status };
+    return values[key] ?? customer.tradingName;
+  });
+  const handleSort = (key: CustomerSortKey) => {
+    if (sortKey === key) setSortDir(direction => direction === 'asc' ? 'desc' : 'asc');
+    else { setSortKey(key); setSortDir('asc'); }
+  };
 
   return (
-    <div className="p-4 md:p-6 max-w-6xl mx-auto space-y-5">
-      {/* Header */}
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div>
-          <h1 className="text-xl font-bold text-[var(--text)]">Customer Directory</h1>
-          <p className="text-sm text-[var(--text-2)] mt-0.5">
-            {customers.filter(c => c.status === 'active').length} active customers
-          </p>
-        </div>
-        <button
-          onClick={() => setShowAdd(true)}
-          className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white cursor-pointer hover:opacity-90 transition-opacity"
-          style={{ background: 'var(--brand-fill)' }}
-        >
-          <Plus size={15} />
-          Add Customer
-        </button>
-      </div>
-
+    <div className="flex flex-col h-full">
       {/* Filters */}
-      <div className="flex gap-3 flex-wrap items-center">
-        <div className="relative flex-1 min-w-[220px]">
+      <div className="flex-shrink-0 flex items-center gap-3 px-6 py-3 border-b flex-wrap" style={{ borderColor: 'var(--border)', background: 'var(--surface-2)' }}>
+        <div className="eoss-search-wrap flex-1">
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-2)]" />
           <input
             type="text"
-            placeholder="Search by name, GSTIN or city…"
+            placeholder="Search customer name, GSTIN or city"
             value={search}
             onChange={e => setSearch(e.target.value)}
-            className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border bg-[var(--surface)] focus:outline-none focus:ring-2"
-            style={{ borderColor: 'var(--border)', color: 'var(--text)' }}
+            className="eoss-search-input"
           />
         </div>
-        {(['all', 'active', 'inactive'] as const).map(s => (
-          <button
-            key={s}
-            onClick={() => setStatusFilter(s)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold capitalize border transition-colors cursor-pointer ${statusFilter === s ? 'text-white border-transparent' : 'border-transparent bg-transparent'}`}
-            style={statusFilter === s ? { background: 'var(--brand-fill)' } : { color: 'var(--text-2)' }}
-          >
-            {s === 'all' ? 'All' : s.charAt(0).toUpperCase() + s.slice(1)}
-          </button>
-        ))}
+        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value as typeof statusFilter)} className="eoss-input min-h-[36px]" aria-label="Customer status">
+          <option value="all">All customer statuses</option>
+          <option value="active">{getStatusLabel('active')}</option>
+          <option value="inactive">{getStatusLabel('inactive')}</option>
+        </select>
       </div>
 
       {/* Table */}
       {filtered.length === 0 ? (
-        <EmptyState icon={<Building2 size={22} />} title="No customers found" body="Try adjusting your search or filters." />
+        <div className="flex-1 p-6"><EmptyState icon={<Building2 size={22} />} title="No customers found" body="Try adjusting your search or filters." /></div>
       ) : (
-        <div
-          className="rounded-2xl border overflow-hidden"
-          style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
-        >
-          <table className="w-full text-sm">
+        <div className="flex-1 overflow-auto">
+          <table className="eoss-table">
             <thead>
               <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface-2)' }}>
-                {['Customer', 'GSTIN / State', 'Contact', 'Terms', 'Customer POs', 'RFQs', 'Rating', 'Status', ''].map(h => (
-                  <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold text-[var(--text-2)] font-medium">
-                    {h}
-                  </th>
+                {([['Customer', 'customer'], ['GSTIN / State', 'gstin'], ['Contact', 'contact'], ['Terms', 'terms'], ['Customer POs', 'pos'], ['RFQs', 'rfqs'], ['Rating', 'rating'], ['Status', 'status']] as [string, CustomerSortKey][]).map(([label, key]) => (
+                  <SortableHeader key={label} label={label} active={sortKey === key} direction={sortDir} onSort={() => handleSort(key)} className="text-left px-4 py-2.5" />
                 ))}
+                <th />
               </tr>
             </thead>
             <tbody>
-              {filtered.map((c, i) => (
+              {sortedCustomers.map((c, i) => (
                 <tr
                   key={c.id}
                   className="hover:bg-[var(--surface-2)] cursor-pointer transition-colors"
@@ -98,13 +86,13 @@ export default function CustomerDirectory() {
                   </td>
                   <td className="px-4 py-3">
                     <div className="text-xs font-mono text-[var(--text)]">{c.gstin}</div>
-                    <div className="text-xs text-[var(--text-2)]">{c.state} · {c.city}</div>
+                    <div className="text-xs text-[var(--text-2)] whitespace-nowrap">{c.state} · {c.city}</div>
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-1 text-xs text-[var(--text-2)]">
                       <Phone size={11} /> {c.phone}
                     </div>
-                    <div className="flex items-center gap-1 text-xs text-[var(--text-2)] mt-0.5">
+                    <div className="flex items-center gap-1 text-xs text-[var(--text-2)] mt-0.5 truncate max-w-[15rem]">
                       <Mail size={11} /> {c.email}
                     </div>
                   </td>
@@ -139,7 +127,7 @@ export default function CustomerDirectory() {
                     <StatusChip status={c.status as 'active' | 'archived'} />
                   </td>
                   <td className="px-4 py-3 text-right flex items-center justify-end gap-1">
-                    <button onClick={e => { e.stopPropagation(); setEditCustomer(c); }} className="p-1 rounded hover:bg-[var(--surface-2)]" title="Edit customer">
+                    <button onClick={e => { e.stopPropagation(); navigate(`/sales/customers/${c.id}/edit`); }} className="p-1 rounded hover:bg-[var(--surface-2)]" title="Edit customer">
                       <Pencil size={13} className="text-[var(--text-3)]" />
                     </button>
                     <ChevronRight size={15} className="text-[var(--text-2)]" />

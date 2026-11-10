@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, CheckCircle, XCircle } from 'lucide-react';
 import { useStore } from '../../store';
 import StatusChip from '../../components/layout/StatusChip';
+import DocumentActions from '../../components/workflow/DocumentActions';
 
 export default function GRNDetail() {
   const { id } = useParams<{ id: string }>();
@@ -25,6 +26,7 @@ export default function GRNDetail() {
             <StatusChip status={grn.status} />
           </div>
           <p className="text-sm text-[var(--text-2)]">{grn.supplierName}</p>
+          <div className="mt-3"><DocumentActions documentType="Goods Receipt Note" reference={grn.grnNumber} date={grn.receivedDate} partyName={grn.supplierName} status={grn.status} lines={lines.map(l => ({ description: l.materialName, quantity: l.receivedQty, uom: l.uom, amount: l.value }))} references={[`Supplier PO: ${grn.spoNumber}`]} /></div>
         </div>
       </div>
 

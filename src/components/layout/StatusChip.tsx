@@ -5,7 +5,9 @@ import type { StatusKey } from '../../types';
 const STATUS_MAP: Record<string, { label: string; cls: string }> = {
   draft: { label: 'Draft', cls: 'bg-[var(--surface-2)] text-[var(--text-2)]' },
   pending: { label: 'Pending', cls: 'bg-[var(--warning-bg)] text-[var(--warning)]' },
+  pending_approval: { label: 'Pending Approval', cls: 'bg-[var(--warning-bg)] text-[var(--warning)]' },
   active: { label: 'Active', cls: 'bg-[var(--info-bg)] text-[var(--info)]' },
+  inactive: { label: 'Inactive', cls: 'bg-[var(--surface-2)] text-[var(--text-3)]' },
   hold: { label: 'On Hold', cls: 'bg-[var(--hold-bg)] text-[var(--hold)]' },
   warning: { label: 'Warning', cls: 'bg-[var(--warning-bg)] text-[var(--warning)]' },
   complete: { label: 'Complete', cls: 'bg-[var(--success-bg)] text-[var(--success)]' },
@@ -15,6 +17,7 @@ const STATUS_MAP: Record<string, { label: string; cls: string }> = {
   archived: { label: 'Archived', cls: 'bg-[var(--surface-2)] text-[var(--text-3)]' },
   approved: { label: 'Approved', cls: 'bg-[var(--success-bg)] text-[var(--success)]' },
   rejected: { label: 'Rejected', cls: 'bg-[var(--error-bg)] text-[var(--error)]' },
+  accepted: { label: 'Accepted', cls: 'bg-[var(--success-bg)] text-[var(--success)]' },
   in_progress: { label: 'In Progress', cls: 'bg-[var(--info-bg)] text-[var(--info)]' },
   on_order: { label: 'On Order', cls: 'bg-[var(--info-bg)] text-[var(--info)]' },
   received: { label: 'Received', cls: 'bg-[var(--success-bg)] text-[var(--success)]' },
@@ -22,6 +25,9 @@ const STATUS_MAP: Record<string, { label: string; cls: string }> = {
   partial: { label: 'Partial', cls: 'bg-[var(--warning-bg)] text-[var(--warning)]' },
   cancelled: { label: 'Cancelled', cls: 'bg-[var(--surface-2)] text-[var(--text-3)]' },
   open: { label: 'Open', cls: 'bg-[var(--info-bg)] text-[var(--info)]' },
+  under_review: { label: 'Under Review', cls: 'bg-[var(--warning-bg)] text-[var(--warning)]' },
+  quotation_in_progress: { label: 'Quotation In Progress', cls: 'bg-[var(--info-bg)] text-[var(--info)]' },
+  review: { label: 'Under Review', cls: 'bg-[var(--warning-bg)] text-[var(--warning)]' },
   closed: { label: 'Closed', cls: 'bg-[var(--surface-2)] text-[var(--text-2)]' },
   pass: { label: 'Pass', cls: 'bg-[var(--success-bg)] text-[var(--success)]' },
   fail: { label: 'Fail', cls: 'bg-[var(--error-bg)] text-[var(--error)]' },
@@ -31,9 +37,13 @@ const STATUS_MAP: Record<string, { label: string; cls: string }> = {
   issued: { label: 'Issued', cls: 'bg-[var(--info-bg)] text-[var(--info)]' },
   converted: { label: 'Converted', cls: 'bg-[var(--success-bg)] text-[var(--success)]' },
   quoted: { label: 'Quoted', cls: 'bg-[var(--info-bg)] text-[var(--info)]' },
+  selected: { label: 'Selected', cls: 'bg-[var(--success-bg)] text-[var(--success)]' },
   lost: { label: 'Lost', cls: 'bg-[var(--surface-2)] text-[var(--text-3)]' },
   confirmed: { label: 'Confirmed', cls: 'bg-[var(--success-bg)] text-[var(--success)]' },
+  revised: { label: 'Revised', cls: 'bg-[var(--warning-bg)] text-[var(--warning)]' },
+  superseded: { label: 'Superseded', cls: 'bg-[var(--surface-2)] text-[var(--text-3)]' },
   sent: { label: 'Sent', cls: 'bg-[var(--info-bg)] text-[var(--info)]' },
+  paid: { label: 'Paid', cls: 'bg-[var(--success-bg)] text-[var(--success)]' },
   pending_qc: { label: 'Pending QC', cls: 'bg-[var(--warning-bg)] text-[var(--warning)]' },
   delivered: { label: 'Delivered', cls: 'bg-[var(--success-bg)] text-[var(--success)]' },
   pending_docs: { label: 'Pending Docs', cls: 'bg-[var(--warning-bg)] text-[var(--warning)]' },
@@ -54,6 +64,10 @@ const STATUS_MAP: Record<string, { label: string; cls: string }> = {
   normal: { label: 'Normal', cls: 'bg-[var(--info-bg)] text-[var(--info)]' },
   low: { label: 'Low', cls: 'bg-[var(--surface-2)] text-[var(--text-2)]' },
 };
+
+export function getStatusLabel(status: string) {
+  return STATUS_MAP[status]?.label ?? status.replaceAll('_', ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
 
 interface Props {
   status: string;

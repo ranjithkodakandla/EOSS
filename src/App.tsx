@@ -9,14 +9,19 @@ import Sales from './workspaces/sales/Sales';
 import SalesPODetail from './workspaces/sales/PODetail';
 import RFQCreate from './workspaces/sales/RFQCreate';
 import RFQDetail from './workspaces/sales/RFQDetail';
+import RFQEdit from './workspaces/sales/RFQEdit';
 import QuotationCreate from './workspaces/sales/QuotationCreate';
 import QuotationDetail from './workspaces/sales/QuotationDetail';
+import CustomerPOCreate from './workspaces/sales/CustomerPOCreate';
+import CustomerCreate from './workspaces/sales/CustomerCreate';
 import CustomerDetail from './workspaces/sales/CustomerDetail';
+import CustomerEdit from './workspaces/sales/CustomerEdit';
 import POAmend from './workspaces/sales/POAmend';
 import Suppliers from './workspaces/suppliers/Suppliers';
 import SupplierDetail from './workspaces/suppliers/SupplierDetail';
 import Procurement from './workspaces/procurement/Procurement';
 import SupplierPODetail from './workspaces/procurement/SupplierPODetail';
+import SupplierPOAmend from './workspaces/procurement/SupplierPOAmend';
 import GRNDetail from './workspaces/procurement/GRNDetail';
 import SupplierReturn from './workspaces/procurement/SupplierReturn';
 import PRCreate from './workspaces/procurement/PRCreate';
@@ -131,12 +136,16 @@ export default function App() {
           <Route path="sales" element={<Sales />} />
           <Route path="sales/rfq/new" element={<RFQCreate />} />
           <Route path="sales/rfq/:id" element={<RFQDetail />} />
+          <Route path="sales/rfq/:id/edit" element={<RFQEdit />} />
           <Route path="sales/rfq/:rfqId/quotation/new" element={<QuotationCreate />} />
           <Route path="sales/quotation/:id" element={<QuotationDetail />} />
           <Route path="sales/po/:id" element={<SalesPODetail />} />
+          <Route path="sales/po/new" element={<CustomerPOCreate />} />
           <Route path="sales/po/:id/amend" element={<POAmend />} />
           <Route path="sales/customers" element={<Navigate to="/sales?tab=customers" replace />} />
           <Route path="sales/customers/:id" element={<CustomerDetail />} />
+          <Route path="sales/customers/:id/edit" element={<CustomerEdit />} />
+          <Route path="sales/customers/new" element={<CustomerCreate />} />
           <Route path="suppliers" element={<Suppliers />} />
           <Route path="suppliers/:id" element={<SupplierDetail />} />
           <Route path="procurement" element={<Procurement />} />
@@ -144,6 +153,7 @@ export default function App() {
           <Route path="procurement/pr/:id" element={<PRDetail />} />
           <Route path="procurement/supplier-rfq/new" element={<SupplierRFQCreate />} />
           <Route path="procurement/spo/:id" element={<SupplierPODetail />} />
+          <Route path="procurement/spo/:id/amend" element={<SupplierPOAmend />} />
           <Route path="procurement/grn/:id" element={<GRNDetail />} />
           <Route path="procurement/supplier-return" element={<SupplierReturn />} />
           <Route path="inventory" element={<Inventory />} />
