@@ -2,13 +2,13 @@ import React, { useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { ArrowLeft, FileText, ArrowRightLeft, CheckCircle } from 'lucide-react';
 import { useStore } from '../../store';
-import StatusChip from '../../components/layout/StatusChip';
+import StatusChip, { getStatusLabel } from '../../components/layout/StatusChip';
 import ConfirmModal from '../../components/feedback/ConfirmModal';
 
 export default function LotDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { lots, movements, certificates, documents, grns, setLotStatus, currentUser, showToast } = useStore();
+  const { lots, movements, certificates, documents, grns, inspections, releaseLotFromHold, startInspectionForLot, currentUser } = useStore();
   const [confirm, setConfirm] = useState<null | { action: string; body: string }>(null);
 
   const lot = lots.find(l => l.id === id);
@@ -18,19 +18,18 @@ export default function LotDetail() {
   const lotCerts = certificates.filter(c => c.linkedLots.includes(id!));
   const lotDocs = documents.filter(d => d.linkedEntities.some(le => le.ref === lot.lotNumber));
   const sourceGrn = lot.grnId ? grns.find(g => g.id === lot.grnId) : undefined;
+  const lotInspection = inspections.find(i => i.lotId === lot.id);
 
   const canEdit = ['owner', 'storekeeper', 'qc'].includes(currentUser.role);
 
   const handleRelease = () => {
-    setLotStatus(id!, 'available');
+    releaseLotFromHold(lot.id, 'available', currentUser.name, 'Released from QC Hold via Lot Detail');
     setConfirm(null);
-    showToast({ type: 'success', title: 'QC Hold released', body: `${lot.lotNumber} is now available.` });
   };
 
   const handleReturn = () => {
-    setLotStatus(id!, 'scrapped');
+    releaseLotFromHold(lot.id, 'scrapped', currentUser.name, 'Rejected / marked for return via Lot Detail');
     setConfirm(null);
-    showToast({ type: 'info', title: 'Lot marked for return', body: `${lot.lotNumber} returned to supplier.` });
   };
 
   return (
@@ -52,9 +51,25 @@ export default function LotDetail() {
           </p>
         </div>
         {canEdit && lot.status === 'qc_hold' && (
-          <div className="flex gap-2">
-            <button onClick={() => setConfirm({ action: 'release', body: 'Release this lot from QC hold and make it available?' })} className="px-3 py-1.5 bg-[var(--success)] text-white rounded-lg text-sm font-medium">Release</button>
-            <button onClick={() => setConfirm({ action: 'return', body: 'Mark this lot for return to supplier? This will change its status to Scrapped.' })} className="px-3 py-1.5 border border-[var(--error)] text-[var(--error)] rounded-lg text-sm font-medium">Return</button>
+          <div className="flex gap-2 flex-wrap">
+            {lotInspection ? (
+              <Link to={`/quality/inspection/${lotInspection.id}`} className="px-3 py-1.5 bg-[var(--brand-fill)] text-white rounded-lg text-sm font-medium">
+                Open Inspection ({lotInspection.inspectionNumber})
+              </Link>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  const ins = startInspectionForLot(lot.id);
+                  if (ins) navigate(`/quality/inspection/${ins.id}`);
+                }}
+                className="px-3 py-1.5 bg-[var(--brand-fill)] text-white rounded-lg text-sm font-medium"
+              >
+                Start Inspection
+              </button>
+            )}
+            <button onClick={() => setConfirm({ action: 'release', body: 'Release this lot from QC hold and make it available in Stock on Hand?' })} className="px-3 py-1.5 bg-[var(--success)] text-white rounded-lg text-sm font-medium">Release</button>
+            <button onClick={() => setConfirm({ action: 'return', body: 'Reject / mark this lot for return to supplier? This will exclude it from available inventory.' })} className="px-3 py-1.5 border border-[var(--error)] text-[var(--error)] rounded-lg text-sm font-medium">Reject / Return</button>
           </div>
         )}
       </div>
@@ -65,13 +80,24 @@ export default function LotDetail() {
           <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
             <h3 className="font-semibold text-sm text-[var(--text)] mb-3">Lot Details</h3>
             <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
-              <Field label="Heat Number" value={lot.heatNumber ?? '—'} mono />
+              <Field label="Heat / Supplier Lot Ref" value={lot.supplierBatchRef || lot.heatNumber || '—'} mono />
               <Field label="Grade" value={lot.grade ?? '—'} />
               <Field label="Received" value={lot.receivedDate ? new Date(lot.receivedDate).toLocaleDateString('en-IN') : '—'} />
+              {lot.mfgDate && <Field label="Mfg Date" value={new Date(lot.mfgDate).toLocaleDateString('en-IN')} />}
+              {lot.expiryDate && <Field label="Expiry Date" value={new Date(lot.expiryDate).toLocaleDateString('en-IN')} />}
               <div>
                 <dt className="text-xs text-[var(--text-3)]">GRN</dt>
-                {sourceGrn ? <dd className="text-sm text-[var(--text)] mt-0.5"><Link to={`/procurement/grn/${sourceGrn.id}`} className="text-[var(--brand)] hover:underline font-mono">{sourceGrn.grnNumber}</Link><span className="text-[var(--text-3)]"> · {sourceGrn.status.replace('_', ' ')}</span></dd> : <dd className="text-sm text-[var(--text)] mt-0.5">Opening balance / legacy receipt</dd>}
+                {sourceGrn ? <dd className="text-sm text-[var(--text)] mt-0.5"><Link to={`/procurement/grn/${sourceGrn.id}`} className="text-[var(--brand)] hover:underline font-mono">{sourceGrn.grnNumber}</Link><span className="text-[var(--text-3)]"> · {getStatusLabel(sourceGrn.status)}</span></dd> : <dd className="text-sm text-[var(--text)] mt-0.5">Opening balance / legacy receipt</dd>}
               </div>
+              {lotInspection && (
+                <div>
+                  <dt className="text-xs text-[var(--text-3)]">Inspection</dt>
+                  <dd className="text-sm text-[var(--text)] mt-0.5">
+                    <Link to={`/quality/inspection/${lotInspection.id}`} className="text-[var(--brand)] hover:underline font-mono">{lotInspection.inspectionNumber}</Link>
+                    <span className="text-[var(--text-3)]"> · {getStatusLabel(lotInspection.result)}</span>
+                  </dd>
+                </div>
+              )}
               <Field label="Certificate" value={<StatusChip status={lot.certStatus} size="sm" />} />
               {lot.parentLotId && <Field label="Parent Lot" value={lot.parentLotId} mono />}
             </dl>

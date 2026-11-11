@@ -4,7 +4,7 @@ import type {
   DemoUser, RoleKey, Job, JobStage, JobUpdate, MaterialLot,
   InventoryItem, StockMovement, Asset, MaintenanceEvent,
   Dispatch, VaultDocument, ApprovalRequest, AppNotification,
-  PulseException, CustomerPO, SupplierPO, CustomerRFQ, GoodsReceipt,
+  PulseException, CustomerPO, SupplierPO, CustomerRFQ, GoodsReceipt, GoodsReceiptLine,
   Inspection, NCR, MaterialCertificate, Employee, StoreLocation,
   SupplierQuotation, AuditEvent, ApprovalPolicy,
   CustomerInvoice, SupplierInvoice, PaymentRecord, OnboardingState,
@@ -140,13 +140,14 @@ interface EOSSState {
   createStockTransfer: (lotId: string, destinationLocationId: string, qty: number, by: string, notes?: string) => void;
   receiveStockTransfer: (transferId: string, by: string) => void;
   setLotStatus: (lotId: string, status: MaterialLot['status']) => void;
+  releaseLotFromHold: (lotId: string, decision: 'available' | 'scrapped', by: string, reason?: string) => void;
 
   // Asset actions
   addAsset: (asset: Asset) => void;
   archiveAsset: (assetId: string, reason: string, by: string) => void;
   setAssetStatus: (assetId: string, status: Asset['status']) => void;
   addMaintenanceEvent: (event: MaintenanceEvent) => void;
-  closeMaintenanceEvent: (eventId: string, diagnosis: string, workDone: string) => void;
+  closeMaintenanceEvent: (eventId: string, diagnosis: string, workDone: string, options?: { downtimeEnd?: string; completionDate?: string; notes?: string }) => void;
 
   // Procurement actions
   addPurchaseReq: (pr: PurchaseRequisition) => void;
@@ -176,17 +177,48 @@ interface EOSSState {
 
   // Supplier Quotation actions
   addSupplierQuotation: (quote: SupplierQuotation) => void;
+  updateSupplierQuotation: (id: string, partial: Partial<SupplierQuotation>) => void;
   selectQuotation: (quoteId: string) => void;
+  generateSPOFromQuotation: (quoteId: string, opts?: { deliverToSiteId?: string; deliverToStoreId?: string; paymentTerms?: string; committedDate?: string }) => { spo?: SupplierPO; error?: string };
 
   // Sales actions
   addRfq: (rfq: CustomerRFQ) => void;
   addQuotation: (q: CustomerQuotation, lines: CustomerQuotationLine[]) => void;
   updateQuotation: (id: string, partial: Partial<CustomerQuotation>) => void;
   convertQuotationToPO: (quotationId: string, po: CustomerPO, poLines: POLine[]) => void;
-  addCustomerPO: (po: CustomerPO) => void;
-  addSupplierPO: (po: SupplierPO) => void;
+  addCustomerPO: (po: CustomerPO, lines?: POLine[]) => void;
+  createJobWithNewCustomerPO: (payload: { job: Job; po?: CustomerPO; poLines?: POLine[] }) => { job: Job; po?: CustomerPO };
+  addSupplierPO: (po: SupplierPO, lines?: SupplierPOLine[]) => void;
   addGRN: (grn: GoodsReceipt) => void;
+  recordGRNReceipt: (input: {
+    spoId: string;
+    receivedDate: string;
+    deliveryChallan: string;
+    vehicleNumber?: string;
+    siteId?: string;
+    storeLocationId?: string;
+    receivedBy: string;
+    notes?: string;
+    lines: {
+      spoLineId: string;
+      receivedQty: number;
+      lots: {
+        lotNumber: string;
+        supplierLotRef?: string;
+        grade?: string;
+        qty: number;
+        mfgDate?: string;
+        expiryDate?: string;
+        notes?: string;
+      }[];
+      notes?: string;
+    }[];
+  }) => { grn?: GoodsReceipt; error?: string };
   acceptGRN: (grnId: string, by: string) => void;
+  rejectGRN: (grnId: string, by: string, reason?: string) => void;
+  startInspectionForGRN: (grnId: string, lotId?: string) => Inspection | undefined;
+  startInspectionForLot: (lotId: string) => Inspection | undefined;
+  completeIncomingInspection: (inspectionId: string, payload: { acceptedQty: number; rejectedQty: number; result: Inspection['result']; remarks?: string; by?: string; measurements?: Inspection['measurements'] }) => void;
   addJob: (job: Job) => void;
   addInspection: (ins: Inspection) => void;
   addDispatchRecord: (d: Dispatch) => void;
@@ -230,7 +262,7 @@ interface EOSSState {
   setInspectionStatus: (id: string, result: Inspection['result']) => void;
   updateNCR: (id: string, partial: Partial<NCR>) => void;
   setNCRStatus: (id: string, status: NCR['status']) => void;
-  updateAsset: (id: string, partial: Partial<Asset>) => void;
+  updateAsset: (id: string, partial: Partial<Asset>) => { ok: boolean; error?: string };
   updateEmployee: (id: string, partial: Partial<Employee>) => void;
 
   // Onboarding state
@@ -689,6 +721,77 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
     lots: s.lots.map(l => l.id !== lotId ? l : { ...l, status }),
   })),
 
+  releaseLotFromHold: (lotId, decision, by, reason) => {
+    const timestamp = new Date().toISOString();
+    set(s => {
+      const lot = s.lots.find(l => l.id === lotId);
+      if (!lot || lot.status !== 'qc_hold') return s;
+      const qty = lot.primaryQty;
+      const stock = s.inventory.find(i => i.materialItemId === lot.materialItemId && i.locationId === lot.storeLocationId);
+      const inventory = stock
+        ? s.inventory.map(i => {
+            if (i.id !== stock.id) return i;
+            if (decision === 'available') {
+              const nextAvail = i.availableQty + qty;
+              return {
+                ...i,
+                qcHoldQty: Math.max(0, i.qcHoldQty - qty),
+                availableQty: nextAvail,
+                shortage: nextAvail < i.reorderPoint,
+              };
+            }
+            return {
+              ...i,
+              onHandQty: Math.max(0, i.onHandQty - qty),
+              qcHoldQty: Math.max(0, i.qcHoldQty - qty),
+              shortage: i.availableQty < i.reorderPoint,
+            };
+          })
+        : s.inventory;
+      const movement: StockMovement = {
+        id: `sm-${Date.now()}`,
+        lotId,
+        movementType: decision === 'available' ? 'Adjustment' : 'Scrap',
+        primaryQty: qty,
+        uom: lot.primaryUom,
+        fromLocation: `${lot.storeLocationName} (QC Hold)`,
+        toLocation: decision === 'available' ? lot.storeLocationName : 'Rejected / Quarantine Scrap',
+        referenceType: 'QC Decision',
+        referenceId: lot.id,
+        referenceNumber: lot.lotNumber,
+        performedBy: by,
+        timestamp,
+        notes: reason,
+      };
+      return {
+        lots: s.lots.map(l => l.id !== lotId ? l : {
+          ...l,
+          status: decision,
+          acceptedQty: decision === 'available' ? qty : 0,
+          rejectedQty: decision === 'scrapped' ? qty : 0,
+        }),
+        inventory,
+        movements: [...s.movements, movement],
+        inspections: s.inspections.map(ins => ins.lotId !== lotId || ins.result === 'pass' || ins.result === 'fail' ? ins : {
+          ...ins,
+          result: decision === 'available' ? 'pass' : 'fail',
+          acceptedQty: decision === 'available' ? qty : 0,
+          rejectedQty: decision === 'scrapped' ? qty : 0,
+          approvedAt: timestamp,
+          remarks: reason || ins.remarks,
+        }),
+        auditEvents: [...s.auditEvents, {
+          id: `ae-${Date.now()}`, actor: by, actorId: s.currentUser.id, scope: 'MaterialLot', action: `qc_${decision}`,
+          entityId: lot.id, entityRef: lot.lotNumber, timestamp, source: 'ui', reason,
+        }],
+      };
+    });
+    get().showToast({
+      type: decision === 'available' ? 'success' : 'warning',
+      title: decision === 'available' ? 'Lot released to Available stock' : 'Lot rejected & quarantined',
+    });
+  },
+
   // ── Asset Actions ──
   addAsset: (asset) => set(s => ({ assets: [asset, ...s.assets] })),
 
@@ -721,13 +824,50 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
 
   addMaintenanceEvent: (event) => set(s => ({
     maintenanceEvents: [event, ...s.maintenanceEvents],
+    assets: s.assets.map(a => {
+      if (a.id !== event.assetId || a.status === 'retired') return a;
+      if (event.type === 'Breakdown' && event.status !== 'closed') {
+        return { ...a, status: 'breakdown' as const };
+      }
+      if ((event.type === 'Preventive' || event.type === 'Corrective') && event.status === 'in_progress' && a.status === 'operational') {
+        return { ...a, status: 'in_maintenance' as const };
+      }
+      return a;
+    }),
   })),
 
-  closeMaintenanceEvent: (eventId, diagnosis, workDone) => {
-    set(s => ({
-      maintenanceEvents: s.maintenanceEvents.map(me =>
-        me.id !== eventId ? me : { ...me, status: 'closed' as const, diagnosis, workDone, downtimeEnd: new Date().toISOString() }),
-    }));
+  closeMaintenanceEvent: (eventId, diagnosis, workDone, options) => {
+    set(s => {
+      const target = s.maintenanceEvents.find(me => me.id === eventId);
+      if (!target) return s;
+      const now = new Date().toISOString();
+      const endTs = options?.downtimeEnd || target.downtimeEnd || now.slice(0, 16);
+      const compDate = options?.completionDate || endTs.slice(0, 10) || now.slice(0, 10);
+      const maintenanceEvents = s.maintenanceEvents.map(me =>
+        me.id !== eventId ? me : {
+          ...me,
+          status: 'closed' as const,
+          diagnosis,
+          workDone,
+          notes: options?.notes ?? me.notes,
+          downtimeEnd: endTs,
+          completionDate: compDate,
+        });
+      const hasOtherBreakdown = maintenanceEvents.some(me => me.assetId === target.assetId && me.type === 'Breakdown' && me.status !== 'closed');
+      const hasOtherInProgress = maintenanceEvents.some(me => me.assetId === target.assetId && me.status === 'in_progress');
+      const assets = s.assets.map(a => {
+        if (a.id !== target.assetId || a.status === 'retired') return a;
+        const nextStatus = hasOtherBreakdown ? 'breakdown' as const
+          : hasOtherInProgress ? 'in_maintenance' as const
+          : (a.status === 'breakdown' || a.status === 'in_maintenance') ? 'operational' as const : a.status;
+        return {
+          ...a,
+          status: nextStatus,
+          ...(target.type === 'Preventive' ? { lastServiceDate: compDate } : {}),
+        };
+      });
+      return { maintenanceEvents, assets };
+    });
     get().showToast({ type: 'success', title: 'Maintenance event closed' });
   },
 
@@ -861,17 +1001,128 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
   })),
 
   // ── Supplier Quotation Actions ──
-  addSupplierQuotation: (quote) => set(s => ({ supplierQuotations: [...s.supplierQuotations, quote] })),
+  addSupplierQuotation: (quote) => set(s => ({ supplierQuotations: [quote, ...s.supplierQuotations] })),
 
-  selectQuotation: (quoteId) => set(s => ({
-    supplierQuotations: s.supplierQuotations.map(q =>
-      q.id === quoteId
-        ? { ...q, status: 'selected' as const }
-        : q.prId === s.supplierQuotations.find(sq => sq.id === quoteId)?.prId
-          ? { ...q, status: q.status === 'selected' ? 'rejected' as const : q.status }
-          : q
-    ),
+  updateSupplierQuotation: (id, partial) => set(s => ({
+    supplierQuotations: s.supplierQuotations.map(q => q.id !== id ? q : { ...q, ...partial }),
   })),
+
+  selectQuotation: (quoteId) => set(s => {
+    const target = s.supplierQuotations.find(sq => sq.id === quoteId);
+    if (!target) return s;
+    return {
+      supplierQuotations: s.supplierQuotations.map(q =>
+        q.id === quoteId
+          ? { ...q, status: 'selected' as const }
+          : (target.prId && q.prId === target.prId)
+            ? { ...q, status: 'rejected' as const }
+            : q
+      ),
+    };
+  }),
+
+  generateSPOFromQuotation: (quoteId, opts) => {
+    const state = get();
+    const quote = state.supplierQuotations.find(q => q.id === quoteId);
+    if (!quote) return { error: 'Quotation not found.' };
+    const existingForQuote = state.supplierPos.find(po => po.supplierQuotationId === quoteId && po.status !== 'cancelled');
+    if (existingForQuote) {
+      return { spo: existingForQuote, error: `Supplier PO ${existingForQuote.poNumber} has already been generated for this quotation.` };
+    }
+    if (quote.prId) {
+      const existingForPr = state.supplierPos.find(po => po.prId === quote.prId && po.status !== 'cancelled');
+      if (existingForPr) {
+        return { spo: existingForPr, error: `Supplier PO ${existingForPr.poNumber} already exists for this Purchase Requisition.` };
+      }
+    }
+    const pr = quote.prId ? state.purchaseReqs.find(p => p.id === quote.prId) : undefined;
+    const siteId = opts?.deliverToSiteId || pr?.deliverToSiteId || state.sites[0]?.id;
+    const site = state.sites.find(st => st.id === siteId);
+    const storeId = opts?.deliverToStoreId || pr?.deliverToStoreId || state.storeLocations.find(l => l.siteId === siteId)?.id;
+    const store = state.storeLocations.find(l => l.id === storeId);
+    const now = new Date();
+    const today = now.toISOString().slice(0, 10);
+    const committed = opts?.committedDate || new Date(now.getTime() + Math.max(1, quote.deliveryDays || 7) * 86400000).toISOString().slice(0, 10);
+    const seq = state.supplierPos.length + 101;
+    const spoId = `spo-${Date.now()}`;
+    const poNumber = `SPO-${now.getFullYear()}-${String(seq).padStart(4, '0')}`;
+    const totalValue = quote.lines.reduce((sum, l) => {
+      const base = l.lineTotal || (l.quotedQty ?? l.orderedQty ?? l.qty ?? 1) * (l.unitRate ?? l.unitPrice ?? 0);
+      const tax = l.taxPct ? base * (l.taxPct / 100) : 0;
+      return sum + base + tax;
+    }, 0);
+    const spo: SupplierPO = {
+      id: spoId,
+      poNumber,
+      spoNumber: poNumber,
+      orderDate: today,
+      supplierId: quote.supplierId,
+      supplierName: quote.supplierName,
+      raisedDate: today,
+      committedDate: committed,
+      status: 'confirmed',
+      totalValue: Math.round(totalValue),
+      currency: quote.currency || 'INR',
+      paymentTerms: opts?.paymentTerms || quote.paymentTerms || 'Net 30 days',
+      prId: pr?.id,
+      prNumber: pr?.prNumber,
+      lineCount: Math.max(1, quote.lines.length),
+      deliverToSiteId: site?.id,
+      deliverToSiteName: site?.name,
+      deliverToStoreId: store?.id,
+      deliverToStoreName: store?.name,
+      supplierQuotationId: quote.id,
+      supplierQuotationRef: quote.quoteNumber,
+      supplierRfqId: quote.supplierRfqId,
+      supplierRfqRef: quote.supplierRfqRef,
+    };
+    const spoLines: SupplierPOLine[] = quote.lines.map((ql, idx) => {
+      const qty = ql.quotedQty ?? ql.orderedQty ?? ql.qty ?? 1;
+      const rate = ql.unitRate ?? ql.unitPrice ?? 0;
+      const matchedMat = state.materials.find(m =>
+        (ql.materialItemId && m.id === ql.materialItemId) ||
+        (ql.materialCode && m.itemCode.toLowerCase() === ql.materialCode.toLowerCase()) ||
+        m.name.toLowerCase() === ql.materialName.toLowerCase()
+      );
+      return {
+        id: `spol-${Date.now()}-${idx}`,
+        spoId,
+        materialItemId: matchedMat?.id ?? ql.materialItemId,
+        materialCode: matchedMat?.itemCode ?? ql.materialCode,
+        materialName: ql.materialName,
+        grade: ql.grade,
+        orderedQty: qty,
+        uom: ql.uom,
+        rate,
+        value: Math.round(qty * rate),
+        committedDate: committed,
+        receivedQty: 0,
+        acceptedQty: 0,
+        rejectedQty: 0,
+        tolerancePct: 0,
+        status: 'pending',
+      };
+    });
+    set(s => ({
+      supplierQuotations: s.supplierQuotations.map(q =>
+        q.id === quoteId
+          ? { ...q, status: 'selected' as const }
+          : (quote.prId && q.prId === quote.prId)
+            ? { ...q, status: 'rejected' as const }
+            : q
+      ),
+      supplierPos: [spo, ...s.supplierPos],
+      supplierPoLines: [...s.supplierPoLines, ...spoLines],
+      purchaseReqs: pr ? s.purchaseReqs.map(p => p.id === pr.id ? { ...p, status: 'converted' as const } : p) : s.purchaseReqs,
+      auditEvents: [...s.auditEvents, {
+        id: `ae-${Date.now()}`, actor: s.currentUser.name, actorId: s.currentUser.id, scope: 'SupplierPO', action: 'create_from_quotation',
+        entityId: spoId, entityRef: poNumber, timestamp: now.toISOString(), source: 'ui',
+        after: { quoteId, quoteNumber: quote.quoteNumber, prId: pr?.id, prNumber: pr?.prNumber, totalValue: spo.totalValue },
+      }],
+    }));
+    get().showToast({ type: 'success', title: `Supplier PO ${poNumber} generated`, body: `Created from ${quote.quoteNumber} for ${quote.supplierName}.` });
+    return { spo };
+  },
 
   // ── Sales / Cross-entity Actions ──
   addRfq: (rfq) => set(s => ({ rfqs: [rfq, ...s.rfqs] })),
@@ -914,7 +1165,7 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
   }),
   addPurchaseReq: (pr) => set(s => ({ purchaseReqs: [pr, ...s.purchaseReqs] })),
   updatePurchaseReq: (id, partial) => set(s => ({ purchaseReqs: s.purchaseReqs.map(p => p.id === id ? { ...p, ...partial } : p) })),
-  addCustomerPO: (po) => set(s => {
+  addCustomerPO: (po, lines) => set(s => {
     const customer = s.customers.find(c => c.id === po.customerId);
     const exposure = s.customerPos.filter(p => p.customerId === po.customerId && ['active', 'partial', 'on_hold'].includes(p.status)).reduce((sum, p) => sum + p.totalValue, 0);
     const available = (customer?.creditLimit ?? Number.POSITIVE_INFINITY) - exposure;
@@ -926,10 +1177,343 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
       description: `${po.poNumber} exceeds available credit by ₹${(po.totalValue - available).toLocaleString('en-IN')}.`, requestedBy: s.currentUser.name,
       requestedAt: new Date().toISOString(), status: 'pending', thresholdValue: customer?.creditLimit, currentValue: exposure + po.totalValue, approvalCycle: 1,
     } : undefined;
-    return { customerPos: [nextPo, ...s.customerPos], ...(approval ? { approvalRequests: [approval, ...s.approvalRequests] } : {}) };
+    return {
+      customerPos: s.customerPos.some(p => p.id === nextPo.id) ? s.customerPos : [nextPo, ...s.customerPos],
+      poLines: lines && lines.length > 0 ? [...s.poLines, ...lines] : s.poLines,
+      ...(approval ? { approvalRequests: [approval, ...s.approvalRequests] } : {}),
+    };
   }),
-  addSupplierPO: (spo) => set(s => ({ supplierPos: [spo, ...s.supplierPos] })),
+
+  createJobWithNewCustomerPO: ({ job, po, poLines }) => {
+    const state = get();
+    const existingJob = state.jobs.find(j => j.id === job.id || j.jobNumber === job.jobNumber);
+    if (existingJob) {
+      const existingPo = existingJob.customerPoId ? state.customerPos.find(p => p.id === existingJob.customerPoId) : undefined;
+      return { job: existingJob, po: existingPo };
+    }
+    const timestamp = new Date().toISOString();
+    let createdPo = po;
+    let finalJob = job;
+
+    if (po) {
+      const dupPo = state.customerPos.find(p => p.id === po.id || p.poNumber.trim().toLowerCase() === po.poNumber.trim().toLowerCase());
+      if (dupPo) {
+        createdPo = dupPo;
+      } else {
+        const customer = state.customers.find(c => c.id === po.customerId);
+        const exposure = state.customerPos.filter(p => p.customerId === po.customerId && ['active', 'partial', 'on_hold'].includes(p.status)).reduce((sum, p) => sum + p.totalValue, 0);
+        const available = (customer?.creditLimit ?? Number.POSITIVE_INFINITY) - exposure;
+        const exceedsCredit = Number.isFinite(available) && po.totalValue > available;
+        const approvalId = exceedsCredit ? `apr-credit-${po.id}` : undefined;
+        createdPo = { ...po, status: exceedsCredit ? 'on_hold' as const : po.status, creditApprovalId: approvalId };
+      }
+      finalJob = {
+        ...job,
+        customerPoId: createdPo.id,
+        customerPoNumber: createdPo.poNumber,
+        poLineId: poLines?.[0]?.id ?? job.poLineId,
+      };
+    }
+
+    const linkedLines: POLine[] = (poLines ?? []).map(l => ({
+      ...l,
+      poId: createdPo?.id ?? l.poId,
+      jobId: finalJob.id,
+      jobNumber: finalJob.jobNumber,
+    }));
+
+    set(s => {
+      const poAlreadyStored = createdPo ? s.customerPos.some(p => p.id === createdPo!.id) : true;
+      const approval: ApprovalRequest | undefined = (!poAlreadyStored && createdPo?.creditApprovalId) ? {
+        id: createdPo.creditApprovalId,
+        requestType: 'Customer PO Credit Limit Approval',
+        entityRef: createdPo.poNumber,
+        entityId: createdPo.id,
+        description: `${createdPo.poNumber} requires credit limit review.`,
+        requestedBy: s.currentUser.name,
+        requestedAt: timestamp,
+        status: 'pending',
+        approvalCycle: 1,
+      } : undefined;
+      return {
+        customerPos: (!poAlreadyStored && createdPo) ? [createdPo, ...s.customerPos] : s.customerPos,
+        poLines: linkedLines.length > 0 ? [...s.poLines, ...linkedLines] : s.poLines,
+        jobs: [finalJob, ...s.jobs],
+        ...(approval ? { approvalRequests: [approval, ...s.approvalRequests] } : {}),
+        auditEvents: [
+          ...s.auditEvents,
+          ...(createdPo && !poAlreadyStored ? [{
+            id: `ae-po-${Date.now()}`, actor: s.currentUser.name, actorId: s.currentUser.id, scope: 'CustomerPO', action: 'create_with_job',
+            entityId: createdPo.id, entityRef: createdPo.poNumber, timestamp, source: 'ui' as const,
+            after: { poNumber: createdPo.poNumber, jobId: finalJob.id, jobNumber: finalJob.jobNumber },
+          }] : []),
+          {
+            id: `ae-job-${Date.now() + 1}`, actor: s.currentUser.name, actorId: s.currentUser.id, scope: 'Job', action: 'create',
+            entityId: finalJob.id, entityRef: finalJob.jobNumber, timestamp, source: 'ui' as const,
+            after: { jobNumber: finalJob.jobNumber, customerPoId: finalJob.customerPoId, customerPoNumber: finalJob.customerPoNumber },
+          },
+        ],
+      };
+    });
+    return { job: finalJob, po: createdPo };
+  },
+
+  addSupplierPO: (spo, lines) => set(s => ({
+    supplierPos: [spo, ...s.supplierPos],
+    supplierPoLines: lines && lines.length > 0 ? [...s.supplierPoLines, ...lines] : s.supplierPoLines,
+  })),
   addGRN: (grn) => set(s => ({ grns: [grn, ...s.grns] })),
+
+  recordGRNReceipt: (input) => {
+    const state = get();
+    const spo = state.supplierPos.find(p => p.id === input.spoId);
+    if (!spo) return { error: 'Supplier PO not found.' };
+    if (spo.status === 'cancelled' || spo.status === 'draft') {
+      return { error: `Cannot record receipt against a ${spo.status} Supplier PO.` };
+    }
+    const spoLines = state.supplierPoLines.filter(l => l.spoId === spo.id);
+    if (spoLines.length === 0) {
+      return { error: 'This Supplier PO has no ordered line items to receive.' };
+    }
+    const activeInputLines = input.lines.filter(l => Number(l.receivedQty) > 0);
+    if (activeInputLines.length === 0) {
+      return { error: 'Enter a received quantity greater than 0 for at least one line item.' };
+    }
+    if (!input.deliveryChallan.trim()) {
+      return { error: 'Delivery challan reference is required.' };
+    }
+
+    const seenLotNumbers = new Set(state.lots.map(l => l.lotNumber.trim().toLowerCase()));
+    for (const lineInput of activeInputLines) {
+      const spoLine = spoLines.find(l => l.id === lineInput.spoLineId);
+      if (!spoLine) return { error: 'Invalid Supplier PO line referenced.' };
+      if (lineInput.receivedQty <= 0) return { error: `Received quantity must be positive for ${spoLine.materialName}.` };
+      const maxAllowable = spoLine.orderedQty * (1 + (spoLine.tolerancePct ?? 0) / 100) - spoLine.receivedQty;
+      if (lineInput.receivedQty > maxAllowable + 1e-6) {
+        return {
+          error: `Over-receipt blocked for ${spoLine.materialName}: remaining allowable is ${Math.max(0, Number(maxAllowable.toFixed(3)))} ${spoLine.uom}.`,
+        };
+      }
+      if (!lineInput.lots || lineInput.lots.length === 0) {
+        return { error: `At least one lot must be recorded for ${spoLine.materialName}.` };
+      }
+      let lotSum = 0;
+      for (const lot of lineInput.lots) {
+        if (!lot.lotNumber.trim()) return { error: `Lot number is required for ${spoLine.materialName}.` };
+        if (lot.qty <= 0) return { error: `Lot ${lot.lotNumber} quantity must be greater than 0.` };
+        const normLot = lot.lotNumber.trim().toLowerCase();
+        if (seenLotNumbers.has(normLot)) {
+          return { error: `Duplicate lot number "${lot.lotNumber}". Each lot must have a unique reference.` };
+        }
+        seenLotNumbers.add(normLot);
+        lotSum += lot.qty;
+      }
+      if (Math.abs(lotSum - lineInput.receivedQty) > 1e-6) {
+        return {
+          error: `Lot quantities (${lotSum} ${spoLine.uom}) must equal actual received quantity (${lineInput.receivedQty} ${spoLine.uom}) for ${spoLine.materialName}.`,
+        };
+      }
+    }
+
+    const now = new Date();
+    const timestamp = now.toISOString();
+    const siteId = input.siteId || spo.deliverToSiteId || state.sites[0]?.id;
+    const site = state.sites.find(st => st.id === siteId);
+    const defaultQuarantine = state.storeLocations.find(sl => sl.siteId === siteId && sl.locationType === 'Quarantine')
+      || state.storeLocations.find(sl => sl.id === (input.storeLocationId || spo.deliverToStoreId))
+      || state.storeLocations.find(sl => sl.siteId === siteId)
+      || state.storeLocations[0];
+    const storeId = input.storeLocationId || spo.deliverToStoreId || defaultQuarantine?.id || '';
+    const storeName = state.storeLocations.find(sl => sl.id === storeId)?.name || spo.deliverToStoreName || defaultQuarantine?.name || 'Quarantine & QC Hold';
+    const grnId = `grn-${Date.now()}`;
+    const grnNumber = `GRN-${now.getFullYear()}-${String(state.grns.length + 1).padStart(4, '0')}`;
+
+    const newLots: MaterialLot[] = [];
+    const newMovements: StockMovement[] = [];
+    const grnLines: GoodsReceiptLine[] = [];
+    let updatedInventory = [...state.inventory];
+
+    for (const lineInput of activeInputLines) {
+      const spoLine = spoLines.find(l => l.id === lineInput.spoLineId)!;
+      const material = state.materials.find(m => m.id === spoLine.materialItemId);
+      const lotIds: string[] = [];
+      const lotAllocations: GoodsReceiptLine['lots'] = [];
+
+      lineInput.lots.forEach((lotInput, idx) => {
+        const lotId = `lot-${Date.now()}-${spoLine.id}-${idx}`;
+        lotIds.push(lotId);
+        const lotGrade = lotInput.grade || spoLine.grade || material?.standardGrade;
+        const createdLot: MaterialLot = {
+          id: lotId,
+          lotNumber: lotInput.lotNumber.trim(),
+          heatNumber: lotInput.supplierLotRef?.trim() || undefined,
+          supplierBatchRef: lotInput.supplierLotRef?.trim() || undefined,
+          materialItemId: spoLine.materialItemId,
+          materialName: spoLine.materialName,
+          supplierId: spo.supplierId,
+          supplierName: spo.supplierName,
+          spoId: spo.id,
+          grnId,
+          receivedDate: input.receivedDate,
+          mfgDate: lotInput.mfgDate || undefined,
+          expiryDate: lotInput.expiryDate || undefined,
+          grade: lotGrade,
+          status: 'qc_hold',
+          storeLocationId: storeId,
+          storeLocationName: storeName,
+          primaryQty: lotInput.qty,
+          receivedQty: lotInput.qty,
+          acceptedQty: 0,
+          rejectedQty: 0,
+          primaryUom: spoLine.uom,
+          certStatus: 'pending',
+          notes: lotInput.notes || undefined,
+        };
+        newLots.push(createdLot);
+        lotAllocations.push({
+          id: `grnl-${lotId}`,
+          lotId,
+          lotNumber: createdLot.lotNumber,
+          supplierLotRef: createdLot.supplierBatchRef,
+          grade: lotGrade,
+          qty: lotInput.qty,
+          uom: spoLine.uom,
+          mfgDate: createdLot.mfgDate,
+          expiryDate: createdLot.expiryDate,
+          qualityStatus: 'pending_qc',
+          notes: lotInput.notes,
+        });
+        newMovements.push({
+          id: `sm-${Date.now()}-${spoLine.id}-${idx}`,
+          lotId,
+          movementType: 'Receipt',
+          primaryQty: lotInput.qty,
+          uom: spoLine.uom,
+          fromLocation: spo.supplierName,
+          toLocation: `${storeName} (Awaiting QC)`,
+          referenceType: 'GRN',
+          referenceId: grnId,
+          referenceNumber: grnNumber,
+          performedBy: input.receivedBy,
+          timestamp,
+          notes: `Received against ${spo.poNumber} (Lot ${createdLot.lotNumber}, pending inspection)`,
+        });
+      });
+
+      const qtyAdded = lineInput.receivedQty;
+      const existingInv = updatedInventory.find(i => i.materialItemId === spoLine.materialItemId && i.locationId === storeId);
+      if (existingInv) {
+        updatedInventory = updatedInventory.map(i => i.id !== existingInv.id ? i : {
+          ...i,
+          onHandQty: i.onHandQty + qtyAdded,
+          qcHoldQty: i.qcHoldQty + qtyAdded,
+          inTransitQty: Math.max(0, i.inTransitQty - qtyAdded),
+          lotCount: i.lotCount + lineInput.lots.length,
+          shortage: i.availableQty < i.reorderPoint,
+        });
+      } else {
+        updatedInventory.unshift({
+          id: `inv-${Date.now()}-${spoLine.materialItemId}-${storeId}`,
+          materialItemId: spoLine.materialItemId,
+          materialCode: material?.itemCode ?? spoLine.materialCode ?? spoLine.materialItemId,
+          materialName: spoLine.materialName,
+          categoryName: material?.categoryName ?? 'Uncategorised',
+          locationId: storeId,
+          locationName: storeName,
+          onHandQty: qtyAdded,
+          availableQty: 0,
+          reservedQty: 0,
+          qcHoldQty: qtyAdded,
+          inTransitQty: 0,
+          primaryUom: spoLine.uom,
+          reorderPoint: material?.reorderPoint ?? 0,
+          shortage: (material?.reorderPoint ?? 0) > 0,
+          lotCount: lineInput.lots.length,
+          unitCost: spoLine.rate,
+        });
+      }
+
+      grnLines.push({
+        id: `grnline-${Date.now()}-${spoLine.id}`,
+        spoLineId: spoLine.id,
+        materialItemId: spoLine.materialItemId,
+        materialCode: material?.itemCode ?? spoLine.materialCode,
+        materialName: spoLine.materialName,
+        grade: spoLine.grade ?? material?.standardGrade,
+        orderedQty: spoLine.orderedQty,
+        previouslyReceivedQty: spoLine.receivedQty,
+        receivedQty: lineInput.receivedQty,
+        uom: spoLine.uom,
+        lots: lotAllocations,
+        notes: lineInput.notes,
+      });
+    }
+
+    const grn: GoodsReceipt = {
+      id: grnId,
+      grnNumber,
+      supplierId: spo.supplierId,
+      supplierName: spo.supplierName,
+      spoId: spo.id,
+      spoNumber: spo.poNumber,
+      receivedDate: input.receivedDate,
+      receivedBy: input.receivedBy,
+      deliveryChallan: input.deliveryChallan.trim(),
+      vehicleNumber: input.vehicleNumber?.trim() || undefined,
+      status: 'pending_qc',
+      lineCount: grnLines.length,
+      siteId: site?.id,
+      siteName: site?.name,
+      storeLocationId: storeId,
+      storeLocationName: storeName,
+      lines: grnLines,
+      notes: input.notes?.trim() || undefined,
+    };
+
+    const nextSpoLines = state.supplierPoLines.map(line => {
+      if (line.spoId !== spo.id) return line;
+      const lineInput = activeInputLines.find(l => l.spoLineId === line.id);
+      if (!lineInput) return line;
+      const nextReceived = line.receivedQty + lineInput.receivedQty;
+      return {
+        ...line,
+        receivedQty: nextReceived,
+        status: nextReceived >= line.orderedQty ? 'received' as const : 'partial' as const,
+      };
+    });
+
+    const spoLinesAfter = nextSpoLines.filter(l => l.spoId === spo.id);
+    const allLinesReceived = spoLinesAfter.every(l => l.receivedQty >= l.orderedQty);
+    const nextSpoStatus: SupplierPO['status'] = allLinesReceived ? 'received' : 'partial';
+
+    set(s => ({
+      grns: [grn, ...s.grns],
+      lots: [...newLots, ...s.lots],
+      movements: [...s.movements, ...newMovements],
+      inventory: updatedInventory,
+      supplierPoLines: nextSpoLines,
+      supplierPos: s.supplierPos.map(p => p.id === spo.id ? { ...p, status: nextSpoStatus } : p),
+      auditEvents: [...s.auditEvents, {
+        id: `ae-${Date.now()}`,
+        actor: input.receivedBy,
+        actorId: s.currentUser.id,
+        scope: 'GRN',
+        action: 'create_receipt',
+        entityId: grnId,
+        entityRef: grnNumber,
+        timestamp,
+        source: 'ui',
+        after: { spoNumber: spo.poNumber, lotCount: newLots.length, lineCount: grnLines.length, spoStatus: nextSpoStatus },
+      }],
+    }));
+
+    get().showToast({
+      type: 'success',
+      title: `GRN ${grnNumber} recorded`,
+      body: `${newLots.length} lot(s) placed in QC Hold awaiting incoming inspection.`,
+    });
+    return { grn };
+  },
   acceptGRN: (grnId, by) => {
     set(s => {
       const grn = s.grns.find(g => g.id === grnId);
@@ -978,6 +1562,316 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
       };
     });
     get().showToast({ type: 'success', title: 'GRN accepted', body: 'Accepted quantities are now available in Inventory. Pending and rejected quantities remain excluded.' });
+  },
+
+  rejectGRN: (grnId, by, reason) => {
+    const timestamp = new Date().toISOString();
+    set(s => {
+      const grn = s.grns.find(g => g.id === grnId);
+      if (!grn || grn.status === 'rejected') return s;
+      const holdLots = s.lots.filter(l => l.grnId === grnId && l.status === 'qc_hold');
+      let inventory = [...s.inventory];
+      const movements = [...s.movements];
+      for (const lot of holdLots) {
+        inventory = inventory.map(i => (i.materialItemId === lot.materialItemId && i.locationId === lot.storeLocationId)
+          ? {
+              ...i,
+              onHandQty: Math.max(0, i.onHandQty - lot.primaryQty),
+              qcHoldQty: Math.max(0, i.qcHoldQty - lot.primaryQty),
+              shortage: i.availableQty < i.reorderPoint,
+            }
+          : i);
+        movements.push({
+          id: `sm-rej-${Date.now()}-${lot.id}`,
+          lotId: lot.id,
+          movementType: 'Scrap',
+          primaryQty: lot.primaryQty,
+          uom: lot.primaryUom,
+          fromLocation: `${lot.storeLocationName} (QC Hold)`,
+          toLocation: 'Rejected Quarantine',
+          referenceType: 'GRN Rejection',
+          referenceId: grn.id,
+          referenceNumber: grn.grnNumber,
+          performedBy: by,
+          timestamp,
+          notes: reason || 'Rejected at GRN receiving inspection',
+        });
+      }
+      return {
+        grns: s.grns.map(g => g.id === grnId ? { ...g, status: 'rejected' as const } : g),
+        lots: s.lots.map(l => l.grnId === grnId && l.status === 'qc_hold' ? { ...l, status: 'scrapped' as const, rejectedQty: l.primaryQty } : l),
+        inventory,
+        movements,
+        auditEvents: [...s.auditEvents, {
+          id: `ae-${Date.now()}`, actor: by, actorId: s.currentUser.id, scope: 'GRN', action: 'reject',
+          entityId: grn.id, entityRef: grn.grnNumber, timestamp, source: 'ui', reason,
+        }],
+      };
+    });
+    get().showToast({ type: 'warning', title: 'GRN rejected', body: 'Received lots were segregated out of available inventory.' });
+  },
+
+  startInspectionForLot: (lotId) => {
+    const state = get();
+    const lot = state.lots.find(l => l.id === lotId);
+    if (!lot) return undefined;
+    const existing = state.inspections.find(i => i.lotId === lotId && i.type === 'Incoming');
+    if (existing) return existing;
+    const grn = lot.grnId ? state.grns.find(g => g.id === lot.grnId) : undefined;
+    const spoId = lot.spoId ?? grn?.spoId;
+    const spo = spoId ? state.supplierPos.find(p => p.id === spoId) : undefined;
+    const siteId = grn?.siteId ?? state.storeLocations.find(sl => sl.id === lot.storeLocationId)?.siteId;
+    const siteName = grn?.siteName ?? state.sites.find(st => st.id === siteId)?.name;
+    const ins: Inspection = {
+      id: `ins-${Date.now()}-${lot.id.slice(-4)}`,
+      inspectionNumber: `INS-${new Date().getFullYear()}-${String(state.inspections.length + 1).padStart(4, '0')}`,
+      type: 'Incoming',
+      origin: 'internal',
+      lotId: lot.id,
+      grnId: grn?.id,
+      grnNumber: grn?.grnNumber,
+      poId: spo?.id,
+      spoNumber: spo?.poNumber ?? grn?.spoNumber,
+      siteId,
+      siteName,
+      subject: `${lot.materialName} (${lot.lotNumber})`,
+      productDescription: `${lot.materialName}${lot.grade ? ` · ${lot.grade}` : ''}`,
+      quantityInspected: lot.primaryQty,
+      uom: lot.primaryUom,
+      inspectorId: state.currentUser.id,
+      inspectorName: state.currentUser.name,
+      date: new Date().toISOString().slice(0, 10),
+      receivedDate: lot.receivedDate,
+      templateName: 'Incoming Material Inspection',
+      sampleQty: lot.primaryQty,
+      acceptedQty: 0,
+      rejectedQty: 0,
+      result: 'pending',
+    };
+    set(s => ({ inspections: [ins, ...s.inspections] }));
+    return ins;
+  },
+
+  startInspectionForGRN: (grnId, lotId) => {
+    const state = get();
+    const grn = state.grns.find(g => g.id === grnId);
+    if (!grn) return undefined;
+    const grnLots = state.lots.filter(l => l.grnId === grnId);
+    const targetLot = lotId
+      ? grnLots.find(l => l.id === lotId) ?? state.lots.find(l => l.id === lotId)
+      : grnLots.find(l => l.status === 'qc_hold') ?? grnLots[0];
+    if (targetLot) {
+      return get().startInspectionForLot(targetLot.id);
+    }
+    const existingByGrn = state.inspections.find(i => i.grnId === grnId && i.type === 'Incoming');
+    if (existingByGrn) return existingByGrn;
+    const lineSummary = grn.lines?.[0];
+    const ins: Inspection = {
+      id: `ins-${Date.now()}`,
+      inspectionNumber: `INS-${new Date().getFullYear()}-${String(state.inspections.length + 1).padStart(4, '0')}`,
+      type: 'Incoming',
+      origin: 'internal',
+      grnId: grn.id,
+      grnNumber: grn.grnNumber,
+      poId: grn.spoId,
+      spoNumber: grn.spoNumber,
+      siteId: grn.siteId,
+      siteName: grn.siteName,
+      subject: lineSummary ? lineSummary.materialName : grn.grnNumber,
+      productDescription: lineSummary ? `${lineSummary.materialName}${lineSummary.grade ? ` · ${lineSummary.grade}` : ''}` : `Receipt ${grn.grnNumber}`,
+      quantityInspected: lineSummary?.receivedQty ?? grn.lineCount,
+      uom: lineSummary?.uom ?? 'Units',
+      inspectorId: state.currentUser.id,
+      inspectorName: state.currentUser.name,
+      date: new Date().toISOString().slice(0, 10),
+      receivedDate: grn.receivedDate,
+      templateName: 'Incoming Material Inspection',
+      sampleQty: lineSummary?.receivedQty ?? 1,
+      acceptedQty: 0,
+      rejectedQty: 0,
+      result: 'pending',
+    };
+    set(s => ({ inspections: [ins, ...s.inspections] }));
+    return ins;
+  },
+
+  completeIncomingInspection: (inspectionId, payload) => {
+    const timestamp = new Date().toISOString();
+    set(s => {
+      const ins = s.inspections.find(i => i.id === inspectionId);
+      if (!ins) return s;
+      const by = payload.by || s.currentUser.name;
+      const lot = ins.lotId ? s.lots.find(l => l.id === ins.lotId) : undefined;
+      const totalLotQty = lot ? lot.primaryQty : Math.max(0, ins.sampleQty || (payload.acceptedQty + payload.rejectedQty));
+      let acceptedQty = Math.max(0, Math.min(payload.acceptedQty, totalLotQty));
+      let rejectedQty = Math.max(0, Math.min(payload.rejectedQty, totalLotQty - acceptedQty));
+      if (payload.result === 'pass' && acceptedQty === 0 && rejectedQty === 0) acceptedQty = totalLotQty;
+      if (payload.result === 'fail' && acceptedQty === 0 && rejectedQty === 0) rejectedQty = totalLotQty;
+      if (payload.result === 'hold') {
+        acceptedQty = 0;
+        rejectedQty = 0;
+      }
+      const holdQty = Math.max(0, totalLotQty - acceptedQty - rejectedQty);
+
+      let lots = [...s.lots];
+      let inventory = [...s.inventory];
+      const movements = [...s.movements];
+      let supplierPoLines = [...s.supplierPoLines];
+      let grns = [...s.grns];
+
+      if (lot && lot.status === 'qc_hold' && payload.result !== 'hold' && (acceptedQty > 0 || rejectedQty > 0)) {
+        const extraLots: MaterialLot[] = [];
+        lots = lots.map(l => {
+          if (l.id !== lot.id) return l;
+          if (acceptedQty > 0 && rejectedQty === 0 && holdQty === 0) {
+            return { ...l, status: 'available' as const, acceptedQty, rejectedQty: 0 };
+          }
+          if (acceptedQty === 0 && rejectedQty > 0 && holdQty === 0) {
+            return { ...l, status: 'scrapped' as const, acceptedQty: 0, rejectedQty };
+          }
+          if (acceptedQty > 0) {
+            return { ...l, primaryQty: acceptedQty, acceptedQty, rejectedQty: 0, status: 'available' as const };
+          }
+          return { ...l, primaryQty: holdQty, acceptedQty: 0, rejectedQty, status: 'qc_hold' as const };
+        });
+        if (rejectedQty > 0 && (acceptedQty > 0 || holdQty > 0)) {
+          extraLots.push({
+            ...lot,
+            id: `lot-rej-${lot.id}-${Date.now()}`,
+            lotNumber: `${lot.lotNumber}-REJ`,
+            parentLotId: lot.id,
+            primaryQty: rejectedQty,
+            receivedQty: rejectedQty,
+            acceptedQty: 0,
+            rejectedQty,
+            status: 'scrapped',
+          });
+        }
+        if (holdQty > 0 && acceptedQty > 0) {
+          extraLots.push({
+            ...lot,
+            id: `lot-hold-${lot.id}-${Date.now()}`,
+            lotNumber: `${lot.lotNumber}-HOLD`,
+            parentLotId: lot.id,
+            primaryQty: holdQty,
+            receivedQty: holdQty,
+            acceptedQty: 0,
+            rejectedQty: 0,
+            status: 'qc_hold',
+          });
+        }
+        if (extraLots.length > 0) {
+          lots = [...lots, ...extraLots];
+        }
+
+        const stock = inventory.find(i => i.materialItemId === lot.materialItemId && i.locationId === lot.storeLocationId);
+        if (stock) {
+          const nextAvail = stock.availableQty + acceptedQty;
+          inventory = inventory.map(i => i.id !== stock.id ? i : {
+            ...i,
+            qcHoldQty: Math.max(0, i.qcHoldQty - (acceptedQty + rejectedQty)),
+            availableQty: nextAvail,
+            onHandQty: Math.max(0, i.onHandQty - rejectedQty),
+            lotCount: i.lotCount + extraLots.length,
+            shortage: nextAvail < i.reorderPoint,
+          });
+        }
+
+        if (acceptedQty > 0) {
+          movements.push({
+            id: `sm-insp-acc-${Date.now()}`,
+            lotId: lot.id,
+            movementType: 'Adjustment',
+            primaryQty: acceptedQty,
+            uom: lot.primaryUom,
+            fromLocation: `${lot.storeLocationName} (QC Hold)`,
+            toLocation: lot.storeLocationName,
+            referenceType: 'Incoming Inspection',
+            referenceId: ins.id,
+            referenceNumber: ins.inspectionNumber,
+            performedBy: by,
+            timestamp,
+            notes: `Released ${acceptedQty} ${lot.primaryUom} after inspection (${payload.result})`,
+          });
+        }
+        if (rejectedQty > 0) {
+          movements.push({
+            id: `sm-insp-rej-${Date.now() + 1}`,
+            lotId: extraLots.find(e => e.status === 'scrapped')?.id ?? lot.id,
+            movementType: 'Scrap',
+            primaryQty: rejectedQty,
+            uom: lot.primaryUom,
+            fromLocation: `${lot.storeLocationName} (QC Hold)`,
+            toLocation: 'Rejected Quarantine',
+            referenceType: 'Incoming Inspection',
+            referenceId: ins.id,
+            referenceNumber: ins.inspectionNumber,
+            performedBy: by,
+            timestamp,
+            notes: `Rejected ${rejectedQty} ${lot.primaryUom} during incoming inspection`,
+          });
+        }
+
+        const spoId = lot.spoId ?? ins.poId;
+        if (spoId) {
+          supplierPoLines = supplierPoLines.map(line => (line.spoId === spoId && line.materialItemId === lot.materialItemId)
+            ? {
+                ...line,
+                acceptedQty: Math.min(line.receivedQty, line.acceptedQty + acceptedQty),
+                rejectedQty: Math.min(line.receivedQty, line.rejectedQty + rejectedQty),
+              }
+            : line);
+        }
+
+        const targetGrnId = ins.grnId ?? lot.grnId;
+        if (targetGrnId) {
+          const grnLots = lots.filter(l => l.grnId === targetGrnId);
+          const hasHold = grnLots.some(l => l.status === 'qc_hold');
+          const hasAvail = grnLots.some(l => l.status === 'available');
+          const hasRej = grnLots.some(l => l.status === 'scrapped');
+          const nextGrnStatus: GoodsReceipt['status'] = !hasHold && hasAvail && !hasRej
+            ? 'accepted'
+            : hasRej && !hasAvail && !hasHold
+              ? 'rejected'
+              : (hasAvail || hasRej) ? 'partial' : 'qc_hold';
+          grns = grns.map(g => g.id === targetGrnId ? { ...g, status: nextGrnStatus } : g);
+        }
+      } else if (ins.grnId && payload.result === 'hold') {
+        grns = grns.map(g => g.id === ins.grnId ? { ...g, status: 'qc_hold' as const } : g);
+      }
+
+      const inspections = s.inspections.map(i => i.id !== inspectionId ? i : {
+        ...i,
+        acceptedQty,
+        rejectedQty,
+        result: payload.result,
+        remarks: payload.remarks ?? i.remarks,
+        measurements: payload.measurements ?? i.measurements,
+        approvedAt: (payload.result === 'pass' || payload.result === 'partial') ? timestamp : i.approvedAt,
+      });
+
+      return {
+        inspections,
+        lots,
+        inventory,
+        movements,
+        supplierPoLines,
+        grns,
+        auditEvents: [...s.auditEvents, {
+          id: `ae-${Date.now()}`,
+          actor: by,
+          actorId: s.currentUser.id,
+          scope: 'Inspection',
+          action: 'complete_incoming',
+          entityId: inspectionId,
+          entityRef: ins.inspectionNumber,
+          timestamp,
+          source: 'ui',
+          after: { result: payload.result, acceptedQty, rejectedQty, lotId: lot?.id },
+        }],
+      };
+    });
+    get().showToast({ type: 'success', title: 'Inspection recorded', body: 'Lot quality status and inventory availability have been updated.' });
   },
   addJob: (job) => set(s => ({ jobs: [job, ...s.jobs] })),
   addInspection: (ins) => set(s => ({ inspections: [ins, ...s.inspections] })),
@@ -1091,7 +1985,46 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
   setInspectionStatus: (id, result) => set(s => ({ inspections: s.inspections.map(i => i.id === id ? { ...i, result } : i) })),
   updateNCR: (id, partial) => set(s => ({ ncrs: s.ncrs.map(n => n.id === id ? { ...n, ...partial } : n) })),
   setNCRStatus: (id, status) => set(s => ({ ncrs: s.ncrs.map(n => n.id === id ? { ...n, status } : n) })),
-  updateAsset: (id, partial) => set(s => ({ assets: s.assets.map(a => a.id === id ? { ...a, ...partial } : a) })),
+  updateAsset: (id, partial) => {
+    const state = get();
+    const existing = state.assets.find(a => a.id === id);
+    if (!existing) return { ok: false, error: 'Asset not found.' };
+    if (partial.status === 'operational') {
+      const openBreakdown = state.maintenanceEvents.find(me => me.assetId === id && me.type === 'Breakdown' && me.status !== 'closed');
+      if (openBreakdown) {
+        const msg = `Cannot mark ${existing.assetCode} operational while breakdown ${openBreakdown.eventNumber} is unresolved.`;
+        get().showToast({ type: 'error', title: 'Open Breakdown Exists', body: msg });
+        return { ok: false, error: msg };
+      }
+    }
+    const readingChanged = partial.currentReading !== undefined && partial.currentReading !== existing.currentReading;
+    const now = new Date().toISOString();
+    set(s => {
+      const newReadingEntry: MeterReading | undefined = readingChanged ? {
+        id: `mr-${Date.now()}`,
+        assetId: id,
+        assetCode: existing.assetCode,
+        previousReading: existing.currentReading ?? 0,
+        reading: partial.currentReading!,
+        readingDate: now.slice(0, 10),
+        recordedByEmployeeId: s.currentUser.id,
+        recordedBy: s.currentUser.name,
+        readingType: 'routine',
+        notes: `Updated via Asset Edit (${existing.currentReading ?? 0} → ${partial.currentReading})`,
+      } : undefined;
+      return {
+        assets: s.assets.map(a => a.id === id ? { ...a, ...partial } : a),
+        meterReadings: newReadingEntry ? [...s.meterReadings, newReadingEntry] : s.meterReadings,
+        auditEvents: [...s.auditEvents, {
+          id: `ae-${Date.now()}`, actor: s.currentUser.name, actorId: s.currentUser.id, scope: 'Asset', action: 'update',
+          entityId: id, entityRef: existing.assetCode, timestamp: now, source: 'ui',
+          before: { status: existing.status, currentReading: existing.currentReading },
+          after: partial as Record<string, unknown>,
+        }],
+      };
+    });
+    return { ok: true };
+  },
   updateEmployee: (id, partial) => set(s => ({ employees: s.employees.map(e => e.id === id ? { ...e, ...partial } : e) })),
 
   // ── Onboarding Actions ──

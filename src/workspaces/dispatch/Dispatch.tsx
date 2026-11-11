@@ -192,14 +192,12 @@ export default function DispatchWorkspace() {
                 </td>
                 <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                   <div className="flex items-center gap-1">
-                    {d.status === 'dispatched' && !d.hasPoD ? (
+                    {d.status === 'dispatched' && !d.hasPoD && (
                       <button onClick={e => { e.stopPropagation(); setPodDispatchId(d.id); }}
                         className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg border font-medium transition-colors"
                         style={{ borderColor: 'var(--brand)', color: 'var(--brand)' }} title="Record Proof of Delivery">
                         <PackageCheck size={11} /> PoD
                       </button>
-                    ) : (
-                      <ChevronRight size={14} style={{ color: 'var(--text-3)' }} />
                     )}
                     {canManage && d.status !== 'delivered' && (
                       <button onClick={e => handleDeleteDispatch(d.id, e)} className="p-1 rounded hover:bg-[var(--surface-2)]" title="Remove dispatch"><Trash2 size={12} style={{ color: 'var(--error,#DC2626)' }} /></button>

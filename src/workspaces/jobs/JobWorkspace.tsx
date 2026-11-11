@@ -9,7 +9,7 @@ import { EMPLOYEES } from '../../data/seed';
 import StatusChip from '../../components/layout/StatusChip';
 import MaterialFeasibilityPanel from '../../components/domain/MaterialFeasibilityPanel';
 import clsx from 'clsx';
-import { jobMaterialQuantities, materialReadinessForJob } from '../../domain/inventory';
+import { jobMaterialQuantities, materialReadinessForJob, getMaterialReadinessLabel } from '../../domain/inventory';
 import type { JobMaterialReq, JobUpdate } from '../../types';
 
 const TABS = ['Overview', 'Stages', 'Materials', 'Quality', 'NCR / Rework', 'Updates', 'Blockers'];
@@ -135,8 +135,22 @@ export default function JobWorkspace() {
           <h1 className="text-2xl font-bold text-[var(--text)]">
             {job.customerName}
           </h1>
-          <div className="text-xs text-[var(--text-3)] flex items-center gap-3">
-            <span>PO: <strong className="text-[var(--text-2)] font-mono">{job.customerPoNumber || '—'}</strong></span>
+          <div className="text-xs text-[var(--text-3)] flex items-center gap-3 flex-wrap">
+            <span>
+              Customer PO:{' '}
+              {job.customerPoId && job.customerPoNumber ? (
+                <button
+                  type="button"
+                  onClick={() => navigate(`/sales/po/${job.customerPoId}`)}
+                  className="text-[var(--brand)] hover:underline font-mono font-semibold inline-flex items-center gap-1"
+                >
+                  {job.customerPoNumber}
+                  <ExternalLink size={11} />
+                </button>
+              ) : (
+                <strong className="text-[var(--text-2)] font-mono">{job.customerPoNumber || '—'}</strong>
+              )}
+            </span>
             <span>·</span>
             <span>Value: <strong className="text-[var(--text-2)] font-mono">₹{(((job.value ?? 0) / 1000)).toLocaleString('en-IN')}k</strong></span>
             <span>·</span>
@@ -261,8 +275,8 @@ export default function JobWorkspace() {
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             <div className="p-3.5 rounded-xl bg-[var(--surface)] border border-[var(--border)]">
               <div className="text-xs text-[var(--text-3)] font-medium">Materials</div>
-              <div className={clsx('text-sm font-bold mt-1 capitalize', job.materialReadiness === 'shortage' ? 'text-[var(--error)]' : 'text-[var(--text)]')}>
-                {materialReadiness.replace('_', ' ')}
+              <div className={clsx('text-sm font-bold mt-1', materialReadiness === 'shortage' ? 'text-[var(--error)]' : 'text-[var(--text)]')}>
+                {getMaterialReadinessLabel(materialReadiness)}
               </div>
               <div className="text-xs text-[var(--text-3)] mt-0.5">
                 {jobReqs[0] ? `${jobReqs[0].materialName} (${jobReqs[0].reservedQty}/${jobReqs[0].requiredQty} ${jobReqs[0].uom})` : 'No BOM captured'}
@@ -516,9 +530,31 @@ export default function JobWorkspace() {
       )}
 
       {tab === 'Blockers' && (
-        <div className="rounded-xl border p-10 text-center" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
-          <p className="text-sm font-medium" style={{ color: 'var(--text-2)' }}>Blockers</p>
-          <p className="text-xs mt-1" style={{ color: 'var(--text-3)' }}>No data recorded yet for this job.</p>
+        <div className="space-y-3">
+          {blockers.length === 0 ? (
+            <div className="rounded-xl border p-10 text-center" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
+              <p className="text-sm font-medium" style={{ color: 'var(--text-2)' }}>Blockers</p>
+              <p className="text-xs mt-1" style={{ color: 'var(--text-3)' }}>No blockers recorded for this job.</p>
+            </div>
+          ) : (
+            blockers.map(b => (
+              <div key={b.id} className="rounded-xl border p-4 flex flex-wrap items-start justify-between gap-3" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold px-2 py-0.5 rounded bg-[var(--error-bg)] text-[var(--error)]">{b.type}</span>
+                    <StatusChip status={b.status} size="sm" />
+                  </div>
+                  <p className="text-sm text-[var(--text)] mt-1.5">{b.description}</p>
+                  <p className="text-xs text-[var(--text-3)] mt-1">Raised by {b.raisedBy} · {new Date(b.raisedAt).toLocaleDateString('en-IN')}</p>
+                </div>
+                {b.status === 'open' && (
+                  <button type="button" onClick={() => handleResolveJobBlocker(b.id)} className="btn-primary text-xs">
+                    Resolve Blocker
+                  </button>
+                )}
+              </div>
+            ))
+          )}
         </div>
       )}
 

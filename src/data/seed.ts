@@ -174,11 +174,11 @@ export const CUSTOMER_POS: CustomerPO[] = [
 
 // ── Supplier POs ──
 export const SUPPLIER_POS: SupplierPO[] = [
-  { id: 'spo-001', poNumber: 'SPO-2024-001', supplierId: 'supp-msk', supplierName: 'MSK Steel Pvt Ltd', raisedDate: '2026-10-28', committedDate: '2026-11-08', status: 'confirmed', totalValue: 95000, currency: 'INR', paymentTerms: 'Net 30', jobRef: 'J-106', lineCount: 2 },
-  { id: 'spo-002', poNumber: 'SPO-2024-002', supplierId: 'supp-ssi', supplierName: 'Stainless Source India', raisedDate: '2026-10-25', committedDate: '2026-11-02', status: 'overdue', totalValue: 54000, currency: 'INR', paymentTerms: 'Net 45', jobRef: 'J-102', lineCount: 1, hasAmendment: true },
-  { id: 'spo-003', poNumber: 'SPO-2024-003', supplierId: 'supp-apex', supplierName: 'Apex Consumables', raisedDate: '2026-10-10', committedDate: '2026-10-18', status: 'received', totalValue: 18500, currency: 'INR', paymentTerms: 'Net 30', lineCount: 2 },
-  { id: 'spo-004', poNumber: 'SPO-2024-004', supplierId: 'supp-bgs', supplierName: 'Bharat Gas Supply', raisedDate: '2026-10-20', committedDate: '2026-10-28', status: 'partial', totalValue: 9000, currency: 'INR', paymentTerms: 'Net 15', lineCount: 2 },
-  { id: 'spo-005', poNumber: 'SPO-2024-005', supplierId: 'supp-sct', supplierName: 'SteelCraft Tubes', raisedDate: '2026-10-15', committedDate: '2026-11-05', status: 'confirmed', totalValue: 42000, currency: 'INR', paymentTerms: 'Net 30', jobRef: 'J-101', lineCount: 1 },
+  { id: 'spo-001', poNumber: 'SPO-2024-001', supplierId: 'supp-msk', supplierName: 'MSK Steel Pvt Ltd', raisedDate: '2026-10-28', committedDate: '2026-11-08', status: 'confirmed', totalValue: 95000, currency: 'INR', paymentTerms: 'Net 30', lineCount: 2, deliverToSiteId: 'site-hyd', deliverToSiteName: 'Hyderabad Factory' },
+  { id: 'spo-002', poNumber: 'SPO-2024-002', supplierId: 'supp-ssi', supplierName: 'Stainless Source India', raisedDate: '2026-10-25', committedDate: '2026-11-02', status: 'overdue', totalValue: 54000, currency: 'INR', paymentTerms: 'Net 45', prId: 'pr-001', supplierQuotationId: 'sq-001', supplierQuotationRef: 'SQ-2024-001', lineCount: 1, hasAmendment: true, deliverToSiteId: 'site-hyd', deliverToSiteName: 'Hyderabad Factory' },
+  { id: 'spo-003', poNumber: 'SPO-2024-003', supplierId: 'supp-apex', supplierName: 'Apex Consumables', raisedDate: '2026-10-10', committedDate: '2026-10-18', status: 'received', totalValue: 18500, currency: 'INR', paymentTerms: 'Net 30', lineCount: 2, deliverToSiteId: 'site-hyd', deliverToSiteName: 'Hyderabad Factory' },
+  { id: 'spo-004', poNumber: 'SPO-2024-004', supplierId: 'supp-bgs', supplierName: 'Bharat Gas Supply', raisedDate: '2026-10-20', committedDate: '2026-10-28', status: 'partial', totalValue: 9000, currency: 'INR', paymentTerms: 'Net 15', lineCount: 2, deliverToSiteId: 'site-hyd', deliverToSiteName: 'Hyderabad Factory' },
+  { id: 'spo-005', poNumber: 'SPO-2024-005', supplierId: 'supp-sct', supplierName: 'SteelCraft Tubes', raisedDate: '2026-10-15', committedDate: '2026-11-05', status: 'confirmed', totalValue: 42000, currency: 'INR', paymentTerms: 'Net 30', lineCount: 1, deliverToSiteId: 'site-hyd', deliverToSiteName: 'Hyderabad Factory' },
 ];
 
 export const SUPPLIER_PO_LINES: SupplierPOLine[] = [
@@ -191,9 +191,35 @@ export const SUPPLIER_PO_LINES: SupplierPOLine[] = [
 
 // ── Purchase Requisitions ──
 export const PURCHASE_REQS: PurchaseRequisition[] = [
-  { id: 'pr-001', prNumber: 'PR-2024-018', raisedBy: 'Suresh Kumar', raisedDate: '2026-10-26', requiredBy: '2026-11-05', jobId: 'job-102', jobNumber: 'J-102', status: 'converted', lineCount: 1, totalQty: 300, priority: 'urgent' },
-  { id: 'pr-002', prNumber: 'PR-2024-019', raisedBy: 'Suresh Kumar', raisedDate: '2026-11-01', requiredBy: '2026-11-10', jobId: 'job-104', jobNumber: 'J-104', status: 'approved', lineCount: 2, totalQty: 150, priority: 'high' },
-  { id: 'pr-003', prNumber: 'PR-2024-017', raisedBy: 'Asha Nair', raisedDate: '2026-10-20', requiredBy: '2026-11-01', status: 'approved', lineCount: 3, totalQty: 500, priority: 'normal' },
+  {
+    id: 'pr-001', prNumber: 'PR-2024-018', raisedBy: 'Suresh Kumar', department: 'Production', raisedDate: '2026-10-26', requiredBy: '2026-11-05',
+    status: 'converted', lineCount: 1, totalQty: 300, priority: 'urgent',
+    deliverToSiteId: 'site-hyd', deliverToSiteName: 'Hyderabad Factory', deliverToStoreId: 'loc-rm', deliverToStoreName: 'Raw Material Store',
+    purpose: 'SS 304L replenishment for upcoming fabrication schedules',
+    lines: [
+      { id: 'prl-001', prId: 'pr-001', materialItemId: 'mat-ss3', materialCode: 'SS-SHT-304-3', materialName: 'SS Sheet 3mm 304L', grade: 'ASTM A240 304L', requiredQty: 300, uom: 'kg', requiredDate: '2026-11-05', estimatedPrice: 180 },
+    ],
+  },
+  {
+    id: 'pr-002', prNumber: 'PR-2024-019', raisedBy: 'Suresh Kumar', department: 'Machining & Assembly', raisedDate: '2026-11-01', requiredBy: '2026-11-10',
+    status: 'approved', lineCount: 2, totalQty: 150, priority: 'high',
+    deliverToSiteId: 'site-hyd', deliverToSiteName: 'Hyderabad Factory', deliverToStoreId: 'loc-rm', deliverToStoreName: 'Raw Material Store',
+    purpose: 'Restock MS flat bars and argon consumables',
+    lines: [
+      { id: 'prl-002a', prId: 'pr-002', materialItemId: 'mat-msfb', materialCode: 'MS-FLT-50x6', materialName: 'MS Flat Bar 50×6', grade: 'IS 2062', requiredQty: 100, uom: 'kg', requiredDate: '2026-11-10', estimatedPrice: 78 },
+      { id: 'prl-002b', prId: 'pr-002', materialItemId: 'mat-gd', materialCode: 'TOL-GRD-125', materialName: 'Grinding Disc 125mm', grade: 'Standard', requiredQty: 50, uom: 'pcs', requiredDate: '2026-11-10', estimatedPrice: 30 },
+    ],
+  },
+  {
+    id: 'pr-003', prNumber: 'PR-2024-017', raisedBy: 'Asha Nair', department: 'Stores', raisedDate: '2026-10-20', requiredBy: '2026-11-01',
+    status: 'approved', lineCount: 2, totalQty: 500, priority: 'normal',
+    deliverToSiteId: 'site-hyd', deliverToSiteName: 'Hyderabad Factory', deliverToStoreId: 'loc-rm', deliverToStoreName: 'Raw Material Store',
+    purpose: 'Buffer stock replenishment for structural plates',
+    lines: [
+      { id: 'prl-003a', prId: 'pr-003', materialItemId: 'mat-ms8', materialCode: 'MS-PLT-008', materialName: 'MS Plate 8mm', grade: 'IS 2062 E250A', requiredQty: 300, uom: 'kg', requiredDate: '2026-11-01', estimatedPrice: 79 },
+      { id: 'prl-003b', prId: 'pr-003', materialItemId: 'mat-ms12', materialCode: 'MS-PLT-012', materialName: 'MS Plate 12mm', grade: 'IS 2062 E250', requiredQty: 200, uom: 'kg', requiredDate: '2026-11-01', estimatedPrice: 85 },
+    ],
+  },
 ];
 
 // ── Jobs ──
@@ -310,7 +336,7 @@ export const JOB_MATERIAL_REQS: JobMaterialReq[] = [
 export const GRNS: GoodsReceipt[] = [
   { id: 'grn-001', grnNumber: 'GRN-2024-001', supplierId: 'supp-apex', supplierName: 'Apex Consumables', spoId: 'spo-003', spoNumber: 'SPO-2024-003', receivedDate: '2026-10-18', receivedBy: 'Asha Nair', deliveryChallan: 'DC-APEX-4521', vehicleNumber: 'TS09BA1234', status: 'accepted', lineCount: 2 },
   { id: 'grn-002', grnNumber: 'GRN-2024-002', supplierId: 'supp-bgs', supplierName: 'Bharat Gas Supply', spoId: 'spo-004', spoNumber: 'SPO-2024-004', receivedDate: '2026-10-26', receivedBy: 'Asha Nair', deliveryChallan: 'DC-BGS-889', status: 'accepted', lineCount: 2 },
-  { id: 'grn-003', grnNumber: 'GRN-2024-003', supplierId: 'supp-msk', supplierName: 'MSK Steel Pvt Ltd', spoId: 'spo-001', spoNumber: 'SPO-2024-001', receivedDate: '2026-11-04', receivedBy: 'Asha Nair', deliveryChallan: 'DC-MSK-2201', vehicleNumber: 'TS09CD5678', status: 'pending_qc', lineCount: 1 },
+  { id: 'grn-003', grnNumber: 'GRN-2024-003', supplierId: 'supp-msk', supplierName: 'MSK Steel Pvt Ltd', spoId: 'spo-001', spoNumber: 'SPO-2024-001', receivedDate: '2026-11-04', receivedBy: 'Asha Nair', deliveryChallan: 'DC-MSK-2201', vehicleNumber: 'TS09CD5678', status: 'pending_qc', lineCount: 1, siteId: 'site-hyd', siteName: 'Hyderabad Factory', storeLocationId: 'loc-qrn', storeLocationName: 'Quarantine Store' },
 ];
 
 // ── Inventory (derived view) ──
@@ -347,7 +373,7 @@ export const CERTIFICATES: MaterialCertificate[] = [
 
 export const INSPECTIONS: Inspection[] = [
   { id: 'ins-001', inspectionNumber: 'INS-2024-041', type: 'Incoming', lotId: 'lot-004', inspectorId: 'u-qc', inspectorName: 'Priya Patel', receivedDate: '2026-10-27', date: '2026-10-28', subject: 'Incoming SS Sheet 3mm 304L', templateName: 'Incoming SS Sheet', sampleQty: 3, acceptedQty: 0, rejectedQty: 3, result: 'fail', ncrId: 'ncr-001', ncrNumber: 'NCR-2024-007' },
-  { id: 'ins-002', inspectionNumber: 'INS-2024-042', type: 'Incoming', lotId: 'lot-009', inspectorId: 'u-qc', inspectorName: 'Priya Patel', receivedDate: '2026-11-03', date: '2026-11-04', subject: 'Incoming MS Plate 12mm', templateName: 'Incoming MS Plate', sampleQty: 5, acceptedQty: 0, rejectedQty: 0, result: 'pending' },
+  { id: 'ins-002', inspectionNumber: 'INS-2024-042', type: 'Incoming', lotId: 'lot-009', grnId: 'grn-003', grnNumber: 'GRN-2024-003', poId: 'spo-001', spoNumber: 'SPO-2024-001', siteId: 'site-hyd', siteName: 'Hyderabad Factory', inspectorId: 'u-qc', inspectorName: 'Priya Patel', receivedDate: '2026-11-03', date: '2026-11-04', subject: 'Incoming MS Plate 12mm', templateName: 'Incoming MS Plate', sampleQty: 5, acceptedQty: 0, rejectedQty: 0, result: 'pending' },
   { id: 'ins-003', inspectionNumber: 'INS-2024-040', type: 'In-Process', jobId: 'job-105', jobNumber: 'J-105', stageId: 'stg-105-2', stageName: 'Welding', inspectorId: 'u-qc', inspectorName: 'Priya Patel', date: '2026-11-02', subject: 'J-105 · Welding', templateName: 'Weld Visual Inspection', sampleQty: 10, acceptedQty: 9, rejectedQty: 1, result: 'pass', approvedAt: '2026-11-02T16:00:00' },
   { id: 'ins-004', inspectionNumber: 'INS-2024-039', type: 'Final', jobId: 'job-103', jobNumber: 'J-103', inspectorId: 'u-qc', inspectorName: 'Priya Patel', date: '2026-10-22', subject: 'J-103 · Final inspection', templateName: 'Final Inspection – Structural', sampleQty: 2, acceptedQty: 2, rejectedQty: 0, result: 'pass', approvedAt: '2026-10-22T16:00:00' },
 ];
@@ -437,29 +463,30 @@ export const PULSE_EXCEPTIONS: PulseException[] = [
 // ── Supplier Quotations ──
 export const SUPPLIER_QUOTATIONS: SupplierQuotation[] = [
   {
-    id: 'sq-001', quoteNumber: 'SQ-2024-001', supplierId: 'sup-001', supplierName: 'Stainless Source India',
-    prId: 'pr-001', prNumber: 'PR-2024-001', quoteDate: '2026-10-28', validUntil: '2026-11-28',
+    id: 'sq-001', quoteNumber: 'SQ-2024-001', supplierId: 'supp-ssi', supplierName: 'Stainless Source India',
+    prId: 'pr-001', prNumber: 'PR-2024-018', quoteDate: '2026-10-28', validUntil: '2026-11-28',
     currency: 'INR', status: 'selected', paymentTerms: '30 days net', deliveryDays: 7,
     lines: [
-      { id: 'sql-001', quoteId: 'sq-001', materialItemId: 'mat-ss304-rod', materialName: 'SS 304 Rod 25mm', quotedQty: 250, uom: 'kg', unitPrice: 320, taxPct: 18, freightIncluded: true, discountPct: 2, lineTotal: 78400 },
+      { id: 'sql-001', quoteId: 'sq-001', materialItemId: 'mat-ss3', materialCode: 'SS-SHT-304-3', materialName: 'SS Sheet 3mm 304L', grade: 'ASTM A240 304L', quotedQty: 300, uom: 'kg', unitPrice: 180, taxPct: 18, freightIncluded: true, discountPct: 0, lineTotal: 54000 },
     ],
     notes: 'Price includes freight to Hyderabad site.',
   },
   {
-    id: 'sq-002', quoteNumber: 'SQ-2024-002', supplierId: 'sup-002', supplierName: 'Metal Masters Pvt Ltd',
-    prId: 'pr-001', prNumber: 'PR-2024-001', quoteDate: '2026-10-29', validUntil: '2026-11-15',
+    id: 'sq-002', quoteNumber: 'SQ-2024-002', supplierId: 'supp-msk', supplierName: 'MSK Steel',
+    prId: 'pr-001', prNumber: 'PR-2024-018', quoteDate: '2026-10-29', validUntil: '2026-11-15',
     currency: 'INR', status: 'rejected', paymentTerms: '15 days net', deliveryDays: 10,
     lines: [
-      { id: 'sql-002', quoteId: 'sq-002', materialItemId: 'mat-ss304-rod', materialName: 'SS 304 Rod 25mm', quotedQty: 250, uom: 'kg', unitPrice: 335, taxPct: 18, freightIncluded: false, discountPct: 0, lineTotal: 99062 },
+      { id: 'sql-002', quoteId: 'sq-002', materialItemId: 'mat-ss3', materialCode: 'SS-SHT-304-3', materialName: 'SS Sheet 3mm 304L', grade: 'ASTM A240 304L', quotedQty: 300, uom: 'kg', unitPrice: 195, taxPct: 18, freightIncluded: false, discountPct: 0, lineTotal: 58500 },
     ],
     notes: 'Freight extra. Lead time 10 days.',
   },
   {
-    id: 'sq-003', quoteNumber: 'SQ-2024-003', supplierId: 'sup-003', supplierName: 'AIS Engineering Supplies',
-    prId: 'pr-002', prNumber: 'PR-2024-002', quoteDate: '2026-11-01', validUntil: '2026-11-30',
+    id: 'sq-003', quoteNumber: 'SQ-2024-003', supplierId: 'supp-apex', supplierName: 'Apex Consumables',
+    prId: 'pr-002', prNumber: 'PR-2024-019', quoteDate: '2026-11-01', validUntil: '2026-11-30',
     currency: 'INR', status: 'received', paymentTerms: '30 days net', deliveryDays: 5,
     lines: [
-      { id: 'sql-003', quoteId: 'sq-003', materialItemId: 'mat-en8-rod', materialName: 'EN8 Round Bar 50mm', quotedQty: 100, uom: 'kg', unitPrice: 95, taxPct: 18, freightIncluded: true, discountPct: 0, lineTotal: 11210 },
+      { id: 'sql-003a', quoteId: 'sq-003', materialItemId: 'mat-msfb', materialCode: 'MS-FLT-50x6', materialName: 'MS Flat Bar 50×6', grade: 'IS 2062', quotedQty: 100, uom: 'kg', unitPrice: 76, taxPct: 18, freightIncluded: true, discountPct: 0, lineTotal: 7600 },
+      { id: 'sql-003b', quoteId: 'sq-003', materialItemId: 'mat-gd', materialCode: 'TOL-GRD-125', materialName: 'Grinding Disc 125mm', grade: 'Standard', quotedQty: 50, uom: 'pcs', unitPrice: 28, taxPct: 18, freightIncluded: true, discountPct: 0, lineTotal: 1400 },
     ],
   },
 ];

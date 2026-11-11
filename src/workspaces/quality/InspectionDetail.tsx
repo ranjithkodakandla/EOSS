@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, CheckCircle, XCircle, AlertTriangle, ShieldCheck } from 'lucide-react';
 import { useStore } from '../../store';
 import { DEMO_NOW } from '../../data/seed';
@@ -12,7 +12,7 @@ export default function InspectionDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { inspections, lots, jobs, ncrs, qualityReleases, currentUser, addNCR, linkNCRToInspection, updateInspection, addQualityRelease } = useStore();
+  const { inspections, lots, grns, jobs, qualityReleases, currentUser, addNCR, linkNCRToInspection, updateInspection, completeIncomingInspection, addQualityRelease } = useStore();
   const canRaiseNCR = ['owner', 'qc'].includes(currentUser.role);
   const canRelease = ['owner', 'qc'].includes(currentUser.role);
   const [recording, setRecording] = useState(false);
@@ -29,6 +29,10 @@ export default function InspectionDetail() {
 
   const lot = ins.lotId ? lots.find(l => l.id === ins.lotId) : null;
   const job = ins.jobId ? jobs.find(j => j.id === ins.jobId) : null;
+  const grn = (ins.grnId || lot?.grnId) ? grns.find(g => g.id === (ins.grnId || lot?.grnId)) : null;
+  const spoId = ins.poId || grn?.spoId || lot?.spoId;
+  const spoNumber = ins.spoNumber || grn?.spoNumber;
+  const maxInspectQty = lot ? lot.primaryQty : ins.sampleQty;
   // A release belongs to the specific inspection that cleared the job, not to
   // every inspection for that job. This prevents a failed inspection from
   // inheriting a later final-pass release.
@@ -72,7 +76,31 @@ export default function InspectionDetail() {
               <Field label="Received" value={ins.receivedDate ? new Date(ins.receivedDate).toLocaleDateString('en-IN') : '—'} />
               <Field label="Inspected / recorded" value={new Date(ins.date).toLocaleDateString('en-IN')} />
               <Field label="Approved" value={ins.approvedAt ? new Date(ins.approvedAt).toLocaleDateString('en-IN') : '—'} />
-              {lot && <Field label="Lot Number" value={lot.lotNumber} mono />}
+              {lot && (
+                <div>
+                  <dt className="text-xs text-[var(--text-3)]">Lot Number</dt>
+                  <dd className="text-sm font-mono mt-0.5">
+                    <Link to={`/inventory/lot/${lot.id}`} className="font-semibold text-[var(--brand)] hover:underline">{lot.lotNumber}</Link>
+                    <span className="text-xs text-[var(--text-3)] font-sans"> · {lot.primaryQty} {lot.primaryUom}</span>
+                  </dd>
+                </div>
+              )}
+              {grn && (
+                <div>
+                  <dt className="text-xs text-[var(--text-3)]">Goods Receipt (GRN)</dt>
+                  <dd className="text-sm font-mono mt-0.5">
+                    <Link to={`/procurement/grn/${grn.id}`} className="font-semibold text-[var(--brand)] hover:underline">{grn.grnNumber}</Link>
+                  </dd>
+                </div>
+              )}
+              {spoId && spoNumber && (
+                <div>
+                  <dt className="text-xs text-[var(--text-3)]">Supplier PO</dt>
+                  <dd className="text-sm font-mono mt-0.5">
+                    <Link to={`/procurement/spo/${spoId}`} className="font-semibold text-[var(--brand)] hover:underline">{spoNumber}</Link>
+                  </dd>
+                </div>
+              )}
               {job && <Field label="Job Number" value={job.jobNumber} mono />}
               {ins.stageName && <Field label="Stage" value={ins.stageName} />}
               {ins.checklistVersion && <Field label="Checklist Version" value={ins.checklistVersion} mono />}
@@ -134,12 +162,12 @@ export default function InspectionDetail() {
               <button onClick={() => navigate(`/quality/ncr/${ins.ncrId}`)} className="mt-2 text-xs text-[var(--error)] underline">View NCR →</button>
             </div>
           )}
-          {/* Record Result panel — only when pending */}
-          {ins.result === 'pending' && canRaiseNCR && (
+          {/* Record Result panel — when pending or on hold */}
+          {(ins.result === 'pending' || ins.result === 'hold') && canRaiseNCR && (
             <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
               <div className="font-semibold text-sm text-[var(--text)] mb-3">Record Inspection Result</div>
               {!recording ? (
-                <button onClick={() => { setRecForm({ accepted: ins.sampleQty, rejected: 0, notes: '' }); setRecording(true); }}
+                <button onClick={() => { setRecForm({ accepted: maxInspectQty, rejected: 0, notes: '' }); setRecording(true); }}
                   className="w-full py-2 rounded-lg text-sm font-medium text-white" style={{ background: 'var(--brand-fill)' }}>
                   Record Result
                 </button>
@@ -147,36 +175,73 @@ export default function InspectionDetail() {
                 <div className="space-y-3">
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs text-[var(--text-3)] mb-1">Accepted Qty</label>
-                      <input type="number" min={0} max={ins.sampleQty}
+                      <label className="block text-xs text-[var(--text-3)] mb-1">Accepted Qty (max {maxInspectQty})</label>
+                      <input type="number" min={0} max={maxInspectQty} step="any"
                         className="eoss-input w-full font-mono text-sm"
                         value={recForm.accepted}
                         onChange={e => setRecForm(f => ({ ...f, accepted: Number(e.target.value) }))} />
                     </div>
                     <div>
-                      <label className="block text-xs text-[var(--text-3)] mb-1">Rejected Qty</label>
-                      <input type="number" min={0} max={ins.sampleQty}
+                      <label className="block text-xs text-[var(--text-3)] mb-1">Rejected Qty (max {maxInspectQty})</label>
+                      <input type="number" min={0} max={maxInspectQty} step="any"
                         className="eoss-input w-full font-mono text-sm"
                         value={recForm.rejected}
                         onChange={e => setRecForm(f => ({ ...f, rejected: Number(e.target.value) }))} />
                     </div>
                   </div>
                   <div>
-                    <label className="block text-xs text-[var(--text-3)] mb-1">Notes</label>
+                    <label className="block text-xs text-[var(--text-3)] mb-1">Notes / Test Summary</label>
                     <textarea rows={2} className="eoss-input w-full text-sm resize-none" value={recForm.notes}
                       onChange={e => setRecForm(f => ({ ...f, notes: e.target.value }))} />
                   </div>
-                  <div className="flex gap-2">
-                    <button onClick={() => setRecording(false)} className="flex-1 py-2 border border-[var(--border)] rounded-lg text-sm text-[var(--text-2)]">Cancel</button>
+                  <div className="flex flex-wrap gap-2">
+                    <button type="button" onClick={() => setRecording(false)} className="px-3 py-2 border border-[var(--border)] rounded-lg text-xs text-[var(--text-2)]">Cancel</button>
+                    {ins.type === 'Incoming' && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          completeIncomingInspection(ins.id, {
+                            acceptedQty: 0, rejectedQty: 0, result: 'hold',
+                            remarks: recForm.notes, by: currentUser.name,
+                          });
+                          setRecording(false);
+                        }}
+                        className="px-3 py-2 border border-[var(--warning)] text-[var(--warning)] rounded-lg text-xs font-semibold"
+                      >
+                        Keep on Hold
+                      </button>
+                    )}
                     <button
+                      type="button"
                       onClick={() => {
-                        const result = recForm.rejected === 0 ? 'pass' : recForm.accepted === 0 ? 'fail' : 'partial';
-                        updateInspection(ins.id, { acceptedQty: recForm.accepted, rejectedQty: recForm.rejected, result: result as any, approvedAt: result === 'pass' ? new Date().toISOString() : undefined });
+                        const result = recForm.rejected === 0 && recForm.accepted > 0 ? 'pass'
+                          : recForm.accepted === 0 ? 'fail' : 'partial';
+                        if (ins.type === 'Incoming') {
+                          completeIncomingInspection(ins.id, {
+                            acceptedQty: recForm.accepted,
+                            rejectedQty: recForm.rejected,
+                            result: result as any,
+                            remarks: recForm.notes,
+                            by: currentUser.name,
+                          });
+                        } else {
+                          updateInspection(ins.id, {
+                            acceptedQty: recForm.accepted,
+                            rejectedQty: recForm.rejected,
+                            result: result as any,
+                            remarks: recForm.notes || ins.remarks,
+                            approvedAt: result === 'pass' ? new Date().toISOString() : undefined,
+                          });
+                        }
                         setRecording(false);
                       }}
                       className="flex-1 py-2 rounded-lg text-sm font-semibold text-white"
-                      style={{ background: recForm.rejected === 0 ? 'var(--success,#16A34A)' : 'var(--error,#DC2626)' }}>
-                      {recForm.rejected === 0 ? '✓ Mark Pass' : '✗ Mark Fail'}
+                      style={{ background: recForm.accepted > 0 && recForm.rejected === 0 ? 'var(--success,#16A34A)' : recForm.accepted > 0 ? 'var(--warning,#D97706)' : 'var(--error,#DC2626)' }}>
+                      {recForm.accepted > 0 && recForm.rejected === 0
+                        ? '✓ Accept & Release'
+                        : recForm.accepted > 0
+                          ? 'Partial Accept / Reject'
+                          : '✗ Mark Fail / Reject'}
                     </button>
                   </div>
                 </div>

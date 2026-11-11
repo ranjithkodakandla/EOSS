@@ -1,9 +1,31 @@
 import type { InventoryItem, Job, JobMaterialReq, MaterialLot, StoreLocation } from '../types';
 
-export type MaterialReadiness = 'available' | 'partial' | 'shortage' | 'awaiting_procurement' | 'quality_hold' | 'pending';
+export type MaterialReadiness = 'available' | 'partial' | 'shortage' | 'awaiting_procurement' | 'awaiting_grn' | 'quality_hold' | 'reserved' | 'pending';
 
-export function deriveInventoryStatus(item: InventoryItem) {
-  if (item.qcHoldQty > 0 && item.availableQty === 0) return 'Quality hold';
+export const MATERIAL_READINESS_LABELS: Record<string, string> = {
+  pending: 'Not Assessed',
+  not_assessed: 'Not Assessed',
+  ready: 'Available',
+  available: 'Available',
+  partial: 'Partially Available',
+  partially_available: 'Partially Available',
+  shortage: 'Shortage',
+  awaiting_procurement: 'Awaiting Procurement',
+  awaiting_grn: 'Awaiting GRN',
+  quality_hold: 'Quality Hold',
+  qc_hold: 'Quality Hold',
+  reserved: 'Reserved',
+};
+
+export function getMaterialReadinessLabel(status?: string): string {
+  if (!status) return 'Not Assessed';
+  return MATERIAL_READINESS_LABELS[status] ?? status.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
+
+export type InventoryDerivedStatus = 'Available' | 'Shortage' | 'Quality Hold' | 'Reserved' | 'Awaiting GRN';
+
+export function deriveInventoryStatus(item: InventoryItem): InventoryDerivedStatus {
+  if (item.qcHoldQty > 0 && item.availableQty === 0) return 'Quality Hold';
   if (item.availableQty <= 0 && item.inTransitQty > 0) return 'Awaiting GRN';
   if (item.shortage) return 'Shortage';
   if (item.reservedQty > 0 && item.availableQty === 0) return 'Reserved';

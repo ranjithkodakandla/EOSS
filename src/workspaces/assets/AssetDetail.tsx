@@ -10,19 +10,38 @@ import clsx from 'clsx';
 export default function AssetDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { assets, maintenanceEvents, meterReadings, addMeterReading, currentUser, showToast } = useStore();
+  const { assets, maintenanceEvents, meterReadings, addMeterReading, closeMaintenanceEvent, updateAsset, currentUser, showToast } = useStore();
   const [tab, setTab] = useState<'info' | 'history' | 'readings'>('info');
   const [readingModalOpen, setReadingModalOpen] = useState(false);
   const [readingValue, setReadingValue] = useState<string>('');
   const [readingType, setReadingType] = useState<'routine' | 'shift-end' | 'post-maintenance' | 'correction'>('routine');
   const [readingNotes, setReadingNotes] = useState('');
+  const [repairModalOpen, setRepairModalOpen] = useState(false);
+  const [repairForm, setRepairForm] = useState({ downtimeEnd: `${DEMO_NOW}T17:00`, diagnosis: '', workDone: '' });
 
   const asset = assets.find(a => a.id === id);
   if (!asset) return <div className="p-6 text-[var(--text-2)]">Asset not found</div>;
 
   const events = maintenanceEvents.filter(m => m.assetId === id);
+  const openBreakdown = events.find(m => m.type === 'Breakdown' && m.status !== 'closed');
   const readings = meterReadings.filter(r => r.assetId === id).slice().sort((a, b) => b.readingDate.localeCompare(a.readingDate));
   const due = computeMaintenanceDue(asset, meterReadings, new Date(DEMO_NOW));
+
+  const handleMarkRepaired = () => {
+    if (openBreakdown) {
+      closeMaintenanceEvent(
+        openBreakdown.id,
+        repairForm.diagnosis.trim() || openBreakdown.rootCause || 'Fault diagnosed and resolved',
+        repairForm.workDone.trim() || openBreakdown.correctiveAction || 'Repair completed and machine tested',
+        { downtimeEnd: repairForm.downtimeEnd || `${DEMO_NOW}T17:00`, completionDate: (repairForm.downtimeEnd || DEMO_NOW).slice(0, 10) }
+      );
+      showToast({ type: 'success', title: 'Asset marked repaired', body: `${openBreakdown.eventNumber} closed and ${asset.assetCode} restored to Operational.` });
+    } else {
+      updateAsset(asset.id, { status: 'operational' });
+      showToast({ type: 'success', title: 'Asset marked repaired', body: `${asset.assetCode} is now Operational.` });
+    }
+    setRepairModalOpen(false);
+  };
 
   const handleLogReading = () => {
     if (!readingValue) return;
@@ -138,7 +157,7 @@ export default function AssetDetail() {
                   <Wrench size={14} /> Log Maintenance Event
                 </button>
                 {asset.status === 'breakdown' && (
-                  <button className="w-full py-2 bg-[var(--success)] text-white rounded-lg text-sm font-medium">
+                  <button type="button" onClick={() => setRepairModalOpen(true)} className="w-full py-2 bg-[var(--success)] text-white rounded-lg text-sm font-medium">
                     Mark Repaired
                   </button>
                 )}
@@ -164,29 +183,84 @@ export default function AssetDetail() {
       )}
 
       {tab === 'history' && (
-        <div className="space-y-3">
-          {events.length === 0 && <div className="text-center py-10 text-sm text-[var(--text-3)]">No maintenance events for this asset</div>}
-          {events.map(m => (
-            <div key={m.id} className={clsx('bg-[var(--surface)] border rounded-xl p-4 cursor-pointer hover:border-[var(--brand)] transition-colors', m.type === 'Breakdown' && m.status !== 'closed' ? 'border-[var(--error)]' : 'border-[var(--border)]')} onClick={() => navigate(`/assets/me/${m.id}`)}>
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1 flex-wrap">
-                    <span className="font-mono text-xs font-bold text-[var(--brand)]">{m.eventNumber}</span>
-                    <StatusChip status={m.type.toLowerCase()} label={m.type} size="sm" />
-                    <StatusChip status={m.status} size="sm" />
-                  </div>
-                  <p className="text-sm text-[var(--text)]">{m.symptom}</p>
-                  <div className="flex items-center gap-3 mt-1 text-xs text-[var(--text-3)]">
-                    <span>{m.technicianName}</span>
-                    <span>·</span>
-                    <span>{new Date(m.downtimeStart).toLocaleDateString('en-IN')}</span>
-                    {m.downtimeEnd && <><span>·</span><span className="text-[var(--success)]">Resolved</span></>}
-                  </div>
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl overflow-x-auto">
+          {events.length === 0 ? (
+            <div className="text-center py-10 text-sm text-[var(--text-3)]">No maintenance events for this asset</div>
+          ) : (
+            <table className="eoss-table">
+              <thead>
+                <tr>
+                  <th>Event #</th>
+                  <th>Type</th>
+                  <th>Planned Date</th>
+                  <th>Start Date</th>
+                  <th>Completion Date</th>
+                  <th>Downtime</th>
+                  <th>Technician</th>
+                  <th>Description</th>
+                  <th>Status</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {events.map(m => {
+                  const dtHours = m.downtimeEnd
+                    ? Math.max(0, (new Date(m.downtimeEnd).getTime() - new Date(m.downtimeStart).getTime()) / 3600000).toFixed(1)
+                    : m.type === 'Breakdown' && m.status !== 'closed'
+                      ? 'Ongoing'
+                      : '—';
+                  return (
+                    <tr key={m.id} className="cursor-pointer hover:bg-[var(--surface-2)]" onClick={() => navigate(`/assets/me/${m.id}`)}>
+                      <td className="font-mono text-xs font-bold text-[var(--brand)]">{m.eventNumber}</td>
+                      <td><StatusChip status={m.type.toLowerCase()} label={m.type} size="sm" /></td>
+                      <td className="text-xs">{m.plannedDate ? new Date(m.plannedDate).toLocaleDateString('en-IN') : '—'}</td>
+                      <td className="text-xs">{new Date(m.downtimeStart).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</td>
+                      <td className="text-xs">{m.completionDate || m.downtimeEnd ? new Date(m.completionDate || m.downtimeEnd!).toLocaleDateString('en-IN') : '—'}</td>
+                      <td className="font-mono text-xs">{dtHours === 'Ongoing' || dtHours === '—' ? dtHours : `${dtHours}h`}</td>
+                      <td className="text-xs">{m.technicianName}</td>
+                      <td className="text-xs max-w-[220px] truncate">{m.symptom}</td>
+                      <td><StatusChip status={m.status} size="sm" /></td>
+                      <td><ChevronRight size={14} className="text-[var(--text-3)]" /></td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
+
+      {repairModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-xl p-5 space-y-4 bg-[var(--surface)] border border-[var(--border)]">
+            <div className="flex items-center justify-between border-b border-[var(--border)] pb-3">
+              <h3 className="text-sm font-bold text-[var(--text)]">Mark Repaired — {asset.assetCode}</h3>
+              <button type="button" onClick={() => setRepairModalOpen(false)} className="text-[var(--text-3)] hover:text-[var(--text)]"><X size={16} /></button>
+            </div>
+            <div className="space-y-3 text-xs">
+              {openBreakdown && (
+                <div className="rounded-lg p-2.5 bg-[var(--surface-2)] text-[var(--text-2)]">
+                  Closing open breakdown <span className="font-mono font-bold text-[var(--brand)]">{openBreakdown.eventNumber}</span>: {openBreakdown.symptom}
                 </div>
-                <ChevronRight size={14} className="text-[var(--text-3)]" />
+              )}
+              <div>
+                <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Resolution / Completion Time</label>
+                <input type="datetime-local" value={repairForm.downtimeEnd} onChange={e => setRepairForm(f => ({ ...f, downtimeEnd: e.target.value }))} className="eoss-input w-full" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Root Cause / Diagnosis</label>
+                <input value={repairForm.diagnosis} onChange={e => setRepairForm(f => ({ ...f, diagnosis: e.target.value }))} placeholder="Fault identified during repair" className="eoss-input w-full" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Work Done / Corrective Action</label>
+                <textarea rows={2} value={repairForm.workDone} onChange={e => setRepairForm(f => ({ ...f, workDone: e.target.value }))} placeholder="Replaced part, calibrated, tested…" className="eoss-input w-full" />
               </div>
             </div>
-          ))}
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-[var(--border)]">
+              <button type="button" onClick={() => setRepairModalOpen(false)} className="btn-ghost text-xs py-1.5 px-3">Cancel</button>
+              <button type="button" onClick={handleMarkRepaired} className="btn-primary text-xs py-1.5 px-4">Confirm Repaired</button>
+            </div>
+          </div>
         </div>
       )}
 

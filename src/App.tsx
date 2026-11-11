@@ -22,11 +22,13 @@ import SupplierDetail from './workspaces/suppliers/SupplierDetail';
 import Procurement from './workspaces/procurement/Procurement';
 import SupplierPODetail from './workspaces/procurement/SupplierPODetail';
 import SupplierPOAmend from './workspaces/procurement/SupplierPOAmend';
+import GRNCreate from './workspaces/procurement/GRNCreate';
 import GRNDetail from './workspaces/procurement/GRNDetail';
 import SupplierReturn from './workspaces/procurement/SupplierReturn';
 import PRCreate from './workspaces/procurement/PRCreate';
 import PRDetail from './workspaces/procurement/PRDetail';
 import SupplierRFQCreate from './workspaces/procurement/SupplierRFQCreate';
+import SupplierQuotationDetail from './workspaces/procurement/SupplierQuotationDetail';
 import Inventory from './workspaces/inventory/Inventory';
 import InventoryItemDetail from './workspaces/inventory/InventoryItemDetail';
 import LotDetail from './workspaces/inventory/LotDetail';
@@ -150,10 +152,13 @@ export default function App() {
           <Route path="suppliers/:id" element={<SupplierDetail />} />
           <Route path="procurement" element={<Procurement />} />
           <Route path="procurement/pr/new" element={<PRCreate />} />
+          <Route path="procurement/pr/:id/edit" element={<PRCreate />} />
           <Route path="procurement/pr/:id" element={<PRDetail />} />
           <Route path="procurement/supplier-rfq/new" element={<SupplierRFQCreate />} />
+          <Route path="procurement/quote/:id" element={<SupplierQuotationDetail />} />
           <Route path="procurement/spo/:id" element={<SupplierPODetail />} />
           <Route path="procurement/spo/:id/amend" element={<SupplierPOAmend />} />
+          <Route path="procurement/grn/new" element={<GRNCreate />} />
           <Route path="procurement/grn/:id" element={<GRNDetail />} />
           <Route path="procurement/supplier-return" element={<SupplierReturn />} />
           <Route path="inventory" element={<Inventory />} />

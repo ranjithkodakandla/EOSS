@@ -105,22 +105,30 @@ export interface MaterialLot {
   id: ID;
   lotNumber: string;
   heatNumber?: string;
+  supplierBatchRef?: string;
   materialItemId: ID;
   materialName: string;
   supplierId: ID;
   supplierName: string;
+  spoId?: ID;
   grnId?: ID;
   receivedDate: string;
+  mfgDate?: string;
+  expiryDate?: string;
   grade?: string;
   status: 'available' | 'reserved' | 'issued' | 'qc_hold' | 'scrapped' | 'dispatched';
   storeLocationId: ID;
   storeLocationName: string;
   primaryQty: number;
+  receivedQty?: number;
+  acceptedQty?: number;
+  rejectedQty?: number;
   primaryUom: string;
   secondaryQty?: number;
   secondaryUom?: string;
   certStatus: 'none' | 'pending' | 'extracted' | 'verified' | 'missing';
   parentLotId?: ID; // for remnants
+  notes?: string;
 }
 
 export type InventoryTransferStatus = 'in_transit' | 'received' | 'cancelled';
@@ -289,6 +297,7 @@ export interface SupplierPO {
   currency: string;
   paymentTerms: string;
   prId?: ID;
+  prNumber?: string;
   jobRef?: string;
   lineCount: number;
   hasAmendment?: boolean;
@@ -334,7 +343,9 @@ export interface SupplierPOLine {
   id: ID;
   spoId: ID;
   materialItemId: ID;
+  materialCode?: string;
   materialName: string;
+  grade?: string;
   orderedQty: number;
   primaryQty?: number;
   secondaryQty?: number;
@@ -353,6 +364,7 @@ export interface PurchaseRequisition {
   id: ID;
   prNumber: string;
   raisedBy: string;
+  department?: string;
   raisedDate: string;
   requiredBy: string;
   jobId?: ID;
@@ -365,6 +377,11 @@ export interface PurchaseRequisition {
   deliverToSiteName?: string;
   deliverToStoreId?: ID;
   deliverToStoreName?: string;
+  purpose?: string;
+  reason?: string;
+  notes?: string;
+  attachments?: { id: string; name: string; size?: string }[];
+  lines?: PRLine[];
 }
 
 // ── Jobs ──
@@ -486,6 +503,35 @@ export interface JobBlocker {
 }
 
 // ── GRN ──
+export interface GoodsReceiptLotAllocation {
+  id: ID;
+  lotId?: ID;
+  lotNumber: string;
+  supplierLotRef?: string;
+  grade?: string;
+  qty: number;
+  uom: string;
+  mfgDate?: string;
+  expiryDate?: string;
+  qualityStatus: 'pending_qc' | 'qc_hold' | 'accepted' | 'rejected';
+  notes?: string;
+}
+
+export interface GoodsReceiptLine {
+  id: ID;
+  spoLineId: ID;
+  materialItemId: ID;
+  materialCode?: string;
+  materialName: string;
+  grade?: string;
+  orderedQty: number;
+  previouslyReceivedQty: number;
+  receivedQty: number;
+  uom: string;
+  lots: GoodsReceiptLotAllocation[];
+  notes?: string;
+}
+
 export interface GoodsReceipt {
   id: ID;
   grnNumber: string;
@@ -497,13 +543,15 @@ export interface GoodsReceipt {
   receivedBy: string;
   deliveryChallan: string;
   vehicleNumber?: string;
-  status: 'draft' | 'pending_qc' | 'qc_hold' | 'accepted' | 'partial';
+  status: 'draft' | 'pending_qc' | 'qc_hold' | 'accepted' | 'partial' | 'rejected';
   lineCount: number;
   hasOfflineDraft?: boolean;
   siteId?: ID;
   siteName?: string;
   storeLocationId?: ID;
   storeLocationName?: string;
+  lines?: GoodsReceiptLine[];
+  notes?: string;
 }
 
 // ── Stock Movements ──
@@ -586,10 +634,15 @@ export interface Inspection {
   type: 'Incoming' | 'In-Process' | 'Final' | 'Dispatch-Readiness';
   origin?: 'internal' | 'external';
   lotId?: ID;
+  grnId?: ID;
+  grnNumber?: string;
   jobId?: ID;
   jobNumber?: string;
   poId?: ID;
+  spoNumber?: string;
   poLineId?: ID;
+  siteId?: ID;
+  siteName?: string;
   stageId?: ID;
   stageName?: string;
   subject?: string;
@@ -727,6 +780,7 @@ export interface MeterReading {
   id: ID;
   assetId: ID;
   assetCode: string;
+  previousReading?: number;
   reading: number;
   readingDate: string;
   recordedByEmployeeId?: ID;
@@ -774,9 +828,14 @@ export interface MaintenanceEvent {
   correctiveAction?: string;
   technicianId: ID;
   technicianName: string;
+  responsiblePerson?: string;
+  plannedDate?: string;
+  expectedDurationHours?: number;
   downtimeStart: string;
   downtimeEnd?: string;
-  status: 'open' | 'in_progress' | 'closed' | 'pending_approval';
+  completionDate?: string;
+  notes?: string;
+  status: 'open' | 'in_progress' | 'scheduled' | 'closed' | 'pending_approval';
   affectedJobs: { jobId: ID; jobNumber: string; impact: string }[];
   sparesUsed: { materialName: string; qty: number; uom: string }[];
   partsUsed?: { materialName?: string; partName?: string; qty: number; uom?: string }[];
@@ -959,9 +1018,12 @@ export interface SupplierQuotationLine {
   id: ID;
   quoteId: ID;
   materialItemId: ID;
+  materialCode?: string;
   materialName: string;
+  grade?: string;
   quotedQty?: number;
   orderedQty?: number;
+  qty?: number;
   uom: string;
   unitPrice?: number;
   unitRate?: number;
@@ -1487,7 +1549,10 @@ export interface PRLine {
   id: ID;
   prId: ID;
   materialItemId: ID;
+  materialCode?: string;
   materialName: string;
+  description?: string;
+  grade?: string;
   requiredQty: number;
   uom: string;
   requiredDate: string;
@@ -1497,4 +1562,5 @@ export interface PRLine {
   stageName?: string;
   estimatedPrice?: number;
   justification?: string;
+  notes?: string;
 }

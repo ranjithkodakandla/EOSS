@@ -3,10 +3,13 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Plus, ChevronRight, AlertTriangle, Search, X } from 'lucide-react';
 import { useStore } from '../../store';
 import { openInspections } from '../../domain/recordLists';
-import StatusChip from '../../components/layout/StatusChip';
+import StatusChip, { getStatusLabel } from '../../components/layout/StatusChip';
+import SortableHeader from '../../components/layout/SortableHeader';
+import { sortRows } from '../../domain/tableSort';
 import type { Inspection, NCR } from '../../types';
 
 let ncrSeq = 100;
+type QualitySortKey = 'inspectionNumber' | 'type' | 'jobNumber' | 'subject' | 'receivedDate' | 'date' | 'inspectorName' | 'sampleQty' | 'acceptedQty' | 'rejectedQty' | 'result';
 
 export default function Quality() {
   const { inspections, ncrs, jobs, currentUser, addInspection, addNCR, showToast } = useStore();
@@ -16,6 +19,9 @@ export default function Quality() {
   const [showNew, setShowNew] = useState(!!searchParams.get('newFor'));
   const [showNewNcr, setShowNewNcr] = useState(false);
   const [search, setSearch] = useState('');
+  const [sortKey, setSortKey] = useState<QualitySortKey>('inspectionNumber');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+  const [ncrStatusFilter, setNcrStatusFilter] = useState<string>('all');
   const prefilledJobId = searchParams.get('newFor') ?? '';
   // Inspections and NCRs are controlled records. They remain in history; closure
   // is represented by the result, NCR disposition, and status fields.
@@ -24,20 +30,43 @@ export default function Quality() {
   const [resultFilter, setResultFilter] = useState<string | null>(resultParam);
   const [ncrFocus, setNcrFocus] = useState(false);
   const query = search.trim().toLowerCase();
-  const visibleInspections = inspections.filter(i => {
+  const visibleInspectionsBase = inspections.filter(i => {
     if (resultFilter === 'open') return i.result === 'pending' || i.result === 'fail';
     if (resultFilter && i.result !== resultFilter) return false;
     if (!query) return true;
     return [i.inspectionNumber, i.type, i.jobNumber, i.stageName, i.productDescription, i.inspectorName, i.templateName]
       .some(value => value?.toLowerCase().includes(query));
   });
+  const visibleInspections = sortRows(visibleInspectionsBase, sortKey, sortDir, (i, key) => {
+    const map: Record<QualitySortKey, unknown> = {
+      inspectionNumber: i.inspectionNumber,
+      type: i.type,
+      jobNumber: i.jobNumber ?? '',
+      subject: i.productDescription || i.templateName || i.stageName || '',
+      receivedDate: i.receivedDate ?? '',
+      date: i.date ?? '',
+      inspectorName: i.inspectorName,
+      sampleQty: i.sampleQty,
+      acceptedQty: i.acceptedQty,
+      rejectedQty: i.rejectedQty,
+      result: i.result,
+    };
+    return map[key as QualitySortKey];
+  });
+  const handleSort = (key: QualitySortKey) => {
+    if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setSortKey(key); setSortDir('asc'); }
+  };
   const visibleNcrs = ncrs.filter(n => {
     if (ncrFocus && n.status !== 'open' && n.status !== 'in_progress') return false;
+    if (ncrStatusFilter !== 'all' && n.status !== ncrStatusFilter) return false;
     if (!query) return true;
     return [n.ncrNumber, n.sourceType, n.severity, n.description, n.jobNumber, n.status]
       .some(value => value?.toLowerCase().includes(query));
   });
   const openList = openInspections(visibleInspections);
+  const hasFilters = Boolean(search.trim() || resultFilter || ncrFocus || ncrStatusFilter !== 'all');
+  const clearFilters = () => { setSearch(''); setResultFilter(null); setNcrFocus(false); setNcrStatusFilter('all'); };
 
   const openNcrs = ncrs.filter(n => n.status === 'open' || n.status === 'in_progress').length;
   const pendingInspections = openList.length;
@@ -69,6 +98,29 @@ export default function Quality() {
             style={{ borderColor: 'var(--border)', background: 'var(--surface)', color: 'var(--text)' }}
           />
         </div>
+        {tab === 'inspections' ? (
+          <select aria-label="Inspection result filter" value={resultFilter ?? 'all'} onChange={e => setResultFilter(e.target.value === 'all' ? null : e.target.value)} className="eoss-input min-h-[36px] text-xs">
+            <option value="all">All Results ({inspections.length})</option>
+            {(['pending', 'pass', 'partial', 'hold', 'fail'] as const).map(r => (
+              <option key={r} value={r}>{getStatusLabel(r)}</option>
+            ))}
+          </select>
+        ) : (
+          <div className="flex items-center gap-1 rounded-lg border p-0.5" style={{ borderColor: 'var(--border)' }}>
+            {(['all', 'open', 'in_progress', 'closed'] as const).map(s => (
+              <button key={s} type="button" onClick={() => setNcrStatusFilter(s)}
+                className="px-2.5 py-1 rounded-md text-xs font-medium"
+                style={{ background: ncrStatusFilter === s ? 'var(--brand-fill)' : 'transparent', color: ncrStatusFilter === s ? '#fff' : 'var(--text-2)' }}>
+                {s === 'all' ? 'All' : getStatusLabel(s)}
+              </button>
+            ))}
+          </div>
+        )}
+        {hasFilters && (
+          <button type="button" onClick={clearFilters} className="px-2.5 py-1.5 rounded-lg border text-xs font-medium" style={{ borderColor: 'var(--border)', color: 'var(--text-2)' }}>
+            Clear filters
+          </button>
+        )}
         <div className="flex-1" />
         {['owner', 'qc'].includes(currentUser.role) && (
           <>
@@ -122,9 +174,22 @@ export default function Quality() {
           <table className="hidden md:table w-full text-sm border-separate border-spacing-0" style={{ minWidth: 800 }}>
             <thead style={{ position: 'sticky', top: 0, zIndex: 5 }}>
               <tr style={{ background: 'var(--surface-2)' }}>
-                {['Inspection #', 'Type', 'Job ID', 'Subject', 'Received', 'Inspected', 'Inspector', 'Sample', 'Accept', 'Reject', 'Result', ''].map(h => (
-                  <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold font-medium" style={{ color: 'var(--text-3)', borderBottom: '1px solid var(--border)' }}>{h}</th>
+                {([
+                  ['Inspection #', 'inspectionNumber'],
+                  ['Type', 'type'],
+                  ['Job ID', 'jobNumber'],
+                  ['Subject', 'subject'],
+                  ['Received', 'receivedDate'],
+                  ['Inspected', 'date'],
+                  ['Inspector', 'inspectorName'],
+                  ['Sample', 'sampleQty'],
+                  ['Accept', 'acceptedQty'],
+                  ['Reject', 'rejectedQty'],
+                  ['Result', 'result'],
+                ] as [string, QualitySortKey][]).map(([label, key]) => (
+                  <SortableHeader key={label} label={label} active={sortKey === key} direction={sortDir} onSort={() => handleSort(key)} className="text-left px-4 py-2.5 text-xs font-semibold font-medium" style={{ color: 'var(--text-3)', borderBottom: '1px solid var(--border)' }} />
                 ))}
+                <th className="px-4 py-2.5" style={{ borderBottom: '1px solid var(--border)' }} />
               </tr>
             </thead>
             <tbody>
@@ -156,7 +221,6 @@ export default function Quality() {
                           {i.result === 'pending' ? 'Record' : 'Raise NCR'}
                         </button>
                       )}
-                      <ChevronRight size={14} style={{ color: 'var(--text-3)' }} />
                     </div>
                   </td>
                 </tr>

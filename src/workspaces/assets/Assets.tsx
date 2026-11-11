@@ -1,13 +1,17 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Plus, AlertTriangle, ChevronRight, Wrench, Search, X, Archive, Pencil } from 'lucide-react';
 import { useStore } from '../../store';
 import { computeMaintenanceDue } from '../../domain/maintenanceDue';
 import { maintenanceDueSoon, maintenanceOverdue } from '../../domain/recordLists';
 import { DEMO_NOW } from '../../data/seed';
-import StatusChip from '../../components/layout/StatusChip';
+import StatusChip, { getStatusLabel } from '../../components/layout/StatusChip';
+import SortableHeader from '../../components/layout/SortableHeader';
+import { sortRows } from '../../domain/tableSort';
 import clsx from 'clsx';
 import type { Asset, MaintenanceEvent } from '../../types';
+
+type AssetSortKey = 'assetCode' | 'name' | 'category' | 'workCentre' | 'criticality' | 'currentReading' | 'lastServiceDate' | 'nextServiceDate' | 'status';
 
 export default function Assets() {
   const { assets, sites, maintenanceEvents, meterReadings, currentUser, addAsset, archiveAsset, addMaintenanceEvent, updateAsset, showToast } = useStore();
@@ -16,6 +20,9 @@ export default function Assets() {
   const focusParam = searchParams.get('focus');
   const [tab, setTab] = useState<'assets' | 'maintenance'>('assets');
   const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [sortKey, setSortKey] = useState<AssetSortKey>('assetCode');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [focus, setFocus] = useState<'all' | 'breakdown' | 'overdue' | 'due'>(
     focusParam === 'breakdown' || focusParam === 'overdue' || focusParam === 'due' ? focusParam : 'all'
   );
@@ -54,15 +61,46 @@ export default function Assets() {
   const inMaint = assets.filter(a => a.status === 'in_maintenance').length;
   const openEvents = maintenanceEvents.filter(m => m.status !== 'closed').length;
 
-  const filteredAssets = liveAssets.filter(a => {
-    if (search && !a.name.toLowerCase().includes(search.toLowerCase()) && !a.assetCode.toLowerCase().includes(search.toLowerCase())) return false;
-    const due = dueByAsset[a.id];
+  const assetStatusOptions: Asset['status'][] = ['operational', 'breakdown', 'pm_overdue', 'in_maintenance', 'retired'];
+  const assetStatusCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const st of assetStatusOptions) counts[st] = 0;
+    for (const a of liveAssets) counts[a.status] = (counts[a.status] ?? 0) + 1;
+    return counts;
+  }, [liveAssets]);
+
+  const filteredAssetsBase = liveAssets.filter(a => {
+    if (search && !a.name.toLowerCase().includes(search.toLowerCase()) && !a.assetCode.toLowerCase().includes(search.toLowerCase()) && !(a.workCentre ?? '').toLowerCase().includes(search.toLowerCase())) return false;
+    if (statusFilter !== 'all' && a.status !== statusFilter) return false;
     if (focus === 'breakdown') return a.status === 'breakdown';
     if (focus === 'overdue') return maintenanceOverdue([a], meterReadings, now).length > 0;
     if (focus === 'due') return maintenanceDueSoon([a], meterReadings, now).length > 0;
     return true;
   });
-  const filteredME = maintenanceEvents.filter(m => !search || m.eventNumber.toLowerCase().includes(search.toLowerCase()) || m.assetName.toLowerCase().includes(search.toLowerCase()));
+  const filteredAssets = sortRows(filteredAssetsBase, sortKey, sortDir, (a, key) => {
+    const map: Record<AssetSortKey, unknown> = {
+      assetCode: a.assetCode,
+      name: a.name,
+      category: a.category,
+      workCentre: a.workCentre ?? '',
+      criticality: a.criticality,
+      currentReading: a.currentReading ?? -1,
+      lastServiceDate: a.lastServiceDate ?? '',
+      nextServiceDate: a.nextServiceDate ?? '',
+      status: a.status,
+    };
+    return map[key as AssetSortKey];
+  });
+  const handleSort = (key: AssetSortKey) => {
+    if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setSortKey(key); setSortDir('asc'); }
+  };
+  const filteredME = maintenanceEvents.filter(m =>
+    (!search || m.eventNumber.toLowerCase().includes(search.toLowerCase()) || m.assetName.toLowerCase().includes(search.toLowerCase()) || m.assetCode.toLowerCase().includes(search.toLowerCase()) || m.symptom.toLowerCase().includes(search.toLowerCase())) &&
+    (statusFilter === 'all' || m.status === statusFilter)
+  );
+  const hasFilters = Boolean(search.trim() || statusFilter !== 'all' || focus !== 'all');
+  const clearFilters = () => { setSearch(''); setStatusFilter('all'); setFocus('all'); };
 
   const canCreate = ['owner', 'maintenance', 'supervisor'].includes(currentUser.role);
 
@@ -76,6 +114,29 @@ export default function Assets() {
             className="w-full pl-8 pr-3 py-1.5 text-sm rounded-lg border outline-none"
             style={{ borderColor: 'var(--border)', background: 'var(--surface)', color: 'var(--text)' }} />
         </div>
+        {tab === 'assets' ? (
+          <select aria-label="Asset status filter" value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="eoss-input min-h-[36px] text-xs">
+            <option value="all">All Statuses ({liveAssets.length})</option>
+            {assetStatusOptions.map(s => (
+              <option key={s} value={s}>{getStatusLabel(s)} ({assetStatusCounts[s] ?? 0})</option>
+            ))}
+          </select>
+        ) : (
+          <div className="flex items-center gap-1 rounded-lg border p-0.5" style={{ borderColor: 'var(--border)' }}>
+            {(['all', 'open', 'in_progress', 'scheduled', 'closed'] as const).map(s => (
+              <button key={s} type="button" onClick={() => setStatusFilter(s)}
+                className="px-2.5 py-1 rounded-md text-xs font-medium"
+                style={{ background: statusFilter === s ? 'var(--brand-fill)' : 'transparent', color: statusFilter === s ? '#fff' : 'var(--text-2)' }}>
+                {s === 'all' ? 'All' : getStatusLabel(s)}
+              </button>
+            ))}
+          </div>
+        )}
+        {hasFilters && (
+          <button type="button" onClick={clearFilters} className="px-2.5 py-1.5 rounded-lg border text-xs font-medium" style={{ borderColor: 'var(--border)', color: 'var(--text-2)' }}>
+            Clear filters
+          </button>
+        )}
         <div className="flex-1" />
         {breakdowns > 0 && (
           <button type="button" onClick={() => { setTab('assets'); setFocus(focus === 'breakdown' ? 'all' : 'breakdown'); }}
@@ -114,7 +175,7 @@ export default function Assets() {
       {/* Tabs */}
       <div className="flex-shrink-0 flex items-center border-b px-5" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
         {([['assets', `Assets (${filteredAssets.length})`], ['maintenance', `Maintenance Events (${filteredME.length})`]] as [string, string][]).map(([id, label]) => (
-          <button key={id} onClick={() => setTab(id as any)}
+          <button key={id} onClick={() => { setTab(id as any); setStatusFilter('all'); }}
             className="relative px-4 py-3 text-sm font-medium transition-colors whitespace-nowrap"
             style={{ color: tab === id ? 'var(--brand)' : 'var(--text-2)' }}>
             {label}
@@ -163,12 +224,26 @@ export default function Assets() {
         <table className="hidden md:table w-full text-sm border-separate border-spacing-0" style={{ minWidth: 900 }}>
           <thead style={{ position: 'sticky', top: 0, zIndex: 5 }}>
             <tr style={{ background: 'var(--surface-2)' }}>
-              {['Code', 'Asset', 'Category', 'Work Centre', 'Criticality', 'Meter', 'Last Service', 'Next Service', 'Status', ''].map(h => (
-                <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold font-medium" style={{ color: 'var(--text-3)', borderBottom: '1px solid var(--border)' }}>{h}</th>
+              {([
+                ['Code', 'assetCode'],
+                ['Asset', 'name'],
+                ['Category', 'category'],
+                ['Work Centre', 'workCentre'],
+                ['Criticality', 'criticality'],
+                ['Meter', 'currentReading'],
+                ['Last Service', 'lastServiceDate'],
+                ['Next Service', 'nextServiceDate'],
+                ['Status', 'status'],
+              ] as [string, AssetSortKey][]).map(([label, key]) => (
+                <SortableHeader key={label} label={label} active={sortKey === key} direction={sortDir} onSort={() => handleSort(key)} className="text-left px-4 py-2.5 text-xs font-semibold font-medium" style={{ color: 'var(--text-3)', borderBottom: '1px solid var(--border)' }} />
               ))}
+              <th className="text-left px-4 py-2.5 text-xs font-semibold font-medium" style={{ color: 'var(--text-3)', borderBottom: '1px solid var(--border)' }} />
             </tr>
           </thead>
           <tbody>
+            {filteredAssets.length === 0 && (
+              <tr><td colSpan={10} className="text-center py-10 text-sm" style={{ color: 'var(--text-3)' }}>No assets match your current filters.</td></tr>
+            )}
             {filteredAssets.map(a => (
               <tr key={a.id} className="cursor-pointer"
                 style={{ borderBottom: '1px solid var(--border)', background: a.status === 'breakdown' ? 'var(--error-bg,#FEF2F2)' : a.status === 'pm_overdue' ? 'var(--warning-bg,#FFFBEB)' : 'var(--surface)' }}
@@ -225,7 +300,6 @@ export default function Assets() {
                     )}
                     {canManage && !a.archivedAt && <button onClick={e => handleArchiveAsset(a, e)} className="p-1 rounded hover:bg-[var(--surface-2)]" title="Archive asset"><Archive size={12} style={{ color: 'var(--error,#DC2626)' }} /></button>}
                     {canManage && !a.archivedAt && <button onClick={e => { e.stopPropagation(); setEditingAssetId(a.id); setShowAssetForm(true); }} className="p-1 rounded hover:bg-[var(--surface-2)]" title="Edit asset"><Pencil size={12} style={{ color: 'var(--brand)' }} /></button>}
-                    <ChevronRight size={14} style={{ color: 'var(--text-3)' }} />
                   </div>
                 </td>
               </tr>
@@ -282,12 +356,21 @@ export default function Assets() {
         <AssetFormModal
           asset={editingAssetId ? assets.find(a => a.id === editingAssetId) : undefined}
           sites={sites}
+          hasOpenBreakdown={Boolean(editingAssetId && maintenanceEvents.some(m => m.assetId === editingAssetId && m.type === 'Breakdown' && m.status !== 'closed'))}
           onClose={() => { setShowAssetForm(false); setEditingAssetId(undefined); }}
           onSave={asset => {
-            if (editingAssetId) updateAsset(editingAssetId, asset);
-            else addAsset(asset as Asset);
-            showToast({ type: 'success', title: editingAssetId ? 'Asset updated' : 'Asset added', body: `${asset.assetCode} is now available in Maintenance.` });
+            if (editingAssetId) {
+              const res = updateAsset(editingAssetId, asset);
+              if (!res.ok) {
+                showToast({ type: 'error', title: 'Update blocked', body: res.error ?? 'Could not update asset.' });
+                return res;
+              }
+            } else {
+              addAsset(asset as Asset);
+            }
+            showToast({ type: 'success', title: editingAssetId ? 'Asset updated' : 'Asset added', body: `${asset.assetCode} saved.` });
             setShowAssetForm(false); setEditingAssetId(undefined);
+            return { ok: true };
           }}
         />
       )}
@@ -322,7 +405,20 @@ function AssetAction({ asset, events, onSchedule, onComplete }: {
 }
 
 function LogEventModal({ assets, initialAssetId, onClose, onSave }: { assets: { id: string; name: string; assetCode: string }[]; initialAssetId?: string; onClose: () => void; onSave: (e: MaintenanceEvent) => void }) {
-  const [form, setForm] = useState({ assetId: initialAssetId || '', type: (initialAssetId ? 'Preventive' : 'Breakdown') as MaintenanceEvent['type'], symptom: initialAssetId ? 'Scheduled service from overdue maintenance' : '', technicianName: '', severity: 'Medium' as NonNullable<MaintenanceEvent['severity']> });
+  const [form, setForm] = useState({
+    assetId: initialAssetId || '',
+    type: (initialAssetId ? 'Preventive' : 'Breakdown') as MaintenanceEvent['type'],
+    symptom: initialAssetId ? 'Scheduled preventive maintenance service' : '',
+    technicianName: '',
+    severity: 'High' as NonNullable<MaintenanceEvent['severity']>,
+    downtimeStart: `${DEMO_NOW}T09:00`,
+    downtimeEnd: '',
+    plannedDate: DEMO_NOW,
+    expectedDurationHours: '2',
+    actionRequired: '',
+    completionDate: '',
+    notes: '',
+  });
   const [barcodeInput, setBarcodeInput] = useState('');
   const [err, setErr] = useState('');
   const handleBarcodeScan = (code: string) => {
@@ -331,70 +427,205 @@ function LogEventModal({ assets, initialAssetId, onClose, onSave }: { assets: { 
     else setBarcodeInput(code + ' — not found');
   };
   const save = () => {
-    if (!form.assetId || !form.symptom || !form.technicianName) { setErr('Asset, symptom and technician are required'); return; }
+    setErr('');
+    if (!form.assetId) { setErr('Please select an asset.'); return; }
+    if (!form.symptom.trim()) { setErr(form.type === 'Preventive' ? 'Scope / maintenance description is required.' : form.type === 'Corrective' ? 'Identified issue description is required.' : 'Breakdown symptom / failure description is required.'); return; }
+    if (!form.technicianName.trim()) { setErr('Responsible technician / engineer name is required.'); return; }
+    if ((form.type === 'Preventive' || form.type === 'Corrective') && !form.plannedDate) {
+      setErr('Planned maintenance date is required.');
+      return;
+    }
+    if (form.type === 'Breakdown') {
+      if (!form.downtimeStart) { setErr('Breakdown start timestamp is required.'); return; }
+      if (form.downtimeEnd && new Date(form.downtimeEnd).getTime() < new Date(form.downtimeStart).getTime()) {
+        setErr('Resolution timestamp cannot be earlier than breakdown start.');
+        return;
+      }
+    }
     const asset = assets.find(a => a.id === form.assetId);
     if (!asset) return;
     const id = `me-${Date.now()}`;
     const num = `ME-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 900 + 100))}`;
-    onSave({ id, eventNumber: num, type: form.type, assetId: form.assetId, assetName: asset.name, assetCode: asset.assetCode, severity: form.severity, symptom: form.symptom, technicianId: 'usr-demo', technicianName: form.technicianName, downtimeStart: '2026-11-05', status: 'open', affectedJobs: [], sparesUsed: [] });
+    const isResolvedOnCreate = form.type === 'Breakdown' ? Boolean(form.downtimeEnd) : Boolean(form.completionDate);
+    onSave({
+      id,
+      eventNumber: num,
+      type: form.type,
+      assetId: form.assetId,
+      assetName: asset.name,
+      assetCode: asset.assetCode,
+      severity: form.type === 'Preventive' ? undefined : form.severity,
+      symptom: form.symptom.trim(),
+      correctiveAction: form.actionRequired.trim() || undefined,
+      technicianId: 'usr-demo',
+      technicianName: form.technicianName.trim(),
+      responsiblePerson: form.technicianName.trim(),
+      downtimeStart: form.type === 'Breakdown' ? form.downtimeStart : form.plannedDate,
+      downtimeEnd: form.type === 'Breakdown' ? (form.downtimeEnd || undefined) : (form.completionDate || undefined),
+      plannedDate: form.type !== 'Breakdown' ? form.plannedDate : undefined,
+      completionDate: form.type === 'Breakdown'
+        ? (form.downtimeEnd ? form.downtimeEnd.slice(0, 10) : undefined)
+        : (form.completionDate || undefined),
+      expectedDurationHours: form.type === 'Preventive' && form.expectedDurationHours ? Number(form.expectedDurationHours) : undefined,
+      notes: form.notes.trim() || undefined,
+      status: isResolvedOnCreate ? 'closed' : form.type === 'Preventive' ? 'scheduled' : 'open',
+      affectedJobs: [],
+      sparesUsed: [],
+    });
   };
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl w-full max-w-sm p-6 shadow-2xl">
+      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl w-full max-w-lg p-6 shadow-2xl max-h-[92vh] overflow-y-auto">
         <div className="flex justify-between items-center mb-4">
           <h3 className="font-bold text-[var(--text)]">Log Maintenance Event</h3>
-          <button onClick={onClose}><X size={16} className="text-[var(--text-3)]" /></button>
+          <button type="button" onClick={onClose}><X size={16} className="text-[var(--text-3)]" /></button>
         </div>
         <div className="space-y-3">
-          <p className="text-xs text-[var(--text-2)] rounded-lg p-2.5" style={{ background: 'var(--surface-2)' }}>Log Event records a maintenance occurrence and its closure history. Asset setup and maintenance schedules are managed in Add / Edit Asset.</p>
+          <p className="text-xs text-[var(--text-2)] rounded-lg p-2.5" style={{ background: 'var(--surface-2)' }}>
+            Select the maintenance event type below. Fields adapt automatically for Breakdown, Preventive (proactive) Maintenance, and Corrective Action.
+          </p>
           <div>
             <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Scan / Enter Asset Tag</label>
             <div className="flex gap-2">
               <input className="eoss-input flex-1" placeholder="EOSS-ASSET-HYD-0042 or asset code" value={barcodeInput} onChange={e => setBarcodeInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleBarcodeScan(barcodeInput)} />
-              <button onClick={() => handleBarcodeScan(barcodeInput)} className="px-3 py-1.5 bg-[var(--surface-2)] border border-[var(--border)] rounded-lg text-xs text-[var(--text-2)] hover:border-[var(--brand)]">Scan</button>
+              <button type="button" onClick={() => handleBarcodeScan(barcodeInput)} className="px-3 py-1.5 bg-[var(--surface-2)] border border-[var(--border)] rounded-lg text-xs text-[var(--text-2)] hover:border-[var(--brand)]">Scan</button>
             </div>
           </div>
-          <div>
-            <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Asset *</label>
-            <select className="eoss-input w-full" value={form.assetId} onChange={e => setForm(f => ({ ...f, assetId: e.target.value }))}>
-              <option value="">Select an asset…</option>
-              {assets.map(a => <option key={a.id} value={a.id}>{a.name} ({a.assetCode})</option>)}
-            </select>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid sm:grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Type</label>
+              <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Asset *</label>
+              <select className="eoss-input w-full" value={form.assetId} onChange={e => setForm(f => ({ ...f, assetId: e.target.value }))}>
+                <option value="">Select an asset…</option>
+                {assets.map(a => <option key={a.id} value={a.id}>{a.name} ({a.assetCode})</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Event Type *</label>
               <select className="eoss-input w-full" value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value as MaintenanceEvent['type'] }))}>
-                {(['Breakdown', 'Preventive', 'Corrective'] as const).map(t => <option key={t} value={t}>{t}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Severity</label>
-              <select className="eoss-input w-full" value={form.severity} onChange={e => setForm(f => ({ ...f, severity: e.target.value as NonNullable<MaintenanceEvent['severity']> }))}>
-                {(['Low', 'Medium', 'High', 'Critical'] as const).map(s => <option key={s} value={s}>{s}</option>)}
+                <option value="Breakdown">Breakdown (Unplanned)</option>
+                <option value="Preventive">Preventive (Proactive)</option>
+                <option value="Corrective">Corrective Maintenance</option>
               </select>
             </div>
           </div>
+
+          {form.type === 'Breakdown' && (
+            <>
+              <div className="grid sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Breakdown Start *</label>
+                  <input type="datetime-local" className="eoss-input w-full" value={form.downtimeStart} onChange={e => setForm(f => ({ ...f, downtimeStart: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Resolution / End Time (optional)</label>
+                  <input type="datetime-local" className="eoss-input w-full" value={form.downtimeEnd} onChange={e => setForm(f => ({ ...f, downtimeEnd: e.target.value }))} />
+                </div>
+              </div>
+              <div className="grid sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Severity *</label>
+                  <select className="eoss-input w-full" value={form.severity} onChange={e => setForm(f => ({ ...f, severity: e.target.value as NonNullable<MaintenanceEvent['severity']> }))}>
+                    {(['Low', 'Medium', 'High', 'Critical'] as const).map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Assigned Technician *</label>
+                  <input className="eoss-input w-full" value={form.technicianName} onChange={e => setForm(f => ({ ...f, technicianName: e.target.value }))} placeholder="Technician name" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Failure Symptom / Description *</label>
+                <input className="eoss-input w-full" value={form.symptom} onChange={e => setForm(f => ({ ...f, symptom: e.target.value }))} placeholder="Describe breakdown symptom and impact" />
+              </div>
+            </>
+          )}
+
+          {form.type === 'Preventive' && (
+            <>
+              <div className="grid sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Planned Maintenance Date *</label>
+                  <input type="date" className="eoss-input w-full" value={form.plannedDate} onChange={e => setForm(f => ({ ...f, plannedDate: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Expected Duration (hrs)</label>
+                  <input type="number" min={0.5} step={0.5} className="eoss-input w-full" value={form.expectedDurationHours} onChange={e => setForm(f => ({ ...f, expectedDurationHours: e.target.value }))} />
+                </div>
+              </div>
+              <div className="grid sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Responsible Person *</label>
+                  <input className="eoss-input w-full" value={form.technicianName} onChange={e => setForm(f => ({ ...f, technicianName: e.target.value }))} placeholder="Technician or contractor" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Completion Date (leave blank if scheduled)</label>
+                  <input type="date" className="eoss-input w-full" value={form.completionDate} onChange={e => setForm(f => ({ ...f, completionDate: e.target.value }))} />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Service Scope / Description *</label>
+                <input className="eoss-input w-full" value={form.symptom} onChange={e => setForm(f => ({ ...f, symptom: e.target.value }))} placeholder="Checklist, filter change, lubrication, calibration…" />
+              </div>
+            </>
+          )}
+
+          {form.type === 'Corrective' && (
+            <>
+              <div className="grid sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Planned Date *</label>
+                  <input type="date" className="eoss-input w-full" value={form.plannedDate} onChange={e => setForm(f => ({ ...f, plannedDate: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Severity</label>
+                  <select className="eoss-input w-full" value={form.severity} onChange={e => setForm(f => ({ ...f, severity: e.target.value as NonNullable<MaintenanceEvent['severity']> }))}>
+                    {(['Low', 'Medium', 'High', 'Critical'] as const).map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="grid sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Responsible Person *</label>
+                  <input className="eoss-input w-full" value={form.technicianName} onChange={e => setForm(f => ({ ...f, technicianName: e.target.value }))} placeholder="Technician name" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Completion Date (optional)</label>
+                  <input type="date" className="eoss-input w-full" value={form.completionDate} onChange={e => setForm(f => ({ ...f, completionDate: e.target.value }))} />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Identified Issue *</label>
+                <input className="eoss-input w-full" value={form.symptom} onChange={e => setForm(f => ({ ...f, symptom: e.target.value }))} placeholder="Describe detected wear, vibration or misalignment" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Corrective Action Required</label>
+                <input className="eoss-input w-full" value={form.actionRequired} onChange={e => setForm(f => ({ ...f, actionRequired: e.target.value }))} placeholder="Planned repair or part replacement" />
+              </div>
+            </>
+          )}
+
           <div>
-            <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Symptom / Description *</label>
-            <input className="eoss-input w-full" value={form.symptom} onChange={e => setForm(f => ({ ...f, symptom: e.target.value }))} placeholder="Describe the issue" />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Technician *</label>
-            <input className="eoss-input w-full" value={form.technicianName} onChange={e => setForm(f => ({ ...f, technicianName: e.target.value }))} placeholder="Technician name" />
+            <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Notes</label>
+            <textarea rows={2} className="eoss-input w-full" value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} placeholder="Additional spares or safety notes" />
           </div>
         </div>
-        {err && <p className="text-xs text-[var(--danger)] mt-2">{err}</p>}
+        {err && <p className="text-xs text-[var(--error,#DC2626)] mt-2 font-medium">{err}</p>}
         <div className="flex gap-3 mt-5">
           <button type="button" onClick={onClose} className="btn-ghost flex-1 justify-center">Cancel</button>
-          <button onClick={save} className="flex-1 py-2.5 bg-[var(--brand-fill)] text-white rounded-xl text-sm font-medium">Log Event</button>
+          <button type="button" onClick={save} className="flex-1 py-2.5 bg-[var(--brand-fill)] text-white rounded-xl text-sm font-medium">Log Event</button>
         </div>
       </div>
     </div>
   );
 }
 
-function AssetFormModal({ asset, sites, onClose, onSave }: { asset?: Asset; sites: { id: string; name: string }[]; onClose: () => void; onSave: (data: Partial<Asset>) => void }) {
+function AssetFormModal({ asset, sites, hasOpenBreakdown, onClose, onSave }: {
+  asset?: Asset;
+  sites: { id: string; name: string }[];
+  hasOpenBreakdown?: boolean;
+  onClose: () => void;
+  onSave: (data: Partial<Asset>) => { ok: boolean; error?: string };
+}) {
   const [form, setForm] = useState({
     assetCode: asset?.assetCode ?? '', name: asset?.name ?? '', category: asset?.category ?? '', siteId: asset?.siteId ?? sites[0]?.id ?? '',
     workCentre: asset?.workCentre ?? '', criticality: asset?.criticality ?? 'Medium' as Asset['criticality'], status: asset?.status ?? 'operational' as Asset['status'],
@@ -404,23 +635,32 @@ function AssetFormModal({ asset, sites, onClose, onSave }: { asset?: Asset; site
   const [err, setErr] = useState('');
   const unit = form.meterType === 'none' ? 'metric' : form.meterType;
   const save = () => {
-    if (!form.assetCode.trim() || !form.name.trim() || !form.category.trim() || !form.siteId || !form.manufacturer.trim()) { setErr('Code, name, category, site and manufacturer are required'); return; }
+    setErr('');
+    if (!form.assetCode.trim() || !form.name.trim() || !form.category.trim() || !form.siteId || !form.manufacturer.trim()) {
+      setErr('Code, name, category, site and manufacturer are required.');
+      return;
+    }
+    if (form.currentReading && (Number.isNaN(Number(form.currentReading)) || Number(form.currentReading) < 0)) {
+      setErr('Meter reading must be zero or positive.');
+      return;
+    }
     const site = sites.find(s => s.id === form.siteId);
-    onSave({
+    const res = onSave({
       ...(asset ?? { id: `asset-${Date.now()}`, purchaseDate: DEMO_NOW }),
       assetCode: form.assetCode.trim(), name: form.name.trim(), category: form.category.trim(), siteId: form.siteId,
       workCentre: form.workCentre.trim() || undefined, criticality: form.criticality, status: form.status,
       manufacturer: form.manufacturer.trim(), model: form.model.trim() || undefined, meterType: form.meterType,
-      currentReading: form.currentReading ? Number(form.currentReading) : undefined,
+      currentReading: form.currentReading !== '' ? Number(form.currentReading) : undefined,
       nextServiceDate: form.nextServiceDate || undefined,
       pmFrequencyMetric: form.pmFrequencyMetric && form.meterType !== 'none' ? Number(form.pmFrequencyMetric) : undefined,
       pmFrequencyHours: undefined,
       location: site?.name,
     });
+    if (!res.ok && res.error) setErr(res.error);
   };
   return <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
     <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl w-full max-w-2xl p-6 shadow-2xl max-h-[92vh] overflow-y-auto">
-      <div className="flex justify-between items-center mb-4"><div><h3 className="font-bold text-[var(--text)]">{asset ? 'Edit Asset' : 'Add Asset'}</h3><p className="text-xs text-[var(--text-2)] mt-1">Asset master and maintenance schedule. Log Event is used for actual maintenance occurrences.</p></div><button type="button" onClick={onClose} aria-label="Close"><X size={16} className="text-[var(--text-3)]" /></button></div>
+      <div className="flex justify-between items-center mb-4"><div><h3 className="font-bold text-[var(--text)]">{asset ? 'Edit Asset' : 'Add Asset'}</h3><p className="text-xs text-[var(--text-2)] mt-1">Asset master, operational status, running hours and maintenance schedule.</p></div><button type="button" onClick={onClose} aria-label="Close"><X size={16} className="text-[var(--text-3)]" /></button></div>
       <div className="grid sm:grid-cols-2 gap-3">
         <FieldInput label="Asset Code *" value={form.assetCode} onChange={v => setForm(f => ({ ...f, assetCode: v }))} placeholder="CNC-05" />
         <FieldInput label="Asset Name *" value={form.name} onChange={v => setForm(f => ({ ...f, name: v }))} placeholder="CNC Vertical Machining Centre" />
@@ -430,9 +670,25 @@ function AssetFormModal({ asset, sites, onClose, onSave }: { asset?: Asset; site
         <FieldInput label="Model" value={form.model} onChange={v => setForm(f => ({ ...f, model: v }))} placeholder="DMU 50" />
         <FieldInput label="Work Centre" value={form.workCentre} onChange={v => setForm(f => ({ ...f, workCentre: v }))} placeholder="CNC Bay" />
         <label className="text-xs text-[var(--text-2)]">Criticality<select className="eoss-input w-full mt-1" value={form.criticality} onChange={e => setForm(f => ({ ...f, criticality: e.target.value as Asset['criticality'] }))}>{(['Low', 'Medium', 'High', 'Critical'] as const).map(v => <option key={v} value={v}>{v}</option>)}</select></label>
+        <label className="text-xs text-[var(--text-2)]">
+          Operational Status
+          <select className="eoss-input w-full mt-1" value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value as Asset['status'] }))}>
+            {(['operational', 'in_maintenance', 'breakdown', 'pm_overdue', 'retired'] as const).map(s => (
+              <option key={s} value={s}>{getStatusLabel(s)}</option>
+            ))}
+          </select>
+          {hasOpenBreakdown && <span className="block text-[11px] text-[var(--warning,#D97706)] mt-1">Open breakdown exists — close the breakdown event before setting Operational.</span>}
+        </label>
+        <FieldInput
+          label={form.meterType === 'none' ? 'Current Meter Reading (optional)' : `Current Reading (${unit})`}
+          value={form.currentReading}
+          onChange={v => setForm(f => ({ ...f, currentReading: v }))}
+          type="number"
+          placeholder="1240"
+        />
         <div className="sm:col-span-2 border-t pt-3 mt-1" style={{ borderColor: 'var(--border)' }}><div className="text-xs font-semibold text-[var(--text)] mb-2">Maintenance schedule</div><div className="grid sm:grid-cols-3 gap-3"><label className="text-xs text-[var(--text-2)]">Metric<select className="eoss-input w-full mt-1" value={form.meterType} onChange={e => setForm(f => ({ ...f, meterType: e.target.value as NonNullable<Asset['meterType']> }))}>{[['none', 'Calendar only'], ['hours', 'Running hours'], ['cycles', 'Cycles'], ['km', 'Kilometres']].map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></label><FieldInput label={form.meterType === 'none' ? 'Metric interval' : `Metric interval (${unit})`} value={form.pmFrequencyMetric} onChange={v => setForm(f => ({ ...f, pmFrequencyMetric: v }))} type="number" placeholder="600" /><FieldInput label="Next due date" value={form.nextServiceDate} onChange={v => setForm(f => ({ ...f, nextServiceDate: v }))} type="date" /></div></div>
       </div>
-      {err && <p className="text-xs text-[var(--error)] mt-3">{err}</p>}
+      {err && <p className="text-xs text-[var(--error,#DC2626)] mt-3 font-medium">{err}</p>}
       <div className="flex gap-2 justify-end mt-5"><button type="button" onClick={onClose} className="btn-ghost">Cancel</button><button type="button" onClick={save} className="btn-primary">{asset ? 'Save Asset' : 'Add Asset'}</button></div>
     </div>
   </div>;

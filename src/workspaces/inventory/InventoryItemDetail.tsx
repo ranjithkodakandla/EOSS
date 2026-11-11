@@ -8,7 +8,7 @@ export default function InventoryItemDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { materials, inventory, lots, movements, jobMaterialReqs, jobs, storeLocations } = useStore();
+  const { materials, inventory, lots, movements, jobMaterialReqs, jobs, storeLocations, inspections, startInspectionForLot } = useStore();
   const material = materials.find(m => m.id === id);
 
   if (!material) return <div className="p-6 text-sm text-[var(--text-2)]">Inventory item not found.</div>;
@@ -58,9 +58,40 @@ export default function InventoryItemDetail() {
 
       <section className="rounded-xl border overflow-hidden" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
         <div className="px-4 py-3 border-b" style={{ borderColor: 'var(--border)' }}><h2 className="text-sm font-bold text-[var(--text)]">Lot and grade information</h2></div>
-        <div className="overflow-x-auto"><table className="eoss-table"><thead><tr><th>Lot</th><th>Grade</th><th>Quantity</th><th>Location</th><th>Status</th><th /></tr></thead><tbody>
-          {itemLots.length === 0 && <tr><td colSpan={6} className="text-center text-sm text-[var(--text-3)] py-6">No lots recorded for this item.</td></tr>}
-          {itemLots.map(lot => <tr key={lot.id}><td className="font-mono text-xs font-semibold">{lot.lotNumber}</td><td className="text-xs">{lot.grade ?? material.standardGrade ?? '—'}</td><td className="font-mono text-xs">{lot.primaryQty} {lot.primaryUom}</td><td className="text-xs">{lot.storeLocationName}</td><td><StatusChip status={lot.status} size="sm" /></td><td><Link to={`/inventory/lot/${lot.id}`} className="text-xs font-semibold text-[var(--brand)]">Open lot</Link></td></tr>)}
+        <div className="overflow-x-auto"><table className="eoss-table"><thead><tr><th>Lot</th><th>Supplier Lot / Heat</th><th>Grade</th><th>Quantity</th><th>Location</th><th>Status</th><th>Inspection</th><th /></tr></thead><tbody>
+          {itemLots.length === 0 && <tr><td colSpan={8} className="text-center text-sm text-[var(--text-3)] py-6">No lots recorded for this item.</td></tr>}
+          {itemLots.map(lot => {
+            const lotIns = inspections.find(i => i.lotId === lot.id);
+            return (
+              <tr key={lot.id}>
+                <td className="font-mono text-xs font-semibold">{lot.lotNumber}</td>
+                <td className="font-mono text-xs text-[var(--text-2)]">{lot.supplierBatchRef || lot.heatNumber || '—'}</td>
+                <td className="text-xs">{lot.grade ?? material.standardGrade ?? '—'}</td>
+                <td className="font-mono text-xs">{lot.primaryQty} {lot.primaryUom}</td>
+                <td className="text-xs">{lot.storeLocationName}</td>
+                <td><StatusChip status={lot.status} size="sm" /></td>
+                <td>
+                  {lotIns ? (
+                    <Link to={`/quality/inspection/${lotIns.id}`} className="font-mono text-xs font-semibold text-[var(--brand)] hover:underline">
+                      {lotIns.inspectionNumber} ({lotIns.result})
+                    </Link>
+                  ) : lot.status === 'qc_hold' ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const created = startInspectionForLot(lot.id);
+                        if (created) navigate(`/quality/inspection/${created.id}`);
+                      }}
+                      className="text-xs font-semibold text-[var(--brand)] hover:underline"
+                    >
+                      Start Inspection
+                    </button>
+                  ) : <span className="text-xs text-[var(--text-3)]">—</span>}
+                </td>
+                <td><Link to={`/inventory/lot/${lot.id}`} className="text-xs font-semibold text-[var(--brand)]">Open lot</Link></td>
+              </tr>
+            );
+          })}
         </tbody></table></div>
       </section>
 

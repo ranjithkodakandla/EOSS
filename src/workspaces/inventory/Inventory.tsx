@@ -11,8 +11,9 @@ import StockWorkspaceNav from '../../components/layout/StockWorkspaceNav';
 import clsx from 'clsx';
 import SortableHeader from '../../components/layout/SortableHeader';
 import { sortRows } from '../../domain/tableSort';
+import { deriveInventoryStatus } from '../../domain/inventory';
 
-type SortKey = 'materialCode' | 'materialName' | 'locationName' | 'onHandQty' | 'reservedQty' | 'qcHoldQty' | 'inTransitQty' | 'availableQty' | 'reorderPoint';
+type SortKey = 'materialCode' | 'materialName' | 'locationName' | 'onHandQty' | 'reservedQty' | 'qcHoldQty' | 'inTransitQty' | 'availableQty' | 'reorderPoint' | 'status';
 type SortDir = 'asc' | 'desc';
 
 const emptyMaterialForm = {
@@ -30,9 +31,14 @@ export default function Inventory() {
 
   const [search, setSearch] = useState(searchParams.get('search') ?? '');
   const [selectedLocation, setSelectedLocation] = useState('all');
-  const [shortagesOnly, setShortagesOnly] = useState(shortageFocus);
+  const [statusFilter, setStatusFilter] = useState<string>(shortageFocus ? 'Shortage' : 'all');
   const [sortKey, setSortKey] = useState<SortKey>('materialCode');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
+
+  const getInventoryRowStatus = (item: (typeof inventory)[number]) => {
+    if (item.availableQty <= 0 && item.inTransitQty > 0 && item.qcHoldQty === 0) return 'Awaiting GRN';
+    return deriveInventoryStatus(item);
+  };
 
   const shortageCount = inventory.filter(i => {
     if (!i.shortage) return false;
@@ -113,11 +119,28 @@ export default function Inventory() {
       .filter(i => {
         const matchLoc = selectedLocation === 'all' || i.locationId === selectedLocation;
         const matchSearch = !q || i.materialCode.toLowerCase().includes(q) || i.materialName.toLowerCase().includes(q) || i.categoryName.toLowerCase().includes(q) || i.locationName.toLowerCase().includes(q);
-        const matchShortage = !shortagesOnly || i.shortage;
-        return matchLoc && matchSearch && matchShortage;
-      })
-    return sortRows(filteredRows, sortKey, sortDir, (row, key) => row[key as SortKey]);
-  }, [inventory, search, selectedLocation, shortagesOnly, sortKey, sortDir]);
+        const derivedStatus = getInventoryRowStatus(i);
+        const matchStatus = statusFilter === 'all' || derivedStatus === statusFilter;
+        return matchLoc && matchSearch && matchStatus;
+      });
+    return sortRows(filteredRows, sortKey, sortDir, (row, key) =>
+      key === 'status' ? getInventoryRowStatus(row) : row[key as Exclude<SortKey, 'status'>]
+    );
+  }, [inventory, search, selectedLocation, statusFilter, sortKey, sortDir]);
+
+  const inventoryStatusOptions = ['Available', 'Shortage', 'Quality Hold', 'Reserved', 'Awaiting GRN'] as const;
+  const statusCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const s of inventoryStatusOptions) counts[s] = 0;
+    for (const item of inventory) {
+      if (selectedLocation !== 'all' && item.locationId !== selectedLocation) continue;
+      const st = getInventoryRowStatus(item);
+      counts[st] = (counts[st] ?? 0) + 1;
+    }
+    return counts;
+  }, [inventory, selectedLocation]);
+  const hasFilters = Boolean(search.trim() || selectedLocation !== 'all' || statusFilter !== 'all');
+  const clearFilters = () => { setSearch(''); setSelectedLocation('all'); setStatusFilter('all'); };
 
   const raisePr = (item: { materialCode: string; materialName: string; primaryUom: string; reorderPoint: number; availableQty: number }, grade?: string) => {
     const qty = Math.max(item.reorderPoint - item.availableQty, item.reorderPoint || 1);
@@ -146,17 +169,35 @@ export default function Inventory() {
           />
         </div>
 
+        <select
+          aria-label="Stock status filter"
+          value={statusFilter}
+          onChange={e => setStatusFilter(e.target.value)}
+          className="eoss-input min-h-[36px] text-xs"
+        >
+          <option value="all">All Statuses ({inventory.filter(i => selectedLocation === 'all' || i.locationId === selectedLocation).length})</option>
+          {inventoryStatusOptions.map(s => (
+            <option key={s} value={s}>{s} ({statusCounts[s] ?? 0})</option>
+          ))}
+        </select>
+
+        {hasFilters && (
+          <button type="button" onClick={clearFilters} className="px-2.5 py-1.5 rounded-lg border text-xs font-medium" style={{ borderColor: 'var(--border)', color: 'var(--text-2)' }}>
+            Clear filters
+          </button>
+        )}
+
         <div className="flex-1" />
 
         {shortageCount > 0 && (
           <button
             type="button"
-            onClick={() => setShortagesOnly(v => !v)}
+            onClick={() => setStatusFilter(prev => prev === 'Shortage' ? 'all' : 'Shortage')}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border"
             style={{
-              background: shortagesOnly ? 'var(--error-bg,#FEF2F2)' : 'var(--surface)',
+              background: statusFilter === 'Shortage' ? 'var(--error-bg,#FEF2F2)' : 'var(--surface)',
               color: 'var(--error,#DC2626)',
-              borderColor: shortagesOnly ? 'var(--error,#DC2626)' : 'var(--border)',
+              borderColor: statusFilter === 'Shortage' ? 'var(--error,#DC2626)' : 'var(--border)',
             }}
           >
             <ShieldAlert size={13} />
@@ -247,7 +288,7 @@ export default function Inventory() {
           <p className="px-2 py-8 text-center text-sm" style={{ color: 'var(--text-3)' }}>No inventory items match your filter.</p>
         )}
         {filtered.map(item => {
-          const isLow = item.shortage || item.availableQty <= item.reorderPoint * 0.5;
+          const rowStatus = getInventoryRowStatus(item);
           return (
             <div
               key={item.id}
@@ -263,12 +304,7 @@ export default function Inventory() {
                   <div className="text-sm font-semibold text-[var(--text)]">{item.materialName}</div>
                   <div className="text-[11px] font-mono mt-0.5" style={{ color: 'var(--brand)' }}>{item.materialCode}</div>
                 </div>
-                <span className="text-xs font-semibold px-2 py-0.5 rounded-full flex-shrink-0" style={{
-                  background: item.shortage ? 'var(--error-bg,#FEF2F2)' : isLow ? 'var(--warning-bg,#FFFBEB)' : 'var(--success-bg,#F0FDF4)',
-                  color: item.shortage ? 'var(--error,#DC2626)' : isLow ? 'var(--warning,#D97706)' : 'var(--success,#16A34A)',
-                }}>
-                  {item.shortage ? 'Shortage' : isLow ? 'Low' : 'OK'}
-                </span>
+                <StatusChip status={rowStatus.toLowerCase().replace(/\s+/g, '_')} label={rowStatus} size="sm" />
               </div>
               <div className="mt-2 flex items-baseline justify-between gap-2">
                 <span className="text-xs" style={{ color: 'var(--text-2)' }}>{item.locationName}</span>
@@ -312,7 +348,7 @@ export default function Inventory() {
                 ['inTransitQty', 'In Transit'],
                 ['availableQty', 'Available'],
                 ['reorderPoint', 'Reorder Pt'],
-                [null, 'Status'],
+                ['status', 'Status'],
               ] as [SortKey | null, string][]).map(([key, label]) => (
                 <SortableHeader
                   key={label}
@@ -336,7 +372,7 @@ export default function Inventory() {
               </tr>
             ) : (
               filtered.map((item, idx) => {
-                const isLow = item.shortage || item.availableQty <= item.reorderPoint * 0.5;
+                const rowStatus = getInventoryRowStatus(item);
                 const seedMaterial = materials.find(m => m.itemCode === item.materialCode);
                 return (
                   <tr
@@ -372,13 +408,7 @@ export default function Inventory() {
                     <QtyCell qty={item.availableQty} uom={item.primaryUom} emphasis low={item.shortage} />
                     <QtyCell qty={item.reorderPoint} uom={item.primaryUom} dim />
                     <td className="px-4 py-3">
-                      {item.shortage ? (
-                        <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ background: 'var(--error-bg,#FEF2F2)', color: 'var(--error,#DC2626)' }}>Shortage</span>
-                      ) : isLow ? (
-                        <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ background: 'var(--warning-bg,#FFFBEB)', color: 'var(--warning,#D97706)' }}>Low</span>
-                      ) : (
-                        <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ background: 'var(--success-bg,#F0FDF4)', color: 'var(--success,#16A34A)' }}>OK</span>
-                      )}
+                      <StatusChip status={rowStatus.toLowerCase().replace(/\s+/g, '_')} label={rowStatus} size="sm" />
                     </td>
                     <td className="px-4 py-3 text-right" onClick={e => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1.5">
