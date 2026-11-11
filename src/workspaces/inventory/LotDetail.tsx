@@ -8,7 +8,7 @@ import ConfirmModal from '../../components/feedback/ConfirmModal';
 export default function LotDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { lots, movements, certificates, documents, setLotStatus, transferLot, currentUser, showToast } = useStore();
+  const { lots, movements, certificates, documents, grns, setLotStatus, currentUser, showToast } = useStore();
   const [confirm, setConfirm] = useState<null | { action: string; body: string }>(null);
 
   const lot = lots.find(l => l.id === id);
@@ -17,6 +17,7 @@ export default function LotDetail() {
   const lotMovements = movements.filter(m => m.lotId === id);
   const lotCerts = certificates.filter(c => c.linkedLots.includes(id!));
   const lotDocs = documents.filter(d => d.linkedEntities.some(le => le.ref === lot.lotNumber));
+  const sourceGrn = lot.grnId ? grns.find(g => g.id === lot.grnId) : undefined;
 
   const canEdit = ['owner', 'storekeeper', 'qc'].includes(currentUser.role);
 
@@ -67,7 +68,10 @@ export default function LotDetail() {
               <Field label="Heat Number" value={lot.heatNumber ?? '—'} mono />
               <Field label="Grade" value={lot.grade ?? '—'} />
               <Field label="Received" value={lot.receivedDate ? new Date(lot.receivedDate).toLocaleDateString('en-IN') : '—'} />
-              <Field label="GRN" value={lot.grnId ?? '—'} />
+              <div>
+                <dt className="text-xs text-[var(--text-3)]">GRN</dt>
+                {sourceGrn ? <dd className="text-sm text-[var(--text)] mt-0.5"><Link to={`/procurement/grn/${sourceGrn.id}`} className="text-[var(--brand)] hover:underline font-mono">{sourceGrn.grnNumber}</Link><span className="text-[var(--text-3)]"> · {sourceGrn.status.replace('_', ' ')}</span></dd> : <dd className="text-sm text-[var(--text)] mt-0.5">Opening balance / legacy receipt</dd>}
+              </div>
               <Field label="Certificate" value={<StatusChip status={lot.certStatus} size="sm" />} />
               {lot.parentLotId && <Field label="Parent Lot" value={lot.parentLotId} mono />}
             </dl>

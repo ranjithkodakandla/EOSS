@@ -217,7 +217,7 @@ export default function Jobs() {
         <table className="w-full text-sm border-separate border-spacing-0" style={{ minWidth: 900 }}>
           <thead style={{ position: 'sticky', top: 0, zIndex: 5 }}>
             <tr style={{ background: 'var(--surface-2)' }}>
-              {([['Job #', 'number'], ['Customer', 'customer'], ['Material Readiness', 'material'], ['Current Stage', 'stage'], ['Job Status', 'status'], ['Target Completion', 'plannedEnd'], ['Projected', 'projected']] as [string, JobSortKey][]).map(([label, key]) => (
+              {([['Job #', 'number'], ['Material Readiness', 'material'], ['Customer', 'customer'], ['Current Stage', 'stage'], ['Job Status', 'status'], ['Target Completion', 'plannedEnd'], ['Projected', 'projected']] as [string, JobSortKey][]).map(([label, key]) => (
                 <SortableHeader key={label} label={label} active={sortKey === key} direction={sortDir} onSort={() => handleSort(key)} className="text-left px-4 py-2.5 text-xs font-semibold font-medium" style={{ color: 'var(--text-3)', borderBottom: '1px solid var(--border)' }} />
               ))}
               <th />
@@ -238,11 +238,11 @@ export default function Jobs() {
                       <span className="font-mono text-xs font-bold" style={{ color: 'var(--brand)' }}>{j.jobNumber}</span>
                     </div>
                   </td>
+                  <td className="px-4 py-3"><StatusChip status={readinessByJob[j.id]} label={String(readinessByJob[j.id]).replace('_', ' ')} size="sm" /></td>
                   <td className="px-4 py-3 text-sm font-medium" style={{ color: 'var(--text)' }}>
                     {j.customerName}
                     <div className="text-[11px] font-normal text-[var(--text-3)]">{j.siteName}</div>
                   </td>
-                  <td className="px-4 py-3"><StatusChip status={readinessByJob[j.id]} label={String(readinessByJob[j.id]).replace('_', ' ')} size="sm" /></td>
                   <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-2)' }}>{j.currentStage}</td>
                   <td className="px-4 py-3"><StatusChip status={j.status} size="sm" /></td>
                   <td className="px-4 py-3">
@@ -311,7 +311,7 @@ function NewJobModal({ onClose, onSave }: { onClose: () => void; onSave: (j: Job
   const { customerPos, stageTemplates } = useStore();
   const [form, setForm] = useState({
     customerId: '', customerName: '', description: '', plannedEnd: '', priority: 'normal' as Job['priority'],
-    linkedPoRef: '', orderedQty: '', bufferPct: '5',
+    linkedPoRef: '', value: '', orderedQty: '', bufferPct: '5',
     siteId: DEFAULT_SITE_ID, siteName: DEFAULT_SITE_NAME,
     stageTemplateId: stageTemplates[0]?.id ?? '',
   });
@@ -324,8 +324,9 @@ function NewJobModal({ onClose, onSave }: { onClose: () => void; onSave: (j: Job
     const id = `job-${Date.now()}`;
     const num = `J-${String(Math.floor(Math.random() * 900 + 110))}`;
     const template = stageTemplates.find(t => t.id === form.stageTemplateId) ?? stageTemplates[0];
+    const linkedPo = customerPos.find(po => po.poNumber === form.linkedPoRef);
     const defaultStages: JobStage[] = (template?.stages ?? []).map(stage => ({ id: `${id}-s${stage.sequence}`, jobId: id, name: stage.name, sequence: stage.sequence, status: 'pending', plannedStart: DEMO_NOW, plannedEnd: form.plannedEnd, inputQty: plannedQty || 0, completedGoodQty: 0, rejectedQty: 0, reworkQty: 0, scrapQty: 0, uom: 'pcs', workCentre: stage.workCentre }));
-    onSave({ id, jobNumber: num, customerId: form.customerId, customerName: form.customerName, description: form.description, status: 'active', priority: form.priority, plannedStart: DEMO_NOW, plannedEnd: form.plannedEnd, siteId: form.siteId, siteName: form.siteName, owner: 'Owner', stages: defaultStages, currentStage: defaultStages[0]?.name ?? 'Planning', materialReadiness: 'pending', hasBlocker: false, stageTemplateId: template?.id, stageTemplateName: template?.name });
+    onSave({ id, jobNumber: num, customerId: form.customerId, customerName: form.customerName, customerPoId: linkedPo?.id, customerPoNumber: linkedPo?.poNumber, description: form.description, status: 'active', priority: form.priority, plannedStart: DEMO_NOW, plannedEnd: form.plannedEnd, siteId: form.siteId, siteName: form.siteName, owner: 'Owner', value: Number(form.value) || 0, stages: defaultStages, currentStage: defaultStages[0]?.name ?? 'Planning', materialReadiness: 'pending', hasBlocker: false, stageTemplateId: template?.id, stageTemplateName: template?.name });
   };
   return (
     <RecordSheet
@@ -352,6 +353,11 @@ function NewJobModal({ onClose, onSave }: { onClose: () => void; onSave: (j: Job
               <option value="">None / New PO</option>
               {customerPos.map(po => <option key={po.id} value={po.poNumber}>{po.poNumber} — {po.customerName}</option>)}
             </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Job value (₹)</label>
+            <input type="number" min="0" step="100" className="eoss-input w-full" value={form.value} onChange={e => setForm(f => ({ ...f, value: e.target.value }))} placeholder="e.g. 2800000" />
+            <p className="text-[11px] text-[var(--text-3)] mt-1">Used for the job commercial summary; it is not inferred from material quantities.</p>
           </div>
           <SiteStoreField
             siteId={form.siteId}

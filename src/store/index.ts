@@ -142,6 +142,8 @@ interface EOSSState {
   setLotStatus: (lotId: string, status: MaterialLot['status']) => void;
 
   // Asset actions
+  addAsset: (asset: Asset) => void;
+  archiveAsset: (assetId: string, reason: string, by: string) => void;
   setAssetStatus: (assetId: string, status: Asset['status']) => void;
   addMaintenanceEvent: (event: MaintenanceEvent) => void;
   closeMaintenanceEvent: (eventId: string, diagnosis: string, workDone: string) => void;
@@ -688,6 +690,31 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
   })),
 
   // ── Asset Actions ──
+  addAsset: (asset) => set(s => ({ assets: [asset, ...s.assets] })),
+
+  archiveAsset: (assetId, reason, by) => {
+    set(s => {
+      const asset = s.assets.find(a => a.id === assetId);
+      if (!asset || asset.archivedAt) return s;
+      const timestamp = new Date().toISOString();
+      return {
+        assets: s.assets.map(a => a.id === assetId ? {
+          ...a,
+          status: 'retired' as const,
+          archivedAt: timestamp,
+          archivedBy: by,
+          archiveReason: reason.trim(),
+        } : a),
+        auditEvents: [...s.auditEvents, {
+          id: `ae-${Date.now()}`, actor: by, actorId: s.currentUser.id, scope: 'Asset', action: 'archive',
+          entityId: assetId, entityRef: asset.assetCode, timestamp, source: 'ui',
+          reason: reason.trim(), before: { status: asset.status }, after: { status: 'retired', archivedAt: timestamp },
+        }],
+      };
+    });
+    get().showToast({ type: 'success', title: 'Asset archived', body: 'The asset is hidden from active lists and its history is preserved.' });
+  },
+
   setAssetStatus: (assetId, status) => set(s => ({
     assets: s.assets.map(a => a.id !== assetId ? a : { ...a, status }),
   })),
@@ -1096,7 +1123,34 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
 }), {
   name: 'eoss-demo-store',
   storage: createJSONStorage(() => localStorage),
-  version: 1,
+  version: 2,
+  migrate: (persistedState, version) => {
+    // Older browsers may already have persisted the demo data before the
+    // procurement-to-inventory traceability records were added. Merge the
+    // new evidence into that state instead of leaving those lots stranded as
+    // opening balances after deployment.
+    if (version < 2) {
+      const state = persistedState as Partial<EOSSState>;
+      const lots = (state.lots ?? []).map(lot => lot.id === 'lot-301'
+        ? { ...lot, grnId: lot.grnId ?? 'grn-rw-003' }
+        : lot.id === 'lot-302'
+          ? { ...lot, grnId: lot.grnId ?? 'grn-rw-004' }
+          : lot);
+      const movementIds = new Set((state.movements ?? []).map(movement => movement.id));
+      const traceabilityMovements: StockMovement[] = [
+        { id: 'sm-301-receipt', lotId: 'lot-301', movementType: 'Receipt', primaryQty: 320, uom: 'kg', toLocation: 'Raw Material Store', referenceType: 'GRN', referenceId: 'grn-rw-003', referenceNumber: 'GRN-2024-198', performedBy: 'Karthik Raju', timestamp: '2024-10-05T10:00:00', notes: 'Accepted incoming billet linked to historical supplier PO.' },
+        { id: 'sm-302-receipt', lotId: 'lot-302', movementType: 'Receipt', primaryQty: 600, uom: 'kg', toLocation: 'Pune Raw Material Store', referenceType: 'GRN', referenceId: 'grn-rw-004', referenceNumber: 'GRN-2024-199', performedBy: 'Karthik Raju', timestamp: '2024-10-12T10:00:00', notes: 'Accepted incoming billet available for approved inter-site transfer.' },
+      ];
+      const grnIds = new Set((state.grns ?? []).map(grn => grn.id));
+      return {
+        ...state,
+        lots,
+        movements: [...(state.movements ?? []), ...traceabilityMovements.filter(movement => !movementIds.has(movement.id))],
+        grns: [...(state.grns ?? []), ...FLAGSHIP_GRNS.filter(grn => ['grn-rw-003', 'grn-rw-004'].includes(grn.id) && !grnIds.has(grn.id))],
+      };
+    }
+    return persistedState;
+  },
   // Theme/sidebar prefs already persist themselves via their own localStorage keys;
   // toasts are transient UI state. Everything else is demo business data.
   partialize: (state) => {
@@ -1105,8 +1159,32 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
   },
   onRehydrateStorage: () => (state) => {
     if (!state) return;
+    const repairedLots = state.lots.map(lot => lot.id === 'lot-301'
+      ? { ...lot, grnId: lot.grnId ?? 'grn-rw-003' }
+      : lot.id === 'lot-302'
+        ? { ...lot, grnId: lot.grnId ?? 'grn-rw-004' }
+        : lot);
+    const repairedMovementIds = new Set(state.movements.map(movement => movement.id));
+    const repairedMovements: StockMovement[] = [
+      { id: 'sm-301-receipt', lotId: 'lot-301', movementType: 'Receipt', primaryQty: 320, uom: 'kg', toLocation: 'Raw Material Store', referenceType: 'GRN', referenceId: 'grn-rw-003', referenceNumber: 'GRN-2024-198', performedBy: 'Karthik Raju', timestamp: '2024-10-05T10:00:00', notes: 'Accepted incoming billet linked to historical supplier PO.' },
+      { id: 'sm-302-receipt', lotId: 'lot-302', movementType: 'Receipt', primaryQty: 600, uom: 'kg', toLocation: 'Pune Raw Material Store', referenceType: 'GRN', referenceId: 'grn-rw-004', referenceNumber: 'GRN-2024-199', performedBy: 'Karthik Raju', timestamp: '2024-10-12T10:00:00', notes: 'Accepted incoming billet available for approved inter-site transfer.' },
+    ];
+    const repairedGrnIds = new Set(state.grns.map(grn => grn.id));
+    const repairedInspections = state.inspections.map(inspection => {
+      if (inspection.id === 'ins-001') return { ...inspection, subject: inspection.subject ?? 'Incoming SS Sheet 3mm 304L', receivedDate: inspection.receivedDate ?? '2026-10-27' };
+      if (inspection.id === 'ins-002') return { ...inspection, subject: inspection.subject ?? 'Incoming MS Plate 12mm', receivedDate: inspection.receivedDate ?? '2026-11-03' };
+      if (inspection.id === 'ins-003') return { ...inspection, subject: inspection.subject ?? 'J-105 · Welding', approvedAt: inspection.approvedAt ?? '2026-11-02T16:00:00' };
+      if (inspection.id === 'ins-004') return { ...inspection, subject: inspection.subject ?? 'J-103 · Final inspection', approvedAt: inspection.approvedAt ?? '2026-10-22T16:00:00' };
+      if (inspection.id === 'ins-201') return { ...inspection, approvedAt: inspection.approvedAt ?? '2024-11-03T16:00:00' };
+      if (inspection.id === 'ins-202') return { ...inspection, approvedAt: inspection.approvedAt ?? '2024-11-04T16:00:00' };
+      return inspection;
+    });
     useStore.setState(stampPlaces({
       ...state,
+      lots: repairedLots,
+      movements: [...state.movements, ...repairedMovements.filter(movement => !repairedMovementIds.has(movement.id))],
+      grns: [...state.grns, ...FLAGSHIP_GRNS.filter(grn => ['grn-rw-003', 'grn-rw-004'].includes(grn.id) && !repairedGrnIds.has(grn.id))],
+      inspections: repairedInspections,
       jobUpdates: state.jobUpdates ?? [],
       transfers: state.transfers ?? [],
       materialReturns: state.materialReturns ?? [],

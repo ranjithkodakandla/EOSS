@@ -1,17 +1,19 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, Layers, AlertTriangle, CheckCircle } from 'lucide-react';
 import { useStore } from '../../store';
 
 export default function StockTransfer() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { lots, storeLocations, sites, createStockTransfer, currentUser } = useStore();
   const placeOf = (siteId: string, name: string) => `${sites.find(s => s.id === siteId)?.name ?? 'Site'} · ${name}`;
 
   const [selectedLot, setSelectedLot] = useState('');
-  const [toLocation, setToLocation] = useState('');
-  const [transferNote, setTransferNote] = useState('');
-  const [quantity, setQuantity] = useState('');
+  const requestedDestination = searchParams.get('to') ?? '';
+  const [toLocation, setToLocation] = useState(() => storeLocations.find(l => l.name === requestedDestination || `${sites.find(s => s.id === l.siteId)?.name} · ${l.name}` === requestedDestination)?.id ?? '');
+  const [transferNote, setTransferNote] = useState(() => searchParams.get('job') ? `For ${searchParams.get('job')}` : '');
+  const [quantity, setQuantity] = useState(() => searchParams.get('qty') ?? '');
   const [submitted, setSubmitted] = useState(false);
 
   const availableLots = lots.filter(l => l.status === 'available' && l.primaryQty > 0);
@@ -42,8 +44,9 @@ export default function StockTransfer() {
           <h1 className="text-xl font-bold text-[var(--text)]">Stock Transfer</h1>
         </div>
         <p className="text-sm text-[var(--text-2)] mt-1">
-          Move a material lot between store locations within the same site.
+          Move an accepted stock lot between stores. The transfer remains in transit until the destination store receives it.
         </p>
+        {searchParams.get('job') && <div className="mt-3 rounded-lg border px-3 py-2 text-xs" style={{ borderColor: 'var(--info)', background: 'var(--info-bg)', color: 'var(--text-2)' }}><strong>Job {searchParams.get('job')}</strong> requested this transfer to cover a material shortage.</div>}
       </div>
 
       {isCrossGstin && (
@@ -72,7 +75,7 @@ export default function StockTransfer() {
             className="w-full px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2"
             style={{ borderColor: 'var(--border)', color: 'var(--text)' }}
           >
-            <option value="">Select a lot to transfer…</option>
+            <option value="">Select an accepted lot to transfer…</option>
             {availableLots.map(l => (
               <option key={l.id} value={l.id}>
                 {l.lotNumber} · {l.materialName} · {l.primaryQty} {l.primaryUom} · {l.storeLocationName}
@@ -148,8 +151,7 @@ export default function StockTransfer() {
           <button
             type="button"
             onClick={() => navigate('/inventory')}
-            className="px-4 py-2 rounded-lg text-sm font-semibold border cursor-pointer hover:bg-[var(--surface-2)] transition"
-            style={{ borderColor: 'var(--border)', color: 'var(--text-2)' }}
+            className="btn-ghost"
           >
             Cancel
           </button>

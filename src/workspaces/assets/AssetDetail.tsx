@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Wrench, AlertTriangle, ChevronRight, Gauge, X } from 'lucide-react';
+import { ArrowLeft, Wrench, AlertTriangle, ChevronRight, Gauge, X, Pencil } from 'lucide-react';
 import { useStore } from '../../store';
 import { computeMaintenanceDue } from '../../domain/maintenanceDue';
 import { DEMO_NOW } from '../../data/seed';
@@ -53,6 +53,7 @@ export default function AssetDetail() {
           </div>
           <h1 className="text-lg font-bold text-[var(--text)]">{asset.name}</h1>
         </div>
+        <button type="button" onClick={() => navigate(`/assets?edit=${asset.id}`)} className="btn-ghost text-xs inline-flex items-center gap-1.5"><Pencil size={13} /> Edit Asset</button>
       </div>
 
       {asset.status === 'breakdown' && (
@@ -114,7 +115,7 @@ export default function AssetDetail() {
               <dl className="space-y-2.5 text-sm">
                 <Field label="Meter Type" value={asset.meterType} />
                 {asset.currentReading != null && <Field label="Current Reading" value={`${asset.currentReading.toLocaleString()} ${asset.meterType}`} />}
-                {asset.pmFrequencyHours && <Field label="PM Frequency" value={`${asset.pmFrequencyHours} hours`} />}
+                {(asset.pmFrequencyMetric ?? asset.pmFrequencyHours) && <Field label="PM Frequency" value={`${asset.pmFrequencyMetric ?? asset.pmFrequencyHours} ${asset.meterType === 'none' ? 'metric' : asset.meterType}`} />}
                 {asset.lastServiceDate && <Field label="Last Service" value={new Date(asset.lastServiceDate).toLocaleDateString('en-IN')} />}
                 {asset.nextServiceDate && (
                   <div>
@@ -133,7 +134,7 @@ export default function AssetDetail() {
                     <Gauge size={14} /> Log Meter Reading
                   </button>
                 )}
-                <button onClick={() => navigate('/assets')} className="w-full py-2 border border-[var(--border)] text-[var(--text)] rounded-lg text-sm hover:bg-[var(--surface-2)] transition-colors flex items-center justify-center gap-2">
+                <button onClick={() => navigate(`/assets?log=${asset.id}`)} className="w-full py-2 border border-[var(--border)] text-[var(--text)] rounded-lg text-sm hover:bg-[var(--surface-2)] transition-colors flex items-center justify-center gap-2">
                   <Wrench size={14} /> Log Maintenance Event
                 </button>
                 {asset.status === 'breakdown' && (

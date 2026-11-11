@@ -415,8 +415,6 @@ export default function Inventory() {
       >
         <span>{filtered.length} of {inventory.length} stock rows</span>
         <span>·</span>
-        <span>{storeLocations.filter(l => l.locationType !== 'Dispatch').length} active store locations</span>
-        <span>·</span>
         <span>{inventory.filter(i => selectedLocation === 'all' || i.locationId === selectedLocation).reduce((sum, i) => sum + i.availableQty, 0).toLocaleString('en-IN')} available</span>
         <span>·</span>
         <span>{inventory.filter(i => selectedLocation === 'all' || i.locationId === selectedLocation).reduce((sum, i) => sum + i.reservedQty, 0).toLocaleString('en-IN')} reserved</span>

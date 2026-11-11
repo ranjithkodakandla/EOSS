@@ -592,6 +592,7 @@ export interface Inspection {
   poLineId?: ID;
   stageId?: ID;
   stageName?: string;
+  subject?: string;
   productDescription?: string;
   quantityInspected?: number;
   uom?: string;
@@ -601,6 +602,8 @@ export interface Inspection {
   externalScope?: string;
   reportRef?: string;
   date: string;
+  receivedDate?: string;
+  approvedAt?: string;
   templateId?: ID;
   templateName: string;
   checklistVersion?: string;
@@ -705,14 +708,18 @@ export interface Asset {
   manufacturer: string;
   model?: string;
   serialNumber?: string;
-  meterType?: 'hours' | 'cycles' | 'none';
+  meterType?: 'hours' | 'cycles' | 'km' | 'none';
   pmFrequencyHours?: number;
+  pmFrequencyMetric?: number;
   pmFrequencyDays?: number;
   lastServiceReading?: number;
   currentReading?: number;
   responsiblePerson?: string;
   installationDate?: string;
   commissioningDate?: string;
+  archivedAt?: string;
+  archivedBy?: string;
+  archiveReason?: string;
 }
 
 // ── Meter Readings (manual running-hour log) ──

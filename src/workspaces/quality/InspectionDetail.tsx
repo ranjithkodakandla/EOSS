@@ -29,7 +29,10 @@ export default function InspectionDetail() {
 
   const lot = ins.lotId ? lots.find(l => l.id === ins.lotId) : null;
   const job = ins.jobId ? jobs.find(j => j.id === ins.jobId) : null;
-  const existingRelease = job ? qualityReleases.find(r => r.jobId === job.id) : null;
+  // A release belongs to the specific inspection that cleared the job, not to
+  // every inspection for that job. This prevents a failed inspection from
+  // inheriting a later final-pass release.
+  const existingRelease = qualityReleases.find(r => r.inspectionId === ins.id) ?? null;
 
   const checklistItems = ins.measurements && ins.measurements.length > 0
     ? ins.measurements.map(m => ({ label: `${m.parameter} — ${m.acceptanceCriteria} (actual: ${m.actual})`, result: m.passed ? 'pass' : 'fail' }))
@@ -65,7 +68,10 @@ export default function InspectionDetail() {
             <dl className="space-y-2 text-sm">
               <Field label="Template" value={ins.templateName} />
               <Field label="Inspector" value={ins.inspectorName} />
-              <Field label="Date" value={new Date(ins.date).toLocaleDateString('en-IN')} />
+              <Field label="Subject" value={ins.subject ?? ins.productDescription ?? (job ? `${job.jobNumber} · ${ins.stageName ?? ins.type}` : 'Incoming material')} />
+              <Field label="Received" value={ins.receivedDate ? new Date(ins.receivedDate).toLocaleDateString('en-IN') : '—'} />
+              <Field label="Inspected / recorded" value={new Date(ins.date).toLocaleDateString('en-IN')} />
+              <Field label="Approved" value={ins.approvedAt ? new Date(ins.approvedAt).toLocaleDateString('en-IN') : '—'} />
               {lot && <Field label="Lot Number" value={lot.lotNumber} mono />}
               {job && <Field label="Job Number" value={job.jobNumber} mono />}
               {ins.stageName && <Field label="Stage" value={ins.stageName} />}
@@ -165,7 +171,7 @@ export default function InspectionDetail() {
                     <button
                       onClick={() => {
                         const result = recForm.rejected === 0 ? 'pass' : recForm.accepted === 0 ? 'fail' : 'partial';
-                        updateInspection(ins.id, { acceptedQty: recForm.accepted, rejectedQty: recForm.rejected, result: result as any });
+                        updateInspection(ins.id, { acceptedQty: recForm.accepted, rejectedQty: recForm.rejected, result: result as any, approvedAt: result === 'pass' ? new Date().toISOString() : undefined });
                         setRecording(false);
                       }}
                       className="flex-1 py-2 rounded-lg text-sm font-semibold text-white"
@@ -213,12 +219,12 @@ export default function InspectionDetail() {
             </div>
           )}
 
-          {job && ins.result === 'pass' && !existingRelease && canRelease && (
+          {job && ins.result === 'pass' && ['Final', 'Dispatch-Readiness'].includes(ins.type) && !existingRelease && canRelease && (
             <div className="bg-[var(--success-bg)] border border-[var(--success)] rounded-xl p-4">
               <div className="font-semibold text-sm text-[var(--success)] mb-1 flex items-center gap-1.5">
-                <ShieldCheck size={14} /> Ready for Quality Release
+                <ShieldCheck size={14} /> Final inspection passed
               </div>
-              <p className="text-xs text-[var(--text-2)] mb-3">Issuing a release clears {job.jobNumber} for dispatch. Dispatch cannot proceed without one.</p>
+              <p className="text-xs text-[var(--text-2)] mb-3">This separate authorization clears {job.jobNumber} for dispatch and records who approved the quality dossier.</p>
               <button
                 onClick={() => {
                   const release: QualityRelease = {
@@ -230,7 +236,7 @@ export default function InspectionDetail() {
                 }}
                 className="w-full py-2 bg-[var(--success)] text-white rounded-lg text-sm font-medium"
               >
-                Issue Quality Release
+                Clear Job for Dispatch
               </button>
             </div>
           )}

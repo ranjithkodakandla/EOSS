@@ -316,6 +316,19 @@ export default function JobWorkspace() {
       {/* ── Tab: Materials BOM & Feasibility ── */}
       {tab === 'Materials' && (
         <div className="space-y-4">
+          <div className="rounded-xl border p-4" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
+            <div className="text-sm font-bold text-[var(--text)]">Material flow for this job</div>
+            <div className="mt-3 grid gap-2 sm:grid-cols-5 text-xs">
+              {[
+                ['1', 'Job need', 'Required quantity is defined here.'],
+                ['2', 'Reserve / Site Need', 'Available stock is reserved for the job.'],
+                ['3', 'Procurement', 'A shortage raises a PR and supplier PO.'],
+                ['4', 'GRN + Quality', 'Accepted receipts become eligible stock.'],
+                ['5', 'Stock issue', 'Inventory is issued and audited against the job.'],
+              ].map(([step, label, detail]) => <div key={step} className="rounded-lg p-2.5" style={{ background: 'var(--surface-2)' }}><div className="font-mono font-bold text-[var(--brand)]">{step} · {label}</div><div className="mt-1 text-[var(--text-3)]">{detail}</div></div>)}
+            </div>
+            <p className="mt-3 text-[11px] text-[var(--text-3)]">Stock from another site follows the same chain through an inter-site transfer and remains unavailable to this job until the destination store receives it.</p>
+          </div>
           <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] overflow-hidden">
             <table className="w-full text-left text-sm">
               <thead className="bg-[var(--surface-2)] text-xs text-[var(--text-3)] font-mono border-b border-[var(--border)]">

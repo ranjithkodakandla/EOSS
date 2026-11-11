@@ -333,6 +333,8 @@ export const STOCK_MOVEMENTS: StockMovement[] = [
   { id: 'sm-004', lotId: 'lot-003', movementType: 'Issue', primaryQty: 161, uom: 'kg', fromLocation: 'Raw Material Store', toLocation: 'WIP Store', referenceType: 'Job', referenceId: 'job-101', referenceNumber: 'J-101', performedBy: 'Asha Nair', timestamp: '2026-10-29T09:30:00' },
   { id: 'sm-005', lotId: 'lot-004', movementType: 'Receipt', primaryQty: 216, uom: 'kg', toLocation: 'Quarantine Store', referenceType: 'GRN', referenceId: 'grn-004', referenceNumber: 'GRN-2024-004', performedBy: 'Asha Nair', timestamp: '2026-10-28T11:00:00', notes: 'QC hold – incoming inspection failed' },
   { id: 'sm-006', lotId: 'lot-009', movementType: 'Receipt', primaryQty: 650, uom: 'kg', toLocation: 'Quarantine Store', referenceType: 'GRN', referenceId: 'grn-003', referenceNumber: 'GRN-2024-003', performedBy: 'Asha Nair', timestamp: '2026-11-04T10:00:00' },
+  { id: 'sm-301-receipt', lotId: 'lot-301', movementType: 'Receipt', primaryQty: 320, uom: 'kg', toLocation: 'Raw Material Store', referenceType: 'GRN', referenceId: 'grn-rw-003', referenceNumber: 'GRN-2024-198', performedBy: 'Karthik Raju', timestamp: '2024-10-05T10:00:00', notes: 'Accepted incoming billet linked to historical supplier PO.' },
+  { id: 'sm-302-receipt', lotId: 'lot-302', movementType: 'Receipt', primaryQty: 600, uom: 'kg', toLocation: 'Pune Raw Material Store', referenceType: 'GRN', referenceId: 'grn-rw-004', referenceNumber: 'GRN-2024-199', performedBy: 'Karthik Raju', timestamp: '2024-10-12T10:00:00', notes: 'Accepted incoming billet available for approved inter-site transfer.' },
 ];
 
 // ── Quality ──
@@ -344,10 +346,10 @@ export const CERTIFICATES: MaterialCertificate[] = [
 ];
 
 export const INSPECTIONS: Inspection[] = [
-  { id: 'ins-001', inspectionNumber: 'INS-2024-041', type: 'Incoming', lotId: 'lot-004', inspectorId: 'u-qc', inspectorName: 'Priya Patel', date: '2026-10-28', templateName: 'Incoming SS Sheet', sampleQty: 3, acceptedQty: 0, rejectedQty: 3, result: 'fail', ncrId: 'ncr-001', ncrNumber: 'NCR-2024-007' },
-  { id: 'ins-002', inspectionNumber: 'INS-2024-042', type: 'Incoming', lotId: 'lot-009', inspectorId: 'u-qc', inspectorName: 'Priya Patel', date: '2026-11-04', templateName: 'Incoming MS Plate', sampleQty: 5, acceptedQty: 0, rejectedQty: 0, result: 'pending' },
-  { id: 'ins-003', inspectionNumber: 'INS-2024-040', type: 'In-Process', jobId: 'job-105', jobNumber: 'J-105', stageId: 'stg-105-2', stageName: 'Welding', inspectorId: 'u-qc', inspectorName: 'Priya Patel', date: '2026-11-02', templateName: 'Weld Visual Inspection', sampleQty: 10, acceptedQty: 9, rejectedQty: 1, result: 'pass' },
-  { id: 'ins-004', inspectionNumber: 'INS-2024-039', type: 'Final', jobId: 'job-103', jobNumber: 'J-103', inspectorId: 'u-qc', inspectorName: 'Priya Patel', date: '2026-10-22', templateName: 'Final Inspection – Structural', sampleQty: 2, acceptedQty: 2, rejectedQty: 0, result: 'pass' },
+  { id: 'ins-001', inspectionNumber: 'INS-2024-041', type: 'Incoming', lotId: 'lot-004', inspectorId: 'u-qc', inspectorName: 'Priya Patel', receivedDate: '2026-10-27', date: '2026-10-28', subject: 'Incoming SS Sheet 3mm 304L', templateName: 'Incoming SS Sheet', sampleQty: 3, acceptedQty: 0, rejectedQty: 3, result: 'fail', ncrId: 'ncr-001', ncrNumber: 'NCR-2024-007' },
+  { id: 'ins-002', inspectionNumber: 'INS-2024-042', type: 'Incoming', lotId: 'lot-009', inspectorId: 'u-qc', inspectorName: 'Priya Patel', receivedDate: '2026-11-03', date: '2026-11-04', subject: 'Incoming MS Plate 12mm', templateName: 'Incoming MS Plate', sampleQty: 5, acceptedQty: 0, rejectedQty: 0, result: 'pending' },
+  { id: 'ins-003', inspectionNumber: 'INS-2024-040', type: 'In-Process', jobId: 'job-105', jobNumber: 'J-105', stageId: 'stg-105-2', stageName: 'Welding', inspectorId: 'u-qc', inspectorName: 'Priya Patel', date: '2026-11-02', subject: 'J-105 · Welding', templateName: 'Weld Visual Inspection', sampleQty: 10, acceptedQty: 9, rejectedQty: 1, result: 'pass', approvedAt: '2026-11-02T16:00:00' },
+  { id: 'ins-004', inspectionNumber: 'INS-2024-039', type: 'Final', jobId: 'job-103', jobNumber: 'J-103', inspectorId: 'u-qc', inspectorName: 'Priya Patel', date: '2026-10-22', subject: 'J-103 · Final inspection', templateName: 'Final Inspection – Structural', sampleQty: 2, acceptedQty: 2, rejectedQty: 0, result: 'pass', approvedAt: '2026-10-22T16:00:00' },
 ];
 
 export const NCRS: NCR[] = [
@@ -687,6 +689,22 @@ export const FLAGSHIP_GRNS: GoodsReceipt[] = [
     vehicleNumber: 'MH12PQ5678',
     status: 'accepted', lineCount: 2, hasOfflineDraft: false,
   },
+  {
+    id: 'grn-rw-003', grnNumber: 'GRN-2024-198',
+    supplierId: 'supp-krn', supplierName: 'Krishna Forgings',
+    spoId: 'spo-198', spoNumber: 'SPO-2024-198',
+    receivedDate: '2024-10-05', receivedBy: 'Karthik Raju',
+    deliveryChallan: 'DC-KRN-198', status: 'accepted', lineCount: 1,
+    siteId: 'site-hyd', siteName: 'Hyderabad Plant 1', storeLocationId: 'loc-rm', storeLocationName: 'Raw Material Store',
+  },
+  {
+    id: 'grn-rw-004', grnNumber: 'GRN-2024-199',
+    supplierId: 'supp-sfa', supplierName: 'SteelForge Alloys',
+    spoId: 'spo-199', spoNumber: 'SPO-2024-199',
+    receivedDate: '2024-10-12', receivedBy: 'Karthik Raju',
+    deliveryChallan: 'DC-SFA-199', status: 'accepted', lineCount: 1,
+    siteId: 'site-pun', siteName: 'Pune Manufacturing Plant', storeLocationId: 'loc-pun-rm', storeLocationName: 'Pune Raw Material Store',
+  },
 ];
 
 export const FLAGSHIP_SUPPLIER_RFQS: SupplierQuotation[] = [
@@ -829,8 +847,8 @@ export const JOBS_DEMO: Job[] = [
 
 // ── Material shortage demonstration: 42CrMo4 forged billet (PRD §3.6) ──
 export const MATERIAL_LOTS_DEMO: MaterialLot[] = [
-  { id: 'lot-301', lotNumber: 'LOT-2024-301', heatNumber: 'HT-KRN-7701', materialItemId: 'mat-42crmo4', materialName: 'Steel Grade 42CrMo4 Forged Round Billet', supplierId: 'supp-krn', supplierName: 'Krishna Forgings', receivedDate: '2024-10-05', grade: 'EN 10083-3 42CrMo4', status: 'reserved', storeLocationId: 'loc-rm', storeLocationName: 'Raw Material Store', primaryQty: 320, primaryUom: 'kg', certStatus: 'verified' },
-  { id: 'lot-302', lotNumber: 'LOT-2024-302', heatNumber: 'HT-SFA-2209', materialItemId: 'mat-42crmo4', materialName: 'Steel Grade 42CrMo4 Forged Round Billet', supplierId: 'supp-sfa', supplierName: 'SteelForge Alloys', receivedDate: '2024-10-12', grade: 'EN 10083-3 42CrMo4', status: 'available', storeLocationId: 'loc-pun-rm', storeLocationName: 'Pune Raw Material Store', primaryQty: 600, primaryUom: 'kg', certStatus: 'verified' },
+  { id: 'lot-301', lotNumber: 'LOT-2024-301', heatNumber: 'HT-KRN-7701', materialItemId: 'mat-42crmo4', materialName: 'Steel Grade 42CrMo4 Forged Round Billet', supplierId: 'supp-krn', supplierName: 'Krishna Forgings', grnId: 'grn-rw-003', receivedDate: '2024-10-05', grade: 'EN 10083-3 42CrMo4', status: 'reserved', storeLocationId: 'loc-rm', storeLocationName: 'Raw Material Store', primaryQty: 320, primaryUom: 'kg', certStatus: 'verified' },
+  { id: 'lot-302', lotNumber: 'LOT-2024-302', heatNumber: 'HT-SFA-2209', materialItemId: 'mat-42crmo4', materialName: 'Steel Grade 42CrMo4 Forged Round Billet', supplierId: 'supp-sfa', supplierName: 'SteelForge Alloys', grnId: 'grn-rw-004', receivedDate: '2024-10-12', grade: 'EN 10083-3 42CrMo4', status: 'available', storeLocationId: 'loc-pun-rm', storeLocationName: 'Pune Raw Material Store', primaryQty: 600, primaryUom: 'kg', certStatus: 'verified' },
 ];
 
 export const INVENTORY_DEMO: InventoryItem[] = [
@@ -896,14 +914,14 @@ export const INSPECTIONS_DEMO: Inspection[] = [
       { parameter: 'Surface Hardness', unit: 'HB', acceptanceCriteria: '280–320 HB', actual: '302 HB', passed: true },
       { parameter: 'Ultrasonic Flaw Detection', acceptanceCriteria: 'No indications > 3mm equivalent', actual: 'No indications detected', passed: true },
     ],
-    sampleQty: 1, acceptedQty: 1, rejectedQty: 0, result: 'pass', reworkOfInspectionId: 'ins-200',
+    sampleQty: 1, acceptedQty: 1, rejectedQty: 0, result: 'pass', approvedAt: '2024-11-03T16:00:00', reworkOfInspectionId: 'ins-200',
   },
   {
     id: 'ins-202', inspectionNumber: 'INS-2024-202', type: 'Final', origin: 'external', jobId: 'job-200', jobNumber: 'J-200',
     productDescription: 'Turbine Casing – Lower Half', quantityInspected: 1, uom: 'unit',
     inspectorId: 'ext-tuv', inspectorName: 'Markus Weber', externalOrgName: 'TÜV SÜD Industrie Service GmbH (witnessing on behalf of RheinWerk QA)', externalScope: 'Third-party witness inspection of turbine casing lower half per RheinWerk QAP-2024-07', reportRef: 'TUV-WPR-2024-1187',
     date: '2024-11-04', templateId: 'tmpl-insp-casing', templateName: 'Turbine Casing – Final Dimensional & NDT Checklist', checklistVersion: 'v2',
-    sampleQty: 1, acceptedQty: 1, rejectedQty: 0, result: 'pass',
+    sampleQty: 1, acceptedQty: 1, rejectedQty: 0, result: 'pass', approvedAt: '2024-11-04T16:00:00',
     remarks: 'Witnessed CMM dimensional check and UT scan. All results conform to RheinWerk QAP-2024-07. Release recommended.',
   },
 ];

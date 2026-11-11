@@ -1,4 +1,4 @@
-// Calendar-based + running-hour-based maintenance due calculation.
+// Calendar-based + meter-based maintenance due calculation.
 // Whichever threshold arrives first wins (PRD §4.4).
 import type { Asset, MeterReading } from '../types';
 
@@ -33,16 +33,18 @@ export function computeMaintenanceDue(asset: Asset, readings: MeterReading[], no
 
   const latest = latestReading(asset.id, readings);
   const currentReading = latest?.reading ?? asset.currentReading ?? null;
+  const metricFrequency = asset.pmFrequencyMetric ?? asset.pmFrequencyHours;
+  const metricUnit = asset.meterType && asset.meterType !== 'none' ? asset.meterType : 'metric';
 
   let nextDueReading: number | null = null;
   let remainingHours: number | null = null;
-  if (asset.pmFrequencyHours && asset.lastServiceReading != null) {
-    nextDueReading = asset.lastServiceReading + asset.pmFrequencyHours;
+  if (metricFrequency && asset.lastServiceReading != null) {
+    nextDueReading = asset.lastServiceReading + metricFrequency;
     if (currentReading != null) remainingHours = nextDueReading - currentReading;
-  } else if (asset.pmFrequencyHours && currentReading != null) {
+  } else if (metricFrequency && currentReading != null) {
     // no recorded last-service reading: assume current reading basis
-    nextDueReading = currentReading + asset.pmFrequencyHours;
-    remainingHours = asset.pmFrequencyHours;
+    nextDueReading = currentReading + metricFrequency;
+    remainingHours = metricFrequency;
   }
 
   let nextDueDate: string | null = null;
@@ -57,7 +59,7 @@ export function computeMaintenanceDue(asset: Asset, readings: MeterReading[], no
     remainingDays = Math.round((new Date(asset.nextServiceDate).getTime() - now.getTime()) / 86400000);
   }
 
-  // Hours and calendar-days are different units (we don't know the machine's hours-per-day
+  // Meter readings and calendar-days are different units (we don't know the machine's usage-per-day
   // usage rate), so each condition is classified into severity independently — never compared
   // against each other as raw numbers. The condition that is currently MORE severe (closer to
   // or past its own threshold) is the one reported as "driving" the status (PRD §4.4: whichever
@@ -91,17 +93,17 @@ export function computeMaintenanceDue(asset: Asset, readings: MeterReading[], no
   let summary = 'No maintenance schedule configured for this asset.';
   if (status === 'overdue') {
     summary = drivingCondition === 'hours'
-      ? `Overdue by ${Math.abs(remainingHours!)} hours (next due at ${nextDueReading} hrs, current ${currentReading}).`
+      ? `Overdue by ${Math.abs(remainingHours!)} ${metricUnit} (next due at ${nextDueReading} ${metricUnit}, current ${currentReading}).`
       : `Overdue by ${Math.abs(remainingDays!)} days (was due ${nextDueDate}).`;
   } else if (status === 'due') {
-    summary = drivingCondition === 'hours' ? 'Maintenance due now (hour threshold reached).' : 'Maintenance due today.';
+    summary = drivingCondition === 'hours' ? `Maintenance due now (${metricUnit} threshold reached).` : 'Maintenance due today.';
   } else if (status === 'upcoming') {
     summary = drivingCondition === 'hours'
-      ? `Due in ${remainingHours} hours (at ${nextDueReading} hrs, current ${currentReading}).`
+      ? `Due in ${remainingHours} ${metricUnit} (at ${nextDueReading} ${metricUnit}, current ${currentReading}).`
       : `Due in ${remainingDays} days (${nextDueDate}).`;
   } else if (status === 'ok') {
     const parts: string[] = [];
-    if (remainingHours != null) parts.push(`${remainingHours} hrs remaining (next at ${nextDueReading} hrs)`);
+    if (remainingHours != null) parts.push(`${remainingHours} ${metricUnit} remaining (next at ${nextDueReading} ${metricUnit})`);
     if (remainingDays != null) parts.push(`${remainingDays} days remaining (next ${nextDueDate})`);
     summary = parts.length > 0 ? `On schedule — ${parts.join('; ')}.` : 'On schedule.';
   }

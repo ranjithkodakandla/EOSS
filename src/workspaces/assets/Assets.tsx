@@ -1,16 +1,16 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Plus, AlertTriangle, ChevronRight, Wrench, Search, X, Trash2 } from 'lucide-react';
+import { Plus, AlertTriangle, ChevronRight, Wrench, Search, X, Archive, Pencil } from 'lucide-react';
 import { useStore } from '../../store';
 import { computeMaintenanceDue } from '../../domain/maintenanceDue';
 import { maintenanceDueSoon, maintenanceOverdue } from '../../domain/recordLists';
 import { DEMO_NOW } from '../../data/seed';
 import StatusChip from '../../components/layout/StatusChip';
 import clsx from 'clsx';
-import type { MaintenanceEvent } from '../../types';
+import type { Asset, MaintenanceEvent } from '../../types';
 
 export default function Assets() {
-  const { assets, maintenanceEvents, meterReadings, currentUser, addMaintenanceEvent, showToast } = useStore();
+  const { assets, sites, maintenanceEvents, meterReadings, currentUser, addAsset, archiveAsset, addMaintenanceEvent, updateAsset, showToast } = useStore();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const focusParam = searchParams.get('focus');
@@ -20,36 +20,41 @@ export default function Assets() {
     focusParam === 'breakdown' || focusParam === 'overdue' || focusParam === 'due' ? focusParam : 'all'
   );
   const logParam = searchParams.get('log');
+  const editParam = searchParams.get('edit');
   const [showLogEvent, setShowLogEvent] = useState(!!logParam);
   const [logAssetId, setLogAssetId] = useState<string | undefined>(logParam ?? undefined);
+  const [showAssetForm, setShowAssetForm] = useState(!!editParam);
+  const [editingAssetId, setEditingAssetId] = useState<string | undefined>(editParam ?? undefined);
+  const [showArchived, setShowArchived] = useState(false);
+  const [archiveTarget, setArchiveTarget] = useState<Asset | null>(null);
   useEffect(() => {
     if (!logParam) return;
     setLogAssetId(logParam);
     setShowLogEvent(true);
   }, [logParam]);
-  const [deletedAssetIds, setDeletedAssetIds] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    if (editParam) { setEditingAssetId(editParam); setShowAssetForm(true); }
+  }, [editParam]);
   const canManage = ['owner', 'maintenance', 'supervisor'].includes(currentUser.role);
 
-  const handleDeleteAsset = (id: string, e: React.MouseEvent) => {
+  const handleArchiveAsset = (asset: Asset, e: React.MouseEvent) => {
     e.stopPropagation();
-    const hasOpenEvents = maintenanceEvents.some(m => m.assetId === id && m.status !== 'closed');
-    if (hasOpenEvents) { showToast({ type: 'error', title: 'Cannot remove asset', body: 'Asset has open maintenance events.' }); return; }
-    setDeletedAssetIds(prev => new Set([...prev, id]));
-    showToast({ type: 'success', title: 'Asset removed' });
+    const hasOpenEvents = maintenanceEvents.some(m => m.assetId === asset.id && m.status !== 'closed');
+    if (hasOpenEvents) { showToast({ type: 'error', title: 'Cannot archive asset', body: 'Close open maintenance events before archiving this asset.' }); return; }
+    setArchiveTarget(asset);
   };
 
   const now = new Date(DEMO_NOW);
   const dueByAsset = Object.fromEntries(assets.map(a => [a.id, computeMaintenanceDue(a, meterReadings, now)]));
 
-  const liveAssets = assets.filter(a => !deletedAssetIds.has(a.id));
+  const liveAssets = assets.filter(a => showArchived || !a.archivedAt);
   const breakdowns = liveAssets.filter(a => a.status === 'breakdown').length;
   const pmOverdue = maintenanceOverdue(liveAssets, meterReadings, now).length;
   const upcoming = maintenanceDueSoon(liveAssets, meterReadings, now).length;
   const inMaint = assets.filter(a => a.status === 'in_maintenance').length;
   const openEvents = maintenanceEvents.filter(m => m.status !== 'closed').length;
 
-  const filteredAssets = assets.filter(a => {
-    if (deletedAssetIds.has(a.id)) return false;
+  const filteredAssets = liveAssets.filter(a => {
     if (search && !a.name.toLowerCase().includes(search.toLowerCase()) && !a.assetCode.toLowerCase().includes(search.toLowerCase())) return false;
     const due = dueByAsset[a.id];
     if (focus === 'breakdown') return a.status === 'breakdown';
@@ -94,10 +99,16 @@ export default function Assets() {
           </button>
         )}
         {canCreate && (
-          <button onClick={() => setShowLogEvent(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white" style={{ background: 'var(--brand-fill)' }}>
-            <Plus size={13} /> Log Event
-          </button>
+          <div className="flex items-center gap-2">
+            <button onClick={() => { setEditingAssetId(undefined); setShowAssetForm(true); }} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border" style={{ borderColor: 'var(--brand)', color: 'var(--brand)' }}>
+              <Plus size={13} /> Add Asset
+            </button>
+            <button onClick={() => setShowLogEvent(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white" style={{ background: 'var(--brand-fill)' }}>
+              <Wrench size={13} /> Log Event
+            </button>
+          </div>
         )}
+        {assets.some(a => a.archivedAt) && <button onClick={() => setShowArchived(v => !v)} className="btn-ghost text-xs">{showArchived ? 'Hide archived' : `Show archived (${assets.filter(a => a.archivedAt).length})`}</button>}
       </div>
 
       {/* Tabs */}
@@ -123,8 +134,9 @@ export default function Assets() {
         <div className="md:hidden p-3 space-y-2">
           {filteredAssets.map(a => {
             const due = dueByAsset[a.id];
+            const metricUnit = a.meterType && a.meterType !== 'none' ? a.meterType : 'metric';
             const next = due?.drivingCondition === 'hours' && due.remainingHours != null
-              ? `${due.remainingHours} hrs left`
+              ? `${due.remainingHours} ${metricUnit} left`
               : a.nextServiceDate
                 ? new Date(a.nextServiceDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
                 : 'No service date';
@@ -177,15 +189,16 @@ export default function Assets() {
                   {(() => {
                     const due = dueByAsset[a.id];
                     if (due?.drivingCondition === 'hours' && due.remainingHours != null) {
+                      const metricUnit = a.meterType && a.meterType !== 'none' ? a.meterType : 'metric';
                       const overdue = due.status === 'overdue';
                       const soon = due.status === 'due' || due.status === 'upcoming';
                       return (
                         <div>
                           <div className="text-xs" style={{ color: overdue ? 'var(--error,#DC2626)' : 'var(--text-2)', fontWeight: overdue ? 600 : undefined }}>
-                            {due.remainingHours} hrs left
+                            {due.remainingHours} {metricUnit} left
                           </div>
                           <div className="text-[10px] mt-0.5" style={{ color: overdue ? 'var(--error,#DC2626)' : soon ? 'var(--warning,#D97706)' : 'var(--text-3)' }}>
-                            {overdue ? `Overdue by ${Math.abs(due.remainingHours)}h` : `Next at ${due.nextDueReading} hrs`}
+                            {overdue ? `Overdue by ${Math.abs(due.remainingHours)} ${metricUnit}` : `Next at ${due.nextDueReading} ${metricUnit}`}
                           </div>
                         </div>
                       );
@@ -210,9 +223,8 @@ export default function Assets() {
                     {(focus === 'overdue' || focus === 'due') && (
                       <AssetAction asset={a} events={maintenanceEvents} onSchedule={id => { setLogAssetId(id); setShowLogEvent(true); }} onComplete={id => navigate(`/assets/me/${id}`)} />
                     )}
-                    {canManage && (
-                      <button onClick={e => handleDeleteAsset(a.id, e)} className="p-1 rounded hover:bg-[var(--surface-2)]" title="Remove asset"><Trash2 size={12} style={{ color: 'var(--error,#DC2626)' }} /></button>
-                    )}
+                    {canManage && !a.archivedAt && <button onClick={e => handleArchiveAsset(a, e)} className="p-1 rounded hover:bg-[var(--surface-2)]" title="Archive asset"><Archive size={12} style={{ color: 'var(--error,#DC2626)' }} /></button>}
+                    {canManage && !a.archivedAt && <button onClick={e => { e.stopPropagation(); setEditingAssetId(a.id); setShowAssetForm(true); }} className="p-1 rounded hover:bg-[var(--surface-2)]" title="Edit asset"><Pencil size={12} style={{ color: 'var(--brand)' }} /></button>}
                     <ChevronRight size={14} style={{ color: 'var(--text-3)' }} />
                   </div>
                 </td>
@@ -266,6 +278,22 @@ export default function Assets() {
           }}
         />
       )}
+      {showAssetForm && (
+        <AssetFormModal
+          asset={editingAssetId ? assets.find(a => a.id === editingAssetId) : undefined}
+          sites={sites}
+          onClose={() => { setShowAssetForm(false); setEditingAssetId(undefined); }}
+          onSave={asset => {
+            if (editingAssetId) updateAsset(editingAssetId, asset);
+            else addAsset(asset as Asset);
+            showToast({ type: 'success', title: editingAssetId ? 'Asset updated' : 'Asset added', body: `${asset.assetCode} is now available in Maintenance.` });
+            setShowAssetForm(false); setEditingAssetId(undefined);
+          }}
+        />
+      )}
+      {archiveTarget && (
+        <ArchiveAssetModal asset={archiveTarget} onClose={() => setArchiveTarget(null)} onConfirm={reason => { archiveAsset(archiveTarget.id, reason, currentUser.name); setArchiveTarget(null); }} />
+      )}
     </div>
   );
 }
@@ -294,7 +322,7 @@ function AssetAction({ asset, events, onSchedule, onComplete }: {
 }
 
 function LogEventModal({ assets, initialAssetId, onClose, onSave }: { assets: { id: string; name: string; assetCode: string }[]; initialAssetId?: string; onClose: () => void; onSave: (e: MaintenanceEvent) => void }) {
-  const [form, setForm] = useState({ assetId: initialAssetId || assets[0]?.id || '', type: (initialAssetId ? 'Preventive' : 'Breakdown') as MaintenanceEvent['type'], symptom: initialAssetId ? 'Scheduled service from overdue maintenance' : '', technicianName: '', severity: 'Medium' as NonNullable<MaintenanceEvent['severity']> });
+  const [form, setForm] = useState({ assetId: initialAssetId || '', type: (initialAssetId ? 'Preventive' : 'Breakdown') as MaintenanceEvent['type'], symptom: initialAssetId ? 'Scheduled service from overdue maintenance' : '', technicianName: '', severity: 'Medium' as NonNullable<MaintenanceEvent['severity']> });
   const [barcodeInput, setBarcodeInput] = useState('');
   const [err, setErr] = useState('');
   const handleBarcodeScan = (code: string) => {
@@ -318,6 +346,7 @@ function LogEventModal({ assets, initialAssetId, onClose, onSave }: { assets: { 
           <button onClick={onClose}><X size={16} className="text-[var(--text-3)]" /></button>
         </div>
         <div className="space-y-3">
+          <p className="text-xs text-[var(--text-2)] rounded-lg p-2.5" style={{ background: 'var(--surface-2)' }}>Log Event records a maintenance occurrence and its closure history. Asset setup and maintenance schedules are managed in Add / Edit Asset.</p>
           <div>
             <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Scan / Enter Asset Tag</label>
             <div className="flex gap-2">
@@ -328,6 +357,7 @@ function LogEventModal({ assets, initialAssetId, onClose, onSave }: { assets: { 
           <div>
             <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Asset *</label>
             <select className="eoss-input w-full" value={form.assetId} onChange={e => setForm(f => ({ ...f, assetId: e.target.value }))}>
+              <option value="">Select an asset…</option>
               {assets.map(a => <option key={a.id} value={a.id}>{a.name} ({a.assetCode})</option>)}
             </select>
           </div>
@@ -356,12 +386,65 @@ function LogEventModal({ assets, initialAssetId, onClose, onSave }: { assets: { 
         </div>
         {err && <p className="text-xs text-[var(--danger)] mt-2">{err}</p>}
         <div className="flex gap-3 mt-5">
-          <button onClick={onClose} className="flex-1 py-2.5 border border-[var(--border)] rounded-xl text-sm text-[var(--text-2)]">Cancel</button>
+          <button type="button" onClick={onClose} className="btn-ghost flex-1 justify-center">Cancel</button>
           <button onClick={save} className="flex-1 py-2.5 bg-[var(--brand-fill)] text-white rounded-xl text-sm font-medium">Log Event</button>
         </div>
       </div>
     </div>
   );
+}
+
+function AssetFormModal({ asset, sites, onClose, onSave }: { asset?: Asset; sites: { id: string; name: string }[]; onClose: () => void; onSave: (data: Partial<Asset>) => void }) {
+  const [form, setForm] = useState({
+    assetCode: asset?.assetCode ?? '', name: asset?.name ?? '', category: asset?.category ?? '', siteId: asset?.siteId ?? sites[0]?.id ?? '',
+    workCentre: asset?.workCentre ?? '', criticality: asset?.criticality ?? 'Medium' as Asset['criticality'], status: asset?.status ?? 'operational' as Asset['status'],
+    manufacturer: asset?.manufacturer ?? '', model: asset?.model ?? '', meterType: asset?.meterType ?? 'none' as NonNullable<Asset['meterType']>,
+    currentReading: asset?.currentReading?.toString() ?? '', nextServiceDate: asset?.nextServiceDate ?? '', pmFrequencyMetric: (asset?.pmFrequencyMetric ?? asset?.pmFrequencyHours)?.toString() ?? '',
+  });
+  const [err, setErr] = useState('');
+  const unit = form.meterType === 'none' ? 'metric' : form.meterType;
+  const save = () => {
+    if (!form.assetCode.trim() || !form.name.trim() || !form.category.trim() || !form.siteId || !form.manufacturer.trim()) { setErr('Code, name, category, site and manufacturer are required'); return; }
+    const site = sites.find(s => s.id === form.siteId);
+    onSave({
+      ...(asset ?? { id: `asset-${Date.now()}`, purchaseDate: DEMO_NOW }),
+      assetCode: form.assetCode.trim(), name: form.name.trim(), category: form.category.trim(), siteId: form.siteId,
+      workCentre: form.workCentre.trim() || undefined, criticality: form.criticality, status: form.status,
+      manufacturer: form.manufacturer.trim(), model: form.model.trim() || undefined, meterType: form.meterType,
+      currentReading: form.currentReading ? Number(form.currentReading) : undefined,
+      nextServiceDate: form.nextServiceDate || undefined,
+      pmFrequencyMetric: form.pmFrequencyMetric && form.meterType !== 'none' ? Number(form.pmFrequencyMetric) : undefined,
+      pmFrequencyHours: undefined,
+      location: site?.name,
+    });
+  };
+  return <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+    <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl w-full max-w-2xl p-6 shadow-2xl max-h-[92vh] overflow-y-auto">
+      <div className="flex justify-between items-center mb-4"><div><h3 className="font-bold text-[var(--text)]">{asset ? 'Edit Asset' : 'Add Asset'}</h3><p className="text-xs text-[var(--text-2)] mt-1">Asset master and maintenance schedule. Log Event is used for actual maintenance occurrences.</p></div><button type="button" onClick={onClose} aria-label="Close"><X size={16} className="text-[var(--text-3)]" /></button></div>
+      <div className="grid sm:grid-cols-2 gap-3">
+        <FieldInput label="Asset Code *" value={form.assetCode} onChange={v => setForm(f => ({ ...f, assetCode: v }))} placeholder="CNC-05" />
+        <FieldInput label="Asset Name *" value={form.name} onChange={v => setForm(f => ({ ...f, name: v }))} placeholder="CNC Vertical Machining Centre" />
+        <FieldInput label="Category *" value={form.category} onChange={v => setForm(f => ({ ...f, category: v }))} placeholder="Machining Equipment" />
+        <label className="text-xs text-[var(--text-2)]">Site *<select className="eoss-input w-full mt-1" value={form.siteId} onChange={e => setForm(f => ({ ...f, siteId: e.target.value }))}>{sites.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
+        <FieldInput label="Manufacturer *" value={form.manufacturer} onChange={v => setForm(f => ({ ...f, manufacturer: v }))} placeholder="DMG MORI" />
+        <FieldInput label="Model" value={form.model} onChange={v => setForm(f => ({ ...f, model: v }))} placeholder="DMU 50" />
+        <FieldInput label="Work Centre" value={form.workCentre} onChange={v => setForm(f => ({ ...f, workCentre: v }))} placeholder="CNC Bay" />
+        <label className="text-xs text-[var(--text-2)]">Criticality<select className="eoss-input w-full mt-1" value={form.criticality} onChange={e => setForm(f => ({ ...f, criticality: e.target.value as Asset['criticality'] }))}>{(['Low', 'Medium', 'High', 'Critical'] as const).map(v => <option key={v} value={v}>{v}</option>)}</select></label>
+        <div className="sm:col-span-2 border-t pt-3 mt-1" style={{ borderColor: 'var(--border)' }}><div className="text-xs font-semibold text-[var(--text)] mb-2">Maintenance schedule</div><div className="grid sm:grid-cols-3 gap-3"><label className="text-xs text-[var(--text-2)]">Metric<select className="eoss-input w-full mt-1" value={form.meterType} onChange={e => setForm(f => ({ ...f, meterType: e.target.value as NonNullable<Asset['meterType']> }))}>{[['none', 'Calendar only'], ['hours', 'Running hours'], ['cycles', 'Cycles'], ['km', 'Kilometres']].map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></label><FieldInput label={form.meterType === 'none' ? 'Metric interval' : `Metric interval (${unit})`} value={form.pmFrequencyMetric} onChange={v => setForm(f => ({ ...f, pmFrequencyMetric: v }))} type="number" placeholder="600" /><FieldInput label="Next due date" value={form.nextServiceDate} onChange={v => setForm(f => ({ ...f, nextServiceDate: v }))} type="date" /></div></div>
+      </div>
+      {err && <p className="text-xs text-[var(--error)] mt-3">{err}</p>}
+      <div className="flex gap-2 justify-end mt-5"><button type="button" onClick={onClose} className="btn-ghost">Cancel</button><button type="button" onClick={save} className="btn-primary">{asset ? 'Save Asset' : 'Add Asset'}</button></div>
+    </div>
+  </div>;
+}
+
+function FieldInput({ label, value, onChange, placeholder, type = 'text' }: { label: string; value: string; onChange: (value: string) => void; placeholder?: string; type?: string }) {
+  return <label className="text-xs text-[var(--text-2)]">{label}<input type={type} className="eoss-input w-full mt-1" value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} /></label>;
+}
+
+function ArchiveAssetModal({ asset, onClose, onConfirm }: { asset: Asset; onClose: () => void; onConfirm: (reason: string) => void }) {
+  const [reason, setReason] = useState('');
+  return <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"><div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl w-full max-w-md p-6 shadow-2xl"><h3 className="font-bold text-[var(--text)]">Archive {asset.assetCode}?</h3><p className="text-sm text-[var(--text-2)] mt-2">The asset will be marked retired and hidden from active lists. Maintenance history remains available.</p><label className="block text-xs font-semibold text-[var(--text-2)] mt-4">Reason *<textarea autoFocus rows={3} className="eoss-input w-full mt-1" value={reason} onChange={e => setReason(e.target.value)} placeholder="Replaced, sold, or permanently retired…" /></label><div className="flex gap-2 justify-end mt-5"><button type="button" onClick={onClose} className="btn-ghost">Cancel</button><button type="button" disabled={!reason.trim()} onClick={() => onConfirm(reason.trim())} className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white disabled:opacity-40" style={{ background: 'var(--error)' }}>Archive Asset</button></div></div></div>;
 }
 
 function KpiTile({ label, value, accent = 'neutral' }: { label: string; value: number; accent?: string }) {
