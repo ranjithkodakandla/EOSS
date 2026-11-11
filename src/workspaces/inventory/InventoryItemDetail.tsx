@@ -2,6 +2,7 @@ import React from 'react';
 import { ArrowLeft, PackageOpen, ExternalLink } from 'lucide-react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useStore } from '../../store';
+import { useReturnNavigation } from '../../hooks/useReturnNavigation';
 import StatusChip from '../../components/layout/StatusChip';
 
 export default function InventoryItemDetail() {
@@ -9,6 +10,7 @@ export default function InventoryItemDetail() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { materials, inventory, lots, movements, jobMaterialReqs, jobs, storeLocations, inspections, startInspectionForLot } = useStore();
+  const { goBack } = useReturnNavigation('/inventory');
   const material = materials.find(m => m.id === id);
 
   if (!material) return <div className="p-6 text-sm text-[var(--text-2)]">Inventory item not found.</div>;
@@ -21,7 +23,7 @@ export default function InventoryItemDetail() {
   return (
     <div className="max-w-5xl mx-auto p-4 md:p-6 space-y-5">
       <div className="flex items-start gap-3">
-        <button type="button" onClick={() => navigate('/inventory')} className="mt-1 text-[var(--text-3)] hover:text-[var(--text)]"><ArrowLeft size={17} /></button>
+        <button type="button" onClick={() => goBack()} className="mt-1 text-[var(--text-3)] hover:text-[var(--text)]"><ArrowLeft size={17} /></button>
         <div className="flex-1">
           <div className="flex items-center gap-2 flex-wrap">
             <PackageOpen size={18} className="text-[var(--brand)]" />

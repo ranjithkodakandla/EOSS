@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { ArrowLeft, CheckCircle2, FileText, Pencil, Save } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, FileText, Pencil, Save, XCircle } from 'lucide-react';
 import { useStore } from '../../store';
 import StatusChip from '../../components/layout/StatusChip';
+import RelatedRecordsPanel from '../../components/workflow/RelatedRecordsPanel';
+import { useReturnNavigation } from '../../hooks/useReturnNavigation';
 
 const fmt = (d?: string) => d ? new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
 
@@ -10,15 +12,19 @@ export default function SupplierQuotationDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const {
-    supplierQuotations, purchaseReqs, supplierPos, currentUser,
-    updateSupplierQuotation, selectQuotation, generateSPOFromQuotation, showToast,
+    supplierQuotations, supplierInvitations, purchaseReqs, supplierPos, currentUser,
+    updateSupplierQuotation, selectQuotation, approveFinalizeQuotation, rejectQuotationApproval,
+    generateSPOFromQuotation, showToast,
   } = useStore();
+  const { goBack, originUrl } = useReturnNavigation('/procurement?tab=quotes');
 
   const quote = supplierQuotations.find(q => q.id === id);
   const [editingPricing, setEditingPricing] = useState(false);
   const [deliveryDays, setDeliveryDays] = useState(String(quote?.deliveryDays ?? 10));
   const [paymentTerms, setPaymentTerms] = useState(quote?.paymentTerms ?? 'Net 30 days');
   const [notes, setNotes] = useState(quote?.notes ?? '');
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [rejectReason, setRejectReason] = useState('');
   const [linePrices, setLinePrices] = useState<Record<string, number>>(
     Object.fromEntries((quote?.lines ?? []).map(l => [l.id, l.unitPrice ?? l.unitRate ?? 0]))
   );
@@ -33,17 +39,18 @@ export default function SupplierQuotationDetail() {
   }
 
   const pr = quote.prId ? purchaseReqs.find(p => p.id === quote.prId) : undefined;
+  const linkedInvitation = supplierInvitations.find(i => i.id === quote.invitationId || (quote.prId && i.prId === quote.prId && i.supplierId === quote.supplierId));
   const linkedSpo = supplierPos.find(po =>
-    (po.supplierQuotationId === quote.id || (quote.prId && po.prId === quote.prId)) && po.status !== 'cancelled'
+    (po.supplierQuotationId === quote.id || (quote.prId && po.prId === quote.prId)) && !['cancelled', 'supplier_declined'].includes(po.status)
   );
   const canApprove = ['owner', 'buyer'].includes(currentUser.role);
 
   const subtotal = quote.lines.reduce((s, l) => s + (l.lineTotal || (l.quotedQty ?? l.orderedQty ?? 1) * (l.unitPrice ?? l.unitRate ?? 0)), 0);
-  const taxTotal = quote.lines.reduce((s, l) => {
+  const taxTotal = quote.taxAmount ?? quote.lines.reduce((s, l) => {
     const base = l.lineTotal || (l.quotedQty ?? l.orderedQty ?? 1) * (l.unitPrice ?? l.unitRate ?? 0);
     return s + base * ((l.taxPct ?? 0) / 100);
   }, 0);
-  const grandTotal = Math.round(subtotal + taxTotal);
+  const grandTotal = Math.round(subtotal + taxTotal + (quote.deliveryCharges ?? 0) - (quote.discountAmount ?? 0));
 
   const handleSavePricing = () => {
     const updatedLines = quote.lines.map(l => {
@@ -63,12 +70,15 @@ export default function SupplierQuotationDetail() {
   };
 
   const handleGenerateSPO = () => {
+    if (quote.status !== 'selected') {
+      approveFinalizeQuotation(quote.id, currentUser.name);
+    }
     const res = generateSPOFromQuotation(quote.id);
     if (res.error) {
-      showToast({ type: 'warning', title: 'Supplier PO already exists', body: res.error });
+      showToast({ type: 'warning', title: 'Supplier PO check', body: res.error });
     }
     if (res.spo) {
-      navigate(`/procurement/spo/${res.spo.id}`);
+      navigate(`/procurement/spo/${res.spo.id}`, { state: { from: originUrl } });
     }
   };
 
@@ -77,7 +87,7 @@ export default function SupplierQuotationDetail() {
       <div className="flex-shrink-0 px-6 py-4 border-b" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
         <div className="flex items-start justify-between gap-3 flex-wrap">
           <div className="flex items-start gap-3">
-            <button type="button" onClick={() => navigate(pr ? `/procurement/pr/${pr.id}` : '/procurement?tab=quotes')} className="p-1.5 rounded-lg hover:bg-[var(--surface-2)] mt-0.5">
+            <button type="button" onClick={() => goBack()} className="p-1.5 rounded-lg hover:bg-[var(--surface-2)] mt-0.5">
               <ArrowLeft size={18} className="text-[var(--text-2)]" />
             </button>
             <div>
@@ -116,30 +126,41 @@ export default function SupplierQuotationDetail() {
               </button>
             )}
             {canApprove && quote.status !== 'selected' && !linkedSpo && (
-              <button
-                type="button"
-                onClick={() => {
-                  selectQuotation(quote.id);
-                  showToast({ type: 'success', title: 'Quotation selected', body: `${quote.quoteNumber} finalized as winning vendor quote.` });
-                }}
-                className="btn-primary text-xs inline-flex items-center gap-1"
-              >
-                <CheckCircle2 size={13} /> Select Quotation
-              </button>
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    selectQuotation(quote.id);
+                    approveFinalizeQuotation(quote.id, currentUser.name);
+                    showToast({ type: 'success', title: 'Quotation approved & finalized', body: `${quote.quoteNumber} ready for Draft Supplier PO.` });
+                  }}
+                  className="btn-primary text-xs inline-flex items-center gap-1"
+                >
+                  <CheckCircle2 size={13} /> Approve & Finalize
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setShowRejectModal(true); setRejectReason(''); }}
+                  className="px-3 py-1.5 rounded-lg border border-red-300 text-red-700 text-xs font-semibold inline-flex items-center gap-1"
+                >
+                  <XCircle size={13} /> Reject
+                </button>
+              </>
             )}
-            {canApprove && !linkedSpo && (
+            {canApprove && !linkedSpo && quote.status !== 'approval_rejected' && (
               <button
                 type="button"
                 onClick={handleGenerateSPO}
                 className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white inline-flex items-center gap-1"
                 style={{ background: 'var(--success)' }}
               >
-                <FileText size={13} /> Generate Supplier PO
+                <FileText size={13} /> Draft Supplier PO →
               </button>
             )}
             {linkedSpo && (
               <Link
                 to={`/procurement/spo/${linkedSpo.id}`}
+                state={{ from: originUrl }}
                 className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-[var(--border)] bg-[var(--surface-2)] text-[var(--brand)] font-mono"
               >
                 Supplier PO: {linkedSpo.poNumber} →
@@ -150,6 +171,44 @@ export default function SupplierQuotationDetail() {
       </div>
 
       <div className="flex-1 overflow-auto p-6 space-y-5">
+        <RelatedRecordsPanel
+          originNote={
+            quote.rejectedReason
+              ? `Rejected by ${quote.rejectedBy ?? 'Approver'}: ${quote.rejectedReason}`
+              : quote.overrideReason
+                ? `Selected with override note: ${quote.overrideReason}`
+                : undefined
+          }
+          records={[
+            ...(pr ? [{ relationship: 'Upstream' as const, typeLabel: 'Purchase Requisition', reference: pr.prNumber, to: `/procurement/pr/${pr.id}`, status: pr.status, state: { from: originUrl } }] : []),
+            ...(linkedInvitation ? [{ relationship: 'Upstream' as const, typeLabel: 'Supplier Invitation', reference: `${linkedInvitation.channel.toUpperCase()} · ${linkedInvitation.sentDate ?? linkedInvitation.createdAt}`, to: pr ? `/procurement/pr/${pr.id}` : undefined, status: linkedInvitation.status, state: { from: originUrl } }] : []),
+            ...(linkedSpo ? [{ relationship: 'Downstream' as const, typeLabel: 'Supplier PO', reference: linkedSpo.poNumber, to: `/procurement/spo/${linkedSpo.id}`, status: linkedSpo.status, state: { from: originUrl } }] : []),
+          ]}
+        />
+        {showRejectModal && (
+          <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+            <div className="rounded-2xl border p-6 w-full max-w-md shadow-xl space-y-4 bg-[var(--surface)] border-[var(--border)]">
+              <h3 className="font-bold text-[var(--text)]">Reject Quotation {quote.quoteNumber}</h3>
+              <p className="text-xs text-[var(--text-2)]">Enter the reason for rejecting {quote.supplierName}'s quotation.</p>
+              <textarea className="eoss-input w-full" rows={3} value={rejectReason} onChange={e => setRejectReason(e.target.value)} placeholder="e.g. Price above target / specification mismatch" />
+              <div className="flex gap-3">
+                <button type="button" onClick={() => setShowRejectModal(false)} className="flex-1 py-2 border border-[var(--border)] rounded-lg text-xs">Cancel</button>
+                <button
+                  type="button"
+                  disabled={!rejectReason.trim()}
+                  onClick={() => {
+                    rejectQuotationApproval(quote.id, currentUser.name, rejectReason.trim());
+                    setShowRejectModal(false);
+                    showToast({ type: 'warning', title: 'Quotation rejected', body: `${quote.quoteNumber} marked approval_rejected.` });
+                  }}
+                  className="flex-1 py-2 bg-red-600 text-white rounded-lg text-xs font-semibold disabled:opacity-40"
+                >
+                  Confirm Reject
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <div className="rounded-xl border p-3.5 bg-[var(--surface)] border-[var(--border)]">
             <div className="text-[11px] text-[var(--text-3)]">Payment Terms</div>

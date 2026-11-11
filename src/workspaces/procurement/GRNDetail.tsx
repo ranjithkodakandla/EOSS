@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { ArrowLeft, CheckCircle, XCircle, ClipboardCheck } from 'lucide-react';
 import { useStore } from '../../store';
+import { useReturnNavigation } from '../../hooks/useReturnNavigation';
 import StatusChip from '../../components/layout/StatusChip';
 import DocumentActions from '../../components/workflow/DocumentActions';
 
@@ -16,6 +17,7 @@ export default function GRNDetail() {
   const [rejectReason, setRejectReason] = useState('');
 
   const grn = grns.find(g => g.id === id);
+  const { goBack } = useReturnNavigation(grn ? `/procurement/spo/${grn.spoId}` : '/procurement?tab=grn');
   if (!grn) {
     return (
       <div className="p-6 text-sm text-[var(--text-2)]">
@@ -45,9 +47,9 @@ export default function GRNDetail() {
       <div className="flex items-start gap-3 mb-5 flex-wrap">
         <button
           type="button"
-          onClick={() => navigate(`/procurement/spo/${grn.spoId}`)}
+          onClick={() => goBack()}
           className="text-[var(--text-3)] hover:text-[var(--text)] mt-1"
-          title={`Back to ${grn.spoNumber}`}
+          title="Back"
         >
           <ArrowLeft size={16} />
         </button>

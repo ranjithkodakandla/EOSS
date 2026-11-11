@@ -1,10 +1,9 @@
 import React, { useState, useMemo } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { Search, ArrowRightLeft, ShieldAlert, Plus, Pencil, X } from 'lucide-react';
 import { useStore } from '../../store';
 import SiteStoreField from '../../components/forms/SiteStoreField';
 import { placeLabel } from '../../domain/places';
-import { SITES, STORE_LOCATIONS } from '../../data/seed';
 import type { MaterialItem } from '../../types';
 import StatusChip from '../../components/layout/StatusChip';
 import StockWorkspaceNav from '../../components/layout/StockWorkspaceNav';
@@ -26,14 +25,28 @@ const emptyMaterialForm = {
 export default function Inventory() {
   const { inventory, lots, sites, storeLocations, currentUser, materials, addMaterial, updateMaterial, addInventoryItem, updateInventoryItem, showToast } = useStore();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const openWithOrigin = (path: string) => navigate(path, { state: { from: `${location.pathname}${location.search}` } });
   const shortageFocus = searchParams.get('focus') === 'shortage';
 
-  const [search, setSearch] = useState(searchParams.get('search') ?? '');
-  const [selectedLocation, setSelectedLocation] = useState('all');
-  const [statusFilter, setStatusFilter] = useState<string>(shortageFocus ? 'Shortage' : 'all');
+  const [search, setSearch] = useState(searchParams.get('q') ?? searchParams.get('search') ?? '');
+  const [selectedLocation, setSelectedLocation] = useState(searchParams.get('store') ?? 'all');
+  const [statusFilter, setStatusFilter] = useState<string>(shortageFocus ? 'Shortage' : (searchParams.get('status') ?? 'all'));
   const [sortKey, setSortKey] = useState<SortKey>('materialCode');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
+
+  React.useEffect(() => {
+    if (location.key === 'bg') return;
+    const next = new URLSearchParams();
+    if (shortageFocus) next.set('focus', 'shortage');
+    if (search.trim()) next.set('q', search.trim());
+    if (selectedLocation !== 'all') next.set('store', selectedLocation);
+    if (statusFilter !== 'all' && !(shortageFocus && statusFilter === 'Shortage')) next.set('status', statusFilter);
+    if (next.toString() !== searchParams.toString()) {
+      setSearchParams(next, { replace: true });
+    }
+  }, [shortageFocus, search, selectedLocation, statusFilter, searchParams, setSearchParams, location.key]);
 
   const getInventoryRowStatus = (item: (typeof inventory)[number]) => {
     if (item.availableQty <= 0 && item.inTransitQty > 0 && item.qcHoldQty === 0) return 'Awaiting GRN';
@@ -61,8 +74,8 @@ export default function Inventory() {
   const openEditMaterial = (m: MaterialItem, inventoryId?: string, e?: React.MouseEvent) => {
     e?.stopPropagation();
     const row = inventory.find(i => i.id === inventoryId);
-    const loc = STORE_LOCATIONS.find(l => l.id === row?.locationId);
-    const site = SITES.find(s => s.id === loc?.siteId);
+    const loc = storeLocations.find(l => l.id === row?.locationId);
+    const site = sites.find(s => s.id === loc?.siteId);
     setEditingMaterialId(m.id);
     setMaterialForm({
       itemCode: m.itemCode, name: m.name, categoryName: m.categoryName, primaryUom: m.primaryUom,
@@ -247,7 +260,7 @@ export default function Inventory() {
           const items = inventory.filter(i => i.locationId === loc.id);
           const hasShortage = items.some(i => i.shortage);
           const isSelected = selectedLocation === loc.id;
-          const siteCode = SITES.find(s => s.id === loc.siteId)?.code;
+          const siteCode = sites.find(s => s.id === loc.siteId)?.code;
           return (
             <button
               key={loc.id}
@@ -294,7 +307,7 @@ export default function Inventory() {
               key={item.id}
               role="link"
               onClick={() => {
-                navigate(`/inventory/item/${item.materialItemId}`);
+                openWithOrigin(`/inventory/item/${item.materialItemId}`);
               }}
               className="w-full text-left rounded-xl border p-3 cursor-pointer"
               style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
@@ -323,7 +336,7 @@ export default function Inventory() {
                 <div className="mt-2 flex gap-2">
                   <button type="button" onClick={e => { e.stopPropagation(); raisePr(item, materials.find(m => m.id === item.materialItemId)?.standardGrade); }}
                     className="px-2.5 py-1 rounded-lg text-xs font-semibold text-white" style={{ background: 'var(--brand-fill)' }}>
-                    Raise PR
+                    Create PR
                   </button>
                   <MoveStockButton item={item} inventory={inventory} navigate={navigate} />
                 </div>
@@ -384,10 +397,10 @@ export default function Inventory() {
                     }}
                     onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(var(--brand-rgb,112,72,245),0.04)'; }}
                     onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = idx % 2 === 0 ? 'var(--surface)' : 'var(--surface-2)'; }}
-                    onClick={() => navigate(`/inventory/item/${item.materialItemId}`)}
+                    onClick={() => openWithOrigin(`/inventory/item/${item.materialItemId}`)}
                   >
                     <td className="px-4 py-3 font-mono text-xs font-bold whitespace-nowrap" style={{ color: 'var(--brand)' }}>
-                      <button type="button" className="hover:underline" onClick={e => { e.stopPropagation(); navigate(`/inventory/item/${item.materialItemId}`); }}>{item.materialCode}</button>
+                      <button type="button" className="hover:underline" onClick={e => { e.stopPropagation(); openWithOrigin(`/inventory/item/${item.materialItemId}`); }}>{item.materialCode}</button>
                     </td>
                     <td className="px-4 py-3">
                       <div className="text-sm font-medium" style={{ color: 'var(--text)' }}>{item.materialName}</div>
@@ -398,7 +411,7 @@ export default function Inventory() {
                     </td>
                     <td className="px-4 py-3">
                       <span className="text-xs px-2 py-0.5 rounded-md border" style={{ borderColor: 'var(--border)', color: 'var(--text-2)', background: 'var(--surface)' }}>
-                        {placeLabel(SITES.find(s => s.id === STORE_LOCATIONS.find(l => l.id === item.locationId)?.siteId)?.code, item.locationName)}
+                        {placeLabel(sites.find(s => s.id === storeLocations.find(l => l.id === item.locationId)?.siteId)?.code, item.locationName)}
                       </span>
                     </td>
                     <QtyCell qty={item.onHandQty} uom={item.primaryUom} />
@@ -413,12 +426,12 @@ export default function Inventory() {
                     <td className="px-4 py-3 text-right" onClick={e => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1.5">
                         {item.lotCount > 0 && (
-                          <button type="button" className="text-xs hover:underline" style={{ color: 'var(--brand)' }} onClick={() => navigate(`/inventory/item/${item.materialItemId}?view=lots`)}>{item.lotCount} lot{item.lotCount !== 1 ? 's' : ''}</button>
+                          <button type="button" className="text-xs hover:underline" style={{ color: 'var(--brand)' }} onClick={() => openWithOrigin(`/inventory/item/${item.materialItemId}?view=lots`)}>{item.lotCount} lot{item.lotCount !== 1 ? 's' : ''}</button>
                         )}
                         {item.shortage && (
                           <>
                             <button type="button" onClick={() => raisePr(item, materials.find(m => m.id === item.materialItemId)?.standardGrade)} className="px-2 py-1 rounded-lg text-xs font-semibold text-white" style={{ background: 'var(--brand-fill)' }}>
-                              Raise PR
+                              Create PR
                             </button>
                             <MoveStockButton item={item} inventory={inventory} navigate={navigate} />
                           </>

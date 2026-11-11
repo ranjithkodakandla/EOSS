@@ -38,25 +38,38 @@ function newLine(n: number, rfqLine?: any): QLine {
 export default function QuotationCreate() {
   const { rfqId } = useParams<{ rfqId: string }>();
   const navigate = useNavigate();
-  const { rfqs, addQuotation, currentUser, showToast } = useStore();
+  const { rfqs, customers, addQuotation, createDirectQuotation, currentUser, showToast } = useStore();
 
   const rfq = rfqs.find(r => r.id === rfqId) as (typeof rfqs[0] & Record<string, any>) | undefined;
   const rfqLines: any[] = rfq?.lines ?? [];
+  const isDirect = !rfqId;
 
+  const [customerId, setCustomerId] = useState(customers[0]?.id ?? '');
   const [validDays, setValidDays] = useState('30');
+  const [paymentTerms, setPaymentTerms] = useState('Net 30 days');
+  const [deliveryTerms, setDeliveryTerms] = useState('Ex-Works / By Road · 2-3 weeks');
+  const [discountAmount, setDiscountAmount] = useState(0);
+  const [taxRatePct, setTaxRatePct] = useState(18);
   const [notes, setNotes] = useState('');
   const [lines, setLines] = useState<QLine[]>(
     rfqLines.length > 0 ? rfqLines.map((l, i) => newLine(i + 1, l)) : [newLine(1)]
   );
 
-  if (!rfq) return <div className="p-8 text-sm text-[var(--text-2)]">RFQ not found.</div>;
+  if (rfqId && !rfq) return <div className="p-8 text-sm text-[var(--text-2)]">RFQ not found.</div>;
+
+  const directCustomer = customers.find(c => c.id === customerId) ?? CUSTOMERS[0];
+  const activeCustomerId = rfq ? rfq.customerId : (directCustomer?.id ?? 'cust-001');
+  const activeCustomerName = rfq ? rfq.customerName : (directCustomer?.tradingName || directCustomer?.legalName || 'Customer');
 
   const addLine = () => setLines(ls => [...ls, newLine(ls.length + 1)]);
   const removeLine = (id: string) => setLines(ls => ls.filter(l => l.id !== id));
   const updateLine = (id: string, field: keyof QLine, value: any) =>
     setLines(ls => ls.map(l => l.id === id ? { ...l, [field]: value } : l));
 
-  const totalValue = lines.reduce((s, l) => s + l.orderedQty * l.unitPrice, 0);
+  const subtotal = lines.reduce((s, l) => s + l.orderedQty * l.unitPrice, 0);
+  const taxable = Math.max(0, subtotal - (discountAmount || 0));
+  const taxAmount = Math.round((taxable * (taxRatePct || 0)) / 100);
+  const totalValue = Math.round(taxable + taxAmount);
   const fmtMoney = (n: number) => `₹${n.toLocaleString('en-IN')}`;
   const validUntil = addDays(DEMO_NOW, parseInt(validDays) || 30);
 
@@ -67,15 +80,22 @@ export default function QuotationCreate() {
     const quotation: CustomerQuotation = {
       id: `qt-${seq}`,
       quotationNumber,
-      rfqId: rfq.id,
-      rfqNumber: rfq.rfqNumber,
-      customerId: rfq.customerId,
-      customerName: rfq.customerName,
+      rfqId: rfq?.id,
+      rfqNumber: rfq?.rfqNumber,
+      isDirectQuotation: isDirect,
+      customerId: activeCustomerId,
+      customerName: activeCustomerName,
       quotationDate: DEMO_NOW,
       validUntil,
       currency: 'INR',
       status: 'draft',
+      subtotal,
+      discountAmount: discountAmount || 0,
+      taxRatePct: taxRatePct || 0,
+      taxAmount,
       totalValue,
+      paymentTerms,
+      deliveryTerms,
       revision: 1,
       owner: currentUser.name,
       notes,
@@ -95,21 +115,31 @@ export default function QuotationCreate() {
       requiredDate: l.requiredDate,
     }));
 
-    addQuotation(quotation, qLines);
-    // Also update RFQ status
-    showToast({ type: 'success', title: 'Quotation created', body: `${quotationNumber} drafted for ${rfq.customerName}.` });
-    navigate(`/sales/quotation/qt-${seq}`);
+    if (isDirect) {
+      createDirectQuotation(quotation, qLines);
+      showToast({ type: 'success', title: 'Direct Quotation created', body: `${quotationNumber} drafted for ${activeCustomerName}.` });
+    } else {
+      addQuotation(quotation, qLines);
+      showToast({ type: 'success', title: 'Quotation created', body: `${quotationNumber} drafted for ${activeCustomerName}.` });
+    }
+    navigate(`/sales/quotation/qt-${seq}`, { state: { from: rfq ? `/sales/rfq/${rfq.id}` : '/sales?tab=rfqs' } });
   };
+
+  const backTarget = rfqId ? `/sales/rfq/${rfqId}` : '/sales?tab=rfqs';
 
   return (
     <div className="flex flex-col h-full overflow-auto">
       <div className="flex-shrink-0 px-6 py-4 border-b flex items-center gap-3" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
-        <button onClick={() => navigate(`/sales/rfq/${rfqId}`)} className="p-1.5 rounded-lg hover:bg-[var(--surface-2)]">
+        <button onClick={() => navigate(backTarget)} className="p-1.5 rounded-lg hover:bg-[var(--surface-2)]">
           <ArrowLeft size={18} className="text-[var(--text-2)]" />
         </button>
         <div>
-          <h1 className="text-lg font-bold text-[var(--text)]">New Quotation</h1>
-          <p className="text-xs text-[var(--text-2)]">Against {rfq.rfqNumber} · {rfq.customerName}</p>
+          <h1 className="text-lg font-bold text-[var(--text)]">
+            {isDirect ? 'New Direct Quotation' : 'New Quotation'}
+          </h1>
+          <p className="text-xs text-[var(--text-2)]">
+            {rfq ? `Against ${rfq.rfqNumber} · ${rfq.customerName}` : 'Direct Quotation (standalone, no prior RFQ required)'}
+          </p>
         </div>
       </div>
 
@@ -119,6 +149,15 @@ export default function QuotationCreate() {
           {/* Header */}
           <Card title="Quotation Details">
             <div className="grid md:grid-cols-3 gap-4">
+              {isDirect && (
+                <Field label="Customer *" className="md:col-span-2">
+                  <select value={customerId} onChange={e => setCustomerId(e.target.value)} className="eoss-input">
+                    {customers.map(c => (
+                      <option key={c.id} value={c.id}>{c.tradingName || c.legalName}</option>
+                    ))}
+                  </select>
+                </Field>
+              )}
               <Field label="Quotation Date">
                 <input type="text" value={DEMO_NOW} disabled className="eoss-input opacity-60 cursor-not-allowed" />
               </Field>
@@ -126,6 +165,18 @@ export default function QuotationCreate() {
                 <select value={validDays} onChange={e => setValidDays(e.target.value)} className="eoss-input">
                   {['15', '30', '45', '60', '90'].map(d => <option key={d} value={d}>{d} days (until {addDays(DEMO_NOW, parseInt(d))})</option>)}
                 </select>
+              </Field>
+              <Field label="Payment Terms">
+                <input value={paymentTerms} onChange={e => setPaymentTerms(e.target.value)} className="eoss-input" />
+              </Field>
+              <Field label="Delivery Commitment">
+                <input value={deliveryTerms} onChange={e => setDeliveryTerms(e.target.value)} className="eoss-input" />
+              </Field>
+              <Field label="Tax Rate (GST %)">
+                <input type="number" min={0} max={28} value={taxRatePct} onChange={e => setTaxRatePct(Number(e.target.value) || 0)} className="eoss-input font-mono" />
+              </Field>
+              <Field label="Discount (₹)">
+                <input type="number" min={0} value={discountAmount} onChange={e => setDiscountAmount(Number(e.target.value) || 0)} className="eoss-input font-mono" />
               </Field>
               <Field label="Prepared By">
                 <input value={currentUser.name} disabled className="eoss-input opacity-60 cursor-not-allowed" />
@@ -196,7 +247,7 @@ export default function QuotationCreate() {
       </div>
 
       <div className="flex-shrink-0 px-6 py-4 border-t flex items-center justify-between" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
-        <button onClick={() => navigate(`/sales/rfq/${rfqId}`)} className="px-4 py-2 rounded-lg text-sm border" style={{ borderColor: 'var(--border)', color: 'var(--text-2)' }}>
+        <button onClick={() => navigate(backTarget)} className="px-4 py-2 rounded-lg text-sm border" style={{ borderColor: 'var(--border)', color: 'var(--text-2)' }}>
           Cancel
         </button>
         <button

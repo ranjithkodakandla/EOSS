@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { ArrowLeft, FileText, ArrowRightLeft, CheckCircle } from 'lucide-react';
 import { useStore } from '../../store';
+import { useReturnNavigation } from '../../hooks/useReturnNavigation';
 import StatusChip, { getStatusLabel } from '../../components/layout/StatusChip';
 import ConfirmModal from '../../components/feedback/ConfirmModal';
 
@@ -9,6 +10,7 @@ export default function LotDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { lots, movements, certificates, documents, grns, inspections, releaseLotFromHold, startInspectionForLot, currentUser } = useStore();
+  const { goBack } = useReturnNavigation('/inventory');
   const [confirm, setConfirm] = useState<null | { action: string; body: string }>(null);
 
   const lot = lots.find(l => l.id === id);
@@ -36,7 +38,7 @@ export default function LotDetail() {
     <div className="max-w-4xl mx-auto p-4 md:p-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-start gap-3 mb-5">
-        <button onClick={() => navigate('/inventory')} className="text-[var(--text-3)] hover:text-[var(--text)] mt-1"><ArrowLeft size={16} /></button>
+        <button onClick={() => goBack()} className="text-[var(--text-3)] hover:text-[var(--text)] mt-1"><ArrowLeft size={16} /></button>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <h1 className="font-bold text-[var(--text)] font-mono">{lot.lotNumber}</h1>

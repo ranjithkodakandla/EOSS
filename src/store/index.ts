@@ -12,10 +12,29 @@ import type {
   FinishedProduct, SiteAllocation, CustomerQuotation, CustomerQuotationLine, POLine,
   PurchaseRequisition, Site, MaterialItem, InventoryTransfer, MaterialReturn, JobCancellationDisposition,
   MeterReading, QualityRelease, InspectionTemplate, StageTemplate,
-  JobMaterialReq, JobBlocker, SupplierPOLine, POAmendment
+  JobMaterialReq, JobBlocker, SupplierPOLine, POAmendment, SupplierInvitation
   , Party
 } from '../types';
 import { stampPlaces } from '../domain/places';
+import { assessOrderMaterialRequirements } from '../domain/materialFeasibility';
+import {
+  DEMO_SCENARIO_PRS,
+  DEMO_SUPPLIER_INVITATIONS,
+  DEMO_SUPPLIER_QUOTATIONS,
+  DEMO_SUPPLIER_POS,
+  DEMO_SUPPLIER_PO_LINES,
+  DEMO_GRNS,
+  DEMO_LOTS,
+  DEMO_INSPECTIONS,
+  DEMO_SALES_RFQS,
+  DEMO_CUSTOMER_QUOTATIONS,
+  DEMO_CUSTOMER_QUOTATION_LINES,
+  DEMO_SALES_POS,
+  DEMO_SALES_PO_LINES,
+  DEMO_SALES_JOBS,
+  DEMO_SALES_JOB_REQS,
+  DEMO_SALES_DISPATCHES,
+} from '../data/demoScenarios';
 import {
   DEMO_USERS, JOBS, MATERIAL_LOTS, INVENTORY, STOCK_MOVEMENTS,
   ASSETS, MAINTENANCE_EVENTS, DISPATCHES, VAULT_DOCUMENTS,
@@ -85,6 +104,7 @@ interface EOSSState {
   certificates: MaterialCertificate[];
   employees: Employee[];
   storeLocations: StoreLocation[];
+  supplierInvitations: SupplierInvitation[];
   supplierQuotations: SupplierQuotation[];
   auditEvents: AuditEvent[];
   approvalPolicies: ApprovalPolicy[];
@@ -175,18 +195,41 @@ interface EOSSState {
   closeNCR: (ncrId: string, resolution: string) => void;
   linkNCRToInspection: (inspectionId: string, ncrId: string, ncrNumber: string) => void;
 
-  // Supplier Quotation actions
+  // Supplier Invitations & Quotations & PO Lifecycle actions
+  sendSupplierInvitations: (payload: {
+    prId: string;
+    supplierIds: string[];
+    channel: SupplierInvitation['channel'];
+    responseDueDate?: string;
+    requestedLineIds?: string[];
+    notes?: string;
+    matchReasons?: Record<string, string>;
+  }) => SupplierInvitation[];
+  updateSupplierInvitation: (id: string, partial: Partial<SupplierInvitation>) => void;
   addSupplierQuotation: (quote: SupplierQuotation) => void;
   updateSupplierQuotation: (id: string, partial: Partial<SupplierQuotation>) => void;
-  selectQuotation: (quoteId: string) => void;
-  generateSPOFromQuotation: (quoteId: string, opts?: { deliverToSiteId?: string; deliverToStoreId?: string; paymentTerms?: string; committedDate?: string }) => { spo?: SupplierPO; error?: string };
+  selectQuotation: (quoteId: string, overrideReason?: string) => void;
+  approveFinalizeQuotation: (quoteId: string, approverName: string, notes?: string) => void;
+  rejectQuotationApproval: (quoteId: string, rejectedBy: string, reason: string) => void;
+  generateSPOFromQuotation: (quoteId: string, opts?: { deliverToSiteId?: string; deliverToStoreId?: string; paymentTerms?: string; committedDate?: string; notes?: string }) => { spo?: SupplierPO; error?: string };
+  confirmAndIssueSPO: (spoId: string, issuedBy: string, opts?: { paymentTerms?: string; committedDate?: string; notes?: string }) => { spo?: SupplierPO; nonSelectedInvitations: SupplierInvitation[]; error?: string };
+  notifyNonSelectedSuppliers: (spoId: string, recipients: { supplierId: string; supplierName: string; email?: string; message: string }[], sentBy: string) => void;
+  recordSupplierPOConfirmation: (spoId: string, decision: 'accepted' | 'declined', data: { confirmedDate?: string; supplierRefNumber?: string; notes?: string; declineReason?: string; recordedBy: string }) => { spo?: SupplierPO; error?: string };
 
   // Sales actions
   addRfq: (rfq: CustomerRFQ) => void;
   addQuotation: (q: CustomerQuotation, lines: CustomerQuotationLine[]) => void;
+  createDirectQuotation: (q: CustomerQuotation, lines: CustomerQuotationLine[]) => void;
+  reviseQuotation: (parentQuotationId: string, nextQuotation: CustomerQuotation, nextLines: CustomerQuotationLine[]) => void;
   updateQuotation: (id: string, partial: Partial<CustomerQuotation>) => void;
   convertQuotationToPO: (quotationId: string, po: CustomerPO, poLines: POLine[]) => void;
   addCustomerPO: (po: CustomerPO, lines?: POLine[]) => void;
+  assessAndAllocateCustomerPO: (poId: string, actorName: string, opts?: { siteId?: string; jobId?: string }) => {
+    status: 'available' | 'partially_available' | 'awaiting_procurement';
+    reservedCount: number;
+    createdPr?: PurchaseRequisition;
+    message: string;
+  } | { error: string };
   createJobWithNewCustomerPO: (payload: { job: Job; po?: CustomerPO; poLines?: POLine[] }) => { job: Job; po?: CustomerPO };
   addSupplierPO: (po: SupplierPO, lines?: SupplierPOLine[]) => void;
   addGRN: (grn: GoodsReceipt) => void;
@@ -318,7 +361,7 @@ function buildSeed() {
     notifications: [...NOTIFICATIONS],
     unreadCount: NOTIFICATIONS.filter(n => !n.read).length,
 
-    jobs: [...JOBS, ...FLAGSHIP_JOBS, ...JOBS_DEMO].map(j => {
+    jobs: [...JOBS, ...FLAGSHIP_JOBS, ...JOBS_DEMO, ...DEMO_SALES_JOBS].map(j => {
       const snapshotTemplate = j.stageTemplateId
         ? STAGE_TEMPLATES.find(template => template.id === j.stageTemplateId)
         : STAGE_TEMPLATES.find(template => template.stages.length === j.stages.length) ?? STAGE_TEMPLATES[0];
@@ -332,31 +375,32 @@ function buildSeed() {
     jobUpdates: [] as JobUpdate[],
     transfers: [] as InventoryTransfer[],
     materialReturns: [] as MaterialReturn[],
-    lots: [...MATERIAL_LOTS, ...MATERIAL_LOTS_DEMO],
+    lots: [...MATERIAL_LOTS, ...MATERIAL_LOTS_DEMO, ...DEMO_LOTS],
     inventory: [...INVENTORY, ...INVENTORY_DEMO],
     movements: [...STOCK_MOVEMENTS],
     assets: [...ASSETS, ...ASSETS_DEMO],
     maintenanceEvents: [...MAINTENANCE_EVENTS, ...MAINTENANCE_EVENTS_DEMO],
-    dispatches: [...DISPATCHES, ...FLAGSHIP_DISPATCHES, ...DISPATCHES_DEMO],
+    dispatches: [...DISPATCHES, ...FLAGSHIP_DISPATCHES, ...DISPATCHES_DEMO, ...DEMO_SALES_DISPATCHES],
     documents: [...VAULT_DOCUMENTS, ...VAULT_DOCUMENTS_DEMO],
     approvalRequests: [...APPROVAL_REQUESTS],
     pulseExceptions: [...PULSE_EXCEPTIONS],
-    customerPos: [...CUSTOMER_POS, FLAGSHIP_PO, ...CUSTOMER_POS_DEMO],
-    supplierPos: [...SUPPLIER_POS, ...SUPPLIER_POS_DEMO],
-    supplierPoLines: [...SUPPLIER_PO_LINES, ...SUPPLIER_PO_LINES_DEMO],
+    customerPos: [...CUSTOMER_POS, FLAGSHIP_PO, ...CUSTOMER_POS_DEMO, ...DEMO_SALES_POS],
+    supplierPos: [...SUPPLIER_POS, ...SUPPLIER_POS_DEMO, ...DEMO_SUPPLIER_POS],
+    supplierPoLines: [...SUPPLIER_PO_LINES, ...SUPPLIER_PO_LINES_DEMO, ...DEMO_SUPPLIER_PO_LINES],
     poAmendments: [],
-    purchaseReqs: [...PURCHASE_REQS, ...FLAGSHIP_PURCHASE_REQS],
-    rfqs: [...RFQS, seededFlagshipRfq, ADDITIONAL_RFQ],
-    quotations: [FLAGSHIP_QUOTATION],
-    quotationLines: [...FLAGSHIP_QUOTATION_LINES],
-    poLines: [...FLAGSHIP_PO_LINES],
-    grns: [...GRNS, ...FLAGSHIP_GRNS],
-    inspections: [...INSPECTIONS, ...FLAGSHIP_INSPECTIONS, ...INSPECTIONS_DEMO],
+    purchaseReqs: [...PURCHASE_REQS, ...FLAGSHIP_PURCHASE_REQS, ...DEMO_SCENARIO_PRS],
+    rfqs: [...RFQS, seededFlagshipRfq, ADDITIONAL_RFQ, ...DEMO_SALES_RFQS],
+    quotations: [FLAGSHIP_QUOTATION, ...DEMO_CUSTOMER_QUOTATIONS],
+    quotationLines: [...FLAGSHIP_QUOTATION_LINES, ...DEMO_CUSTOMER_QUOTATION_LINES],
+    poLines: [...FLAGSHIP_PO_LINES, ...DEMO_SALES_PO_LINES],
+    grns: [...GRNS, ...FLAGSHIP_GRNS, ...DEMO_GRNS],
+    inspections: [...INSPECTIONS, ...FLAGSHIP_INSPECTIONS, ...INSPECTIONS_DEMO, ...DEMO_INSPECTIONS],
     ncrs: [...NCRS, ...FLAGSHIP_NCRS, ...NCRS_DEMO],
     certificates: [...CERTIFICATES],
     employees: [...EMPLOYEES],
     storeLocations: [...STORE_LOCATIONS],
-    supplierQuotations: [...SUPPLIER_QUOTATIONS, ...FLAGSHIP_SUPPLIER_RFQS],
+    supplierInvitations: [...DEMO_SUPPLIER_INVITATIONS],
+    supplierQuotations: [...SUPPLIER_QUOTATIONS, ...FLAGSHIP_SUPPLIER_RFQS, ...DEMO_SUPPLIER_QUOTATIONS],
     auditEvents: [...AUDIT_EVENTS, ...AUDIT_EVENTS_DEMO],
     approvalPolicies: [...APPROVAL_POLICIES],
     customerInvoices: [...CUSTOMER_INVOICES],
@@ -377,7 +421,7 @@ function buildSeed() {
     qualityReleases: [...QUALITY_RELEASES, ...QUALITY_RELEASES_DEMO],
     inspectionTemplates: [...INSPECTION_TEMPLATES],
     stageTemplates: [...STAGE_TEMPLATES],
-    jobMaterialReqs: [...JOB_MATERIAL_REQS, ...JOB_MATERIAL_REQS_DEMO],
+    jobMaterialReqs: [...JOB_MATERIAL_REQS, ...JOB_MATERIAL_REQS_DEMO, ...DEMO_SALES_JOB_REQS],
     jobBlockers: [...JOB_BLOCKERS, ...JOB_BLOCKERS_DEMO],
     toasts: [] as Toast[],
   };
@@ -938,6 +982,13 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
         customerPos: request.requestType === 'Customer PO Credit Limit Approval'
           ? s.customerPos.map(po => po.id === request.entityId ? { ...po, status: resolution === 'approved' ? 'active' as const : 'on_hold' as const } : po)
           : s.customerPos,
+        purchaseReqs: request.requestType === 'PR Approval'
+          ? s.purchaseReqs.map(pr => pr.id === request.entityId ? {
+              ...pr,
+              status: resolution === 'approved' ? 'approved' as const : 'rejected' as const,
+              reason: notes || pr.reason,
+            } : pr)
+          : s.purchaseReqs,
         auditEvents: [...s.auditEvents, {
           id: `ae-${Date.now()}`,
           actor: by, actorId: s.currentUser.id, scope: 'ApprovalRequest', action: resolution,
@@ -1000,37 +1051,200 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
     inspections: s.inspections.map(i => i.id !== inspectionId ? i : { ...i, ncrId, ncrNumber }),
   })),
 
-  // ── Supplier Quotation Actions ──
-  addSupplierQuotation: (quote) => set(s => ({ supplierQuotations: [quote, ...s.supplierQuotations] })),
+  // ── Supplier Invitation, Quotation & PO Lifecycle Actions ──
+  sendSupplierInvitations: ({ prId, supplierIds, channel, responseDueDate, requestedLineIds, notes, matchReasons }) => {
+    const state = get();
+    const pr = state.purchaseReqs.find(p => p.id === prId);
+    if (!pr || supplierIds.length === 0) return [];
+    const now = new Date().toISOString();
+    const today = now.slice(0, 10);
+    const defaultLineIds = (requestedLineIds && requestedLineIds.length > 0)
+      ? requestedLineIds
+      : (pr.lines ?? []).map(l => l.id);
+    const existingSupIds = new Set(
+      state.supplierInvitations
+        .filter(i => i.prId === prId && !['declined', 'no_response', 'closed'].includes(i.status))
+        .map(i => i.supplierId)
+    );
+    const created: SupplierInvitation[] = supplierIds
+      .filter(sid => !existingSupIds.has(sid))
+      .map((sid, idx) => {
+        const supplier = state.suppliers.find(sp => sp.id === sid);
+        return {
+          id: `sinv-${Date.now()}-${idx}`,
+          prId: pr.id,
+          prNumber: pr.prNumber,
+          supplierId: sid,
+          supplierName: supplier?.tradingName || supplier?.legalName || sid,
+          contactName: supplier?.contactPerson,
+          contactEmail: supplier?.email,
+          matchReason: matchReasons?.[sid],
+          channel,
+          requestedLineIds: defaultLineIds,
+          createdAt: today,
+          sentDate: today,
+          responseDueDate,
+          status: 'awaiting_quotation',
+          notes,
+        };
+      });
+    if (created.length === 0) return [];
+    set(s => ({
+      supplierInvitations: [...created, ...s.supplierInvitations],
+      purchaseReqs: s.purchaseReqs.map(p =>
+        p.id === prId && ['draft', 'pending', 'approved'].includes(p.status)
+          ? { ...p, status: 'quotation_in_progress' as const }
+          : p
+      ),
+      auditEvents: [...s.auditEvents, {
+        id: `ae-${Date.now()}`, actor: s.currentUser.name, actorId: s.currentUser.id,
+        scope: 'PurchaseRequisition', action: 'send_invitations', entityId: pr.id, entityRef: pr.prNumber,
+        timestamp: now, source: 'ui',
+        after: { invitedCount: created.length, suppliers: created.map(c => c.supplierName), channel },
+      }],
+    }));
+    get().showToast({
+      type: 'success',
+      title: `Quotation requests sent to ${created.length} supplier${created.length > 1 ? 's' : ''}`,
+      body: `${pr.prNumber} moved to Quotation In Progress.`,
+    });
+    return created;
+  },
+
+  updateSupplierInvitation: (id, partial) => set(s => ({
+    supplierInvitations: s.supplierInvitations.map(i => i.id !== id ? i : { ...i, ...partial }),
+  })),
+
+  addSupplierQuotation: (quote) => set(s => {
+    const now = new Date().toISOString();
+    const matchedInv = quote.invitationId
+      ? s.supplierInvitations.find(i => i.id === quote.invitationId)
+      : s.supplierInvitations.find(i => i.prId === quote.prId && i.supplierId === quote.supplierId);
+    return {
+      supplierQuotations: [
+        matchedInv && !quote.invitationId ? { ...quote, invitationId: matchedInv.id } : quote,
+        ...s.supplierQuotations,
+      ],
+      supplierInvitations: matchedInv
+        ? s.supplierInvitations.map(i => i.id === matchedInv.id ? { ...i, status: 'quotation_received' as const, quotationId: quote.id } : i)
+        : s.supplierInvitations,
+      purchaseReqs: quote.prId
+        ? s.purchaseReqs.map(p => (p.id === quote.prId && ['draft', 'pending', 'approved'].includes(p.status))
+          ? { ...p, status: 'quotation_in_progress' as const }
+          : p)
+        : s.purchaseReqs,
+      auditEvents: [...s.auditEvents, {
+        id: `ae-${Date.now()}`, actor: s.currentUser.name, actorId: s.currentUser.id,
+        scope: 'SupplierQuotation', action: 'create', entityId: quote.id, entityRef: quote.quoteNumber,
+        timestamp: now, source: 'ui',
+        after: { supplierName: quote.supplierName, prNumber: quote.prNumber, totalLines: quote.lines.length },
+      }],
+    };
+  }),
 
   updateSupplierQuotation: (id, partial) => set(s => ({
     supplierQuotations: s.supplierQuotations.map(q => q.id !== id ? q : { ...q, ...partial }),
   })),
 
-  selectQuotation: (quoteId) => set(s => {
+  selectQuotation: (quoteId, overrideReason) => set(s => {
     const target = s.supplierQuotations.find(sq => sq.id === quoteId);
     if (!target) return s;
+    const now = new Date().toISOString();
     return {
-      supplierQuotations: s.supplierQuotations.map(q =>
-        q.id === quoteId
-          ? { ...q, status: 'selected' as const }
-          : (target.prId && q.prId === target.prId)
-            ? { ...q, status: 'rejected' as const }
-            : q
-      ),
+      supplierQuotations: s.supplierQuotations.map(q => {
+        if (q.id === quoteId) {
+          return { ...q, status: 'selected' as const, ...(overrideReason ? { overrideReason } : {}) };
+        }
+        if (target.prId && q.prId === target.prId && !['approval_rejected', 'rejected', 'expired'].includes(q.status)) {
+          return { ...q, status: 'not_selected' as const };
+        }
+        return q;
+      }),
+      auditEvents: [...s.auditEvents, {
+        id: `ae-${Date.now()}`, actor: s.currentUser.name, actorId: s.currentUser.id,
+        scope: 'SupplierQuotation', action: 'select', entityId: target.id, entityRef: target.quoteNumber,
+        timestamp: now, source: 'ui',
+        reason: overrideReason,
+        after: { supplierName: target.supplierName, prNumber: target.prNumber },
+      }],
     };
   }),
+
+  approveFinalizeQuotation: (quoteId, approverName, notes) => {
+    const state = get();
+    const target = state.supplierQuotations.find(q => q.id === quoteId);
+    if (!target) return;
+    const now = new Date().toISOString();
+    set(s => ({
+      supplierQuotations: s.supplierQuotations.map(q => {
+        if (q.id === quoteId) {
+          return {
+            ...q,
+            status: 'selected' as const,
+            approvedBy: approverName,
+            approvedAt: now,
+            notes: notes ? `${q.notes ? `${q.notes} · ` : ''}Approved: ${notes}` : q.notes,
+          };
+        }
+        if (target.prId && q.prId === target.prId && !['approval_rejected', 'rejected', 'expired'].includes(q.status)) {
+          return { ...q, status: 'not_selected' as const };
+        }
+        return q;
+      }),
+      purchaseReqs: target.prId
+        ? s.purchaseReqs.map(p => p.id === target.prId ? { ...p, status: 'approved_for_po' as const } : p)
+        : s.purchaseReqs,
+      auditEvents: [...s.auditEvents, {
+        id: `ae-${Date.now()}`, actor: approverName, actorId: s.currentUser.id,
+        scope: 'SupplierQuotation', action: 'approve', entityId: target.id, entityRef: target.quoteNumber,
+        timestamp: now, source: 'ui', reason: notes,
+        after: { supplierName: target.supplierName, prNumber: target.prNumber, status: 'selected' },
+      }],
+    }));
+    get().showToast({ type: 'success', title: `Quotation ${target.quoteNumber} approved`, body: `Ready to generate Draft Supplier PO for ${target.supplierName}.` });
+  },
+
+  rejectQuotationApproval: (quoteId, rejectedBy, reason) => {
+    const state = get();
+    const target = state.supplierQuotations.find(q => q.id === quoteId);
+    if (!target || !reason.trim()) return;
+    const now = new Date().toISOString();
+    set(s => ({
+      supplierQuotations: s.supplierQuotations.map(q => {
+        if (q.id === quoteId) {
+          return { ...q, status: 'approval_rejected' as const, rejectedBy, rejectedAt: now, rejectedReason: reason.trim() };
+        }
+        if (target.prId && q.prId === target.prId && q.status === 'not_selected') {
+          return { ...q, status: 'received' as const };
+        }
+        return q;
+      }),
+      purchaseReqs: target.prId
+        ? s.purchaseReqs.map(p => p.id === target.prId ? { ...p, status: 'quotation_in_progress' as const } : p)
+        : s.purchaseReqs,
+      auditEvents: [...s.auditEvents, {
+        id: `ae-${Date.now()}`, actor: rejectedBy, actorId: s.currentUser.id,
+        scope: 'SupplierQuotation', action: 'reject_approval', entityId: target.id, entityRef: target.quoteNumber,
+        timestamp: now, source: 'ui', reason: reason.trim(),
+        after: { supplierName: target.supplierName, prNumber: target.prNumber, returnedToComparison: true },
+      }],
+    }));
+    get().showToast({ type: 'warning', title: `${target.quoteNumber} rejected`, body: 'Decision recorded. Returned PR to quotation comparison.' });
+  },
 
   generateSPOFromQuotation: (quoteId, opts) => {
     const state = get();
     const quote = state.supplierQuotations.find(q => q.id === quoteId);
     if (!quote) return { error: 'Quotation not found.' };
-    const existingForQuote = state.supplierPos.find(po => po.supplierQuotationId === quoteId && po.status !== 'cancelled');
+    if (['rejected', 'approval_rejected', 'expired'].includes(quote.status)) {
+      return { error: `Quotation ${quote.quoteNumber} has status "${quote.status}" and cannot generate a Supplier PO.` };
+    }
+    const existingForQuote = state.supplierPos.find(po => po.supplierQuotationId === quoteId && !['cancelled', 'supplier_declined'].includes(po.status));
     if (existingForQuote) {
       return { spo: existingForQuote, error: `Supplier PO ${existingForQuote.poNumber} has already been generated for this quotation.` };
     }
     if (quote.prId) {
-      const existingForPr = state.supplierPos.find(po => po.prId === quote.prId && po.status !== 'cancelled');
+      const existingForPr = state.supplierPos.find(po => po.prId === quote.prId && !['cancelled', 'supplier_declined'].includes(po.status));
       if (existingForPr) {
         return { spo: existingForPr, error: `Supplier PO ${existingForPr.poNumber} already exists for this Purchase Requisition.` };
       }
@@ -1043,14 +1257,15 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
     const now = new Date();
     const today = now.toISOString().slice(0, 10);
     const committed = opts?.committedDate || new Date(now.getTime() + Math.max(1, quote.deliveryDays || 7) * 86400000).toISOString().slice(0, 10);
-    const seq = state.supplierPos.length + 101;
+    const seq = state.supplierPos.length + 110;
     const spoId = `spo-${Date.now()}`;
     const poNumber = `SPO-${now.getFullYear()}-${String(seq).padStart(4, '0')}`;
-    const totalValue = quote.lines.reduce((sum, l) => {
+    const lineTotalValue = quote.lines.reduce((sum, l) => {
       const base = l.lineTotal || (l.quotedQty ?? l.orderedQty ?? l.qty ?? 1) * (l.unitRate ?? l.unitPrice ?? 0);
       const tax = l.taxPct ? base * (l.taxPct / 100) : 0;
       return sum + base + tax;
     }, 0);
+    const totalValue = Math.max(0, Math.round(lineTotalValue + (quote.deliveryCharges ?? 0) - (quote.discountAmount ?? 0)));
     const spo: SupplierPO = {
       id: spoId,
       poNumber,
@@ -1060,8 +1275,8 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
       supplierName: quote.supplierName,
       raisedDate: today,
       committedDate: committed,
-      status: 'confirmed',
-      totalValue: Math.round(totalValue),
+      status: 'draft',
+      totalValue,
       currency: quote.currency || 'INR',
       paymentTerms: opts?.paymentTerms || quote.paymentTerms || 'Net 30 days',
       prId: pr?.id,
@@ -1075,6 +1290,9 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
       supplierQuotationRef: quote.quoteNumber,
       supplierRfqId: quote.supplierRfqId,
       supplierRfqRef: quote.supplierRfqRef,
+      originatingRequirementId: pr?.sourceRefId,
+      originatingRequirementLabel: pr?.sourceRefLabel,
+      notes: opts?.notes || quote.notes,
     };
     const spoLines: SupplierPOLine[] = quote.lines.map((ql, idx) => {
       const qty = ql.quotedQty ?? ql.orderedQty ?? ql.qty ?? 1;
@@ -1107,27 +1325,419 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
       supplierQuotations: s.supplierQuotations.map(q =>
         q.id === quoteId
           ? { ...q, status: 'selected' as const }
-          : (quote.prId && q.prId === quote.prId)
-            ? { ...q, status: 'rejected' as const }
+          : (quote.prId && q.prId === quote.prId && !['approval_rejected', 'rejected', 'expired'].includes(q.status))
+            ? { ...q, status: 'not_selected' as const }
             : q
       ),
       supplierPos: [spo, ...s.supplierPos],
       supplierPoLines: [...s.supplierPoLines, ...spoLines],
-      purchaseReqs: pr ? s.purchaseReqs.map(p => p.id === pr.id ? { ...p, status: 'converted' as const } : p) : s.purchaseReqs,
+      purchaseReqs: pr ? s.purchaseReqs.map(p => p.id === pr.id ? { ...p, status: 'po_drafted' as const } : p) : s.purchaseReqs,
       auditEvents: [...s.auditEvents, {
-        id: `ae-${Date.now()}`, actor: s.currentUser.name, actorId: s.currentUser.id, scope: 'SupplierPO', action: 'create_from_quotation',
+        id: `ae-${Date.now()}`, actor: s.currentUser.name, actorId: s.currentUser.id, scope: 'SupplierPO', action: 'draft_from_quotation',
         entityId: spoId, entityRef: poNumber, timestamp: now.toISOString(), source: 'ui',
-        after: { quoteId, quoteNumber: quote.quoteNumber, prId: pr?.id, prNumber: pr?.prNumber, totalValue: spo.totalValue },
+        after: { quoteId, quoteNumber: quote.quoteNumber, prId: pr?.id, prNumber: pr?.prNumber, status: 'draft', totalValue: spo.totalValue },
       }],
     }));
-    get().showToast({ type: 'success', title: `Supplier PO ${poNumber} generated`, body: `Created from ${quote.quoteNumber} for ${quote.supplierName}.` });
+    get().showToast({ type: 'success', title: `Draft Supplier PO ${poNumber} prepared`, body: `Review details and click Confirm & Issue PO.` });
     return { spo };
+  },
+
+  confirmAndIssueSPO: (spoId, issuedBy, opts) => {
+    const state = get();
+    const existing = state.supplierPos.find(p => p.id === spoId);
+    if (!existing) return { nonSelectedInvitations: [], error: 'Supplier PO not found.' };
+    if (!['draft', 'pending_approval'].includes(existing.status)) {
+      return { spo: existing, nonSelectedInvitations: [], error: `Supplier PO ${existing.poNumber} is already ${existing.status}.` };
+    }
+    const now = new Date().toISOString();
+    const updatedSpo: SupplierPO = {
+      ...existing,
+      status: 'awaiting_supplier_confirmation',
+      sentAt: now,
+      issuedBy,
+      supplierResponseStatus: 'pending',
+      paymentTerms: opts?.paymentTerms || existing.paymentTerms,
+      committedDate: opts?.committedDate || existing.committedDate,
+      notes: opts?.notes ?? existing.notes,
+    };
+    const nonSelectedInvitations = existing.prId
+      ? state.supplierInvitations.filter(inv =>
+          inv.prId === existing.prId
+          && inv.supplierId !== existing.supplierId
+          && !['declined', 'no_response', 'closed'].includes(inv.status)
+        )
+      : [];
+
+    set(s => ({
+      supplierPos: s.supplierPos.map(p => p.id === spoId ? updatedSpo : p),
+      supplierInvitations: existing.prId
+        ? s.supplierInvitations.map(inv => {
+            if (inv.prId !== existing.prId) return inv;
+            if (inv.supplierId === existing.supplierId) return { ...inv, status: 'quotation_received' as const };
+            if (!['declined', 'no_response'].includes(inv.status)) return { ...inv, status: 'not_selected' as const };
+            return inv;
+          })
+        : s.supplierInvitations,
+      supplierQuotations: existing.prId
+        ? s.supplierQuotations.map(q => {
+            if (q.prId !== existing.prId) return q;
+            if (q.id === existing.supplierQuotationId) return { ...q, status: 'selected' as const };
+            if (!['approval_rejected', 'rejected', 'expired'].includes(q.status)) return { ...q, status: 'not_selected' as const };
+            return q;
+          })
+        : s.supplierQuotations,
+      purchaseReqs: existing.prId
+        ? s.purchaseReqs.map(pr => pr.id === existing.prId ? { ...pr, status: 'po_issued' as const } : pr)
+        : s.purchaseReqs,
+      auditEvents: [...s.auditEvents, {
+        id: `ae-${Date.now()}`, actor: issuedBy, actorId: s.currentUser.id,
+        scope: 'SupplierPO', action: 'confirm_and_issue', entityId: spoId, entityRef: updatedSpo.poNumber,
+        timestamp: now, source: 'ui',
+        after: { status: updatedSpo.status, supplierName: updatedSpo.supplierName, nonSelectedCount: nonSelectedInvitations.length },
+      }],
+    }));
+    get().showToast({ type: 'success', title: `${updatedSpo.poNumber} confirmed and issued`, body: `Awaiting confirmation from ${updatedSpo.supplierName}.` });
+    return { spo: updatedSpo, nonSelectedInvitations };
+  },
+
+  notifyNonSelectedSuppliers: (spoId, recipients, sentBy) => {
+    const state = get();
+    const spo = state.supplierPos.find(p => p.id === spoId);
+    if (!spo || recipients.length === 0) return;
+    const now = new Date().toISOString();
+    const recipientIds = new Set(recipients.map(r => r.supplierId));
+    set(s => ({
+      supplierInvitations: s.supplierInvitations.map(inv =>
+        inv.prId === spo.prId && recipientIds.has(inv.supplierId)
+          ? {
+              ...inv,
+              status: 'not_selected' as const,
+              lastNotifiedAt: now,
+              notificationNote: recipients.find(r => r.supplierId === inv.supplierId)?.message,
+            }
+          : inv
+      ),
+      auditEvents: [...s.auditEvents, {
+        id: `ae-${Date.now()}`, actor: sentBy, actorId: s.currentUser.id,
+        scope: 'SupplierPO', action: 'notify_non_selected_suppliers', entityId: spo.id, entityRef: spo.poNumber,
+        timestamp: now, source: 'ui',
+        after: { notifiedSuppliers: recipients.map(r => r.supplierName), mode: 'simulated_email' },
+      }],
+    }));
+    get().showToast({ type: 'success', title: `Notified ${recipients.length} non-selected supplier${recipients.length > 1 ? 's' : ''}`, body: 'Notification recorded in audit history (simulated email).' });
+  },
+
+  recordSupplierPOConfirmation: (spoId, decision, data) => {
+    const state = get();
+    const spo = state.supplierPos.find(p => p.id === spoId);
+    if (!spo) return { error: 'Supplier PO not found.' };
+    if (decision === 'declined' && !data.declineReason?.trim()) {
+      return { error: 'Decline reason is required when supplier declines the PO.' };
+    }
+    const now = new Date().toISOString();
+    const updatedSpo: SupplierPO = decision === 'accepted'
+      ? {
+          ...spo,
+          status: 'confirmed',
+          supplierResponseStatus: 'accepted',
+          supplierConfirmedDate: data.confirmedDate || spo.committedDate,
+          committedDate: data.confirmedDate || spo.committedDate,
+          supplierRefNumber: data.supplierRefNumber?.trim() || spo.supplierRefNumber,
+          supplierResponseNotes: data.notes?.trim() || spo.supplierResponseNotes,
+          supplierRespondedAt: now,
+        }
+      : {
+          ...spo,
+          status: 'supplier_declined',
+          supplierResponseStatus: 'declined',
+          supplierDeclineReason: data.declineReason?.trim(),
+          supplierResponseNotes: data.notes?.trim() || spo.supplierResponseNotes,
+          supplierRespondedAt: now,
+        };
+
+    set(s => ({
+      supplierPos: s.supplierPos.map(p => p.id === spoId ? updatedSpo : p),
+      supplierPoLines: decision === 'accepted' && data.confirmedDate
+        ? s.supplierPoLines.map(l => l.spoId === spoId ? { ...l, committedDate: data.confirmedDate! } : l)
+        : s.supplierPoLines,
+      supplierQuotations: decision === 'declined' && spo.prId
+        ? s.supplierQuotations.map(q => {
+            if (q.id === spo.supplierQuotationId) {
+              return { ...q, status: 'rejected' as const, rejectedReason: data.declineReason?.trim() };
+            }
+            if (q.prId === spo.prId && q.status === 'not_selected') {
+              return { ...q, status: 'received' as const };
+            }
+            return q;
+          })
+        : s.supplierQuotations,
+      supplierInvitations: spo.prId
+        ? s.supplierInvitations.map(inv => {
+            if (inv.prId !== spo.prId) return inv;
+            if (decision === 'accepted') return { ...inv, status: 'closed' as const };
+            if (inv.supplierId === spo.supplierId) return { ...inv, status: 'declined' as const, declineReason: data.declineReason?.trim() };
+            if (inv.status === 'not_selected' && inv.quotationId) return { ...inv, status: 'quotation_received' as const };
+            return inv;
+          })
+        : s.supplierInvitations,
+      purchaseReqs: spo.prId
+        ? s.purchaseReqs.map(pr => {
+            if (pr.id !== spo.prId) return pr;
+            return { ...pr, status: decision === 'accepted' ? 'converted' as const : 'quotation_in_progress' as const };
+          })
+        : s.purchaseReqs,
+      auditEvents: [...s.auditEvents, {
+        id: `ae-${Date.now()}`, actor: data.recordedBy, actorId: s.currentUser.id,
+        scope: 'SupplierPO', action: decision === 'accepted' ? 'supplier_accepted' : 'supplier_declined',
+        entityId: spo.id, entityRef: spo.poNumber, timestamp: now, source: 'ui',
+        reason: data.declineReason || data.notes,
+        after: {
+          status: updatedSpo.status,
+          confirmedDate: updatedSpo.supplierConfirmedDate,
+          supplierRef: updatedSpo.supplierRefNumber,
+        },
+      }],
+    }));
+
+    get().showToast({
+      type: decision === 'accepted' ? 'success' : 'warning',
+      title: decision === 'accepted' ? `${spo.poNumber} confirmed by supplier` : `${spo.poNumber} declined by supplier`,
+      body: decision === 'accepted'
+        ? `Confirmed delivery ${updatedSpo.supplierConfirmedDate}. Ready for GRN upon dispatch.`
+        : 'Linked PR returned to Quotation Comparison for alternate supplier selection.',
+    });
+    return { spo: updatedSpo };
   },
 
   // ── Sales / Cross-entity Actions ──
   addRfq: (rfq) => set(s => ({ rfqs: [rfq, ...s.rfqs] })),
   addQuotation: (q, lines) => set(s => ({ quotations: [q, ...s.quotations], quotationLines: [...s.quotationLines, ...lines] })),
+  createDirectQuotation: (q, lines) => set(s => ({
+    quotations: [{ ...q, isDirectQuotation: true }, ...s.quotations],
+    quotationLines: [...s.quotationLines, ...lines],
+    auditEvents: [...s.auditEvents, {
+      id: `ae-${Date.now()}`, actor: s.currentUser.name, actorId: s.currentUser.id,
+      scope: 'CustomerQuotation', action: 'create_direct', entityId: q.id, entityRef: q.quotationNumber,
+      timestamp: new Date().toISOString(), source: 'ui', after: { customerName: q.customerName, totalValue: q.totalValue },
+    }],
+  })),
+  reviseQuotation: (parentQuotationId, nextQuotation, nextLines) => set(s => {
+    const now = new Date().toISOString();
+    return {
+      quotations: [
+        { ...nextQuotation, parentQuotationId },
+        ...s.quotations.map(q => q.id === parentQuotationId ? { ...q, status: 'superseded' as const, updatedAt: now } : q),
+      ],
+      quotationLines: [...s.quotationLines, ...nextLines],
+      auditEvents: [...s.auditEvents, {
+        id: `ae-${Date.now()}`, actor: s.currentUser.name, actorId: s.currentUser.id,
+        scope: 'CustomerQuotation', action: 'revise', entityId: nextQuotation.id, entityRef: nextQuotation.quotationNumber,
+        timestamp: now, source: 'ui',
+        after: { parentQuotationId, revision: nextQuotation.revision, totalValue: nextQuotation.totalValue },
+      }],
+    };
+  }),
   updateQuotation: (id, partial) => set(s => ({ quotations: s.quotations.map(q => q.id === id ? { ...q, ...partial } : q) })),
+
+  assessAndAllocateCustomerPO: (poId, actorName, opts) => {
+    const state = get();
+    const po = state.customerPos.find(p => p.id === poId);
+    if (!po) return { error: 'Customer PO not found.' };
+    const siteId = opts?.siteId || po.deliverToSiteId || state.sites[0]?.id || 'site-hyd';
+    const site = state.sites.find(st => st.id === siteId);
+    const linkedJobs = state.jobs.filter(j => j.customerPoId === po.id);
+    const targetJob = opts?.jobId ? state.jobs.find(j => j.id === opts.jobId) : linkedJobs[0];
+    const poLinesList = state.poLines.filter(l => l.poId === po.id);
+
+    // Derive requirements either from existing JobMaterialReqs or matching PO line items against materials master
+    const existingReqs = targetJob ? state.jobMaterialReqs.filter(r => r.jobId === targetJob.id) : [];
+    const reqInputs = existingReqs.length > 0
+      ? existingReqs.map(r => {
+          const mat = state.materials.find(m => m.id === r.materialItemId);
+          return {
+            materialItemId: r.materialItemId,
+            materialCode: mat?.itemCode,
+            materialName: r.materialName,
+            grade: mat?.standardGrade,
+            requiredQty: Math.max(0, r.requiredQty - r.reservedQty),
+            uom: r.uom,
+          };
+        }).filter(x => x.requiredQty > 0)
+      : poLinesList.map(l => {
+          const mat = state.materials.find(m =>
+            l.description.toLowerCase().includes(m.name.toLowerCase())
+            || (l.description.toLowerCase().includes('pipe') && m.id === 'mat-msp')
+            || (l.description.toLowerCase().includes('8mm') && m.id === 'mat-ms8')
+            || (l.description.toLowerCase().includes('12mm') && m.id === 'mat-ms12')
+            || (l.description.toLowerCase().includes('304l') && m.id === 'mat-ss3')
+          );
+          return mat ? {
+            materialItemId: mat.id,
+            materialCode: mat.itemCode,
+            materialName: mat.name,
+            grade: mat.standardGrade,
+            requiredQty: l.orderedQty,
+            uom: l.uom || mat.primaryUom,
+          } : null;
+        }).filter((x): x is NonNullable<typeof x> => Boolean(x));
+
+    if (reqInputs.length === 0) {
+      return { error: 'No catalog material requirements identified on this Customer PO to check.' };
+    }
+
+    const assessment = assessOrderMaterialRequirements({
+      requirements: reqInputs,
+      assignedSiteId: siteId,
+      lots: state.lots,
+      storeLocations: state.storeLocations,
+      sites: state.sites,
+      supplierPos: state.supplierPos,
+      supplierPoLines: state.supplierPoLines,
+    });
+
+    const now = new Date().toISOString();
+    const today = now.slice(0, 10);
+    const shortageItems = assessment.items.filter(i => i.shortageQty > 0);
+    const reservableItems = assessment.items.filter(i => i.toReserveQty > 0);
+
+    // Avoid duplicate open PR for same PO/requirement
+    const existingPr = state.purchaseReqs.find(
+      pr => (pr.sourceRefId === po.id || pr.sourceRefLabel === po.poNumber) && !['cancelled', 'closed'].includes(pr.status)
+    );
+
+    let createdPr: PurchaseRequisition | undefined;
+    if (shortageItems.length > 0 && !existingPr) {
+      const prId = `pr-auto-${Date.now()}`;
+      const prNumber = `PR-${today.slice(0, 4)}-${String(state.purchaseReqs.length + 111).padStart(3, '0')}`;
+      const rmStore = state.storeLocations.find(sl => sl.siteId === siteId && sl.locationType === 'RM') ?? state.storeLocations.find(sl => sl.siteId === siteId);
+      createdPr = {
+        id: prId,
+        prNumber,
+        raisedBy: `Auto Availability Check (${actorName})`,
+        department: 'Procurement',
+        raisedDate: today,
+        requiredBy: poLinesList[0]?.requiredDate || today,
+        sourceType: 'shortage',
+        sourceRefId: po.id,
+        sourceRefLabel: po.poNumber,
+        status: 'approved',
+        lineCount: shortageItems.length,
+        totalQty: shortageItems.reduce((s, x) => s + x.shortageQty, 0),
+        priority: 'high',
+        deliverToSiteId: siteId,
+        deliverToSiteName: site?.name ?? po.deliverToSiteName,
+        deliverToStoreId: rmStore?.id,
+        deliverToStoreName: rmStore?.name,
+        purpose: `Shortage cover for ${po.poNumber} (${po.customerName})`,
+        lines: shortageItems.map((si, idx) => ({
+          id: `${prId}-l${idx + 1}`,
+          prId,
+          materialItemId: si.materialItemId,
+          materialCode: si.materialCode,
+          materialName: si.materialName,
+          description: si.materialName,
+          grade: si.grade,
+          requiredQty: si.shortageQty,
+          uom: si.uom,
+          requiredDate: poLinesList[0]?.requiredDate || today,
+        })),
+      };
+    }
+
+    // Reserve available quantities on lots / inventory / jobMaterialReqs
+    const siteLocationIds = new Set(state.storeLocations.filter(sl => sl.siteId === siteId).map(sl => sl.id));
+    let updatedInventory = [...state.inventory];
+    let updatedReqs = [...state.jobMaterialReqs];
+    const newMovements: StockMovement[] = [];
+    let reservedCount = 0;
+
+    for (const item of reservableItems) {
+      let rem = item.toReserveQty;
+      updatedInventory = updatedInventory.map(inv => {
+        if (rem <= 0 || inv.materialItemId !== item.materialItemId || !siteLocationIds.has(inv.locationId) || inv.availableQty <= 0) return inv;
+        const take = Math.min(rem, inv.availableQty);
+        rem -= take;
+        reservedCount += take;
+        return { ...inv, reservedQty: inv.reservedQty + take, availableQty: inv.availableQty - take };
+      });
+      if (targetJob) {
+        const existingReq = updatedReqs.find(r => r.jobId === targetJob.id && r.materialItemId === item.materialItemId);
+        if (existingReq) {
+          updatedReqs = updatedReqs.map(r => r.id === existingReq.id ? {
+            ...r,
+            reservedQty: r.reservedQty + item.toReserveQty,
+            shortage: item.shortageQty > 0,
+          } : r);
+        } else {
+          updatedReqs.push({
+            id: `jmr-auto-${Date.now()}-${item.materialItemId}`,
+            jobId: targetJob.id,
+            stageId: targetJob.stages[0]?.id ?? '',
+            stageName: targetJob.stages[0]?.name ?? 'Cutting',
+            materialItemId: item.materialItemId,
+            materialName: item.materialName,
+            requiredQty: item.requiredQty,
+            reservedQty: item.toReserveQty,
+            issuedQty: 0,
+            uom: item.uom,
+            shortage: item.shortageQty > 0,
+            lotIds: [],
+          });
+        }
+      }
+      const matchLot = state.lots.find(l => l.materialItemId === item.materialItemId && l.status === 'available' && siteLocationIds.has(l.storeLocationId));
+      newMovements.push({
+        id: `sm-res-${Date.now()}-${item.materialItemId}`,
+        lotId: matchLot?.id ?? '',
+        movementType: 'Reservation',
+        primaryQty: item.toReserveQty,
+        uom: item.uom,
+        fromLocation: site?.name ?? 'Warehouse',
+        toLocation: `Reserved for ${po.poNumber}`,
+        referenceType: 'Customer PO',
+        referenceId: po.id,
+        referenceNumber: po.poNumber,
+        performedBy: actorName,
+        timestamp: now,
+        notes: item.shortageQty > 0 ? `Partial reservation (${item.toReserveQty} reserved, ${item.shortageQty} sent to PR)` : 'Full availability reservation',
+      });
+    }
+
+    set(s => ({
+      inventory: updatedInventory,
+      jobMaterialReqs: updatedReqs,
+      movements: [...s.movements, ...newMovements],
+      purchaseReqs: createdPr ? [createdPr, ...s.purchaseReqs] : s.purchaseReqs,
+      customerPos: s.customerPos.map(c => c.id === po.id ? { ...c, availabilityStatus: assessment.overallStatus } : c),
+      jobs: targetJob ? s.jobs.map(j => j.id === targetJob.id ? {
+        ...j,
+        materialReadiness: assessment.overallStatus === 'available' ? 'ready' : assessment.overallStatus === 'partially_available' ? 'partial' : 'awaiting_procurement',
+      } : j) : s.jobs,
+      auditEvents: [...s.auditEvents, {
+        id: `ae-${Date.now()}`, actor: actorName, actorId: s.currentUser.id,
+        scope: 'CustomerPO', action: 'assess_material_availability', entityId: po.id, entityRef: po.poNumber,
+        timestamp: now, source: 'ui',
+        after: {
+          availabilityStatus: assessment.overallStatus,
+          reservedQty: reservedCount,
+          createdPrNumber: createdPr?.prNumber ?? existingPr?.prNumber,
+        },
+      }],
+    }));
+
+    const message = assessment.overallStatus === 'available'
+      ? `All required materials available at ${site?.name ?? 'site'}. Stock reserved.`
+      : assessment.overallStatus === 'partially_available'
+        ? `Reserved available stock${createdPr ? ` and raised ${createdPr.prNumber} for the shortage only` : existingPr ? ` (${existingPr.prNumber} already open for shortage)` : ''}.`
+        : `${createdPr ? `Raised ${createdPr.prNumber} for unavailable materials` : existingPr ? `Shortage already tracked in ${existingPr.prNumber}` : 'Materials unavailable'}.`;
+
+    get().showToast({
+      type: assessment.overallStatus === 'available' ? 'success' : 'warning',
+      title: `Material Check: ${assessment.overallStatus.replace(/_/g, ' ')}`,
+      body: message,
+    });
+    return { status: assessment.overallStatus, reservedCount, createdPr, message };
+  },
   convertQuotationToPO: (quotationId, po, lines) => set(s => {
     const quotation = s.quotations.find(q => q.id === quotationId);
     const customer = s.customers.find(c => c.id === po.customerId);
@@ -1268,7 +1878,7 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
     const state = get();
     const spo = state.supplierPos.find(p => p.id === input.spoId);
     if (!spo) return { error: 'Supplier PO not found.' };
-    if (spo.status === 'cancelled' || spo.status === 'draft') {
+    if (['cancelled', 'draft', 'supplier_declined', 'closed', 'received'].includes(spo.status)) {
       return { error: `Cannot record receipt against a ${spo.status} Supplier PO.` };
     }
     const spoLines = state.supplierPoLines.filter(l => l.spoId === spo.id);
@@ -2056,14 +2666,10 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
 }), {
   name: 'eoss-demo-store',
   storage: createJSONStorage(() => localStorage),
-  version: 2,
+  version: 3,
   migrate: (persistedState, version) => {
-    // Older browsers may already have persisted the demo data before the
-    // procurement-to-inventory traceability records were added. Merge the
-    // new evidence into that state instead of leaving those lots stranded as
-    // opening balances after deployment.
+    let state = persistedState as Partial<EOSSState>;
     if (version < 2) {
-      const state = persistedState as Partial<EOSSState>;
       const lots = (state.lots ?? []).map(lot => lot.id === 'lot-301'
         ? { ...lot, grnId: lot.grnId ?? 'grn-rw-003' }
         : lot.id === 'lot-302'
@@ -2075,14 +2681,40 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
         { id: 'sm-302-receipt', lotId: 'lot-302', movementType: 'Receipt', primaryQty: 600, uom: 'kg', toLocation: 'Pune Raw Material Store', referenceType: 'GRN', referenceId: 'grn-rw-004', referenceNumber: 'GRN-2024-199', performedBy: 'Karthik Raju', timestamp: '2024-10-12T10:00:00', notes: 'Accepted incoming billet available for approved inter-site transfer.' },
       ];
       const grnIds = new Set((state.grns ?? []).map(grn => grn.id));
-      return {
+      state = {
         ...state,
         lots,
         movements: [...(state.movements ?? []), ...traceabilityMovements.filter(movement => !movementIds.has(movement.id))],
         grns: [...(state.grns ?? []), ...FLAGSHIP_GRNS.filter(grn => ['grn-rw-003', 'grn-rw-004'].includes(grn.id) && !grnIds.has(grn.id))],
       };
     }
-    return persistedState;
+    if (version < 3) {
+      const mergeById = <T extends { id: string }>(existing: T[] = [], additions: T[]) => {
+        const seen = new Set(existing.map(x => x.id));
+        return [...existing, ...additions.filter(a => !seen.has(a.id))];
+      };
+      state = {
+        ...state,
+        purchaseReqs: mergeById(state.purchaseReqs, DEMO_SCENARIO_PRS),
+        supplierInvitations: mergeById(state.supplierInvitations, DEMO_SUPPLIER_INVITATIONS),
+        supplierQuotations: mergeById(state.supplierQuotations, DEMO_SUPPLIER_QUOTATIONS),
+        supplierPos: mergeById(state.supplierPos, DEMO_SUPPLIER_POS),
+        supplierPoLines: mergeById(state.supplierPoLines, DEMO_SUPPLIER_PO_LINES),
+        grns: mergeById(state.grns, DEMO_GRNS),
+        lots: mergeById(state.lots, DEMO_LOTS),
+        inspections: mergeById(state.inspections, DEMO_INSPECTIONS),
+        rfqs: mergeById(state.rfqs, DEMO_SALES_RFQS),
+        quotations: mergeById(state.quotations, DEMO_CUSTOMER_QUOTATIONS),
+        quotationLines: mergeById(state.quotationLines, DEMO_CUSTOMER_QUOTATION_LINES),
+        customerPos: mergeById(state.customerPos, DEMO_SALES_POS),
+        poLines: mergeById(state.poLines, DEMO_SALES_PO_LINES),
+        jobs: mergeById(state.jobs, DEMO_SALES_JOBS),
+        jobMaterialReqs: mergeById(state.jobMaterialReqs, DEMO_SALES_JOB_REQS),
+        dispatches: mergeById(state.dispatches, DEMO_SALES_DISPATCHES),
+        materials: [...MATERIALS],
+      };
+    }
+    return state;
   },
   // Theme/sidebar prefs already persist themselves via their own localStorage keys;
   // toasts are transient UI state. Everything else is demo business data.
@@ -2121,6 +2753,7 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
       jobUpdates: state.jobUpdates ?? [],
       transfers: state.transfers ?? [],
       materialReturns: state.materialReturns ?? [],
+      supplierInvitations: state.supplierInvitations ?? [...DEMO_SUPPLIER_INVITATIONS],
       jobs: state.jobs.map(j => {
         const template = j.stageTemplateId ? STAGE_TEMPLATES.find(t => t.id === j.stageTemplateId) : STAGE_TEMPLATES.find(t => t.stages.length === j.stages.length) ?? STAGE_TEMPLATES[0];
         return { ...j, stageTemplateId: j.stageTemplateId ?? template?.id, stageTemplateName: j.stageTemplateName && !j.stageTemplateName.toLowerCase().startsWith('custom') ? j.stageTemplateName : template?.name };

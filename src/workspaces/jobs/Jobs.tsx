@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { Plus, Search, X } from 'lucide-react';
 import { useStore, CUSTOMERS } from '../../store';
 import { computeProductionStatus } from '../../domain/productionStatus';
@@ -29,11 +29,13 @@ const RISK_COLOR: Record<string, string> = {
 export default function Jobs() {
   const { jobs, sites, storeLocations, inventory, lots, jobMaterialReqs, stageTemplates, currentUser, createJobWithNewCustomerPO, cancelJob, showToast } = useStore();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const openWithOrigin = (path: string) => navigate(path, { state: { from: `${location.pathname}${location.search}` } });
   const focusParam = searchParams.get('focus');
   const riskParam = searchParams.get('risk');
   const guided = focusParam === 'shortage' || !!riskParam;
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState(() => searchParams.get('q') ?? '');
   const [statusFilter, setStatusFilter] = useState(searchParams.get('status') ?? 'all');
   const [readinessFilter, setReadinessFilter] = useState(searchParams.get('readiness') ?? 'all');
   const [riskFilter, setRiskFilter] = useState<string | null>(riskParam);
@@ -42,6 +44,20 @@ export default function Jobs() {
   const [cancelJobId, setCancelJobId] = useState<string | null>(null);
   const canManage = ['owner', 'supervisor'].includes(currentUser.role);
   const now = new Date(DEMO_NOW);
+
+  useEffect(() => {
+    if (location.key === 'bg') return;
+    const next = new URLSearchParams();
+    if (focusParam) next.set('focus', focusParam);
+    if (riskParam) next.set('risk', riskParam);
+    if (search.trim()) next.set('q', search.trim());
+    if (statusFilter !== 'all') next.set('status', statusFilter);
+    if (readinessFilter !== 'all') next.set('readiness', readinessFilter);
+    if (siteFilter !== 'all') next.set('site', siteFilter);
+    if (next.toString() !== searchParams.toString()) {
+      setSearchParams(next, { replace: true });
+    }
+  }, [focusParam, riskParam, search, statusFilter, readinessFilter, siteFilter, searchParams, setSearchParams, location.key]);
 
   const statusByJob = Object.fromEntries(jobs.map(j => [j.id, computeProductionStatus(j, now)]));
   const readinessByJob = Object.fromEntries(jobs.map(j => [j.id, materialReadinessForJob(j, jobMaterialReqs, inventory, lots, storeLocations)]));
@@ -205,7 +221,7 @@ export default function Jobs() {
             <div
               key={j.id}
               role="link"
-              onClick={() => navigate(jobNext(j).path)}
+              onClick={() => openWithOrigin(jobNext(j).path)}
               className="w-full text-left rounded-xl border p-3 cursor-pointer"
               style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
             >
@@ -219,7 +235,7 @@ export default function Jobs() {
               <div className="mt-2 flex items-center justify-between gap-2">
                 <span className="text-[11px] text-[var(--text-3)]">{j.currentStage} · due {new Date(j.plannedEnd).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</span>
                 {guided && (
-                  <button type="button" onClick={e => { e.stopPropagation(); navigate(jobNext(j).path); }}
+                  <button type="button" onClick={e => { e.stopPropagation(); openWithOrigin(jobNext(j).path); }}
                     className="px-2.5 py-1 rounded-lg text-xs font-semibold text-white" style={{ background: 'var(--brand-fill)' }}>
                     {jobNext(j).label}
                   </button>
@@ -251,7 +267,7 @@ export default function Jobs() {
                 <tr key={j.id} className="cursor-pointer" style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}
                   onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--surface-2)'; }}
                   onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'var(--surface)'; }}
-                  onClick={() => navigate(`/jobs/${j.id}`)}>
+                  onClick={() => openWithOrigin(`/jobs/${j.id}`)}>
                   <td className="px-4 py-3 whitespace-nowrap">
                     <div className="flex items-center gap-1.5">
                       <span className="font-mono text-xs font-bold" style={{ color: 'var(--brand)' }}>{j.jobNumber}</span>
@@ -277,7 +293,7 @@ export default function Jobs() {
                   <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                     <div className="flex items-center gap-1">
                       {guided && (
-                        <button type="button" onClick={() => navigate(jobNext(j).path)}
+                        <button type="button" onClick={() => openWithOrigin(jobNext(j).path)}
                           className="px-2 py-1 rounded-lg text-xs font-semibold text-white" style={{ background: 'var(--brand-fill)' }}>
                           {jobNext(j).label}
                         </button>

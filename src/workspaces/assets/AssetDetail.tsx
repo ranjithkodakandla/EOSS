@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Wrench, AlertTriangle, ChevronRight, Gauge, X, Pencil } from 'lucide-react';
 import { useStore } from '../../store';
+import { useReturnNavigation } from '../../hooks/useReturnNavigation';
 import { computeMaintenanceDue } from '../../domain/maintenanceDue';
 import { DEMO_NOW } from '../../data/seed';
 import StatusChip from '../../components/layout/StatusChip';
@@ -11,6 +12,7 @@ export default function AssetDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { assets, maintenanceEvents, meterReadings, addMeterReading, closeMaintenanceEvent, updateAsset, currentUser, showToast } = useStore();
+  const { goBack } = useReturnNavigation('/assets');
   const [tab, setTab] = useState<'info' | 'history' | 'readings'>('info');
   const [readingModalOpen, setReadingModalOpen] = useState(false);
   const [readingValue, setReadingValue] = useState<string>('');
@@ -58,7 +60,7 @@ export default function AssetDetail() {
   return (
     <div className="max-w-4xl mx-auto p-4 md:p-6">
       <div className="flex items-center gap-3 mb-5">
-        <button onClick={() => navigate('/assets')} className="text-[var(--text-3)] hover:text-[var(--text)]"><ArrowLeft size={16} /></button>
+        <button onClick={() => goBack()} className="text-[var(--text-3)] hover:text-[var(--text)]"><ArrowLeft size={16} /></button>
         <div className="flex-1">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="font-mono text-sm font-bold text-[var(--brand)]">{asset.assetCode}</span>

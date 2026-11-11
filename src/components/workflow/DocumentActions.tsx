@@ -1,63 +1,195 @@
 import React, { useState } from 'react';
-import { Download, Mail, X } from 'lucide-react';
+import { FileDown, Mail, X, CheckCircle2, Info } from 'lucide-react';
+import { useStore } from '../../store';
+import { getStatusLabel } from '../layout/StatusChip';
 
-export type DocumentLine = { description: string; quantity?: string | number; amount?: number; uom?: string };
+interface DocumentLine {
+  description: string;
+  quantity?: string | number;
+  uom?: string;
+  rate?: number;
+  amount?: number;
+}
 
-type Props = {
+interface Props {
   documentType: string;
   reference: string;
   date?: string;
   partyName: string;
   recipient?: string;
   status?: string;
-  lines: DocumentLine[];
   total?: number;
+  revision?: number;
+  terms?: string[];
+  lines?: DocumentLine[];
   references?: string[];
-};
-
-const money = (n: number) => `₹${n.toLocaleString('en-IN')}`;
-
-function buildPrintableDocument(props: Props) {
-  const rows = props.lines.map(line => `<tr><td>${line.description}</td><td>${line.quantity ?? '—'} ${line.uom ?? ''}</td><td>${line.amount == null ? '—' : money(line.amount)}</td></tr>`).join('');
-  return `<!doctype html><html><head><title>${props.reference}</title><style>body{font-family:Arial,sans-serif;color:#172033;padding:36px}h1{margin:0 0 4px}small{color:#667085}.meta{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:24px 0;padding:16px;background:#f6f7fb}table{width:100%;border-collapse:collapse;margin-top:20px}th,td{text-align:left;padding:10px;border-bottom:1px solid #dfe3eb}th{background:#f6f7fb}.total{text-align:right;font-weight:700;margin-top:18px}.refs{margin-top:22px;font-size:12px;color:#667085}</style></head><body><h1>${props.documentType}</h1><small>${props.reference}</small><div class="meta"><div><b>Party</b><br>${props.partyName}</div><div><b>Date</b><br>${props.date ?? '—'}</div><div><b>Status</b><br>${props.status ?? '—'}</div><div><b>Business</b><br>EOSS operational workspace</div></div><table><thead><tr><th>Description</th><th>Quantity</th><th>Amount</th></tr></thead><tbody>${rows}</tbody></table>${props.total == null ? '' : `<div class="total">Total: ${money(props.total)}</div>`}<div class="refs">${(props.references ?? []).join(' · ')}</div></body></html>`;
+  notes?: string;
+  defaultSubject?: string;
+  defaultBody?: string;
 }
 
-export default function DocumentActions(props: Props) {
+export default function DocumentActions({
+  documentType,
+  reference,
+  date,
+  partyName,
+  recipient,
+  status,
+  total,
+  revision,
+  terms = [],
+  lines = [],
+  references = [],
+  notes,
+  defaultSubject,
+  defaultBody,
+}: Props) {
+  const { showToast, companyConfig, currentUser, appendAuditEvent } = useStore();
   const [emailOpen, setEmailOpen] = useState(false);
+  const [to, setTo] = useState(recipient ?? '');
+  const [subject, setSubject] = useState(defaultSubject || `${documentType} ${reference}${revision ? ` (Rev ${revision})` : ''} — ${companyConfig.tradingName}`);
+  const [body, setBody] = useState(
+    defaultBody ||
+    `Dear ${partyName},\n\nPlease find attached ${documentType} ${reference}${revision ? ` (Rev ${revision})` : ''}${date ? ` dated ${new Date(date).toLocaleDateString('en-IN')}` : ''}${total != null ? ` for ₹${total.toLocaleString('en-IN')}` : ''}.\n\n${references.length > 0 ? `References: ${references.join(' | ')}\n` : ''}${terms.length > 0 ? `Terms: ${terms.join(' · ')}\n` : ''}\nRegards,\n${currentUser.name}\n${companyConfig.companyName}`
+  );
+  const [attachPdf, setAttachPdf] = useState(true);
   const [sent, setSent] = useState(false);
-  const [body, setBody] = useState(`Please find the ${props.documentType.toLowerCase()} ${props.reference} attached for your review.`);
 
-  const previewPdf = () => {
-    const win = window.open('', '_blank', 'noopener,noreferrer');
-    if (!win) return;
-    win.document.write(buildPrintableDocument(props));
+  const openPrintPreview = () => {
+    const win = window.open('', '_blank', 'width=860,height=920');
+    if (!win) {
+      showToast({ type: 'warning', title: 'Pop-up blocked', body: 'Allow pop-ups to open the print preview and Save as PDF.' });
+      return;
+    }
+    const rowsHtml = lines.length
+      ? lines.map((line, i) => `
+          <tr>
+            <td>${i + 1}</td>
+            <td>${escapeHtml(line.description)}</td>
+            <td style="text-align:right">${escapeHtml(String(line.quantity ?? ''))} ${escapeHtml(line.uom ?? '')}</td>
+            <td style="text-align:right">${line.rate != null ? `₹${line.rate.toLocaleString('en-IN')}` : ''}</td>
+            <td style="text-align:right">${line.amount != null ? `₹${line.amount.toLocaleString('en-IN')}` : ''}</td>
+          </tr>
+        `).join('')
+      : '<tr><td colspan="5">No line items recorded</td></tr>';
+
+    win.document.write(`<!doctype html><html><head><title>${escapeHtml(documentType)} ${escapeHtml(reference)}</title>
+      <style>
+        body{font-family:system-ui,-apple-system,sans-serif;padding:32px;color:#111;max-width:780px;margin:0 auto}
+        .header{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #111;padding-bottom:14px;margin-bottom:20px}
+        .company{font-size:16px;font-weight:700}
+        .company-sub{font-size:11px;color:#444;margin-top:3px;line-height:1.4}
+        .doc-title{text-align:right}
+        h1{font-size:20px;margin:0}
+        .ref{font-family:monospace;font-size:13px;font-weight:700;margin-top:4px}
+        .meta{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:16px 0 20px;font-size:13px}
+        .box{border:1px solid #d4d4d8;border-radius:6px;padding:10px 12px}
+        table{width:100%;border-collapse:collapse;margin-top:12px;font-size:13px}
+        th,td{border-bottom:1px solid #e4e4e7;padding:8px;text-align:left}
+        th{background:#f4f4f5;font-size:11px;text-transform:uppercase;letter-spacing:.03em}
+        .total{margin-top:16px;text-align:right;font-size:16px;font-weight:700}
+        .notes{margin-top:18px;font-size:12px;color:#444;border-top:1px dashed #d4d4d8;padding-top:10px}
+        .footer{margin-top:36px;display:flex;justify-content:space-between;font-size:11px;color:#666;border-top:1px solid #e4e4d8;padding-top:10px}
+        @media print{.no-print{display:none}}
+      </style></head><body>
+      <div class="header">
+        <div>
+          <div class="company">${escapeHtml(companyConfig.legalName || companyConfig.companyName)}</div>
+          <div class="company-sub">${escapeHtml(companyConfig.registeredAddress)}, ${escapeHtml(companyConfig.city)}, ${escapeHtml(companyConfig.state)} ${escapeHtml(companyConfig.pincode)}<br/>GSTIN: ${escapeHtml(companyConfig.gstin)} · PAN: ${escapeHtml(companyConfig.pan)}<br/>Phone: ${escapeHtml(companyConfig.phone)} · Email: ${escapeHtml(companyConfig.email)}</div>
+        </div>
+        <div class="doc-title">
+          <h1>${escapeHtml(documentType)}</h1>
+          <div class="ref">${escapeHtml(reference)}${revision ? ` · Rev ${revision}` : ''}</div>
+          <div style="font-size:12px;color:#555;margin-top:4px">${status ? `Status: ${escapeHtml(getStatusLabel(status))}` : ''}</div>
+        </div>
+      </div>
+      <div class="meta">
+        <div class="box"><strong>Counterparty / Party</strong><br/>${escapeHtml(partyName)}</div>
+        <div class="box"><strong>Date:</strong> ${escapeHtml(date ? new Date(date).toLocaleDateString('en-IN') : '—')}<br/><strong>References:</strong> ${escapeHtml(references.join(' · ') || '—')}${terms.length > 0 ? `<br/><strong>Terms:</strong> ${escapeHtml(terms.join(' · '))}` : ''}</div>
+      </div>
+      <table><thead><tr><th>#</th><th>Description</th><th style="text-align:right">Qty</th><th style="text-align:right">Rate</th><th style="text-align:right">Amount</th></tr></thead><tbody>${rowsHtml}</tbody></table>
+      ${total != null ? `<div class="total">Total Value: ₹${total.toLocaleString('en-IN')}</div>` : ''}
+      ${notes ? `<div class="notes"><strong>Notes:</strong> ${escapeHtml(notes)}</div>` : ''}
+      <div class="footer">
+        <span>Prepared by ${escapeHtml(currentUser.name)}</span>
+        <span>Generated from EOSS Operational Workspace</span>
+      </div>
+      <div class="no-print" style="margin-top:24px"><button onclick="window.print()" style="padding:8px 16px;font-weight:600;cursor:pointer">Print / Save as PDF</button></div>
+      </body></html>`);
     win.document.close();
-    win.focus();
-    setTimeout(() => win.print(), 150);
   };
 
-  const sendDemoEmail = () => setSent(true);
+  const sendEmail = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!to.trim()) return;
+    appendAuditEvent({
+      actor: currentUser.name,
+      actorId: currentUser.id,
+      scope: documentType.replace(/\s+/g, ''),
+      action: 'simulated_email_sent',
+      entityId: reference,
+      entityRef: reference,
+      timestamp: new Date().toISOString(),
+      source: 'ui',
+      after: { to: to.trim(), subject: subject.trim(), attachPdf, mode: 'simulated_prototype' },
+    });
+    setSent(true);
+    showToast({ type: 'success', title: 'Email sent (simulated)', body: `Recorded delivery to ${to.trim()} in audit log.` });
+    window.setTimeout(() => { setEmailOpen(false); setSent(false); }, 700);
+  };
 
   return (
     <>
-      <div className="flex items-center gap-2">
-        <button onClick={previewPdf} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium" style={{ borderColor: 'var(--border)', color: 'var(--text-2)' }}><Download size={14} /> Preview / PDF</button>
-        <button onClick={() => { setSent(false); setEmailOpen(true); }} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold text-white" style={{ background: 'var(--brand)' }}><Mail size={14} /> Send Email</button>
+      <div className="flex flex-wrap items-center gap-2">
+        <button type="button" onClick={openPrintPreview} className="btn-ghost text-xs inline-flex items-center gap-1.5">
+          <FileDown size={13} /> PDF / Print
+        </button>
+        <button type="button" onClick={() => setEmailOpen(true)} className="btn-ghost text-xs inline-flex items-center gap-1.5">
+          <Mail size={13} /> Send Email
+        </button>
       </div>
+
       {emailOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-lg rounded-2xl border p-6 shadow-2xl" style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}>
-            <div className="flex items-center justify-between mb-4"><div><h2 className="font-bold" style={{ color: 'var(--text)' }}>Email {props.documentType}</h2><p className="text-xs" style={{ color: 'var(--text-3)' }}>Review before sending. The prototype uses a simulated send.</p></div><button onClick={() => setEmailOpen(false)}><X size={18} style={{ color: 'var(--text-3)' }} /></button></div>
-            {sent ? <div className="rounded-xl p-4 text-sm" style={{ background: 'var(--success-bg,#F0FDF4)', color: 'var(--success,#15803D)' }}>Demo email prepared for {props.recipient || 'the associated contact'}. No external email was delivered.</div> : <div className="space-y-3">
-              <div><label className="block text-xs mb-1" style={{ color: 'var(--text-3)' }}>To</label><input readOnly value={props.recipient || 'No associated contact available'} className="eoss-input w-full" /></div>
-              <div><label className="block text-xs mb-1" style={{ color: 'var(--text-3)' }}>Subject</label><input value={`${props.documentType} ${props.reference}`} readOnly className="eoss-input w-full" /></div>
-              <div><label className="block text-xs mb-1" style={{ color: 'var(--text-3)' }}>Message</label><textarea value={body} onChange={e => setBody(e.target.value)} rows={4} className="eoss-input w-full" /></div>
-              <div className="rounded-lg border px-3 py-2 text-xs" style={{ borderColor: 'var(--border)', color: 'var(--text-2)' }}>Attachment: {props.reference}.pdf · generated from current transaction data</div>
-              <div className="flex justify-end gap-2"><button onClick={() => setEmailOpen(false)} className="px-4 py-2 rounded-lg border text-sm" style={{ borderColor: 'var(--border)', color: 'var(--text-2)' }}>Cancel</button><button onClick={sendDemoEmail} className="px-4 py-2 rounded-lg text-sm font-semibold text-white" style={{ background: 'var(--brand)' }}>Prepare Demo Send</button></div>
-            </div>}
-          </div>
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4">
+          <form onSubmit={sendEmail} className="w-full max-w-lg rounded-xl border bg-[var(--surface)] p-5 space-y-3.5" style={{ borderColor: 'var(--border)' }}>
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-bold text-[var(--text)]">Send {documentType} {reference}</h3>
+              <button type="button" onClick={() => setEmailOpen(false)} aria-label="Close"><X size={16} /></button>
+            </div>
+            <div className="rounded-lg px-3 py-2 text-xs flex items-start gap-2 bg-[var(--info-bg)] text-[var(--info)]">
+              <Info size={14} className="mt-0.5 flex-shrink-0" />
+              <span>Prototype simulation: submitting logs an audit record and previews the formatted email without dispatching via external SMTP.</span>
+            </div>
+            <div>
+              <label className="block text-xs text-[var(--text-2)] mb-1">Recipient email *</label>
+              <input type="email" required value={to} onChange={e => setTo(e.target.value)} className="eoss-input w-full" placeholder="recipient@company.com" />
+            </div>
+            <div>
+              <label className="block text-xs text-[var(--text-2)] mb-1">Subject</label>
+              <input required value={subject} onChange={e => setSubject(e.target.value)} className="eoss-input w-full" />
+            </div>
+            <div>
+              <label className="block text-xs text-[var(--text-2)] mb-1">Message</label>
+              <textarea rows={6} value={body} onChange={e => setBody(e.target.value)} className="eoss-input w-full font-sans text-xs" />
+            </div>
+            <label className="flex items-center gap-2 text-xs text-[var(--text-2)]">
+              <input type="checkbox" checked={attachPdf} onChange={e => setAttachPdf(e.target.checked)} />
+              <span>Attach generated PDF copy ({reference}.pdf)</span>
+            </label>
+            <div className="flex justify-end gap-2 pt-2">
+              <button type="button" onClick={() => setEmailOpen(false)} className="btn-ghost text-xs">Cancel</button>
+              <button type="submit" disabled={sent} className="btn-primary text-xs inline-flex items-center gap-1.5">
+                {sent && <CheckCircle2 size={13} />}
+                {sent ? 'Sent' : 'Send Simulated Email'}
+              </button>
+            </div>
+          </form>
         </div>
       )}
     </>
   );
+}
+
+function escapeHtml(text: string) {
+  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }

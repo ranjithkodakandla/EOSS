@@ -99,7 +99,7 @@ function SheetFrame({ parent, children }: { parent: string; children: React.Reac
       <div
         role="dialog"
         aria-modal="true"
-        className="relative flex h-full w-full flex-col bg-[var(--bg)] shadow-2xl md:w-[min(840px,94vw)]"
+        className="relative flex h-full w-full flex-col bg-[var(--bg)] shadow-2xl md:w-[min(860px,94vw)]"
         style={{ borderLeft: '1px solid var(--border)' }}
       >
         <header className="flex h-12 flex-shrink-0 items-center justify-between gap-3 border-b px-4" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
@@ -116,12 +116,16 @@ function SheetFrame({ parent, children }: { parent: string; children: React.Reac
 
 function SheetLayout() {
   const location = useLocation();
-  const parent = sheetParent(location.pathname);
-  if (!parent) return <Outlet />;
+  const defaultParent = sheetParent(location.pathname);
+  if (!defaultParent) return <Outlet />;
+  const stateFrom = (location.state as { from?: string } | null)?.from;
+  const queryFrom = new URLSearchParams(location.search).get('from');
+  const closeTarget = stateFrom || queryFrom || defaultParent;
+  const bgPathname = closeTarget.split('?')[0] || defaultParent.split('?')[0];
   return (
     <>
-      <Background pathname={parent} />
-      <SheetFrame parent={parent}>
+      <Background pathname={bgPathname} />
+      <SheetFrame parent={closeTarget}>
         <Outlet />
       </SheetFrame>
     </>
@@ -140,6 +144,7 @@ export default function App() {
           <Route path="sales/rfq/:id" element={<RFQDetail />} />
           <Route path="sales/rfq/:id/edit" element={<RFQEdit />} />
           <Route path="sales/rfq/:rfqId/quotation/new" element={<QuotationCreate />} />
+          <Route path="sales/quotation/new" element={<QuotationCreate />} />
           <Route path="sales/quotation/:id" element={<QuotationDetail />} />
           <Route path="sales/po/:id" element={<SalesPODetail />} />
           <Route path="sales/po/new" element={<CustomerPOCreate />} />

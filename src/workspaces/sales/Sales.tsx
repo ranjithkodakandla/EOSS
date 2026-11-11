@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Plus, Search, ChevronRight, ArrowUpRight, Calendar,
   FileText, Briefcase, DollarSign, Clock, User, X, Pencil, XCircle
@@ -18,14 +18,31 @@ type SalesSortKey = 'number' | 'name' | 'date' | 'requiredBy' | 'value' | 'lines
 export default function Sales() {
   const { rfqs, quotations, customerPos, customers, jobs, currentUser, showToast, updateCustomerPo, updateRfq, addCustomerPO } = useStore();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const openWithOrigin = (path: string) => navigate(path, { state: { from: `${location.pathname}${location.search}` } });
   const [tab, setTab] = useState<POTab>((searchParams.get('tab') as POTab) ?? 'pos');
   const customerFilter = searchParams.get('customer') ?? '';
-  const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [rfqStatusFilter, setRfqStatusFilter] = useState('all');
-  const [sortKey, setSortKey] = useState<SalesSortKey>('date');
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+  const [search, setSearch] = useState(() => searchParams.get('q') ?? '');
+  const [statusFilter, setStatusFilter] = useState(() => searchParams.get('status') ?? 'all');
+  const [rfqStatusFilter, setRfqStatusFilter] = useState(() => searchParams.get('rfqStatus') ?? 'all');
+  const [sortKey, setSortKey] = useState<SalesSortKey>(() => (searchParams.get('sort') as SalesSortKey) || 'date');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>(() => (searchParams.get('dir') === 'asc' ? 'asc' : 'desc'));
+
+  useEffect(() => {
+    if (location.key === 'bg') return;
+    const next = new URLSearchParams();
+    next.set('tab', tab);
+    if (customerFilter) next.set('customer', customerFilter);
+    if (search.trim()) next.set('q', search.trim());
+    if (statusFilter !== 'all') next.set('status', statusFilter);
+    if (rfqStatusFilter !== 'all') next.set('rfqStatus', rfqStatusFilter);
+    if (sortKey !== 'date') next.set('sort', sortKey);
+    if (sortDir !== 'desc') next.set('dir', sortDir);
+    if (next.toString() !== searchParams.toString()) {
+      setSearchParams(next, { replace: true });
+    }
+  }, [tab, customerFilter, search, statusFilter, rfqStatusFilter, sortKey, sortDir, searchParams, setSearchParams, location.key]);
   const [selectedPoId, setSelectedPoId] = useState<string | null>(null);
   const [showNewRFQ, setShowNewRFQ] = useState(false);
   const [showDirectOrder, setShowDirectOrder] = useState(false);
@@ -109,8 +126,15 @@ export default function Sales() {
           </p>
         </div>
         {canCreate && <div className="flex items-center gap-2">
-          {tab === 'pos' && <button onClick={() => navigate('/sales/po/new')} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white" style={{ background: 'var(--brand-fill)' }}><Plus size={15} /> Add Customer PO</button>}
-          {tab === 'rfqs' && <button onClick={() => navigate('/sales/rfq/new')} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white" style={{ background: 'var(--brand-fill)' }}><Plus size={15} /> Add RFQ</button>}
+          {tab === 'pos' && <button onClick={() => openWithOrigin('/sales/po/new')} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white" style={{ background: 'var(--brand-fill)' }}><Plus size={15} /> Add Customer PO</button>}
+          {tab === 'rfqs' && (
+            <div className="flex items-center gap-2">
+              <button onClick={() => openWithOrigin('/sales/quotation/new')} className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold border border-[var(--border)] bg-[var(--surface)] text-[var(--text)]">
+                <Plus size={14} /> Direct Quotation
+              </button>
+              <button onClick={() => openWithOrigin('/sales/rfq/new')} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white" style={{ background: 'var(--brand-fill)' }}><Plus size={15} /> Add RFQ</button>
+            </div>
+          )}
           {tab === 'customers' && <button onClick={() => navigate('/sales/customers/new')} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white" style={{ background: 'var(--brand-fill)' }}><Plus size={15} /> Add New Customer</button>}
         </div>}
       </div>
@@ -230,7 +254,17 @@ export default function Sales() {
                       onMouseLeave={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.background = 'var(--surface)'; }}
                     >
                       <td className="px-4 py-3">
-                        <div className="font-mono text-xs font-bold" style={{ color: 'var(--brand)' }}>{p.poNumber}</div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-mono text-xs font-bold" style={{ color: 'var(--brand)' }}>{p.poNumber}</span>
+                          {p.isDirectOrder && (
+                            <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-50 text-amber-800 border border-amber-200">
+                              Direct Order
+                            </span>
+                          )}
+                        </div>
+                        {p.availabilityStatus && p.availabilityStatus !== 'not_assessed' && (
+                          <div className="mt-1"><StatusChip status={p.availabilityStatus} size="sm" /></div>
+                        )}
                         {p.hasAmendment && <div className="text-[10px] mt-0.5 font-medium" style={{ color: 'var(--warning)' }}>Amendment</div>}
                       </td>
                       <td className="px-4 py-3 font-medium" style={{ color: 'var(--text)' }}>{p.customerName}</td>
@@ -247,7 +281,7 @@ export default function Sales() {
                       </td>
                       <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                         <div className="flex items-center gap-1">
-                          <button type="button" onClick={() => navigate(`/sales/po/${p.id}`)}
+                          <button type="button" onClick={() => openWithOrigin(`/sales/po/${p.id}`)}
                             className="text-xs px-2 py-1 rounded-lg font-semibold text-white" style={{ background: 'var(--brand-fill)' }}>
                             Open
                           </button>
@@ -288,7 +322,7 @@ export default function Sales() {
                     style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}
                     onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--surface-2)'; }}
                     onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'var(--surface)'; }}
-                    onClick={() => navigate(`/sales/rfq/${r.id}?from=${encodeURIComponent('/sales?tab=rfqs')}`)}
+                    onClick={() => openWithOrigin(`/sales/rfq/${r.id}`)}
                   >
                     <td className="px-4 py-3 font-mono text-xs font-bold" style={{ color: 'var(--brand)' }}>{r.rfqNumber}</td>
                     <td className="px-4 py-3 font-medium" style={{ color: 'var(--text)' }}>{r.customerName}</td>
@@ -299,7 +333,7 @@ export default function Sales() {
                     <td className="px-4 py-3 text-xs" onClick={e => e.stopPropagation()}>
                       {(() => {
                         const q = quotations.find(qt => qt.rfqId === r.id);
-                        return q ? <button type="button" onClick={() => navigate(`/sales/quotation/${q.id}`)} className="font-mono font-semibold text-[var(--brand)] hover:underline">{q.quotationNumber}</button> : <span className="text-[var(--text-3)]">Pending</span>;
+                        return q ? <button type="button" onClick={() => openWithOrigin(`/sales/quotation/${q.id}`)} className="font-mono font-semibold text-[var(--brand)] hover:underline">{q.quotationNumber}</button> : <span className="text-[var(--text-3)]">Pending</span>;
                       })()}
                     </td>
                     <td className="px-4 py-3"><StatusChip status={r.status} /></td>

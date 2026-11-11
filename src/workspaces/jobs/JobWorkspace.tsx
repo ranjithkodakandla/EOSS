@@ -5,6 +5,8 @@ import {
   ExternalLink, ChevronRight, FileCheck, ShieldAlert
 } from 'lucide-react';
 import { useStore } from '../../store';
+import RelatedRecordsPanel from '../../components/workflow/RelatedRecordsPanel';
+import { useReturnNavigation } from '../../hooks/useReturnNavigation';
 import { EMPLOYEES } from '../../data/seed';
 import StatusChip from '../../components/layout/StatusChip';
 import MaterialFeasibilityPanel from '../../components/domain/MaterialFeasibilityPanel';
@@ -22,7 +24,9 @@ export default function JobWorkspace() {
     jobs, setJobStatus, updateJobStage, skipJobStage, addJobUpdate, updateJob, cancelJob, resolveBlocker, currentUser, showToast, inventory, storeLocations,
     inspections, ncrs, lots, issueMaterial, addInspection, addNCR,
     jobBlockers: allJobBlockers, jobMaterialReqs, materials, stageTemplates, jobUpdates, createMaterialReturn,
+    purchaseReqs, dispatches,
   } = useStore();
+  const { goBack, originUrl } = useReturnNavigation('/jobs');
 
   const [tab, setTab] = useState('Overview');
   const [stageModalOpen, setStageModalOpen] = useState(false);
@@ -117,7 +121,7 @@ export default function JobWorkspace() {
         <div className="space-y-1">
           <div className="flex items-center gap-2 text-xs">
             <button
-              onClick={() => navigate('/jobs')}
+              onClick={() => goBack()}
               className="text-[var(--text-3)] hover:text-[var(--text)] flex items-center gap-1 font-medium"
             >
               <ArrowLeft size={13} />
@@ -177,6 +181,25 @@ export default function JobWorkspace() {
           {!['complete', 'cancelled'].includes(job.status) && <button type="button" onClick={() => setCancelModalOpen(true)} className="px-3 py-2 rounded-lg text-xs font-semibold border" style={{ borderColor: 'var(--error)', color: 'var(--error)' }}>Cancel Job</button>}
         </div>
       </div>
+
+      <RelatedRecordsPanel
+        originNote={
+          job.customerPoNumber
+            ? `Fulfilling Customer PO ${job.customerPoNumber}`
+            : 'Standalone / Shop-floor Job Order'
+        }
+        records={[
+          ...(job.customerPoId && job.customerPoNumber
+            ? [{ relationship: 'Upstream' as const, typeLabel: 'Customer PO', reference: job.customerPoNumber, to: `/sales/po/${job.customerPoId}`, state: { from: originUrl } }]
+            : []),
+          ...purchaseReqs
+            .filter(p => p.jobId === job.id || p.sourceRefId === job.id || (job.customerPoId && p.sourceRefId === job.customerPoId))
+            .map(p => ({ relationship: 'Related' as const, typeLabel: 'Shortage PR', reference: p.prNumber, to: `/procurement/pr/${p.id}`, status: p.status, state: { from: originUrl } })),
+          ...dispatches
+            .filter(d => d.jobId === job.id)
+            .map(d => ({ relationship: 'Downstream' as const, typeLabel: 'Dispatch', reference: d.dispatchNumber, to: `/dispatch/${d.id}`, status: d.status, state: { from: originUrl } })),
+        ]}
+      />
 
       {/* ── 2. Prominent Next Action (Glance Level 1) ── */}
       <div className={clsx(
@@ -523,7 +546,6 @@ export default function JobWorkspace() {
       })()}
 
       {/* Material Issue tab */}
-      {tab === 'Materials' && (() => null)()}
 
       {tab === 'Updates' && (
         <div className="space-y-3">{job.operationalNotes && <div className="rounded-xl border p-4 text-xs" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}><div className="font-semibold text-[var(--text)]">Operational note</div><p className="mt-1 text-[var(--text-2)]">{job.operationalNotes}</p></div>}{jobUpdates.filter(u => job.stages.some(s => s.id === u.jobStageId)).length === 0 ? <div className="rounded-xl border p-10 text-center text-sm text-[var(--text-3)]" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>No stage updates recorded yet.</div> : jobUpdates.filter(u => job.stages.some(s => s.id === u.jobStageId)).slice().reverse().map(u => <div key={u.id} className="rounded-xl border p-4" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}><div className="flex justify-between gap-3"><div className="font-semibold text-sm text-[var(--text)]">{u.stageName} · {u.action}</div><div className="text-xs text-[var(--text-3)]">{new Date(u.timestamp).toLocaleString('en-IN')}</div></div><div className="text-xs text-[var(--text-2)] mt-1">Good {u.completedGoodQty} · Reject {u.rejectedQty} · by {u.performedByName}</div>{u.notes && <p className="text-xs text-[var(--text-2)] mt-2">{u.notes}</p>}</div>)}</div>

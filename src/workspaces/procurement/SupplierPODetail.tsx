@@ -1,52 +1,102 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate, Link, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, AlertTriangle, Truck, Ban, CheckCircle2, Send } from 'lucide-react';
+import { ArrowLeft, AlertTriangle, Truck, Ban, CheckCircle2, Send, Mail, XCircle } from 'lucide-react';
 import { useStore } from '../../store';
 import StatusChip from '../../components/layout/StatusChip';
 import ConfirmModal from '../../components/feedback/ConfirmModal';
 import DocumentActions from '../../components/workflow/DocumentActions';
 import WorkflowTimeline from '../../components/workflow/WorkflowTimeline';
+import RelatedRecordsPanel from '../../components/workflow/RelatedRecordsPanel';
+import { useReturnNavigation } from '../../hooks/useReturnNavigation';
 
 export default function SupplierPODetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
   const {
-    supplierPos, supplierPoLines, supplierQuotations, purchaseReqs, grns, poAmendments,
-    setSupplierPoStatus, resolvePoAmendment, currentUser, showToast,
+    supplierPos, supplierPoLines, supplierQuotations, supplierInvitations, purchaseReqs, suppliers, grns, poAmendments,
+    setSupplierPoStatus, confirmAndIssueSPO, notifyNonSelectedSuppliers, recordSupplierPOConfirmation,
+    resolvePoAmendment, currentUser, showToast,
   } = useStore();
   const [confirm, setConfirm] = useState(false);
 
   const po = supplierPos.find(p => p.id === id);
+  const { goBack, originUrl } = useReturnNavigation('/procurement?tab=spo');
+  const [draftTerms, setDraftTerms] = useState(po?.paymentTerms ?? 'Net 30');
+  const [draftDate, setDraftDate] = useState(po?.committedDate ?? '');
+  const [draftNotes, setDraftNotes] = useState(po?.notes ?? '');
+  const [notifyList, setNotifyList] = useState<Array<{ supplierId: string; supplierName: string; email?: string; message: string; send: boolean }> | null>(null);
+  const [supplierDecisionModal, setSupplierDecisionModal] = useState<'accepted' | 'declined' | null>(null);
+  const [supConfirmedDate, setSupConfirmedDate] = useState(po?.committedDate ?? '2026-04-28');
+  const [supRefNumber, setSupRefNumber] = useState('');
+  const [supConfirmNotes, setSupConfirmNotes] = useState('');
+  const [supDeclineReason, setSupDeclineReason] = useState('');
+
   if (!po) return <div className="p-6 text-[var(--text-2)]">Supplier PO not found</div>;
 
   const lines = supplierPoLines.filter(l => l.spoId === id);
   const linkedGrns = grns.filter(g => g.spoId === po.id);
   const canEdit = ['owner', 'buyer', 'storekeeper'].includes(currentUser.role);
-  const canApprove = currentUser.role === 'owner';
+  const canApprove = ['owner', 'buyer'].includes(currentUser.role);
   const pr = purchaseReqs.find(p => p.id === po.prId);
   const selectedQuotation = supplierQuotations.find(q => q.id === po.supplierQuotationId || (po.supplierQuotationRef && q.quoteNumber === po.supplierQuotationRef));
+  const prInvitations = pr ? supplierInvitations.filter(i => i.prId === pr.id) : [];
   const amendments = poAmendments.filter(a => a.entityType === 'supplier_po' && a.poId === po.id);
   const pendingAmendment = amendments.find(a => a.status === 'pending_approval');
-  const returnTo = searchParams.get('from') || '/procurement?tab=spo';
-  const workflowStep = po.status === 'received' ? 6 : linkedGrns.length > 0 || po.status === 'partial' || po.status === 'overdue' ? 4 : po.status === 'confirmed' ? 3 : 2;
+  const workflowStep = po.status === 'received' || po.status === 'closed'
+    ? 6
+    : linkedGrns.length > 0 || po.status === 'partial' || po.status === 'overdue'
+      ? 4
+      : ['confirmed', 'supplier_accepted', 'awaiting_supplier_confirmation'].includes(po.status)
+        ? 3
+        : 2;
 
   const totalOrdered = lines.reduce((s, l) => s + l.orderedQty, 0);
   const totalReceived = lines.reduce((s, l) => s + l.receivedQty, 0);
   const hasRemainingQty = lines.length === 0 || lines.some(l => l.orderedQty * (1 + (l.tolerancePct ?? 0) / 100) - l.receivedQty > 0);
-  const canRecordGrn = canEdit && ['confirmed', 'sent', 'partial', 'overdue'].includes(po.status) && hasRemainingQty;
+  const canRecordGrn = canEdit && ['confirmed', 'supplier_accepted', 'awaiting_supplier_confirmation', 'sent', 'partial', 'overdue'].includes(po.status) && hasRemainingQty;
 
   const handleCancel = () => {
     setSupplierPoStatus(id!, 'cancelled');
     setConfirm(false);
     showToast({ type: 'info', title: 'PO cancelled' });
-    navigate('/procurement?tab=spo');
+    goBack();
+  };
+
+  const handleIssuePO = () => {
+    const res = confirmAndIssueSPO(po.id, currentUser.name, {
+      paymentTerms: draftTerms || po.paymentTerms,
+      committedDate: draftDate || po.committedDate,
+      notes: draftNotes,
+    });
+    if (res.error) {
+      showToast({ type: 'error', title: 'Cannot issue PO', body: res.error });
+      return;
+    }
+    showToast({
+      type: 'success',
+      title: 'PO Confirmed & Issued',
+      body: `${po.poNumber} issued to ${po.supplierName}. Awaiting supplier confirmation.`,
+    });
+    if (res.nonSelectedInvitations.length > 0) {
+      setNotifyList(
+        res.nonSelectedInvitations.map(inv => {
+          const sup = suppliers.find(s => s.id === inv.supplierId);
+          return {
+            supplierId: inv.supplierId,
+            supplierName: inv.supplierName,
+            email: inv.contactEmail ?? sup?.email,
+            message: `Dear ${inv.supplierName}, thank you for quoting on ${pr?.prNumber ?? 'our requirement'}. We have awarded this order to another vendor for this cycle and appreciate your timely response.`,
+            send: true,
+          };
+        }),
+      );
+    }
   };
 
   return (
     <div className="max-w-4xl mx-auto p-4 md:p-6">
       <div className="flex items-center gap-3 mb-5 flex-wrap">
-        <button onClick={() => navigate(returnTo)} className="text-[var(--text-3)] hover:text-[var(--text)]"><ArrowLeft size={16} /></button>
+        <button onClick={() => goBack()} className="text-[var(--text-3)] hover:text-[var(--text)]"><ArrowLeft size={16} /></button>
         <div className="flex-1 min-w-[200px]">
           <div className="flex items-center gap-2 flex-wrap">
             <h1 className="font-bold text-[var(--text)] font-mono">{po.poNumber}</h1>
@@ -66,34 +116,36 @@ export default function SupplierPODetail() {
           </div>
           <p className="text-sm text-[var(--text-2)]">{po.supplierName}</p>
         </div>
-        {canEdit && po.status !== 'cancelled' && po.status !== 'received' && (
+        {canEdit && !['cancelled', 'received', 'supplier_declined', 'closed'].includes(po.status) && (
           <button onClick={() => setConfirm(true)} className="px-3 py-1.5 border border-[var(--error)] text-[var(--error)] text-sm rounded-lg hover:bg-[var(--error-bg)]">
             <Ban size={14} className="inline mr-1" /> Cancel Supplier PO
           </button>
         )}
-        {canEdit && po.status === 'draft' && (
+        {canApprove && ['draft', 'pending_approval'].includes(po.status) && (
           <button
-            onClick={() => {
-              setSupplierPoStatus(po.id, 'pending_approval');
-              showToast({ type: 'success', title: 'Supplier PO submitted for approval', body: `${po.poNumber} is waiting for owner review.` });
-            }}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold border"
-            style={{ borderColor: 'var(--brand)', color: 'var(--brand)' }}
-          >
-            <Send size={14} /> Submit for Approval
-          </button>
-        )}
-        {canApprove && po.status === 'pending_approval' && (
-          <button
-            onClick={() => {
-              setSupplierPoStatus(po.id, 'confirmed');
-              showToast({ type: 'success', title: 'Supplier PO approved and issued', body: `${po.poNumber} is ready for supplier communication.` });
-            }}
+            onClick={handleIssuePO}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold text-white"
             style={{ background: 'var(--success,#16A34A)' }}
           >
-            <CheckCircle2 size={14} /> Approve & Issue PO
+            <Send size={14} /> Confirm & Issue PO to Supplier
           </button>
+        )}
+        {canApprove && po.status === 'awaiting_supplier_confirmation' && (
+          <>
+            <button
+              onClick={() => { setSupConfirmedDate(po.committedDate || '2026-04-28'); setSupplierDecisionModal('accepted'); }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold text-white"
+              style={{ background: 'var(--success,#16A34A)' }}
+            >
+              <CheckCircle2 size={14} /> Supplier Accepted
+            </button>
+            <button
+              onClick={() => { setSupDeclineReason(''); setSupplierDecisionModal('declined'); }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold border border-red-300 text-red-700"
+            >
+              <XCircle size={14} /> Supplier Declined
+            </button>
+          </>
         )}
         {canApprove && pendingAmendment && (
           <>
@@ -127,6 +179,251 @@ export default function SupplierPODetail() {
       </div>
 
       <WorkflowTimeline steps={['Purchase Requisition', 'Supplier Quotations', 'Selected Quotation', 'Supplier PO', 'Receiving / GRN', 'Quality / Inspection', 'Inventory']} current={workflowStep} />
+
+      <div className="my-4">
+        <RelatedRecordsPanel
+          originNote={
+            po.originatingRequirementLabel
+              ? `Originating Demand: ${po.originatingRequirementLabel}`
+              : po.directProcurement
+                ? `Direct Procurement: ${po.directProcurementReason ?? 'No prior PR/Quote'}`
+                : undefined
+          }
+          records={[
+            ...(po.originatingRequirementId && po.originatingRequirementLabel
+              ? [{
+                  relationship: 'Origin' as const,
+                  typeLabel: 'Customer Requirement',
+                  reference: po.originatingRequirementLabel,
+                  to: po.originatingRequirementId.startsWith('cpo') ? `/sales/po/${po.originatingRequirementId}` : `/jobs/${po.originatingRequirementId}`,
+                  state: { from: originUrl },
+                }]
+              : []),
+            ...(pr ? [{ relationship: 'Upstream' as const, typeLabel: 'Purchase Requisition', reference: pr.prNumber, to: `/procurement/pr/${pr.id}`, status: pr.status, state: { from: originUrl } }] : []),
+            ...(selectedQuotation ? [{ relationship: 'Upstream' as const, typeLabel: 'Selected Quote', reference: selectedQuotation.quoteNumber, to: `/procurement/quote/${selectedQuotation.id}`, status: selectedQuotation.status, state: { from: originUrl } }] : []),
+            ...linkedGrns.map(g => ({ relationship: 'Downstream' as const, typeLabel: 'GRN', reference: g.grnNumber, to: `/procurement/grn/${g.id}`, status: g.status, state: { from: originUrl } })),
+          ]}
+        />
+      </div>
+
+      {/* Draft PO Review Banner */}
+      {canApprove && ['draft', 'pending_approval'].includes(po.status) && (
+        <div className="rounded-xl border border-blue-200 bg-blue-50/70 p-4 mb-4 space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h3 className="text-sm font-bold text-blue-950">Draft Supplier PO — Review Before Issuing</h3>
+              <p className="text-xs text-blue-900">
+                Verify delivery schedule, payment terms, and instructions before confirming and dispatching to {po.supplierName}.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleIssuePO}
+              className="btn-primary text-xs inline-flex items-center gap-1.5"
+            >
+              <Send size={13} /> Confirm & Issue PO
+            </button>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div>
+              <label className="block text-[11px] font-semibold text-blue-900 mb-1">Payment Terms</label>
+              <input className="eoss-input w-full text-xs" value={draftTerms} onChange={e => setDraftTerms(e.target.value)} />
+            </div>
+            <div>
+              <label className="block text-[11px] font-semibold text-blue-900 mb-1">Committed Delivery Date</label>
+              <input type="date" className="eoss-input w-full text-xs" value={draftDate} onChange={e => setDraftDate(e.target.value)} />
+            </div>
+            <div>
+              <label className="block text-[11px] font-semibold text-blue-900 mb-1">PO Instructions / Notes</label>
+              <input className="eoss-input w-full text-xs" value={draftNotes} onChange={e => setDraftNotes(e.target.value)} placeholder="MTC required on delivery" />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Awaiting Supplier Confirmation Banner */}
+      {po.status === 'awaiting_supplier_confirmation' && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50/80 p-4 mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <div className="text-sm font-bold text-amber-950">Awaiting Supplier Confirmation</div>
+            <p className="text-xs text-amber-900 mt-0.5">
+              Issued {po.sentAt ?? po.raisedDate} by {po.issuedBy ?? 'Buyer'}. Record {po.supplierName}'s acknowledgement or decline to update procurement & receiving readiness.
+            </p>
+          </div>
+          {canApprove && (
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => { setSupConfirmedDate(po.committedDate || '2026-04-28'); setSupplierDecisionModal('accepted'); }}
+                className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-semibold inline-flex items-center gap-1"
+              >
+                <CheckCircle2 size={13} /> Record Acceptance
+              </button>
+              <button
+                type="button"
+                onClick={() => { setSupDeclineReason(''); setSupplierDecisionModal('declined'); }}
+                className="px-3 py-1.5 rounded-lg border border-red-300 bg-white text-red-700 text-xs font-semibold inline-flex items-center gap-1"
+              >
+                <XCircle size={13} /> Record Decline
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Supplier Declined Alert Banner */}
+      {po.status === 'supplier_declined' && (
+        <div className="rounded-xl border border-red-200 bg-red-50 p-4 mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <div className="text-sm font-bold text-red-900 flex items-center gap-1.5">
+              <XCircle size={15} /> Supplier Declined This Purchase Order
+            </div>
+            <p className="text-xs text-red-800 mt-1">
+              Reason: <strong>{po.supplierDeclineReason ?? 'Not specified'}</strong>. {pr ? `${pr.prNumber} has been reopened to Quotation In Progress so an alternate vendor can be selected.` : ''}
+            </p>
+          </div>
+          {pr && (
+            <Link to={`/procurement/pr/${pr.id}`} className="px-3 py-1.5 rounded-lg bg-red-700 text-white text-xs font-semibold">
+              Return to {pr.prNumber} Quotes →
+            </Link>
+          )}
+        </div>
+      )}
+
+      {/* Non-Selected Supplier Notification Modal */}
+      {notifyList && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl w-full max-w-2xl p-6 shadow-2xl max-h-[88vh] overflow-y-auto space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-bold text-base text-[var(--text)] flex items-center gap-2">
+                  <Mail size={16} className="text-[var(--brand)]" />
+                  Notify Non-Selected Suppliers?
+                </h3>
+                <p className="text-xs text-[var(--text-3)] mt-0.5">
+                  Prototype simulation: review or edit closing messages for suppliers who participated in {pr?.prNumber ?? 'this PR'}.
+                </p>
+              </div>
+            </div>
+            <div className="space-y-3">
+              {notifyList.map((item, idx) => (
+                <div key={item.supplierId} className="p-3 rounded-xl border border-[var(--border)] bg-[var(--surface-2)]/40 space-y-2">
+                  <label className="flex items-center justify-between text-xs font-semibold text-[var(--text)]">
+                    <span className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={item.send}
+                        onChange={e =>
+                          setNotifyList(prev =>
+                            prev ? prev.map((x, i) => (i === idx ? { ...x, send: e.target.checked } : x)) : null,
+                          )
+                        }
+                      />
+                      {item.supplierName}
+                    </span>
+                    <span className="font-normal text-[var(--text-3)]">{item.email ?? 'No email on file'}</span>
+                  </label>
+                  <textarea
+                    className="eoss-input w-full text-xs"
+                    rows={2}
+                    disabled={!item.send}
+                    value={item.message}
+                    onChange={e =>
+                      setNotifyList(prev =>
+                        prev ? prev.map((x, i) => (i === idx ? { ...x, message: e.target.value } : x)) : null,
+                      )
+                    }
+                  />
+                </div>
+              ))}
+            </div>
+            <div className="flex justify-end gap-2">
+              <button type="button" onClick={() => setNotifyList(null)} className="px-4 py-2 rounded-lg border border-[var(--border)] text-xs font-medium text-[var(--text-2)]">
+                Skip Notifications
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const chosen = notifyList.filter(x => x.send);
+                  if (chosen.length > 0) {
+                    notifyNonSelectedSuppliers(po.id, chosen, currentUser.name);
+                    showToast({ type: 'success', title: 'Notifications Logged', body: `Recorded closing notice for ${chosen.length} non-selected supplier(s).` });
+                  }
+                  setNotifyList(null);
+                }}
+                className="btn-primary text-xs"
+              >
+                Send Notifications ({notifyList.filter(x => x.send).length})
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Supplier Acceptance / Decline Modal */}
+      {supplierDecisionModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl w-full max-w-md p-6 shadow-2xl space-y-4">
+            <h3 className="font-bold text-base text-[var(--text)]">
+              {supplierDecisionModal === 'accepted' ? 'Record Supplier Acceptance' : 'Record Supplier Decline'}
+            </h3>
+            {supplierDecisionModal === 'accepted' ? (
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Supplier Confirmed Delivery Date</label>
+                  <input type="date" className="eoss-input w-full" value={supConfirmedDate} onChange={e => setSupConfirmedDate(e.target.value)} />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Supplier Sales Order / Ref #</label>
+                  <input className="eoss-input w-full font-mono" placeholder="e.g. SUP-ACK-2041" value={supRefNumber} onChange={e => setSupRefNumber(e.target.value)} />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Confirmation Notes</label>
+                  <textarea className="eoss-input w-full" rows={2} value={supConfirmNotes} onChange={e => setSupConfirmNotes(e.target.value)} placeholder="e.g. Dispatch scheduled ex-works Mumbai" />
+                </div>
+              </div>
+            ) : (
+              <div>
+                <label className="block text-xs font-semibold text-red-700 mb-1">Decline Reason (Mandatory) *</label>
+                <textarea className="eoss-input w-full" rows={3} value={supDeclineReason} onChange={e => setSupDeclineReason(e.target.value)} placeholder="e.g. Mill batch sold out; unable to commit delivery timeline" />
+              </div>
+            )}
+            <div className="flex gap-2 justify-end">
+              <button type="button" onClick={() => setSupplierDecisionModal(null)} className="px-4 py-2 rounded-lg border border-[var(--border)] text-xs">Cancel</button>
+              <button
+                type="button"
+                disabled={supplierDecisionModal === 'declined' && !supDeclineReason.trim()}
+                onClick={() => {
+                  const res = recordSupplierPOConfirmation(po.id, supplierDecisionModal, {
+                    confirmedDate: supConfirmedDate,
+                    supplierRefNumber: supRefNumber.trim() || undefined,
+                    notes: supConfirmNotes.trim() || undefined,
+                    declineReason: supDeclineReason.trim() || undefined,
+                    recordedBy: currentUser.name,
+                  });
+                  if (res.error) {
+                    showToast({ type: 'error', title: 'Update Failed', body: res.error });
+                  } else {
+                    showToast({
+                      type: supplierDecisionModal === 'accepted' ? 'success' : 'warning',
+                      title: supplierDecisionModal === 'accepted' ? 'Supplier PO Confirmed' : 'Supplier Declined PO',
+                      body: supplierDecisionModal === 'accepted'
+                        ? `${po.poNumber} confirmed by ${po.supplierName}. Ready for GRN upon delivery.`
+                        : `${po.poNumber} declined and ${pr?.prNumber ?? 'PR'} returned for alternate sourcing.`,
+                    });
+                  }
+                  setSupplierDecisionModal(null);
+                }}
+                className={`px-4 py-2 rounded-lg text-xs font-semibold text-white disabled:opacity-40 ${
+                  supplierDecisionModal === 'accepted' ? 'bg-emerald-600' : 'bg-red-600'
+                }`}
+              >
+                {supplierDecisionModal === 'accepted' ? 'Confirm Acceptance' : 'Record Decline'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {po.status === 'overdue' && (
         <div className="bg-[var(--error-bg)] border border-[var(--error)] rounded-xl p-4 mb-4">

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { Plus, AlertTriangle, ChevronRight, Wrench, Search, X, Archive, Pencil } from 'lucide-react';
 import { useStore } from '../../store';
 import { computeMaintenanceDue } from '../../domain/maintenanceDue';
@@ -16,11 +16,13 @@ type AssetSortKey = 'assetCode' | 'name' | 'category' | 'workCentre' | 'critical
 export default function Assets() {
   const { assets, sites, maintenanceEvents, meterReadings, currentUser, addAsset, archiveAsset, addMaintenanceEvent, updateAsset, showToast } = useStore();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const openWithOrigin = (path: string) => navigate(path, { state: { from: `${location.pathname}${location.search}` } });
   const focusParam = searchParams.get('focus');
-  const [tab, setTab] = useState<'assets' | 'maintenance'>('assets');
-  const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [tab, setTab] = useState<'assets' | 'maintenance'>(() => (searchParams.get('tab') === 'maintenance' ? 'maintenance' : 'assets'));
+  const [search, setSearch] = useState(() => searchParams.get('q') ?? '');
+  const [statusFilter, setStatusFilter] = useState<string>(() => searchParams.get('status') ?? 'all');
   const [sortKey, setSortKey] = useState<AssetSortKey>('assetCode');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [focus, setFocus] = useState<'all' | 'breakdown' | 'overdue' | 'due'>(
@@ -34,6 +36,19 @@ export default function Assets() {
   const [editingAssetId, setEditingAssetId] = useState<string | undefined>(editParam ?? undefined);
   const [showArchived, setShowArchived] = useState(false);
   const [archiveTarget, setArchiveTarget] = useState<Asset | null>(null);
+  useEffect(() => {
+    if (location.key === 'bg') return;
+    const next = new URLSearchParams();
+    if (tab !== 'assets') next.set('tab', tab);
+    if (search.trim()) next.set('q', search.trim());
+    if (statusFilter !== 'all') next.set('status', statusFilter);
+    if (focus !== 'all') next.set('focus', focus);
+    if (logParam) next.set('log', logParam);
+    if (editParam) next.set('edit', editParam);
+    if (next.toString() !== searchParams.toString()) {
+      setSearchParams(next, { replace: true });
+    }
+  }, [tab, search, statusFilter, focus, logParam, editParam, searchParams, setSearchParams, location.key]);
   useEffect(() => {
     if (!logParam) return;
     setLogAssetId(logParam);
@@ -202,7 +217,7 @@ export default function Assets() {
                 ? new Date(a.nextServiceDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
                 : 'No service date';
             return (
-              <div key={a.id} onClick={() => navigate(`/assets/${a.id}`)}
+              <div key={a.id} onClick={() => openWithOrigin(`/assets/${a.id}`)}
                 className="w-full text-left rounded-xl border p-3 cursor-pointer"
                 style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
                 <div className="flex items-center justify-between gap-2">
@@ -249,7 +264,7 @@ export default function Assets() {
                 style={{ borderBottom: '1px solid var(--border)', background: a.status === 'breakdown' ? 'var(--error-bg,#FEF2F2)' : a.status === 'pm_overdue' ? 'var(--warning-bg,#FFFBEB)' : 'var(--surface)' }}
                 onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--surface-2)'; }}
                 onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = a.status === 'breakdown' ? 'var(--error-bg,#FEF2F2)' : a.status === 'pm_overdue' ? 'var(--warning-bg,#FFFBEB)' : 'var(--surface)'; }}
-                onClick={() => navigate(`/assets/${a.id}`)}>
+                onClick={() => openWithOrigin(`/assets/${a.id}`)}>
                 <td className="px-4 py-3 font-mono text-xs font-bold" style={{ color: 'var(--brand)' }}>{a.assetCode}</td>
                 <td className="px-4 py-3">
                   <div className="text-sm font-medium" style={{ color: 'var(--text)' }}>{a.name}</div>
@@ -314,7 +329,7 @@ export default function Assets() {
           {filteredME.map(m => (
             <div key={m.id} className="rounded-xl border p-4 cursor-pointer hover:opacity-90 transition-opacity"
               style={{ borderColor: (m.type === 'Breakdown' && m.status !== 'closed') ? 'var(--error,#DC2626)' : 'var(--border)', background: 'var(--surface)' }}
-              onClick={() => navigate(`/assets/me/${m.id}`)}>
+              onClick={() => openWithOrigin(`/assets/me/${m.id}`)}>
               <div className="flex items-start justify-between gap-3">
                 <div className="flex-1">
                   <div className="flex items-center gap-2 flex-wrap mb-1">

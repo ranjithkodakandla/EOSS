@@ -1,18 +1,27 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useParams, useNavigate, Link, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, FilePlus, ExternalLink, ChevronRight, Ban, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, FilePlus, ExternalLink, ChevronRight, Ban, CheckCircle2, Layers, Factory } from 'lucide-react';
 import { useStore } from '../../store';
 import StatusChip from '../../components/layout/StatusChip';
 import clsx from 'clsx';
 import DocumentActions from '../../components/workflow/DocumentActions';
 import WorkflowTimeline from '../../components/workflow/WorkflowTimeline';
+import RelatedRecordsPanel from '../../components/workflow/RelatedRecordsPanel';
+import { useReturnNavigation } from '../../hooks/useReturnNavigation';
+import { assessOrderMaterialRequirements } from '../../domain/materialFeasibility';
 
 type DetailTab = 'overview' | 'lines' | 'amendments' | 'jobs' | 'documents';
 
 export default function PODetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { customerPos, poLines, poAmendments, jobs, quotations, rfqs, currentUser, updateCustomerPo, resolvePoAmendment, showToast } = useStore();
+  const {
+    customerPos, poLines, poAmendments, jobs, jobMaterialReqs, quotations, rfqs,
+    purchaseReqs, lots, storeLocations, sites, supplierPos, supplierPoLines,
+    currentUser, updateCustomerPo, resolvePoAmendment, assessAndAllocateCustomerPO, showToast,
+  } = useStore();
+  const { goBack, originUrl } = useReturnNavigation('/sales?tab=pos');
+  const [allocResultMsg, setAllocResultMsg] = useState<{ status: string; message: string; prId?: string; prNumber?: string } | null>(null);
   const [activeTab, setActiveTab] = useState<DetailTab>('overview');
   const [searchParams] = useSearchParams();
 
@@ -23,9 +32,41 @@ export default function PODetail() {
   const amendments = poAmendments.filter(a => a.entityType === 'customer_po' && a.poId === po.id);
   const pendingAmendment = amendments.find(a => a.status === 'pending_approval');
   const actualLines = poLines.filter(line => line.poId === po.id);
-  const displayLines = actualLines.length > 0 ? actualLines : Array.from({ length: po.lineCount }, (_, i) => ({ id: `fallback-${i}`, drawingNumber: `Component-${i + 1}`, revision: 'A', description: i === 0 ? 'SS 304 Precision Component' : i === 1 ? 'EN8 Machined Part' : `Component Line ${i + 1}`, orderedQty: 10 + i * 5, uom: 'pcs', requiredDate: '', rate: (po.totalValue / po.lineCount) / (10 + i * 5), value: po.totalValue / po.lineCount, status: 'pending' as const }));
-  const quotation = quotations.find(q => q.quotationNumber === po.quotationRef);
+  const displayLines = actualLines.length > 0
+    ? actualLines
+    : [{
+        id: `scope-${po.id}`,
+        drawingNumber: 'CUSTOM-SCOPE',
+        revision: 'A',
+        description: `${po.customerName} — Custom Order Scope (${po.lineCount} line summary)`,
+        orderedQty: 1,
+        uom: 'lot',
+        requiredDate: '',
+        rate: po.totalValue,
+        value: po.totalValue,
+        status: 'pending' as const,
+      }];
+  const quotation = quotations.find(q => q.id === po.quotationId || q.quotationNumber === po.quotationRef);
   const originatingRfq = rfqs.find(r => r.id === po.rfqId) ?? (quotation ? rfqs.find(r => r.id === quotation.rfqId) : undefined);
+  const linkedJobs = jobs.filter(j => j.customerPoId === po.id || j.customerPoNumber === po.poNumber);
+  const linkedReqs = jobMaterialReqs.filter(r => linkedJobs.some(j => j.id === r.jobId));
+  const linkedShortagePrs = purchaseReqs.filter(p => p.sourceRefId === po.id || linkedJobs.some(j => j.id === p.jobId));
+  const [checkSiteId, setCheckSiteId] = useState(po.deliverToSiteId ?? sites[0]?.id ?? 'hyd');
+  const liveAvailability = useMemo(
+    () =>
+      linkedReqs.length > 0
+        ? assessOrderMaterialRequirements({
+            requirements: linkedReqs,
+            assignedSiteId: checkSiteId,
+            lots,
+            storeLocations,
+            sites,
+            supplierPos,
+            supplierPoLines,
+          })
+        : null,
+    [linkedReqs, checkSiteId, lots, storeLocations, sites, supplierPos, supplierPoLines],
+  );
   const canEdit = ['owner', 'sales'].includes(currentUser.role);
   const canApprove = currentUser.role === 'owner';
   const returnTo = searchParams.get('from') || '/sales?tab=pos';
@@ -50,9 +91,9 @@ export default function PODetail() {
       >
         {/* Breadcrumb */}
         <div className="flex items-center gap-1.5 text-xs mb-3" style={{ color: 'var(--text-3)' }}>
-          <button onClick={() => navigate(returnTo)} className="hover:underline" style={{ color: 'var(--brand)' }}>Sales</button>
+          <button onClick={() => goBack()} className="hover:underline" style={{ color: 'var(--brand)' }}>Sales</button>
           <ChevronRight size={12} />
-          <button onClick={() => navigate(returnTo)} className="hover:underline">Customer POs</button>
+          <button onClick={() => goBack()} className="hover:underline">Customer POs</button>
           <ChevronRight size={12} />
           <span style={{ color: 'var(--text)' }}>{po.poNumber}</span>
         </div>
@@ -97,11 +138,145 @@ export default function PODetail() {
                 </button>
               </>
             )}
-            <DocumentActions documentType="Customer PO" reference={po.poNumber} date={po.acceptedDate} partyName={po.customerName} recipient={undefined} status={po.status} total={po.totalValue} lines={Array.from({ length: po.lineCount }, (_, i) => ({ description: `Customer PO line ${i + 1}`, quantity: '—' }))} references={[po.quotationRef ? `Quotation: ${po.quotationRef}` : '', originatingRfq ? `Originating RFQ: ${originatingRfq.rfqNumber}` : ''].filter(Boolean)} />
+            <DocumentActions
+              documentType="Customer PO"
+              reference={po.poNumber}
+              date={po.acceptedDate}
+              partyName={po.customerName}
+              recipient={undefined}
+              status={po.status}
+              total={po.totalValue}
+              terms={[po.paymentTerms, po.deliveryTerms].filter(Boolean)}
+              notes={po.isDirectOrder ? `Direct Order${po.directOrderReason ? `: ${po.directOrderReason}` : ''}` : po.deliveryTerms}
+              lines={displayLines.map(l => ({ description: `${l.drawingNumber} — ${l.description}`, quantity: l.orderedQty, uom: l.uom, rate: l.rate, amount: l.value }))}
+              references={[
+                po.isDirectOrder ? 'Origin: Direct Customer Order (no RFQ/Quotation)' : '',
+                po.quotationRef ? `Quotation: ${po.quotationRef}` : '',
+                originatingRfq ? `Originating RFQ: ${originatingRfq.rfqNumber}` : '',
+              ].filter(Boolean)}
+            />
           </div>
         </div>
 
-        <WorkflowTimeline steps={['Customer RFQ', 'Quotation', 'Customer PO', 'Jobs / Delivery', 'Invoice / Payment']} current={2} />
+        <WorkflowTimeline steps={['Customer RFQ', 'Quotation', 'Customer PO', 'Material Check', 'Production & Dispatch']} current={po.availabilityStatus && po.availabilityStatus !== 'not_assessed' ? 3 : 2} />
+
+        <div className="my-4">
+          <RelatedRecordsPanel
+            originNote={
+              po.isDirectOrder
+                ? `Origin: Direct Customer Order${po.directOrderReason ? ` — ${po.directOrderReason}` : ''}`
+                : po.quotationRef
+                  ? `From Quotation ${po.quotationRef}${originatingRfq ? ` & RFQ ${originatingRfq.rfqNumber}` : ''}`
+                  : undefined
+            }
+            records={[
+              ...(originatingRfq ? [{ relationship: 'Upstream' as const, typeLabel: 'Customer RFQ', reference: originatingRfq.rfqNumber, to: `/sales/rfq/${originatingRfq.id}`, status: originatingRfq.status, state: { from: originUrl } }] : []),
+              ...(quotation ? [{ relationship: 'Upstream' as const, typeLabel: 'Customer Quotation', reference: quotation.quotationNumber, to: `/sales/quotation/${quotation.id}`, status: quotation.status, state: { from: originUrl } }] : []),
+              ...linkedJobs.map(j => ({ relationship: 'Downstream' as const, typeLabel: 'Production Job', reference: j.jobNumber, to: `/jobs/${j.id}`, status: j.status, state: { from: originUrl } })),
+              ...linkedShortagePrs.map(p => ({ relationship: 'Downstream' as const, typeLabel: 'Shortage PR', reference: p.prNumber, to: `/procurement/pr/${p.id}`, status: p.status, state: { from: originUrl } })),
+            ]}
+          />
+        </div>
+
+        {/* Material Availability Check & Auto-Procurement Card */}
+        <div className="rounded-xl border p-4 mb-4 space-y-3" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h3 className="font-semibold text-sm text-[var(--text)] flex items-center gap-2">
+                <Layers size={15} className="text-[var(--brand)]" />
+                Material Availability Check & Allocation
+                {po.availabilityStatus && <StatusChip status={po.availabilityStatus} size="sm" />}
+              </h3>
+              <p className="text-xs text-[var(--text-3)] mt-0.5">
+                Checks eligible unreserved inventory at fulfilling site (excluding QC hold, rejected, and reserved stock), reserves available quantity, and raises a Purchase Requisition ONLY for net shortages.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <select
+                className="eoss-input text-xs py-1.5"
+                value={checkSiteId}
+                onChange={e => setCheckSiteId(e.target.value)}
+                aria-label="Fulfilling site for material check"
+              >
+                {sites.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
+              <button
+                type="button"
+                onClick={() => {
+                  const res = assessAndAllocateCustomerPO(po.id, currentUser.name, { siteId: checkSiteId, jobId: linkedJobs[0]?.id });
+                  if ('error' in res) {
+                    showToast({ type: 'warning', title: 'Material Check Note', body: res.error });
+                  } else {
+                    setAllocResultMsg({
+                      status: res.status,
+                      message: res.message,
+                      prId: res.createdPr?.id,
+                      prNumber: res.createdPr?.prNumber,
+                    });
+                    showToast({ type: 'success', title: 'Material Check Complete', body: res.message });
+                  }
+                }}
+                className="btn-primary text-xs inline-flex items-center gap-1.5"
+              >
+                <Factory size={13} /> Run Availability Check & Reserve
+              </button>
+            </div>
+          </div>
+
+          {allocResultMsg && (
+            <div className="p-3 rounded-lg border border-blue-200 bg-blue-50/70 text-xs flex flex-wrap items-center justify-between gap-2">
+              <span className="text-blue-950 font-medium">{allocResultMsg.message}</span>
+              {allocResultMsg.prId && (
+                <Link
+                  to={`/procurement/pr/${allocResultMsg.prId}`}
+                  state={{ from: originUrl }}
+                  className="px-2.5 py-1 rounded bg-blue-700 text-white font-semibold"
+                >
+                  Open Shortage PR {allocResultMsg.prNumber} →
+                </Link>
+              )}
+            </div>
+          )}
+
+          {liveAvailability && liveAvailability.items.length > 0 && (
+            <div className="overflow-x-auto border border-[var(--border)] rounded-lg">
+              <table className="eoss-table">
+                <thead>
+                  <tr>
+                    <th>Required Material</th>
+                    <th className="text-right">Req. Qty</th>
+                    <th className="text-right">Reserved</th>
+                    <th className="text-right">Eligible Stock</th>
+                    <th className="text-right">QC Hold / In Transit</th>
+                    <th className="text-right">Shortage</th>
+                    <th>Outcome</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {liveAvailability.items.map(item => (
+                    <tr key={item.materialItemId}>
+                      <td>
+                        <div className="font-medium text-xs text-[var(--text)]">{item.materialName}</div>
+                        <div className="text-[11px] font-mono text-[var(--text-3)]">{item.materialCode ?? 'ITEM'}</div>
+                      </td>
+                      <td className="text-right font-mono text-xs">{item.requiredQty} {item.uom}</td>
+                      <td className="text-right font-mono text-xs">{item.reservedQty}</td>
+                      <td className="text-right font-mono text-xs font-semibold">{item.eligibleAvailableQty}</td>
+                      <td className="text-right font-mono text-xs text-[var(--text-3)]">{item.qcHoldQty} / {item.incomingQty}</td>
+                      <td className="text-right font-mono text-xs font-semibold text-amber-700">{item.shortageQty}</td>
+                      <td>
+                        <StatusChip
+                          status={item.outcome === 'available' ? 'ready' : item.outcome === 'partial' ? 'partial' : 'blocked'}
+                          size="sm"
+                        />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
 
         {/* Value Summary Bar */}
         <div className="mt-4 flex items-center gap-6 flex-wrap">

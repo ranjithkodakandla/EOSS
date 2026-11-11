@@ -161,14 +161,24 @@ test('Procurement PR -> Multiple Quotations -> Compare -> Finalize 1 -> Issue 1 
   const q1 = useStore.getState().supplierQuotations.find(q => q.id === 'sq-u-1');
   const q2 = useStore.getState().supplierQuotations.find(q => q.id === 'sq-u-2');
   assert.equal(q2?.status, 'selected');
-  assert.equal(q1?.status, 'rejected');
+  assert.equal(q1?.status, 'not_selected');
 
-  // Issue 1 Supplier PO from selected quotation
+  // Draft 1 Supplier PO from selected quotation, then issue and confirm
   const firstPO = useStore.getState().generateSPOFromQuotation('sq-u-2');
-  assert.ok(firstPO.spo, 'First SPO should be generated');
+  assert.ok(firstPO.spo, 'First SPO should be drafted');
+  assert.equal(firstPO.spo?.status, 'draft');
   assert.equal(firstPO.spo?.totalValue, 29500);
   const prAfter = useStore.getState().purchaseReqs.find(p => p.id === prId);
-  assert.equal(prAfter?.status, 'converted');
+  assert.equal(prAfter?.status, 'po_drafted');
+
+  const issued = useStore.getState().confirmAndIssueSPO(firstPO.spo!.id, 'Owner');
+  assert.equal(issued.spo?.status, 'awaiting_supplier_confirmation');
+  const confirmed = useStore.getState().recordSupplierPOConfirmation(firstPO.spo!.id, 'accepted', {
+    confirmedDate: '2026-11-20',
+    supplierRefNumber: 'SUP-UNIT-1',
+    recordedBy: 'Owner',
+  });
+  assert.equal(confirmed.spo?.status, 'confirmed');
 
   // Guard against issuing duplicate SPO from the same PR/quotation
   const secondPO = useStore.getState().generateSPOFromQuotation('sq-u-2');

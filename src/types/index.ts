@@ -26,7 +26,11 @@ export type StatusKey =
   | 'complete' | 'failed' | 'overdue' | 'expired' | 'archived'
   | 'approved' | 'rejected' | 'in_progress' | 'on_order' | 'received'
   | 'dispatched' | 'partial' | 'cancelled' | 'open' | 'closed'
-  | 'pass' | 'fail' | 'qc_hold' | 'available' | 'reserved' | 'issued';
+  | 'pass' | 'fail' | 'qc_hold' | 'available' | 'reserved' | 'issued'
+  | 'quotation_in_progress' | 'awaiting_quotation' | 'quotation_received'
+  | 'declined' | 'no_response' | 'not_selected' | 'ready_to_send' | 'sent'
+  | 'awaiting_supplier_confirmation' | 'supplier_accepted' | 'supplier_declined'
+  | 'approval_rejected' | 'approved_for_po' | 'po_drafted' | 'po_issued' | 'direct_order';
 
 export interface StatusConfig {
   label: string;
@@ -258,6 +262,12 @@ export interface CustomerPO {
   rfqId?: ID;
   rfqRef?: string;
   deliveryTerms: string;
+  isDirectOrder?: boolean;
+  originType?: 'from_quotation' | 'direct_order';
+  directOrderReason?: string;
+  availabilityStatus?: 'not_assessed' | 'available' | 'partially_available' | 'awaiting_procurement';
+  deliverToSiteId?: ID;
+  deliverToSiteName?: string;
   hasAmendment?: boolean;
   commercialLocked?: boolean;
   commercialLockReason?: string;
@@ -292,7 +302,7 @@ export interface SupplierPO {
   supplierName: string;
   raisedDate: string;
   committedDate: string;
-  status: 'draft' | 'pending_approval' | 'sent' | 'confirmed' | 'partial' | 'received' | 'overdue' | 'cancelled';
+  status: 'draft' | 'pending_approval' | 'sent' | 'awaiting_supplier_confirmation' | 'confirmed' | 'supplier_accepted' | 'supplier_declined' | 'partial' | 'received' | 'overdue' | 'closed' | 'cancelled';
   totalValue: number;
   currency: string;
   paymentTerms: string;
@@ -313,6 +323,17 @@ export interface SupplierPO {
   directProcurementReason?: string;
   revision?: number;
   lastAmendedAt?: string;
+  sentAt?: string;
+  issuedBy?: string;
+  supplierResponseStatus?: 'pending' | 'accepted' | 'declined';
+  supplierConfirmedDate?: string;
+  supplierRefNumber?: string;
+  supplierResponseNotes?: string;
+  supplierDeclineReason?: string;
+  supplierRespondedAt?: string;
+  originatingRequirementId?: ID;
+  originatingRequirementLabel?: string;
+  notes?: string;
 }
 
 export type POAmendmentEntity = 'customer_po' | 'supplier_po';
@@ -369,7 +390,11 @@ export interface PurchaseRequisition {
   requiredBy: string;
   jobId?: ID;
   jobNumber?: string;
-  status: 'draft' | 'pending' | 'approved' | 'converted' | 'cancelled';
+  sourceType?: 'manual' | 'shortage' | 'site_need';
+  sourceRefId?: ID;
+  sourceRefLabel?: string;
+  sourceMaterialReqId?: ID;
+  status: 'draft' | 'pending' | 'approved' | 'quotation_in_progress' | 'approved_for_po' | 'po_drafted' | 'po_issued' | 'converted' | 'closed' | 'cancelled' | 'rejected';
   lineCount: number;
   totalQty: number;
   priority: 'low' | 'normal' | 'high' | 'urgent';
@@ -382,6 +407,28 @@ export interface PurchaseRequisition {
   notes?: string;
   attachments?: { id: string; name: string; size?: string }[];
   lines?: PRLine[];
+}
+
+export interface SupplierInvitation {
+  id: ID;
+  prId: ID;
+  prNumber: string;
+  supplierId: ID;
+  supplierName: string;
+  contactName?: string;
+  contactEmail?: string;
+  matchReason?: string;
+  channel: 'email' | 'portal' | 'phone' | 'whatsapp';
+  requestedLineIds: ID[];
+  createdAt: string;
+  sentDate?: string;
+  responseDueDate?: string;
+  status: 'draft' | 'ready_to_send' | 'sent' | 'awaiting_quotation' | 'quotation_received' | 'declined' | 'no_response' | 'not_selected' | 'closed';
+  quotationId?: ID;
+  declineReason?: string;
+  lastNotifiedAt?: string;
+  notificationNote?: string;
+  notes?: string;
 }
 
 // ── Jobs ──
@@ -1000,18 +1047,30 @@ export interface SupplierQuotation {
   supplierName: string;
   prId?: ID;
   prNumber?: string;
+  invitationId?: ID;
   quoteDate: string;
   validUntil: string;
   currency?: string;
-  status: 'received' | 'selected' | 'rejected' | 'expired' | 'pending';
+  status: 'received' | 'selected' | 'rejected' | 'not_selected' | 'approval_rejected' | 'expired' | 'pending';
   attachmentRef?: string;
+  attachmentName?: string;
   paymentTerms: string;
   deliveryDays: number;
+  deliveryCharges?: number;
+  discountAmount?: number;
+  taxAmount?: number;
   lines: SupplierQuotationLine[];
   notes?: string;
   supplierRfqId?: ID;
   supplierRfqRef?: string;
   recordType?: 'rfq' | 'quotation';
+  overrideReason?: string;
+  rejectedReason?: string;
+  rejectedBy?: string;
+  rejectedAt?: string;
+  approvedBy?: string;
+  approvedAt?: string;
+  revisionNumber?: number;
 }
 
 export interface SupplierQuotationLine {
@@ -1104,25 +1163,31 @@ export interface FinishedProduct {
 export interface CustomerQuotation {
   id: ID;
   quotationNumber: string;
-  rfqId: ID;
-  rfqNumber: string;
+  rfqId?: ID;
+  rfqNumber?: string;
+  isDirectQuotation?: boolean;
+  parentQuotationId?: ID;
   customerId: ID;
   customerName: string;
   quotationDate: string;
   validUntil: string;
   currency: string;
-  status: 'draft' | 'submitted' | 'accepted' | 'rejected' | 'expired' | 'revised';
+  status: 'draft' | 'submitted' | 'accepted' | 'rejected' | 'expired' | 'revised' | 'superseded';
   totalValue: number;
   revision?: number;
   owner: string;
   deliveryTerms?: string;
   paymentTerms?: string;
   subtotal?: number;
+  discountAmount?: number;
+  taxRatePct?: number;
   taxAmount?: number;
   totalAmount?: number;
   version?: number;
   acceptedDate?: string;
+  acceptedAt?: string;
   acceptedBy?: string;
+  acceptanceNotes?: string;
   notes?: string;
   createdAt?: string;
   updatedAt?: string;

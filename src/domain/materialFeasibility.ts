@@ -147,3 +147,83 @@ export function computeMaterialFeasibility(params: {
     isPreliminary: !!isPreliminary,
   };
 }
+
+export interface OrderRequirementAssessment {
+  materialItemId: string;
+  materialCode?: string;
+  materialName: string;
+  grade?: string;
+  uom: string;
+  requiredQty: number;
+  physicalOnHand: number;
+  reservedQty: number;
+  qcHoldQty: number;
+  eligibleAvailableQty: number;
+  toReserveQty: number;
+  shortageQty: number;
+  incomingQty: number;
+  outcome: 'available' | 'partial' | 'unavailable';
+  feasibility: MaterialFeasibility;
+}
+
+export function assessOrderMaterialRequirements(params: {
+  requirements: { materialItemId: string; materialCode?: string; materialName: string; grade?: string; requiredQty: number; uom: string }[];
+  assignedSiteId: string;
+  lots: MaterialLot[];
+  storeLocations: StoreLocation[];
+  sites: Site[];
+  supplierPos: SupplierPO[];
+  supplierPoLines: SupplierPOLine[];
+}): {
+  items: OrderRequirementAssessment[];
+  overallStatus: 'available' | 'partially_available' | 'awaiting_procurement';
+  totalShortageLines: number;
+  totalReservableLines: number;
+} {
+  const items: OrderRequirementAssessment[] = params.requirements.map(req => {
+    const f = computeMaterialFeasibility({
+      materialItemId: req.materialItemId,
+      uom: req.uom,
+      requiredQty: req.requiredQty,
+      assignedSiteId: params.assignedSiteId,
+      lots: params.lots,
+      storeLocations: params.storeLocations,
+      sites: params.sites,
+      supplierPos: params.supplierPos,
+      supplierPoLines: params.supplierPoLines,
+    });
+    const toReserveQty = Math.min(req.requiredQty, f.available);
+    const shortageQty = Math.max(0, req.requiredQty - toReserveQty);
+    const outcome: OrderRequirementAssessment['outcome'] =
+      shortageQty <= 0 ? 'available' : toReserveQty > 0 ? 'partial' : 'unavailable';
+
+    return {
+      materialItemId: req.materialItemId,
+      materialCode: req.materialCode,
+      materialName: req.materialName,
+      grade: req.grade,
+      uom: req.uom,
+      requiredQty: req.requiredQty,
+      physicalOnHand: f.physicalOnHand,
+      reservedQty: f.reserved,
+      qcHoldQty: f.qcHold,
+      eligibleAvailableQty: f.available,
+      toReserveQty,
+      shortageQty,
+      incomingQty: f.incomingQty,
+      outcome,
+      feasibility: f,
+    };
+  });
+
+  const totalShortageLines = items.filter(i => i.shortageQty > 0).length;
+  const totalReservableLines = items.filter(i => i.toReserveQty > 0).length;
+  const overallStatus: 'available' | 'partially_available' | 'awaiting_procurement' =
+    totalShortageLines === 0
+      ? 'available'
+      : totalReservableLines > 0
+        ? 'partially_available'
+        : 'awaiting_procurement';
+
+  return { items, overallStatus, totalShortageLines, totalReservableLines };
+}

@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate, Link, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, CheckCircle, XCircle, FileText, Send, RotateCcw } from 'lucide-react';
+import { ArrowLeft, CheckCircle, XCircle, FileText, Send, RotateCcw, Copy } from 'lucide-react';
 import { useStore } from '../../store';
 import StatusChip from '../../components/layout/StatusChip';
-import type { CustomerPO, POLine } from '../../types';
+import type { CustomerPO, CustomerQuotation, CustomerQuotationLine, POLine } from '../../types';
 import DocumentActions from '../../components/workflow/DocumentActions';
+import RelatedRecordsPanel from '../../components/workflow/RelatedRecordsPanel';
+import { useReturnNavigation } from '../../hooks/useReturnNavigation';
 
 const fmt = (d: string) => d ? new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
 const fmtMoney = (n: number) => `₹${n.toLocaleString('en-IN')}`;
@@ -13,10 +15,16 @@ export default function QuotationDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { quotations, quotationLines, rfqs, customerPos, currentUser, updateQuotation, convertQuotationToPO, updateRfq, showToast } = useStore();
+  const { quotations, quotationLines, rfqs, customerPos, currentUser, updateQuotation, reviseQuotation, convertQuotationToPO, updateRfq, showToast } = useStore();
   const [confirming, setConfirming] = useState<'accept' | 'convert' | null>(null);
+  const [reviseModal, setReviseModal] = useState(false);
+  const [reviseDiscount, setReviseDiscount] = useState('0');
+  const [reviseNotes, setReviseNotes] = useState('');
 
   const quotation = quotations.find(q => q.id === id);
+  const rfq = rfqs.find(r => r.id === quotation?.rfqId);
+  const { goBack, originUrl } = useReturnNavigation(rfq ? `/sales/rfq/${rfq.id}` : '/sales?tab=rfqs');
+
   if (!quotation) return (
     <div className="p-8 text-center text-sm text-[var(--text-2)]">
       Quotation not found. <Link to="/sales" className="text-[var(--brand)] underline">Back to Sales</Link>
@@ -24,13 +32,45 @@ export default function QuotationDetail() {
   );
 
   const lines = quotationLines.filter(l => l.quotationId === quotation.id);
-  const rfq = rfqs.find(r => r.id === quotation.rfqId);
-  const existingPO = customerPos.find(p => (p as any).quotationRef === quotation.quotationNumber);
-  const returnTo = searchParams.get('from') || (rfq ? `/sales/rfq/${rfq.id}` : '/sales?tab=rfqs');
+  const parentQuote = quotation.parentQuotationId ? quotations.find(q => q.id === quotation.parentQuotationId) : undefined;
+  const childRevisions = quotations.filter(q => q.parentQuotationId === quotation.id);
+  const existingPO = customerPos.find(p => p.quotationId === quotation.id || (p as any).quotationRef === quotation.quotationNumber);
 
   const canSubmit = quotation.status === 'draft' && ['owner', 'sales'].includes(currentUser.role);
   const canAccept = quotation.status === 'submitted' && ['owner', 'sales'].includes(currentUser.role);
+  const canRevise = !['accepted', 'superseded'].includes(quotation.status) && !existingPO && ['owner', 'sales'].includes(currentUser.role);
   const canConvert = quotation.status === 'accepted' && !existingPO && ['owner', 'sales'].includes(currentUser.role);
+
+  const handleReviseQuotation = () => {
+    const nextRev = (quotation.revision ?? quotation.version ?? 1) + 1;
+    const baseNum = quotation.quotationNumber.replace(/-R\d+$/i, '');
+    const nextId = `qt-rev-${Date.now()}`;
+    const disc = Number(reviseDiscount) || 0;
+    const nextSubtotal = quotation.subtotal ?? lines.reduce((s, l) => s + l.value, 0);
+    const nextTotal = Math.max(0, Math.round(nextSubtotal - disc + (quotation.taxAmount ?? 0)));
+    const nextQ: CustomerQuotation = {
+      ...quotation,
+      id: nextId,
+      quotationNumber: `${baseNum}-R${nextRev}`,
+      parentQuotationId: quotation.id,
+      revision: nextRev,
+      version: nextRev,
+      status: 'submitted',
+      discountAmount: disc,
+      totalValue: nextTotal,
+      quotationDate: '2026-04-17',
+      notes: reviseNotes.trim() || quotation.notes,
+    };
+    const nextLines: CustomerQuotationLine[] = lines.map((l, i) => ({
+      ...l,
+      id: `${nextId}-l${i + 1}`,
+      quotationId: nextId,
+    }));
+    reviseQuotation(quotation.id, nextQ, nextLines);
+    setReviseModal(false);
+    showToast({ type: 'success', title: `Revision ${nextRev} issued`, body: `${nextQ.quotationNumber} supersedes ${quotation.quotationNumber}.` });
+    navigate(`/sales/quotation/${nextId}`, { state: { from: originUrl } });
+  };
 
   const handleSubmit = () => {
     updateQuotation(quotation.id, { status: 'submitted' });
@@ -98,7 +138,7 @@ export default function QuotationDetail() {
       <div className="flex-shrink-0 px-6 py-4 border-b" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-center gap-3">
-            <button onClick={() => navigate(returnTo)} className="p-1.5 rounded-lg hover:bg-[var(--surface-2)]">
+            <button onClick={() => goBack()} className="p-1.5 rounded-lg hover:bg-[var(--surface-2)]">
               <ArrowLeft size={18} className="text-[var(--text-2)]" />
             </button>
             <div>
@@ -113,7 +153,23 @@ export default function QuotationDetail() {
             </div>
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
-            <DocumentActions documentType="Customer Quotation" reference={quotation.quotationNumber} date={quotation.quotationDate} partyName={quotation.customerName} status={quotation.status} total={quotation.totalValue} lines={lines.map(l => ({ description: l.productName, quantity: l.orderedQty, uom: l.uom, amount: l.value }))} references={[`Originating RFQ: ${quotation.rfqNumber}`, `Revision: ${quotation.revision ?? 1}`]} />
+            <DocumentActions
+              documentType="Customer Quotation"
+              reference={quotation.quotationNumber}
+              date={quotation.quotationDate}
+              partyName={quotation.customerName}
+              status={quotation.status}
+              total={quotation.totalValue}
+              revision={quotation.revision ?? quotation.version ?? 1}
+              terms={[quotation.paymentTerms, quotation.deliveryTerms].filter((v): v is string => Boolean(v))}
+              notes={quotation.notes}
+              lines={lines.map(l => ({ description: l.productName, quantity: l.orderedQty, uom: l.uom, rate: l.unitPrice, amount: l.value }))}
+              references={[
+                quotation.isDirectQuotation ? 'Origin: Direct Quotation (no prior RFQ)' : quotation.rfqNumber ? `Originating RFQ: ${quotation.rfqNumber}` : '',
+                quotation.parentQuotationId ? `Revised from earlier version` : '',
+                `Revision: ${quotation.revision ?? quotation.version ?? 1}`,
+              ].filter(Boolean)}
+            />
             {canSubmit && (
               <button onClick={() => setConfirming('accept')} className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold border" style={{ borderColor: 'var(--brand)', color: 'var(--brand)' }}>
                 <Send size={14} /> Submit to Customer
@@ -124,6 +180,11 @@ export default function QuotationDetail() {
                 <CheckCircle size={14} /> Mark Accepted
               </button>
             )}
+            {canRevise && (
+              <button onClick={() => { setReviseDiscount(String(quotation.discountAmount ?? 0)); setReviseNotes(quotation.notes ?? ''); setReviseModal(true); }} className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold border border-[var(--border)] text-[var(--text)] hover:bg-[var(--surface-2)]">
+                <Copy size={14} /> Revise Quotation
+              </button>
+            )}
             {canConvert && (
               <button onClick={() => setConfirming('convert')} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white" style={{ background: 'var(--brand-fill)' }}>
                 <FileText size={14} /> Convert to Customer PO
@@ -132,23 +193,42 @@ export default function QuotationDetail() {
           </div>
         </div>
 
-        {rfq && (
-          <div className="mt-3 flex items-center gap-2 text-xs text-[var(--text-2)] bg-[var(--surface-2)] rounded-lg px-3 py-2 border" style={{ borderColor: 'var(--border)' }}>
-            <FileText size={12} className="text-[var(--text-3)]" />
-            <span>RFQ:</span>
-            <Link to={`/sales/rfq/${rfq.id}`} className="font-mono font-semibold text-[var(--brand)] hover:underline">{rfq.rfqNumber}</Link>
-            <span className="text-[var(--text-3)]">·</span>
-            <span>{rfq.customerName}</span>
-            <span className="text-[var(--text-3)]">·</span>
-            <span>Required by {fmt(rfq.requiredBy)}</span>
-          </div>
-        )}
+        <div className="mt-3">
+          <RelatedRecordsPanel
+            originNote={
+              quotation.isDirectQuotation
+                ? 'Origin: Direct Customer Quotation (created without prior RFQ)'
+                : parentQuote
+                  ? `Revision ${quotation.revision ?? quotation.version ?? 2} superseding ${parentQuote.quotationNumber}`
+                  : undefined
+            }
+            records={[
+              ...(rfq ? [{ relationship: 'Upstream' as const, typeLabel: 'Customer RFQ', reference: rfq.rfqNumber, to: `/sales/rfq/${rfq.id}`, status: rfq.status, state: { from: originUrl } }] : []),
+              ...(parentQuote ? [{ relationship: 'Upstream' as const, typeLabel: 'Prior Version', reference: `${parentQuote.quotationNumber} (Rev ${parentQuote.revision ?? 1})`, to: `/sales/quotation/${parentQuote.id}`, status: parentQuote.status, state: { from: originUrl } }] : []),
+              ...childRevisions.map(c => ({ relationship: 'Downstream' as const, typeLabel: 'Newer Revision', reference: `${c.quotationNumber} (Rev ${c.revision ?? 2})`, to: `/sales/quotation/${c.id}`, status: c.status, state: { from: originUrl } })),
+              ...(existingPO ? [{ relationship: 'Downstream' as const, typeLabel: 'Customer PO', reference: existingPO.poNumber, to: `/sales/po/${existingPO.id}`, status: existingPO.status, state: { from: originUrl } }] : []),
+            ]}
+          />
+        </div>
 
-        {existingPO && (
-          <div className="mt-2 flex items-center gap-2 text-xs bg-green-50 text-green-700 border border-green-200 rounded-lg px-3 py-2">
-            <CheckCircle size={12} />
-            <span>Converted to PO:</span>
-            <Link to={`/sales/po/${existingPO.id}`} className="font-mono font-semibold hover:underline">{existingPO.poNumber}</Link>
+        {reviseModal && (
+          <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+            <div className="bg-[var(--surface)] rounded-2xl border p-6 max-w-md w-full shadow-2xl space-y-4 border-[var(--border)]">
+              <h3 className="text-base font-bold text-[var(--text)]">Revise {quotation.quotationNumber}</h3>
+              <p className="text-xs text-[var(--text-2)]">Creates a new linked revision and marks {quotation.quotationNumber} as <span className="font-mono">superseded</span>.</p>
+              <div>
+                <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Revised Discount (₹)</label>
+                <input type="number" min={0} className="eoss-input w-full font-mono" value={reviseDiscount} onChange={e => setReviseDiscount(e.target.value)} />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Revision Summary / Notes</label>
+                <textarea className="eoss-input w-full" rows={2} value={reviseNotes} onChange={e => setReviseNotes(e.target.value)} />
+              </div>
+              <div className="flex gap-2 justify-end">
+                <button type="button" onClick={() => setReviseModal(false)} className="px-4 py-2 rounded-lg text-xs border border-[var(--border)]">Cancel</button>
+                <button type="button" onClick={handleReviseQuotation} className="btn-primary text-xs">Issue New Revision →</button>
+              </div>
+            </div>
           </div>
         )}
       </div>

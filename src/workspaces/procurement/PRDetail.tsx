@@ -1,11 +1,14 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
-  ArrowLeft, CheckCircle2, XCircle, Pencil, Plus,
+  ArrowLeft, CheckCircle2, XCircle, Pencil, Plus, Send, Sparkles,
   Scale, FileText, Truck, Award, Paperclip
 } from 'lucide-react';
 import { useStore } from '../../store';
 import StatusChip from '../../components/layout/StatusChip';
+import RelatedRecordsPanel from '../../components/workflow/RelatedRecordsPanel';
+import { compareAndRecommendQuotations } from '../../domain/quotationComparison';
+import { useReturnNavigation } from '../../hooks/useReturnNavigation';
 import type { SupplierQuotation } from '../../types';
 
 const fmt = (d?: string) => d ? new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
@@ -18,21 +21,27 @@ function quoteTotal(q: SupplierQuotation) {
     const base = l.lineTotal || qty * rate;
     const tax = l.taxPct ? base * (l.taxPct / 100) : 0;
     return sum + base + tax;
-  }, 0);
+  }, 0) + (q.taxAmount ?? 0) + (q.deliveryCharges ?? 0) - (q.discountAmount ?? 0);
 }
 
 export default function PRDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const {
-    purchaseReqs, supplierQuotations, supplierPos, grns, currentUser,
-    updatePurchaseReq, selectQuotation, generateSPOFromQuotation, showToast,
+    purchaseReqs, supplierQuotations, supplierInvitations, supplierPos, grns, suppliers, currentUser,
+    updatePurchaseReq, updateSupplierInvitation, selectQuotation,
+    approveFinalizeQuotation, rejectQuotationApproval, generateSPOFromQuotation, showToast,
   } = useStore();
+  const { goBack, originUrl } = useReturnNavigation('/procurement?tab=pr');
 
   const pr = purchaseReqs.find(p => p.id === id);
   const [confirming, setConfirming] = useState<'approve' | 'reject' | null>(null);
   const [rejectNote, setRejectNote] = useState('');
   const [showCompare, setShowCompare] = useState(true);
+  const [chosenQuoteId, setChosenQuoteId] = useState<string>('');
+  const [overrideReason, setOverrideReason] = useState('');
+  const [rejectQuoteModal, setRejectQuoteModal] = useState<SupplierQuotation | null>(null);
+  const [quoteRejectReason, setQuoteRejectReason] = useState('');
 
   if (!pr) {
     return (
@@ -48,12 +57,20 @@ export default function PRDetail() {
   const totalEstValue = lines.reduce((s, l) => s + (l.estimatedPrice ?? 0) * (l.requiredQty ?? 0), 0);
 
   const prQuotations = supplierQuotations.filter(q => q.prId === pr.id);
+  const prInvitations = supplierInvitations.filter(i => i.prId === pr.id);
   const selectedQuotation = prQuotations.find(q => q.status === 'selected');
-  const linkedSpo = supplierPos.find(s => s.prId === pr.id && s.status !== 'cancelled');
+  const linkedSpo = supplierPos.find(s => s.prId === pr.id && !['cancelled', 'supplier_declined'].includes(s.status));
   const linkedGrns = linkedSpo ? grns.filter(g => g.spoId === linkedSpo.id) : [];
 
   const minQuoteTotal = prQuotations.length > 0 ? Math.min(...prQuotations.map(quoteTotal)) : 0;
   const minDeliveryDays = prQuotations.length > 0 ? Math.min(...prQuotations.map(q => q.deliveryDays)) : 0;
+
+  const prComparison = useMemo(
+    () => (prQuotations.length >= 2 ? compareAndRecommendQuotations(pr, prQuotations, suppliers, supplierPos) : null),
+    [pr, prQuotations, suppliers, supplierPos],
+  );
+  const effectiveWinnerId = chosenQuoteId || selectedQuotation?.id || prComparison?.recommendedQuoteId || prQuotations[0]?.id || '';
+  const isOverridingRec = Boolean(prComparison?.recommendedQuoteId && effectiveWinnerId && effectiveWinnerId !== prComparison.recommendedQuoteId);
 
   const handleApprove = () => {
     updatePurchaseReq(pr.id, { status: 'approved' });
@@ -62,22 +79,38 @@ export default function PRDetail() {
   };
 
   const handleReject = () => {
-    updatePurchaseReq(pr.id, { status: 'cancelled' });
-    showToast({ type: 'info', title: 'PR Rejected', body: rejectNote || 'Requirement cancelled.' });
+    updatePurchaseReq(pr.id, { status: 'rejected' });
+    showToast({ type: 'info', title: 'PR Rejected', body: rejectNote || 'Requirement rejected.' });
     setConfirming(null);
   };
 
   const handleSelectQuote = (quoteId: string) => {
     if (linkedSpo) {
-      showToast({ type: 'warning', title: 'PO already issued', body: `Supplier PO ${linkedSpo.poNumber} has already been generated for ${pr.prNumber}.` });
+      showToast({ type: 'warning', title: 'PO already created', body: `Supplier PO ${linkedSpo.poNumber} is already linked to ${pr.prNumber}.` });
       return;
     }
-    selectQuotation(quoteId);
+    if (isOverridingRec && quoteId === effectiveWinnerId && !overrideReason.trim()) {
+      showToast({ type: 'warning', title: 'Override reason required', body: 'Please enter an override reason before approving a non-recommended quote.' });
+      return;
+    }
+    if (isOverridingRec && quoteId === effectiveWinnerId && overrideReason.trim()) {
+      selectQuotation(quoteId, overrideReason.trim());
+    }
+    approveFinalizeQuotation(quoteId, currentUser.name, overrideReason.trim() || undefined);
     const chosen = prQuotations.find(q => q.id === quoteId);
-    showToast({ type: 'success', title: 'Quotation finalized', body: `${chosen?.quoteNumber} (${chosen?.supplierName}) selected.` });
+    showToast({ type: 'success', title: 'Quotation finalized', body: `${chosen?.quoteNumber} (${chosen?.supplierName}) approved for PO.` });
   };
 
   const handleGenerateSpo = (quoteId: string) => {
+    const qObj = prQuotations.find(q => q.id === quoteId);
+    if (qObj && qObj.status !== 'selected') {
+      if (isOverridingRec && quoteId === effectiveWinnerId && !overrideReason.trim()) {
+        showToast({ type: 'warning', title: 'Override reason required', body: 'Please enter an override reason first.' });
+        return;
+      }
+      if (overrideReason.trim()) selectQuotation(quoteId, overrideReason.trim());
+      approveFinalizeQuotation(quoteId, currentUser.name, overrideReason.trim() || undefined);
+    }
     const res = generateSPOFromQuotation(quoteId);
     if (res.error && !res.spo) {
       showToast({ type: 'error', title: 'Cannot create Supplier PO', body: res.error });
@@ -87,7 +120,7 @@ export default function PRDetail() {
       showToast({ type: 'warning', title: 'Duplicate prevented', body: res.error });
     }
     if (res.spo) {
-      navigate(`/procurement/spo/${res.spo.id}`);
+      navigate(`/procurement/spo/${res.spo.id}`, { state: { from: originUrl } });
     }
   };
 
@@ -102,7 +135,7 @@ export default function PRDetail() {
     <div className="flex flex-col h-full overflow-auto">
       <div className="flex-shrink-0 px-6 py-4 border-b" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
         <div className="flex items-start gap-3 flex-wrap">
-          <button type="button" onClick={() => navigate('/procurement?tab=pr')} className="p-1.5 rounded-lg hover:bg-[var(--surface-2)] mt-0.5">
+          <button type="button" onClick={() => goBack()} className="p-1.5 rounded-lg hover:bg-[var(--surface-2)] mt-0.5">
             <ArrowLeft size={18} className="text-[var(--text-2)]" />
           </button>
           <div className="flex-1 min-w-[220px]">
@@ -156,7 +189,7 @@ export default function PRDetail() {
                 </button>
               </>
             )}
-            {!linkedSpo && pr.status !== 'cancelled' && (
+            {!linkedSpo && !['cancelled', 'rejected'].includes(pr.status) && (
               <Link
                 to={`/procurement/supplier-rfq/new?prId=${pr.id}`}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white"
@@ -192,6 +225,155 @@ export default function PRDetail() {
       </div>
 
       <div className="flex-1 overflow-auto p-6 space-y-6">
+        <RelatedRecordsPanel
+          originNote={
+            pr.sourceType === 'shortage' && pr.sourceRefLabel
+              ? `Origin: Auto-created from material shortage (${pr.sourceRefLabel})`
+              : pr.sourceType === 'manual'
+                ? 'Origin: Manual Purchase Requisition'
+                : undefined
+          }
+          records={[
+            ...(pr.sourceRefId && pr.sourceRefLabel
+              ? [{
+                  relationship: 'Origin' as const,
+                  typeLabel: pr.sourceType === 'shortage' ? 'Customer Order / Req' : 'Source Reference',
+                  reference: pr.sourceRefLabel,
+                  to: pr.sourceRefId.startsWith('cpo') ? `/sales/po/${pr.sourceRefId}` : pr.sourceRefId.startsWith('J-') ? `/jobs/${pr.sourceRefId}` : '/procurement?tab=pr',
+                  state: { from: originUrl },
+                }]
+              : []),
+            ...prInvitations.slice(0, 3).map(inv => ({
+              relationship: 'Downstream' as const,
+              typeLabel: 'Supplier Invitation',
+              reference: inv.supplierName,
+              to: inv.quotationId ? `/procurement/quote/${inv.quotationId}` : `/procurement/supplier-rfq/new?invitationId=${inv.id}`,
+              status: inv.status,
+              state: { from: originUrl },
+            })),
+            ...prQuotations.map(q => ({
+              relationship: 'Downstream' as const,
+              typeLabel: 'Supplier Quote',
+              reference: `${q.quoteNumber} · ${q.supplierName}`,
+              to: `/procurement/quote/${q.id}`,
+              status: q.status,
+              state: { from: originUrl },
+            })),
+            ...(linkedSpo
+              ? [{
+                  relationship: 'Downstream' as const,
+                  typeLabel: 'Supplier PO',
+                  reference: `${linkedSpo.poNumber} · ${linkedSpo.supplierName}`,
+                  to: `/procurement/spo/${linkedSpo.id}`,
+                  status: linkedSpo.status,
+                  state: { from: originUrl },
+                }]
+              : []),
+            ...linkedGrns.map(g => ({
+              relationship: 'Downstream' as const,
+              typeLabel: 'GRN',
+              reference: g.grnNumber,
+              to: `/procurement/grn/${g.id}`,
+              status: g.status,
+              state: { from: originUrl },
+            })),
+          ]}
+        />
+
+        {/* Supplier Invitations & RFQ Outreach */}
+        <div className="eoss-card p-5 space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h2 className="text-sm font-bold text-[var(--text)]">Supplier Quotation Invitations ({prInvitations.length})</h2>
+              <p className="text-xs text-[var(--text-3)]">
+                Match and invite suppliers for {pr.prNumber}, track responses, and record received quotations.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => navigate(`/procurement/supplier-rfq/new?mode=invite&pr=${pr.id}`, { state: { from: originUrl } })}
+                className="btn-primary text-xs inline-flex items-center gap-1.5"
+              >
+                <Send size={12} /> Invite Suppliers
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate(`/procurement/supplier-rfq/new?mode=quote&pr=${pr.id}`, { state: { from: originUrl } })}
+                className="btn-ghost text-xs inline-flex items-center gap-1.5"
+              >
+                <Plus size={12} /> Record Quote Manually
+              </button>
+            </div>
+          </div>
+
+          {prInvitations.length === 0 ? (
+            <p className="text-xs text-[var(--text-3)] py-2">
+              No supplier invitations dispatched for this PR yet. Click <strong>Invite Suppliers</strong> to select matched vendors and preview recipients.
+            </p>
+          ) : (
+            <div className="overflow-x-auto border border-[var(--border)] rounded-xl">
+              <table className="eoss-table">
+                <thead>
+                  <tr>
+                    <th>Supplier</th>
+                    <th>Match Basis</th>
+                    <th>Channel</th>
+                    <th>Sent / Due</th>
+                    <th>Status</th>
+                    <th className="text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {prInvitations.map(inv => (
+                    <tr key={inv.id}>
+                      <td>
+                        <div className="font-medium text-xs text-[var(--text)]">{inv.supplierName}</div>
+                        <div className="text-[11px] text-[var(--text-3)]">{inv.contactEmail ?? inv.contactName ?? ''}</div>
+                      </td>
+                      <td className="text-xs text-[var(--text-2)]">{inv.matchReason ?? 'Selected manually'}</td>
+                      <td className="text-xs uppercase text-[var(--text-2)]">{inv.channel}</td>
+                      <td className="text-xs text-[var(--text-2)]">
+                        {inv.sentDate ?? inv.createdAt} {inv.responseDueDate ? `· Due ${inv.responseDueDate}` : ''}
+                      </td>
+                      <td><StatusChip status={inv.status} /></td>
+                      <td className="text-right space-x-1.5">
+                        {['sent', 'awaiting_quotation'].includes(inv.status) && (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => navigate(`/procurement/supplier-rfq/new?invitationId=${inv.id}`, { state: { from: originUrl } })}
+                              className="px-2.5 py-1 rounded-lg bg-[var(--brand-fill)] text-white text-xs font-medium"
+                            >
+                              Record Quote
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => updateSupplierInvitation(inv.id, { status: 'declined' })}
+                              className="px-2 py-1 rounded-lg border border-[var(--border)] text-xs text-[var(--text-2)] hover:text-[var(--danger)]"
+                            >
+                              Declined
+                            </button>
+                          </>
+                        )}
+                        {inv.quotationId && (
+                          <Link
+                            to={`/procurement/quote/${inv.quotationId}`}
+                            state={{ from: originUrl }}
+                            className="text-xs text-[var(--brand)] hover:underline font-medium"
+                          >
+                            View Quote
+                          </Link>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
         {/* 1. Material Lines */}
         <section>
           <h2 className="text-sm font-bold text-[var(--text)] mb-3">Material Lines</h2>
@@ -243,7 +425,7 @@ export default function PRDetail() {
                   <Scale size={13} /> {showCompare ? 'Hide Comparison' : 'Compare Quotations'}
                 </button>
               )}
-              {!linkedSpo && pr.status !== 'cancelled' && (
+              {!linkedSpo && !['cancelled', 'rejected'].includes(pr.status) && (
                 <Link to={`/procurement/supplier-rfq/new?prId=${pr.id}`} className="btn-primary text-xs inline-flex items-center gap-1">
                   <Plus size={13} /> Add Quotation
                 </Link>
@@ -271,91 +453,159 @@ export default function PRDetail() {
                     <th className="text-right">Decision</th>
                   </tr>
                 </thead>
-                <tbody>
-                  {prQuotations.map(q => {
-                    const total = quoteTotal(q);
-                    const isLowest = prQuotations.length > 1 && total === minQuoteTotal && total > 0;
-                    const isFastest = prQuotations.length > 1 && q.deliveryDays === minDeliveryDays;
-                    return (
-                      <tr key={q.id}>
-                        <td>
-                          <Link to={`/procurement/quote/${q.id}`} className="font-mono text-xs font-bold text-[var(--brand)] hover:underline">
-                            {q.quoteNumber}
-                          </Link>
-                        </td>
-                        <td className="font-medium text-sm">{q.supplierName}</td>
-                        <td className="font-mono text-right font-semibold">
-                          {fmtMoney(total)}
-                          {isLowest && <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded bg-[var(--success-bg)] text-[var(--success)] font-sans font-semibold">Lowest</span>}
-                        </td>
-                        <td className="font-mono text-right text-xs">
-                          {q.deliveryDays}d
-                          {isFastest && <span className="ml-1 text-[10px] px-1.5 py-0.5 rounded bg-[var(--info-bg)] text-[var(--info)] font-sans font-semibold">Fastest</span>}
-                        </td>
-                        <td className="text-xs">{q.paymentTerms}</td>
-                        <td className="text-xs">{q.lines.some(l => l.freightIncluded === false) ? 'Extra' : 'Included'}</td>
-                        <td className="text-xs">{fmt(q.validUntil)}</td>
-                        <td><StatusChip status={q.status} size="sm" /></td>
-                        <td className="text-right">
-                          <div className="flex items-center justify-end gap-1.5">
-                            {q.status !== 'selected' && !linkedSpo && canApprove && (
-                              <button type="button" onClick={() => handleSelectQuote(q.id)} className="px-2.5 py-1 rounded border text-xs font-semibold border-[var(--brand)] text-[var(--brand)] hover:bg-[var(--brand)] hover:text-white transition-colors">
-                                Select
-                              </button>
-                            )}
-                            {q.status === 'selected' && !linkedSpo && canApprove && (
-                              <button type="button" onClick={() => handleGenerateSpo(q.id)} className="px-2.5 py-1 rounded text-xs font-semibold text-white" style={{ background: 'var(--success)' }}>
-                                Create SPO
-                              </button>
-                            )}
-                            <Link to={`/procurement/quote/${q.id}`} className="btn-ghost text-xs py-1 px-2">View</Link>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+            <tbody>
+              {prQuotations.map(q => {
+                const total = quoteTotal(q);
+                const isLowest = prQuotations.length > 1 && total === minQuoteTotal && total > 0;
+                const isFastest = prQuotations.length > 1 && q.deliveryDays === minDeliveryDays;
+                const isWinnerRadio = effectiveWinnerId === q.id;
+                return (
+                  <tr key={q.id}>
+                    <td>
+                      <div className="flex items-center gap-2">
+                        {!linkedSpo && prQuotations.length >= 2 && (
+                          <input
+                            type="radio"
+                            name="pr-winner-quote"
+                            checked={isWinnerRadio}
+                            onChange={() => setChosenQuoteId(q.id)}
+                          />
+                        )}
+                        <Link to={`/procurement/quote/${q.id}`} state={{ from: originUrl }} className="font-mono text-xs font-bold text-[var(--brand)] hover:underline">
+                          {q.quoteNumber}
+                        </Link>
+                      </div>
+                    </td>
+                    <td className="font-medium text-sm">
+                      {q.supplierName}
+                      {prComparison?.recommendedQuoteId === q.id && (
+                        <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 font-semibold">Recommended</span>
+                      )}
+                    </td>
+                    <td className="font-mono text-right font-semibold">
+                      {fmtMoney(total)}
+                      {isLowest && <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded bg-[var(--success-bg)] text-[var(--success)] font-sans font-semibold">Lowest</span>}
+                    </td>
+                    <td className="font-mono text-right text-xs">
+                      {q.deliveryDays}d
+                      {isFastest && <span className="ml-1 text-[10px] px-1.5 py-0.5 rounded bg-[var(--info-bg)] text-[var(--info)] font-sans font-semibold">Fastest</span>}
+                    </td>
+                    <td className="text-xs">{q.paymentTerms}</td>
+                    <td className="text-xs">{q.deliveryCharges ? `₹${q.deliveryCharges}` : q.lines.some(l => l.freightIncluded === false) ? 'Extra' : 'Included'}</td>
+                    <td className="text-xs">{fmt(q.validUntil)}</td>
+                    <td><StatusChip status={q.status} size="sm" /></td>
+                    <td className="text-right">
+                      <div className="flex items-center justify-end gap-1.5">
+                        {q.status !== 'selected' && !linkedSpo && canApprove && (
+                          <>
+                            <button type="button" onClick={() => handleSelectQuote(q.id)} className="px-2.5 py-1 rounded border text-xs font-semibold border-[var(--brand)] text-[var(--brand)] hover:bg-[var(--brand)] hover:text-white transition-colors">
+                              Approve Winner
+                            </button>
+                            <button type="button" onClick={() => { setRejectQuoteModal(q); setQuoteRejectReason(''); }} className="px-2 py-1 rounded border text-xs border-[var(--border)] text-[var(--text-2)] hover:text-red-600">
+                              Reject
+                            </button>
+                          </>
+                        )}
+                        {!linkedSpo && canApprove && (q.status === 'selected' || isWinnerRadio) && (
+                          <button type="button" onClick={() => handleGenerateSpo(q.id)} className="px-2.5 py-1 rounded text-xs font-semibold text-white" style={{ background: 'var(--success)' }}>
+                            Draft Supplier PO →
+                          </button>
+                        )}
+                        <Link to={`/procurement/quote/${q.id}`} state={{ from: originUrl }} className="btn-ghost text-xs py-1 px-2">View</Link>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
           )}
 
-          {showCompare && prQuotations.length >= 2 && (
-            <div className="rounded-xl border p-4 space-y-2 bg-[var(--surface-2)] border-[var(--border)]">
-              <div className="flex items-center gap-2 text-xs font-bold text-[var(--text)]">
-                <Scale size={14} className="text-[var(--brand)]" />
-                Side-by-Side Line Item Comparison ({prQuotations.length} Vendors)
+          {showCompare && prComparison && prComparison.valid && (
+            <div className="rounded-xl border p-4 space-y-3 bg-[var(--surface-2)] border-[var(--border)]">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2 text-xs font-bold text-[var(--text)]">
+                  <Sparkles size={14} className="text-emerald-600" />
+                  Side-by-Side Line Item Comparison & Recommendation ({prQuotations.length} Quotes)
+                </div>
+                {prComparison.recommendedQuoteId && (
+                  <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-emerald-700 text-white">
+                    Recommended: {prQuotations.find(q => q.id === prComparison.recommendedQuoteId)?.supplierName}
+                  </span>
+                )}
               </div>
-              <div className="overflow-x-auto">
+              <p className="text-xs text-[var(--text-2)]">{prComparison.recommendationSummary}</p>
+
+              {(prComparison.advantages.length > 0 || prComparison.disadvantages.length > 0 || prComparison.missingInfo.length > 0 || prComparison.warnings.length > 0) && (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-[11px] bg-[var(--surface)] p-3 rounded-lg border border-[var(--border)]">
+                  <div>
+                    <div className="font-semibold text-emerald-700">Advantages</div>
+                    <ul className="list-disc pl-4 text-[var(--text-2)]">{prComparison.advantages.map((a, i) => <li key={i}>{a}</li>)}</ul>
+                  </div>
+                  <div>
+                    <div className="font-semibold text-amber-700">Trade-offs</div>
+                    <ul className="list-disc pl-4 text-[var(--text-2)]">{prComparison.disadvantages.map((d, i) => <li key={i}>{d}</li>)}</ul>
+                  </div>
+                  <div>
+                    <div className="font-semibold text-red-700">Missing / Warnings</div>
+                    <ul className="list-disc pl-4 text-red-600">{[...prComparison.missingInfo, ...prComparison.warnings].map((w, i) => <li key={i}>{w}</li>)}</ul>
+                  </div>
+                </div>
+              )}
+
+              <div className="overflow-x-auto bg-[var(--surface)] rounded-lg border border-[var(--border)]">
                 <table className="w-full text-xs">
                   <thead>
-                    <tr className="border-b border-[var(--border)] text-[var(--text-3)] text-left">
-                      <th className="py-1.5 pr-3">Material</th>
+                    <tr className="border-b border-[var(--border)] text-[var(--text-3)] text-left bg-[var(--surface-2)]/60">
+                      <th className="py-2 px-3">Material / Req.</th>
                       {prQuotations.map(q => (
-                        <th key={q.id} className="py-1.5 px-3">
+                        <th key={q.id} className="py-2 px-3">
                           {q.supplierName} ({q.quoteNumber})
                         </th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
-                    {(lines.length > 0 ? lines.map(l => l.description || l.materialName) : Array.from(new Set(prQuotations.flatMap(q => q.lines.map(l => l.materialName))))).map((matName, idx) => (
-                      <tr key={idx} className="border-b border-[var(--border)]/60">
-                        <td className="py-2 pr-3 font-medium text-[var(--text)]">{matName}</td>
-                        {prQuotations.map(q => {
-                          const match = q.lines.find(l => l.materialName.toLowerCase() === matName.toLowerCase()) ?? q.lines[idx];
-                          if (!match) return <td key={q.id} className="py-2 px-3 text-[var(--text-3)]">—</td>;
-                          const rate = match.unitPrice ?? match.unitRate ?? 0;
-                          return (
-                            <td key={q.id} className="py-2 px-3 font-mono text-[var(--text)]">
-                              ₹{rate.toLocaleString('en-IN')}/{match.uom} × {match.quotedQty ?? match.orderedQty} = ₹{(match.lineTotal || 0).toLocaleString('en-IN')}
-                            </td>
-                          );
-                        })}
+                    {prComparison.rows.map(row => (
+                      <tr key={row.prLineId} className="border-b border-[var(--border)]/60">
+                        <td className="py-2 px-3">
+                          <div className="font-medium text-[var(--text)]">{row.materialName}</div>
+                          <div className="text-[11px] text-[var(--text-3)]">{row.requiredQty} {row.uom} {row.requiredGrade ? `· ${row.requiredGrade}` : ''}</div>
+                        </td>
+                        {row.cells.map(cell => (
+                          <td key={cell.quoteId} className="py-2 px-3 font-mono text-[var(--text)]">
+                            {cell.missing ? (
+                              <span className="text-red-600 font-sans font-semibold">Missing / Not Quoted</span>
+                            ) : (
+                              <div>
+                                ₹{cell.unitPrice.toLocaleString('en-IN')}/{row.uom} × {cell.quotedQty}
+                                {row.lowestUnitPrice === cell.unitPrice && <span className="ml-1 px-1 rounded bg-emerald-100 text-emerald-700 font-sans text-[10px]">Lowest</span>}
+                                {cell.qtyMismatch && <div className="text-amber-700 font-sans text-[10px]">Qty variance vs {row.requiredQty}</div>}
+                                {cell.gradeMismatch && <div className="text-amber-700 font-sans text-[10px]">Grade diff: {cell.grade}</div>}
+                              </div>
+                            )}
+                          </td>
+                        ))}
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
+
+              {isOverridingRec && !linkedSpo && canApprove && (
+                <div>
+                  <label className="block text-xs font-semibold text-amber-800 mb-1">
+                    Override Reason (required since chosen quote differs from system recommendation) *
+                  </label>
+                  <input
+                    className="eoss-input w-full"
+                    placeholder="Explain why a non-recommended quote is chosen…"
+                    value={overrideReason}
+                    onChange={e => setOverrideReason(e.target.value)}
+                  />
+                </div>
+              )}
             </div>
           )}
         </section>
@@ -475,11 +725,49 @@ export default function PRDetail() {
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="rounded-2xl border p-6 w-full max-w-sm shadow-xl" style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}>
             <h3 className="font-bold text-[var(--text)] mb-2">Reject PR?</h3>
-            <p className="text-sm text-[var(--text-2)] mb-3">This will cancel {pr.prNumber}.</p>
+            <p className="text-sm text-[var(--text-2)] mb-3">This will mark {pr.prNumber} rejected.</p>
             <textarea className="eoss-input w-full mb-4" rows={2} placeholder="Reason for rejection..." value={rejectNote} onChange={e => setRejectNote(e.target.value)} />
             <div className="flex gap-3">
               <button onClick={() => setConfirming(null)} className="flex-1 py-2 border border-[var(--border)] text-[var(--text)] rounded-lg text-sm">Cancel</button>
               <button onClick={handleReject} className="flex-1 py-2 text-white rounded-lg text-sm font-semibold" style={{ background: 'var(--error,#DC2626)' }}>Reject</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {rejectQuoteModal && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="rounded-2xl border p-6 w-full max-w-md shadow-xl space-y-4" style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}>
+            <div>
+              <h3 className="font-bold text-[var(--text)]">Reject Quotation {rejectQuoteModal.quoteNumber}?</h3>
+              <p className="text-xs text-[var(--text-2)] mt-1">
+                {rejectQuoteModal.supplierName} — recorded as <span className="font-mono">approval_rejected</span> with audit reason.
+              </p>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-[var(--text-2)] mb-1">Rejection Reason *</label>
+              <textarea
+                className="eoss-input w-full"
+                rows={3}
+                placeholder="e.g. Quoted grade does not match spec / delivery lead time exceeds schedule."
+                value={quoteRejectReason}
+                onChange={e => setQuoteRejectReason(e.target.value)}
+              />
+            </div>
+            <div className="flex gap-3">
+              <button onClick={() => setRejectQuoteModal(null)} className="flex-1 py-2 border border-[var(--border)] text-[var(--text)] rounded-lg text-sm">Cancel</button>
+              <button
+                disabled={!quoteRejectReason.trim()}
+                onClick={() => {
+                  rejectQuotationApproval(rejectQuoteModal.id, currentUser.name, quoteRejectReason.trim());
+                  showToast({ type: 'warning', title: 'Quotation Rejected', body: `${rejectQuoteModal.quoteNumber} rejected.` });
+                  setRejectQuoteModal(null);
+                }}
+                className="flex-1 py-2 text-white rounded-lg text-sm font-semibold disabled:opacity-40"
+                style={{ background: 'var(--error,#DC2626)' }}
+              >
+                Confirm Reject
+              </button>
             </div>
           </div>
         </div>

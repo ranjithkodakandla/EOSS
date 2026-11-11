@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link, useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, CheckCircle, XCircle, AlertTriangle, ShieldCheck } from 'lucide-react';
 import { useStore } from '../../store';
+import { useReturnNavigation } from '../../hooks/useReturnNavigation';
 import { DEMO_NOW } from '../../data/seed';
 import type { NCR, QualityRelease } from '../../types';
 import StatusChip from '../../components/layout/StatusChip';
@@ -13,6 +14,7 @@ export default function InspectionDetail() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { inspections, lots, grns, jobs, qualityReleases, currentUser, addNCR, linkNCRToInspection, updateInspection, completeIncomingInspection, addQualityRelease } = useStore();
+  const { goBack } = useReturnNavigation('/quality');
   const canRaiseNCR = ['owner', 'qc'].includes(currentUser.role);
   const canRelease = ['owner', 'qc'].includes(currentUser.role);
   const [recording, setRecording] = useState(false);
@@ -50,7 +52,7 @@ export default function InspectionDetail() {
   return (
     <div className="max-w-3xl mx-auto p-4 md:p-6">
       <div className="flex items-center gap-3 mb-5">
-        <button onClick={() => navigate('/quality')} className="text-[var(--text-3)] hover:text-[var(--text)]"><ArrowLeft size={16} /></button>
+        <button onClick={() => goBack()} className="text-[var(--text-3)] hover:text-[var(--text)]"><ArrowLeft size={16} /></button>
         <div>
           <div className="flex items-center gap-2">
             <h1 className="font-bold text-[var(--text)] font-mono">{ins.inspectionNumber}</h1>
