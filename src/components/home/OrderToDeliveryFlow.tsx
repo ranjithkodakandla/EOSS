@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FileText, ShoppingCart, Settings, ShieldCheck, Truck, ArrowRight, Workflow } from 'lucide-react';
+import { FileText, ShoppingCart, Settings, ShieldCheck, Truck, ArrowRight } from 'lucide-react';
 import { useStore } from '../../store';
 import {
   salesOrders, shortageItems, jobsInProgress, openInspections, dispatchesReady,
@@ -105,55 +105,31 @@ export default function OrderToDeliveryFlow() {
 
   return (
     <div
-      className="p-3 sm:p-4 rounded-2xl border shrink-0"
+      className="px-3 py-2 rounded-2xl border shrink-0 overflow-x-auto"
       style={{
         background: 'var(--card-gradient, linear-gradient(180deg, #FFFFFF 0%, #FAF9FE 100%))',
         borderColor: 'var(--border)',
-        boxShadow: '0 4px 20px -2px rgba(24, 27, 65, 0.06)',
+        boxShadow: '0 2px 10px -2px rgba(24, 27, 65, 0.05)',
       }}
     >
-      <div className="flex items-center gap-2 mb-3">
-        <div className="text-[var(--brand)] flex items-center justify-center">
-          <Workflow size={18} strokeWidth={2.5} />
-        </div>
-        <h2 className="text-base font-bold text-[var(--text)] tracking-tight">Order to Delivery</h2>
-      </div>
-
-      <div className="sm:hidden space-y-1.5">
-        {steps.map(step => (
-          <button
-            key={step.id}
-            type="button"
-            onClick={() => navigate(step.path)}
-            className="w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl border text-left"
-            style={{ background: step.bg, borderColor: step.borderColor }}
-          >
-            <span className="text-sm font-medium text-[var(--text)]">{step.name}</span>
-            <span className="text-sm font-bold whitespace-nowrap" style={{ color: step.countColor }}>{step.count}</span>
-          </button>
-        ))}
-      </div>
-
-      <div className="hidden sm:flex w-full items-center justify-between gap-2">
+      <div className="flex items-center justify-between gap-1.5 min-w-max sm:min-w-0">
         {steps.map((step, idx) => (
           <React.Fragment key={step.id}>
             <button
+              type="button"
               onClick={() => navigate(step.path)}
-              className="flex-shrink-0 sm:flex-1 min-w-[105px] sm:min-w-0 h-[72px] rounded-2xl border hover:-translate-y-0.5 group relative cursor-pointer flex flex-col items-center justify-between py-1.5 px-1.5 text-center"
-              style={{ background: step.bg, borderColor: step.borderColor, boxShadow: `0 3px 12px -2px ${step.glowColor}` }}
-              title={`View ${step.name} (${step.count})`}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-left hover:border-[var(--brand)] transition-colors flex-shrink-0 sm:flex-1"
+              style={{ background: step.bg, borderColor: step.borderColor }}
             >
-              {step.badge && <div className="absolute -top-1.5 -right-1.5 z-10">{step.badge.icon}</div>}
-              <div className="flex items-center justify-center pt-0.5">{step.icon}</div>
-              <div className="text-[10px] sm:text-[11px] font-medium text-[var(--text-2)] tracking-tight leading-tight whitespace-nowrap">{step.name}</div>
-              <div className={`${step.countSize || 'text-xs font-bold'} tracking-tight whitespace-nowrap leading-tight`} style={{ color: step.countColor }}>
+              <span className="flex-shrink-0">{step.icon}</span>
+              <span className="text-[11px] lg:text-xs font-semibold text-[var(--text)] whitespace-nowrap">{step.name}</span>
+              <span className="ml-auto pl-1 text-[11px] lg:text-xs font-bold whitespace-nowrap flex items-center gap-1" style={{ color: step.countColor }}>
                 {step.count}
-              </div>
+                {step.badge?.icon}
+              </span>
             </button>
             {idx < steps.length - 1 && (
-              <div className="flex-shrink-0 text-[var(--brand)] flex items-center justify-center px-0.5">
-                <ArrowRight size={14} strokeWidth={2.5} />
-              </div>
+              <ArrowRight size={13} className="flex-shrink-0 text-[var(--text-3)]" />
             )}
           </React.Fragment>
         ))}

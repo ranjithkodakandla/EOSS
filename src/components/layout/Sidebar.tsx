@@ -17,7 +17,7 @@ interface NavItem {
 
 const STATIC_NAV_ITEMS: NavItem[] = [
   { path: '/', label: 'Home', icon: <Home size={17} /> },
-  { path: '/procurement?tab=approvals', label: 'Waiting on me', icon: <CheckSquare size={17} /> },
+  { path: '/procurement?tab=approvals', label: 'Inbox', icon: <CheckSquare size={17} /> },
   { path: '/sales', label: 'Sales & Orders', icon: <ShoppingCart size={17} /> },
   { path: '/suppliers', label: 'Suppliers', icon: <Store size={17} /> },
   { path: '/procurement', label: 'Procurement', icon: <Package size={17} /> },

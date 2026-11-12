@@ -25,6 +25,10 @@ export default function Reports() {
   const inProgressJobs = jobs.filter(j => j.status === 'active').length;
   const passRate = Math.round((inspections.filter(i => i.result === 'pass').length / Math.max(inspections.filter(i => i.result !== 'pending').length, 1)) * 100);
   const assetUptime = Math.round(((assets.length - assets.filter(a => a.status === 'breakdown').length) / assets.length) * 100);
+  const fmtINRCompact = (n: number) => n >= 100000 ? `₹${(n / 100000).toFixed(1)} L` : n >= 1000 ? `₹${(n / 1000).toFixed(1)} K` : `₹${n}`;
+  const totalSales = invoices.filter(i => !['void', 'cancelled'].includes(i.status)).reduce((s, i) => s + i.totalAmount, 0);
+  const totalPurchases = supplierBills.filter(b => !['rejected', 'void'].includes(b.status)).reduce((s, b) => s + b.totalAmount, 0);
+  const totalProfit = totalSales - totalPurchases;
 
   return (
     <div className="p-4 md:p-6">
@@ -42,11 +46,13 @@ export default function Reports() {
       </div>
 
       {/* Headline KPIs */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-6 gap-3 mb-6">
         <KpiCard label="Jobs Completed" value={completedJobs} total={jobs.length} trend="up" />
         <KpiCard label="Quality Pass Rate" value={`${passRate}%`} trend={passRate >= 90 ? 'up' : passRate >= 75 ? 'flat' : 'down'} />
         <KpiCard label="Asset Uptime" value={`${assetUptime}%`} trend={assetUptime >= 95 ? 'up' : 'down'} />
         <KpiCard label="In-Progress Jobs" value={inProgressJobs} trend="flat" />
+        <KpiCard label="Purchases" value={fmtINRCompact(totalPurchases)} trend="flat" />
+        <KpiCard label="Profit" value={fmtINRCompact(Math.max(0, totalProfit))} trend={totalProfit > 0 ? 'up' : totalProfit < 0 ? 'down' : 'flat'} />
       </div>
 
       <div className="flex flex-wrap gap-2 mb-4">

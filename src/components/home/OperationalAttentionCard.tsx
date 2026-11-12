@@ -1,5 +1,8 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import {
+  AlertTriangle, Package, ClipboardCheck, FileText, MoreVertical, Clock,
+} from 'lucide-react';
 import { useStore } from '../../store';
 import RecordSheet from '../layout/RecordSheet';
 import {
@@ -8,31 +11,51 @@ import {
 } from '../../domain/attentionItems';
 import { DEMO_DATE } from '../../domain/recordLists';
 
-const PREVIEW = 7;
+const PREVIEW = 5;
 
-const DOT = {
-  critical: 'var(--error, #DC2626)',
-  watch: 'var(--warning, #D97706)',
-};
+function RowIcon({ stage, severity }: { stage: AttentionItem['stage']; severity: AttentionItem['severity'] }) {
+  const color = severity === 'critical' ? 'var(--error, #DC2626)' : 'var(--warning, #D97706)';
+  if (stage === 'Material') return <Package size={14} className="flex-shrink-0" style={{ color }} />;
+  if (stage === 'Inspection' || stage === 'Quality hold' || stage === 'Defect report') {
+    return <ClipboardCheck size={14} className="flex-shrink-0" style={{ color }} />;
+  }
+  if (stage === 'Shop floor' || stage === 'Machine') {
+    return <AlertTriangle size={14} className="flex-shrink-0" style={{ color }} />;
+  }
+  return <FileText size={14} className="flex-shrink-0" style={{ color }} />;
+}
+
+function splitRecordLink(text: string): { before: string; refId?: string; after: string } {
+  const m = text.match(/\b((?:J|DP)-\d+|(?:PR|INSP|NCR|SPO|GRN|LOT|ME)-\d+-[\w-]+)\b/);
+  if (!m || m.index == null) return { before: text, after: '' };
+  return {
+    before: text.slice(0, m.index),
+    refId: m[1],
+    after: text.slice(m.index + m[1].length),
+  };
+}
 
 function Row({ item, onHide }: { item: AttentionItem; onHide: () => void }) {
   const navigate = useNavigate();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const { before, refId, after } = splitRecordLink(item.text);
+
   return (
-    <div className="flex items-center gap-2 py-1.5 min-w-0">
-      <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: DOT[item.severity] }} />
-      <button
-        type="button"
-        onClick={() => navigate(item.recordPath)}
-        className="min-w-0 flex-1 text-left"
-      >
-        <span
-          className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-3)]"
-          title={item.code ? `${item.stage} (${item.code})` : item.stage}
-        >
-          {item.stage}
-        </span>
-        <span className="block text-[13px] font-medium text-[var(--text)] leading-snug truncate">{item.text}</span>
-      </button>
+    <div className="flex items-center gap-2 py-1.5 min-w-0 relative">
+      <RowIcon stage={item.stage} severity={item.severity} />
+      <div className="min-w-0 flex-1 text-[13px] text-[var(--text)] truncate">
+        <span>{before}</span>
+        {refId && (
+          <button
+            type="button"
+            onClick={() => navigate(item.recordPath)}
+            className="font-mono text-xs font-bold text-[var(--brand)] hover:underline"
+          >
+            {refId}
+          </button>
+        )}
+        <span>{after}</span>
+      </div>
       <button
         type="button"
         onClick={() => navigate(item.actionPath)}
@@ -41,14 +64,33 @@ function Row({ item, onHide }: { item: AttentionItem; onHide: () => void }) {
       >
         {item.actionLabel}
       </button>
-      <button
-        type="button"
-        onClick={onHide}
-        className="flex-shrink-0 text-[10px] font-medium text-[var(--text-3)] hover:text-[var(--text)]"
-        title="Hide until tomorrow"
-      >
-        Later
-      </button>
+      <div className="relative flex-shrink-0">
+        <button
+          type="button"
+          onClick={() => setMenuOpen(o => !o)}
+          className="p-1 rounded-md text-[var(--text-3)] hover:text-[var(--text)] hover:bg-[var(--surface-2)]"
+          aria-label="More actions"
+        >
+          <MoreVertical size={13} />
+        </button>
+        {menuOpen && (
+          <>
+            <div className="fixed inset-0 z-20" onClick={() => setMenuOpen(false)} />
+            <div
+              className="absolute right-0 mt-1 w-28 rounded-lg border shadow-lg z-30 py-1"
+              style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}
+            >
+              <button
+                type="button"
+                onClick={() => { setMenuOpen(false); onHide(); }}
+                className="w-full px-3 py-1.5 text-left text-xs text-[var(--text-2)] hover:bg-[var(--surface-2)] inline-flex items-center gap-1.5"
+              >
+                <Clock size={12} /> Later
+              </button>
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 }
@@ -75,7 +117,7 @@ export default function OperationalAttentionCard() {
     dispatches: store.dispatches,
     purchaseReqs: store.purchaseReqs,
     approvalRequests: store.approvalRequests,
-  }, now).filter(item => !isAttentionHidden(item.id, now));
+  }, now).filter(item => item.stage !== 'Approvals' && !isAttentionHidden(item.id, now));
   void hiddenTick;
 
   const hide = (id: string) => {
@@ -94,16 +136,14 @@ export default function OperationalAttentionCard() {
       className="p-3.5 rounded-2xl border flex flex-col h-full min-h-0"
       style={{ background: 'var(--card-gradient, var(--surface))', borderColor: 'var(--border)' }}
     >
-      <div className="flex items-baseline justify-between gap-2 mb-1.5">
+      <div className="flex items-center justify-between gap-2 mb-1.5">
         <div className="flex items-center gap-2">
           <h3 className="text-sm font-bold text-[var(--text)] tracking-tight">Today</h3>
-          {items.length > 0 && (
-            <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full" style={{ background: 'var(--surface-2)', color: 'var(--text-2)' }}>
-              {items.length}
-            </span>
-          )}
+          <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full" style={{ background: 'var(--surface-2)', color: 'var(--text-2)' }}>
+            {items.length}
+          </span>
         </div>
-        {items.length > PREVIEW && (
+        {items.length > 0 && (
           <button type="button" onClick={() => setShowAll(true)} className="text-[11px] font-semibold text-[var(--brand)] hover:underline">
             View all ({items.length})
           </button>
@@ -111,7 +151,7 @@ export default function OperationalAttentionCard() {
       </div>
 
       {items.length === 0 ? (
-        <p className="text-sm text-[var(--text-2)] py-2">Nothing is waiting on you right now.</p>
+        <p className="text-sm text-[var(--text-2)] py-2">Nothing needs attention right now.</p>
       ) : (
         <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
           {preview.map(item => (
@@ -129,14 +169,14 @@ export default function OperationalAttentionCard() {
         >
           <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
             {items.map(item => (
-              <div key={item.id} className="flex items-start gap-1">
+              <div key={item.id} className="flex items-center gap-1">
                 <div className="flex-1 min-w-0">
                   <Row item={item} onHide={() => hide(item.id)} />
                 </div>
                 <button
                   type="button"
                   onClick={() => done(item.id)}
-                  className="mt-3 text-[10px] font-medium text-[var(--text-3)] hover:text-[var(--text)]"
+                  className="text-[10px] font-medium text-[var(--text-3)] hover:text-[var(--text)] px-1"
                 >
                   Done
                 </button>

@@ -91,7 +91,7 @@ export default function HomeStrip() {
       departures.push({
         id: dsp.id,
         text: `${jobNo ?? dsp.dispatchNumber} · ${shortParty(dsp.customerName)} · ${dsp.totalQty} ${uom}`,
-        path: `/dispatch/${dsp.id}`,
+        path: job ? `/jobs/${job.id}` : `/dispatch/${dsp.id}`,
         tone: dispatchTone(dsp, job, now),
       });
     }
@@ -107,39 +107,66 @@ export default function HomeStrip() {
         tone: shipTone(job, now),
       });
     }
-    return { key, label: DAY[d.getDay()], today: key === today, departures: departures.slice(0, 3) };
+    return {
+      key,
+      label: DAY[d.getDay()],
+      today: key === today,
+      departures: departures.slice(0, 2),
+      extraCount: Math.max(0, departures.length - 2),
+    };
   });
 
   return (
     <section
-      className="h-full min-h-0 rounded-2xl border px-3 py-2.5 flex flex-col"
+      className="rounded-2xl border px-3 py-2 flex flex-col"
       style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}
     >
-      <p className="text-sm font-bold text-[var(--text)] mb-2 shrink-0">This week</p>
-      <div className="flex-1 min-h-0 grid grid-cols-3 sm:grid-cols-6 gap-2">
-        {days.map(day => (
-          <div
-            key={day.key}
-            className="min-h-0 rounded-xl border px-2 py-1.5 flex flex-col"
-            style={{
-              borderColor: day.today ? 'var(--brand)' : 'var(--border)',
-              background: day.today ? 'var(--surface-2)' : 'transparent',
-              boxShadow: day.today ? 'inset 0 0 0 1px var(--brand)' : undefined,
-            }}
-          >
-            <div className="text-[11px] font-bold text-[var(--text)] shrink-0">{day.label}</div>
-            <div className="flex-1 min-h-0 flex flex-col justify-center gap-1 mt-1 overflow-hidden">
+      <div className="flex items-center justify-between mb-1.5">
+        <p className="text-xs font-bold text-[var(--text)] uppercase tracking-wider">This week</p>
+      </div>
+      <div className="overflow-x-auto">
+        <div className="grid grid-cols-6 gap-2 min-w-[600px] md:min-w-0">
+          {days.map(day => (
+            <div
+              key={day.key}
+              className="rounded-xl border px-2 py-1.5 flex flex-col gap-1 min-h-[68px]"
+              style={{
+                borderColor: day.today ? 'var(--brand)' : 'var(--border)',
+                background: day.today ? 'var(--brand-soft)' : 'var(--surface-2)',
+              }}
+            >
+              <div className="flex items-center justify-between text-[11px] font-bold">
+                <span style={{ color: day.today ? 'var(--brand)' : 'var(--text-2)' }}>{day.label}</span>
+                {day.today && <span className="text-[9px] uppercase tracking-wider text-[var(--brand)]">Today</span>}
+              </div>
               {day.departures.length === 0 ? (
-                <span className="text-sm text-[var(--text-3)]">—</span>
-              ) : day.departures.map(item => (
-                <button key={item.id} type="button" onClick={() => navigate(item.path)} className="flex items-start gap-1.5 text-left min-w-0">
-                  <span className="mt-1 w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: item.tone === 'ok' ? 'var(--success, #16A34A)' : 'var(--warning, #D97706)' }} />
-                  <span className="text-[11px] leading-snug text-[var(--text)] line-clamp-2">{item.text}</span>
-                </button>
-              ))}
+                <span className="text-[11px] text-[var(--text-3)]">—</span>
+              ) : (
+                <div className="flex flex-col gap-1">
+                  {day.departures.map(dep => (
+                    <button
+                      key={dep.id}
+                      type="button"
+                      onClick={() => navigate(dep.path)}
+                      className="text-left text-[11px] font-medium px-1.5 py-0.5 rounded-md border truncate hover:border-[var(--brand)]"
+                      style={{
+                        background: 'var(--surface)',
+                        borderColor: dep.tone === 'risk' ? 'var(--warning-light, #FED7AA)' : 'var(--border)',
+                        color: 'var(--text)',
+                      }}
+                      title={dep.text}
+                    >
+                      {dep.text}
+                    </button>
+                  ))}
+                  {day.extraCount > 0 && (
+                    <span className="text-[10px] font-semibold text-[var(--text-3)] px-1">+{day.extraCount} more</span>
+                  )}
+                </div>
+              )}
             </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
     </section>
   );

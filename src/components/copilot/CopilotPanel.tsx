@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Send, ArrowRight, ChevronDown, ChevronUp, X } from 'lucide-react';
+import { Search, Send, ArrowRight, ChevronDown, ChevronUp, X, MessageSquare } from 'lucide-react';
 import { useStore } from '../../store';
 import { DEMO_NOW } from '../../data/seed';
 import { computeProductionStatus } from '../../domain/productionStatus';
@@ -16,6 +16,7 @@ interface AnswerItem {
 
 interface Props {
   isDrawer?: boolean;
+  compactTopBar?: boolean;
   onClose?: () => void;
 }
 
@@ -27,7 +28,7 @@ const SAMPLE_PROMPTS = [
   'Which documents are expiring?',
 ];
 
-export default function CopilotPanel({ onClose }: Props) {
+export default function CopilotPanel({ compactTopBar = false, onClose }: Props) {
   const navigate = useNavigate();
   const store = useStore();
   const [expanded, setExpanded] = useState(false);
@@ -151,9 +152,105 @@ export default function CopilotPanel({ onClose }: Props) {
     setExpanded(true);
   };
 
+  if (compactTopBar) {
+    return (
+      <div className="relative flex-1 max-w-xs hidden lg:block">
+        <form
+          onSubmit={e => { e.preventDefault(); submitQuery(); }}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border bg-[var(--surface)] focus-within:border-[var(--brand)] transition-colors"
+          style={{ borderColor: 'var(--border, #E5E0F5)' }}
+        >
+          <MessageSquare size={13} className="text-[var(--text-3)] flex-shrink-0" />
+          <input
+            type="text"
+            value={input}
+            onFocus={() => setExpanded(true)}
+            onChange={e => setInput(e.target.value)}
+            placeholder="Ask about late jobs, approvals, shortages…"
+            className="w-full bg-transparent text-xs outline-none text-[var(--text)] placeholder:text-[var(--text-3)]"
+          />
+        </form>
+
+        {expanded && (
+          <>
+            <div className="fixed inset-0 z-30" onClick={() => setExpanded(false)} />
+            <div
+              className="absolute left-0 right-0 mt-2 w-[420px] rounded-2xl border shadow-2xl z-40 p-3 space-y-2.5"
+              style={{ background: 'var(--surface)', borderColor: 'var(--border)', boxShadow: 'var(--shadow-elevated)' }}
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-[var(--text)]">Ask EOSS</span>
+                <button
+                  type="button"
+                  onClick={() => setExpanded(false)}
+                  className="text-[var(--text-3)] hover:text-[var(--text)]"
+                  aria-label="Close Ask panel"
+                >
+                  <X size={13} />
+                </button>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {SAMPLE_PROMPTS.map(prompt => (
+                  <button
+                    key={prompt}
+                    type="button"
+                    onClick={() => submitQuery(prompt)}
+                    className="px-2 py-0.5 rounded-full border text-[11px] font-medium hover:border-[var(--brand)] transition-colors"
+                    style={{ borderColor: 'var(--border)', background: 'var(--surface-2)', color: 'var(--text-2)' }}
+                  >
+                    {prompt}
+                  </button>
+                ))}
+              </div>
+              {history.length > 0 && (
+                <div className="space-y-2 max-h-60 overflow-y-auto">
+                  {history.map(item => (
+                    <div
+                      key={item.id}
+                      className="rounded-lg border p-2.5 text-xs space-y-1.5"
+                      style={{ borderColor: 'var(--border)', background: 'var(--surface-2)' }}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="font-semibold text-[var(--text)]">{item.question}</div>
+                        <button
+                          type="button"
+                          onClick={() => setHistory(prev => prev.filter(h => h.id !== item.id))}
+                          className="text-[var(--text-3)] hover:text-[var(--text)]"
+                          aria-label="Clear answer"
+                        >
+                          <X size={12} />
+                        </button>
+                      </div>
+                      <p className="text-[var(--text-2)] leading-relaxed">{item.answer}</p>
+                      {item.links.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5">
+                          {item.links.map(link => (
+                            <button
+                              key={link.path}
+                              type="button"
+                              onClick={() => { setExpanded(false); navigate(link.path); }}
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md border text-[11px] font-semibold"
+                              style={{ borderColor: 'var(--border)', background: 'var(--surface)', color: 'var(--brand)' }}
+                            >
+                              {link.label} <ArrowRight size={11} />
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div
-      className="rounded-xl border px-3.5 py-2.5 transition-all"
+      className="rounded-xl border px-3 py-1.5 transition-all"
       style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
     >
       <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">

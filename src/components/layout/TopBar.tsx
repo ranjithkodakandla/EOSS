@@ -4,6 +4,7 @@ import { Search, HelpCircle, ChevronDown, Check, X, Menu, Settings } from 'lucid
 import { useStore, type EOSSTheme } from '../../store';
 import NotificationDropdown from './NotificationDropdown';
 import GlobalSearchModal from '../search/GlobalSearchModal';
+import QuickNewMenu from './QuickNewMenu';
 import clsx from 'clsx';
 
 export default function TopBar({ onOpenMenu }: { onOpenMenu?: () => void }) {
@@ -93,10 +94,11 @@ export default function TopBar({ onOpenMenu }: { onOpenMenu?: () => void }) {
           </button>
         </div>
 
-        {/* Right: Theme Switcher, Notifications, Help & Avatar */}
-        <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+        {/* Right: + New, Theme Switcher, Notifications, Help & Avatar */}
+        <div className="flex items-center gap-1.5 sm:gap-2.5 flex-shrink-0">
+          <QuickNewMenu />
           {/* Theme Selector segmented pill for demo / review */}
-          <div className="relative">
+          <div className="relative hidden sm:block">
             <button
               onClick={() => setThemeMenuOpen(o => !o)}
               className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full border text-xs font-semibold bg-white text-[var(--text)] hover:border-[var(--brand)] transition-colors shadow-2xs cursor-pointer"

@@ -170,7 +170,7 @@ export function buildAttentionItems(src: AttentionSource, now = new Date(DEMO_NO
         rank: 2,
         text: `${job.jobNumber} short ${qtyLabel(gap)} ${req.uom} ${req.materialName} — ${existingPr.prNumber} (${prStatusLabel})`,
         recordPath: `/procurement/pr/${existingPr.id}`,
-        actionLabel: 'Open PR',
+        actionLabel: 'Open',
         actionPath: `/procurement/pr/${existingPr.id}`,
       });
     } else {

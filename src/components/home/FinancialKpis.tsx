@@ -53,7 +53,7 @@ export default function FinancialKpis() {
       id: 'sales',
       label: 'Sales',
       value: fmt(totalSales),
-      trend: totalSales > 0 ? '↑ invoiced' : undefined,
+      subtext: `${activeUnifiedInvs.length} invoices`,
       icon: <TrendingUp size={15} strokeWidth={2.5} />,
       iconBg: 'linear-gradient(135deg, #DCFCE7 0%, #BBF7D0 100%)',
       iconColor: '#16A34A',
@@ -61,31 +61,10 @@ export default function FinancialKpis() {
       path: '/sales',
     },
     {
-      id: 'purchases',
-      label: 'Purchases',
-      value: fmt(totalPurchases),
-      trend: totalPurchases > 0 ? '↑ invoiced' : undefined,
-      icon: <ShoppingCart size={15} strokeWidth={2.5} />,
-      iconBg: 'linear-gradient(135deg, #F3E8FF 0%, #E9D5FF 100%)',
-      iconColor: '#9333EA',
-      iconGlow: 'rgba(147, 51, 234, 0.25)',
-      path: '/procurement',
-    },
-    {
-      id: 'stock',
-      label: 'Stock Value',
-      value: fmt(stockValue),
-      icon: <Box size={15} strokeWidth={2.5} />,
-      iconBg: 'linear-gradient(135deg, #FFEDD5 0%, #FED7AA 100%)',
-      iconColor: '#EA580C',
-      iconGlow: 'rgba(234, 88, 12, 0.25)',
-      path: '/inventory',
-    },
-    {
       id: 'receivables',
       label: 'Receivables',
       value: fmt(totalReceivables),
-      subtext: `(${unpaidIn.length} invoices)`,
+      subtext: `${unpaidIn.length} open`,
       icon: <Users size={15} strokeWidth={2.5} />,
       iconBg: 'linear-gradient(135deg, #DBEAFE 0%, #BFDBFE 100%)',
       iconColor: '#2563EB',
@@ -96,7 +75,7 @@ export default function FinancialKpis() {
       id: 'payables',
       label: 'Payables',
       value: fmt(totalPayables),
-      subtext: dueInWeek > 0 ? `(${dueInWeek} due this week)` : undefined,
+      subtext: dueInWeek > 0 ? `${dueInWeek} due this week` : `${openUnifiedBills.length} open bills`,
       icon: <FileText size={15} strokeWidth={2.5} />,
       iconBg: 'linear-gradient(135deg, #FEE2E2 0%, #FECACA 100%)',
       iconColor: '#DC2626',
@@ -104,25 +83,25 @@ export default function FinancialKpis() {
       path: dueInWeek > 0 ? '/finance?tab=payables&due=week' : '/finance?tab=payables&open=1',
     },
     {
-      id: 'profit',
-      label: 'Profit',
-      value: fmt(Math.max(0, profit)),
-      trend: profit > 0 ? `↑ margin` : profit < 0 ? '↓ loss' : undefined,
-      icon: <Coins size={15} strokeWidth={2.5} />,
-      iconBg: 'linear-gradient(135deg, #FEF3C7 0%, #FDE68A 100%)',
-      iconColor: '#D97706',
-      iconGlow: 'rgba(217, 119, 6, 0.25)',
-      path: '/finance?tab=overview',
+      id: 'stock',
+      label: 'Stock Value',
+      value: fmt(stockValue),
+      subtext: `${inventory.length} stock items`,
+      icon: <Box size={15} strokeWidth={2.5} />,
+      iconBg: 'linear-gradient(135deg, #FFEDD5 0%, #FED7AA 100%)',
+      iconColor: '#EA580C',
+      iconGlow: 'rgba(234, 88, 12, 0.25)',
+      path: '/inventory',
     },
   ];
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-2">
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
       {kpis.map(kpi => (
         <button
           key={kpi.id}
           onClick={() => navigate(kpi.path)}
-          className="text-left px-2.5 py-2 rounded-2xl border transition-all duration-150 hover:-translate-y-0.5 group flex items-start gap-2 cursor-pointer min-w-0"
+          className="text-left px-3 py-2.5 rounded-2xl border transition-all duration-150 hover:-translate-y-0.5 group flex items-center gap-2.5 cursor-pointer min-w-0"
           style={{
             background: 'var(--card-gradient, linear-gradient(180deg, #FFFFFF 0%, #FAF9FE 100%))',
             borderColor: 'var(--border, #E5E0F5)',
@@ -132,7 +111,7 @@ export default function FinancialKpis() {
         >
           {/* Left Icon with Glossy Squircle Pill */}
           <div
-            className="w-7 h-7 rounded-xl flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform mt-0.5"
+            className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform"
             style={{
               background: kpi.iconBg,
               color: kpi.iconColor,
