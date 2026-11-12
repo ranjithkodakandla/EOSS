@@ -5,6 +5,7 @@ import AppShell from './components/layout/AppShell';
 import OnboardingGuard from './components/layout/OnboardingGuard';
 import { sheetParent } from './components/layout/sheetRoutes';
 import Home from './workspaces/home/Home';
+import Inbox from './workspaces/inbox/Inbox';
 import Sales from './workspaces/sales/Sales';
 import SalesPODetail from './workspaces/sales/PODetail';
 import RFQCreate from './workspaces/sales/RFQCreate';
@@ -73,6 +74,8 @@ function Background({ pathname }: { pathname: string }) {
   return (
     <Routes location={{ pathname: backgroundPathname, search: backgroundQuery ? `?${backgroundQuery}` : '', hash: '', state: null, key: 'bg' }}>
       <Route index element={<Home />} />
+      <Route path="inbox" element={<Inbox />} />
+      <Route path="inbox/:messageId" element={<Inbox />} />
       <Route path="sales" element={<Sales />} />
       <Route path="sales/customers" element={<Navigate to="/sales?tab=customers" replace />} />
       <Route path="suppliers" element={<Suppliers />} />
@@ -145,6 +148,8 @@ export default function App() {
       <Route element={<OnboardingGuard><AppShell /></OnboardingGuard>}>
         <Route element={<SheetLayout />}>
           <Route index element={<Home />} />
+          <Route path="inbox" element={<Inbox />} />
+          <Route path="inbox/:messageId" element={<Inbox />} />
           <Route path="sales" element={<Sales />} />
           <Route path="sales/rfq/new" element={<RFQCreate />} />
           <Route path="sales/rfq/:id" element={<RFQDetail />} />

@@ -14,7 +14,9 @@ import type {
   MeterReading, QualityRelease, InspectionTemplate, StageTemplate,
   JobMaterialReq, JobBlocker, SupplierPOLine, POAmendment, SupplierInvitation,
   Party, SupplierBill, SupplierBillLine, SupplierPayment, SupplierPaymentAllocation,
+  InboxMessage, InboxMessageStatus,
 } from '../types';
+import { SEED_INBOX_MESSAGES } from '../data/inboxSeed';
 import { stampPlaces } from '../domain/places';
 import { assessOrderMaterialRequirements } from '../domain/materialFeasibility';
 import { createAuditEventRecord, diffRecordFields } from '../domain/audit';
@@ -103,6 +105,7 @@ interface EOSSState {
   dispatches: Dispatch[];
   documents: VaultDocument[];
   approvalRequests: ApprovalRequest[];
+  inboxMessages: InboxMessage[];
   pulseExceptions: PulseException[];
   customerPos: CustomerPO[];
   supplierPos: SupplierPO[];
@@ -193,6 +196,12 @@ interface EOSSState {
   // Approval actions
   resolveApproval: (aprId: string, resolution: 'approved' | 'rejected', by: string, notes?: string) => void;
   addApprovalRequest: (request: ApprovalRequest) => void;
+
+  // Inbox actions
+  markInboxMessageRead: (messageId: string, read?: boolean) => void;
+  archiveInboxMessage: (messageId: string, archived?: boolean) => void;
+  replyToInboxMessage: (messageId: string, body: string) => void;
+  completeInboxAction: (messageId: string, outcome: 'approved' | 'rejected' | 'confirmed' | 'completed', notes?: string) => void;
 
   // Document actions
   addDocument: (doc: VaultDocument) => void;
@@ -544,6 +553,146 @@ function applyReleasedStockLocation(params: {
   return { inventory, targetStoreId, targetStoreName };
 }
 
+/** When newly accepted inventory becomes available, recalculate originating Customer POs & Jobs awaiting procurement. */
+function reconcilePendingOrdersOnStockAccepted(params: {
+  customerPos: CustomerPO[];
+  jobs: Job[];
+  jobMaterialReqs: JobMaterialReq[];
+  poLines: POLine[];
+  materials: MaterialItem[];
+  lots: MaterialLot[];
+  storeLocations: StoreLocation[];
+  sites: Site[];
+  supplierPos: SupplierPO[];
+  supplierPoLines: SupplierPOLine[];
+  purchaseReqs: PurchaseRequisition[];
+  acceptedMaterialItemId?: string;
+  actor: string;
+  actorId: string;
+  role: RoleKey;
+  timestamp: string;
+}): {
+  customerPos: CustomerPO[];
+  jobs: Job[];
+  jobMaterialReqs: JobMaterialReq[];
+  auditEvents: AuditEvent[];
+} {
+  let customerPos = [...params.customerPos];
+  let jobs = [...params.jobs];
+  let jobMaterialReqs = [...params.jobMaterialReqs];
+  const auditEvents: AuditEvent[] = [];
+
+  const candidatePos = customerPos.filter(
+    po => po.availabilityStatus === 'partially_available' || po.availabilityStatus === 'awaiting_procurement'
+  );
+
+  for (const po of candidatePos) {
+    const linkedJobs = jobs.filter(j => j.customerPoId === po.id || j.customerPoNumber === po.poNumber);
+    const targetJob = linkedJobs[0];
+    const jobReqs = targetJob ? jobMaterialReqs.filter(r => r.jobId === targetJob.id) : [];
+    const siteId = targetJob?.siteId ?? po.deliverToSiteId ?? params.sites[0]?.id ?? 'site-hyd';
+
+    const reqInputs = jobReqs.length > 0
+      ? jobReqs.map(r => {
+          const mat = params.materials.find(m => m.id === r.materialItemId);
+          return {
+            materialItemId: r.materialItemId,
+            materialCode: mat?.itemCode,
+            materialName: r.materialName,
+            grade: mat?.standardGrade,
+            requiredQty: Math.max(0, r.requiredQty - r.reservedQty),
+            uom: r.uom,
+          };
+        }).filter(x => x.requiredQty > 0)
+      : params.poLines.filter(l => l.poId === po.id).map(l => {
+          const mat = params.materials.find(m =>
+            l.description.toLowerCase().includes(m.name.toLowerCase())
+            || (l.description.toLowerCase().includes('pipe') && m.id === 'mat-msp')
+            || (l.description.toLowerCase().includes('8mm') && m.id === 'mat-ms8')
+            || (l.description.toLowerCase().includes('12mm') && m.id === 'mat-ms12')
+            || (l.description.toLowerCase().includes('304l') && m.id === 'mat-ss3')
+          );
+          return mat ? {
+            materialItemId: mat.id,
+            materialCode: mat.itemCode,
+            materialName: mat.name,
+            grade: mat.standardGrade,
+            requiredQty: l.orderedQty,
+            uom: l.uom || mat.primaryUom,
+          } : null;
+        }).filter((x): x is NonNullable<typeof x> => Boolean(x));
+
+    if (reqInputs.length === 0) continue;
+    if (params.acceptedMaterialItemId && !reqInputs.some(r => r.materialItemId === params.acceptedMaterialItemId)) {
+      continue;
+    }
+
+    const assessment = assessOrderMaterialRequirements({
+      requirements: reqInputs,
+      assignedSiteId: siteId,
+      lots: params.lots,
+      storeLocations: params.storeLocations,
+      sites: params.sites,
+      supplierPos: params.supplierPos,
+      supplierPoLines: params.supplierPoLines,
+    });
+
+    const nextAvailability = assessment.overallStatus;
+    const nextJobReadiness: Job['materialReadiness'] = nextAvailability === 'available'
+      ? 'ready'
+      : nextAvailability === 'partially_available'
+        ? 'partial'
+        : 'awaiting_procurement';
+
+    if (nextAvailability !== po.availabilityStatus) {
+      const prev = po.availabilityStatus ?? 'awaiting_procurement';
+      customerPos = customerPos.map(c => c.id === po.id ? { ...c, availabilityStatus: nextAvailability } : c);
+      auditEvents.push(createAuditEventRecord({
+        actor: params.actor,
+        actorId: params.actorId,
+        role: params.role,
+        module: 'Sales',
+        scope: 'CustomerPO',
+        action: 'recalculate_readiness',
+        entityId: po.id,
+        entityRef: po.poNumber,
+        timestamp: params.timestamp,
+        description: `Recalculated material readiness for ${po.poNumber} after accepted inventory became available (${prev} → ${nextAvailability}).`,
+        changes: [{ field: 'availabilityStatus', label: 'Material Availability', previousValue: prev, newValue: nextAvailability }],
+      }));
+    }
+
+    if (targetJob && targetJob.materialReadiness !== nextJobReadiness) {
+      const prevReadiness = targetJob.materialReadiness;
+      jobs = jobs.map(j => j.id === targetJob.id ? {
+        ...j,
+        materialReadiness: nextJobReadiness,
+        hasBlocker: nextJobReadiness === 'ready' ? false : j.hasBlocker,
+      } : j);
+      jobMaterialReqs = jobMaterialReqs.map(r => {
+        if (r.jobId !== targetJob.id) return r;
+        const itemAssess = assessment.items.find(i => i.materialItemId === r.materialItemId);
+        return itemAssess ? { ...r, shortage: itemAssess.shortageQty > 0 } : r;
+      });
+      auditEvents.push(createAuditEventRecord({
+        actor: params.actor,
+        actorId: params.actorId,
+        role: params.role,
+        module: 'Production',
+        scope: 'Job',
+        action: 'recalculate_readiness',
+        entityId: targetJob.id,
+        entityRef: targetJob.jobNumber,
+        timestamp: params.timestamp,
+        description: `Updated ${targetJob.jobNumber} material readiness from ${prevReadiness} to ${nextJobReadiness} upon QC inventory acceptance.`,
+        changes: [{ field: 'materialReadiness', label: 'Material Readiness', previousValue: prevReadiness, newValue: nextJobReadiness }],
+      }));
+    }
+  }
+
+  return { customerPos, jobs, jobMaterialReqs, auditEvents };
+}
+
 // Everything the demo scenario seeds — rebuilt fresh on first load AND on an
 // explicit "Reset Demo Data". Kept as one function so both call sites can
 // never drift apart.
@@ -588,6 +737,7 @@ function buildSeed() {
     dispatches: [...DISPATCHES, ...FLAGSHIP_DISPATCHES, ...DISPATCHES_DEMO, ...DEMO_SALES_DISPATCHES],
     documents: [...VAULT_DOCUMENTS, ...VAULT_DOCUMENTS_DEMO],
     approvalRequests: [...APPROVAL_REQUESTS],
+    inboxMessages: [...SEED_INBOX_MESSAGES],
     pulseExceptions: [...PULSE_EXCEPTIONS],
     customerPos: [...CUSTOMER_POS, FLAGSHIP_PO, ...CUSTOMER_POS_DEMO, ...DEMO_SALES_POS],
     supplierPos: [...SUPPLIER_POS, ...SUPPLIER_POS_DEMO, ...DEMO_SUPPLIER_POS],
@@ -1014,8 +1164,31 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
         rejectedQty,
       });
       const grnStillHasHold = lot.grnId ? updatedLots.some(l => l.grnId === lot.grnId && l.status === 'qc_hold') : false;
+      const reconciled = decision === 'available'
+        ? reconcilePendingOrdersOnStockAccepted({
+            customerPos: s.customerPos,
+            jobs: s.jobs,
+            jobMaterialReqs: s.jobMaterialReqs,
+            poLines: s.poLines,
+            materials: s.materials,
+            lots: updatedLots,
+            storeLocations: s.storeLocations,
+            sites: s.sites,
+            supplierPos: s.supplierPos,
+            supplierPoLines: s.supplierPoLines,
+            purchaseReqs: s.purchaseReqs,
+            acceptedMaterialItemId: lot.materialItemId,
+            actor: by,
+            actorId: s.currentUser.id,
+            role: s.currentUser.role,
+            timestamp,
+          })
+        : { customerPos: s.customerPos, jobs: s.jobs, jobMaterialReqs: s.jobMaterialReqs, auditEvents: [] };
       return {
         lots: updatedLots,
+        customerPos: reconciled.customerPos,
+        jobs: reconciled.jobs,
+        jobMaterialReqs: reconciled.jobMaterialReqs,
         grns: decision === 'available' && lot.grnId && !grnStillHasHold
           ? s.grns.map(g => g.id === lot.grnId && (g.status === 'qc_hold' || g.status === 'pending_qc') ? { ...g, status: 'accepted' as const } : g)
           : s.grns,
@@ -1042,7 +1215,7 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
           description: `${lot.lotNumber} (${lot.materialName}, ${qty} ${lot.primaryUom}) released from QC Hold to ${decision === 'available' ? relocated.targetStoreName : 'Quarantine Scrap'}`,
           reason,
           after: { status: decision, qty, storeLocationName: decision === 'available' ? relocated.targetStoreName : lot.storeLocationName },
-        })],
+        }), ...reconciled.auditEvents],
       };
     });
     get().showToast({
@@ -1286,12 +1459,101 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
           ? { ...n, read: true }
           : n
       );
+
+      let updatedSupplierPos = request.requestType === 'Supplier PO Approval'
+        ? s.supplierPos.map(spo => spo.id === request.entityId ? {
+            ...spo,
+            status: resolution === 'approved' ? 'confirmed' as const : 'draft' as const,
+          } : spo)
+        : s.supplierPos;
+
+      let updatedSupplierPoLines = s.supplierPoLines;
+      const extraChanges: { field: string; label: string; previousValue: string; newValue: string }[] = [];
+
+      // Specific revision handling for SPO-2024-002 quantity reduction (300 -> 200 kg)
+      if (request.id === 'apr-001' && resolution === 'approved') {
+        const prevSpo = s.supplierPos.find(p => p.id === 'spo-002');
+        updatedSupplierPos = updatedSupplierPos.map(spo => spo.id === 'spo-002' ? {
+          ...spo,
+          status: 'confirmed' as const,
+          totalValue: 36000,
+          committedDate: '2026-11-10',
+          confirmedDate: timestamp.slice(0, 10),
+        } : spo);
+        updatedSupplierPoLines = s.supplierPoLines.map(line => line.spoId === 'spo-002' ? {
+          ...line,
+          orderedQty: 200,
+          value: 200 * line.rate,
+          committedDate: '2026-11-10',
+        } : line);
+        if (prevSpo) {
+          extraChanges.push(
+            { field: 'totalValue', label: 'Order Value', previousValue: `₹${prevSpo.totalValue.toLocaleString('en-IN')}`, newValue: '₹36,000' },
+            { field: 'orderedQty', label: 'Ordered Qty', previousValue: '300 kg', newValue: '200 kg' },
+            { field: 'committedDate', label: 'Committed Date', previousValue: prevSpo.committedDate, newValue: '2026-11-10' },
+          );
+        }
+      }
+
+      // Stock adjustment approval (e.g. apr-002 cycle count variance on inv-008)
+      let updatedInventory = s.inventory;
+      let updatedMovements = s.movements;
+      if (request.requestType === 'Stock Adjustment' && resolution === 'approved') {
+        const invItem = s.inventory.find(i => i.id === request.entityId);
+        if (invItem) {
+          const targetQty = request.id === 'apr-002' ? 120 : Math.max(0, invItem.onHandQty);
+          const diff = targetQty - invItem.onHandQty;
+          updatedInventory = s.inventory.map(i => i.id === invItem.id ? {
+            ...i,
+            onHandQty: targetQty,
+            availableQty: Math.max(0, targetQty - i.reservedQty - i.qcHoldQty),
+            shortage: Math.max(0, targetQty - i.reservedQty - i.qcHoldQty) < i.reorderPoint,
+          } : i);
+          updatedMovements = [...s.movements, {
+            id: `sm-adj-${Date.now()}`,
+            lotId: '',
+            movementType: 'Adjustment',
+            primaryQty: Math.abs(diff),
+            uom: invItem.primaryUom,
+            fromLocation: invItem.locationName,
+            toLocation: 'Cycle Count Write-off',
+            referenceType: 'Cycle Count',
+            referenceId: invItem.id,
+            referenceNumber: invItem.materialCode,
+            performedBy: by,
+            timestamp,
+            notes: notes || request.description,
+          }];
+          extraChanges.push({
+            field: 'onHandQty',
+            label: 'On-Hand Qty',
+            previousValue: `${invItem.onHandQty} ${invItem.primaryUom}`,
+            newValue: `${targetQty} ${invItem.primaryUom}`,
+          });
+        }
+      }
+
+      const updatedInboxMessages = s.inboxMessages.map(msg =>
+        msg.approvalRequestId === aprId
+          ? {
+              ...msg,
+              read: true,
+              actionCompleted: true,
+              actionOutcome: resolution,
+              status: 'action_completed' as InboxMessageStatus,
+            }
+          : msg
+      );
+
       return {
         approvalRequests: s.approvalRequests.map(a =>
           a.id !== aprId ? a : { ...a, status: resolution, approvedBy: by, notes, decisionAt: timestamp }),
         pulseExceptions: s.pulseExceptions.filter(pe => pe.affectedId !== aprId && pe.affectedId !== request.entityId),
         notifications: updatedNotifications,
         unreadCount: updatedNotifications.filter(n => !n.read).length,
+        inboxMessages: updatedInboxMessages,
+        inventory: updatedInventory,
+        movements: updatedMovements,
         customerPos: request.requestType === 'Customer PO Credit Limit Approval'
           ? s.customerPos.map(po => po.id === request.entityId ? { ...po, status: resolution === 'approved' ? 'active' as const : 'on_hold' as const } : po)
           : s.customerPos,
@@ -1305,30 +1567,182 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
                 : { approvedBy: by, approvedAt: timestamp }),
             } : pr)
           : s.purchaseReqs,
-        supplierPos: request.requestType === 'Supplier PO Approval'
-          ? s.supplierPos.map(spo => spo.id === request.entityId ? {
-              ...spo,
-              status: resolution === 'approved' ? 'confirmed' as const : 'draft' as const,
-            } : spo)
-          : s.supplierPos,
+        supplierPos: updatedSupplierPos,
+        supplierPoLines: updatedSupplierPoLines,
         auditEvents: [...s.auditEvents, createAuditEventRecord({
           actor: by,
           actorId: s.currentUser.id,
           role: s.currentUser.role,
           module: 'Approvals',
-          scope: request.requestType === 'PR Approval' ? 'PurchaseRequisition' : request.requestType === 'Supplier PO Approval' ? 'SupplierPO' : 'Approval',
+          scope: request.requestType === 'PR Approval'
+            ? 'PurchaseRequisition'
+            : request.requestType === 'Supplier PO Approval'
+              ? 'SupplierPO'
+              : request.requestType === 'Stock Adjustment'
+                ? 'Inventory'
+                : 'Approval',
           action: resolution === 'approved' ? 'approve' : 'reject',
           entityId: request.entityId,
           entityRef: request.entityRef,
           timestamp,
           description: `${resolution === 'approved' ? 'Approved' : 'Rejected'} ${request.requestType} (${request.entityRef}).`,
           reason: notes,
+          changes: extraChanges.length > 0 ? extraChanges : undefined,
           before: { status: request.status },
           after: { status: resolution, approvalId: aprId },
         })],
       };
     });
     get().showToast({ type: resolution === 'approved' ? 'success' : 'info', title: `Request ${resolution}`, body: `Approval request resolved.` });
+  },
+
+  markInboxMessageRead: (messageId, read = true) => set(s => ({
+    inboxMessages: s.inboxMessages.map(m => {
+      if (m.id !== messageId) return m;
+      const nextStatus: InboxMessageStatus = m.archived
+        ? 'archived'
+        : m.actionCompleted
+          ? 'action_completed'
+          : !read
+            ? 'unread'
+            : m.actionRequired
+              ? 'action_required'
+              : m.status === 'replied'
+                ? 'replied'
+                : 'read';
+      return { ...m, read, status: nextStatus };
+    }),
+  })),
+
+  archiveInboxMessage: (messageId, archived = true) => set(s => ({
+    inboxMessages: s.inboxMessages.map(m => {
+      if (m.id !== messageId) return m;
+      const nextStatus: InboxMessageStatus = archived
+        ? 'archived'
+        : m.actionCompleted
+          ? 'action_completed'
+          : m.actionRequired
+            ? 'action_required'
+            : m.read
+              ? 'read'
+              : 'unread';
+      return { ...m, archived, read: true, status: nextStatus };
+    }),
+  })),
+
+  replyToInboxMessage: (messageId, body) => {
+    const trimmed = body.trim();
+    if (!trimmed) return;
+    const state = get();
+    const msg = state.inboxMessages.find(m => m.id === messageId);
+    if (!msg) return;
+    const timestamp = new Date().toISOString();
+    const actor = state.currentUser.name;
+    const roleLabel = state.currentUser.role;
+    set(s => ({
+      inboxMessages: s.inboxMessages.map(m => m.id !== messageId ? m : {
+        ...m,
+        read: true,
+        status: 'replied' as InboxMessageStatus,
+        actionCompleted: m.type === 'customer_delivery_query' ? true : m.actionCompleted,
+        actionOutcome: m.type === 'customer_delivery_query' ? 'replied' : m.actionOutcome,
+        thread: [
+          ...(m.thread ?? []),
+          {
+            id: `th-${Date.now()}`,
+            senderName: actor,
+            senderRoleOrOrg: `${roleLabel} · EOSS`,
+            timestamp,
+            body: trimmed,
+            isOutgoing: true,
+          },
+        ],
+      }),
+      auditEvents: [...s.auditEvents, createAuditEventRecord({
+        actor,
+        actorId: state.currentUser.id,
+        role: roleLabel,
+        module: msg.module,
+        scope: msg.relatedEntityType,
+        action: 'reply_message',
+        entityId: msg.relatedEntityId,
+        entityRef: msg.relatedEntityRef,
+        timestamp,
+        description: `Logged simulated reply to ${msg.senderName} (${msg.senderOrg}) regarding ${msg.relatedEntityRef}.`,
+      })],
+    }));
+    get().showToast({
+      type: 'success',
+      title: 'Reply recorded (simulated)',
+      body: `Logged response to ${msg.senderName} on ${msg.relatedEntityRef}. No external email was sent.`,
+    });
+  },
+
+  completeInboxAction: (messageId, outcome, notes) => {
+    const state = get();
+    const msg = state.inboxMessages.find(m => m.id === messageId);
+    if (!msg) return;
+    const timestamp = new Date().toISOString();
+    const actor = state.currentUser.name;
+
+    if (msg.approvalRequestId && (outcome === 'approved' || outcome === 'rejected')) {
+      get().resolveApproval(msg.approvalRequestId, outcome, actor, notes || `Resolved from Inbox (${msg.subject})`);
+      return;
+    }
+
+    // Supplier PO confirmation or delivery extension
+    if (msg.relatedEntityType === 'SupplierPO') {
+      set(s => {
+        const spo = s.supplierPos.find(p => p.id === msg.relatedEntityId);
+        const nextSpoStatus = outcome === 'confirmed' || outcome === 'approved' ? 'confirmed' as const : spo?.status;
+        const nextCommitted = msg.type === 'supplier_delivery_extension' && outcome === 'approved'
+          ? '2026-11-08'
+          : spo?.committedDate;
+        return {
+          supplierPos: s.supplierPos.map(p => p.id !== msg.relatedEntityId ? p : {
+            ...p,
+            status: nextSpoStatus ?? p.status,
+            committedDate: nextCommitted ?? p.committedDate,
+            confirmedDate: timestamp.slice(0, 10),
+          }),
+          inboxMessages: s.inboxMessages.map(m => m.id !== messageId ? m : {
+            ...m,
+            read: true,
+            actionCompleted: true,
+            actionOutcome: outcome,
+            status: 'action_completed' as InboxMessageStatus,
+          }),
+          auditEvents: [...s.auditEvents, createAuditEventRecord({
+            actor,
+            actorId: s.currentUser.id,
+            role: s.currentUser.role,
+            module: 'Procurement',
+            scope: 'SupplierPO',
+            action: outcome === 'confirmed' ? 'confirm' : outcome === 'approved' ? 'approve' : 'reject',
+            entityId: msg.relatedEntityId,
+            entityRef: msg.relatedEntityRef,
+            timestamp,
+            description: `${outcome === 'confirmed' ? 'Recorded supplier confirmation' : outcome === 'approved' ? 'Approved delivery extension' : 'Rejected request'} for ${msg.relatedEntityRef} from Inbox.`,
+            reason: notes,
+            changes: spo && nextCommitted && nextCommitted !== spo.committedDate
+              ? [{ field: 'committedDate', label: 'Committed Delivery', previousValue: spo.committedDate, newValue: nextCommitted }]
+              : undefined,
+          })],
+        };
+      });
+      get().showToast({ type: 'success', title: 'Supplier PO updated', body: `${msg.relatedEntityRef} updated from Inbox.` });
+      return;
+    }
+
+    set(s => ({
+      inboxMessages: s.inboxMessages.map(m => m.id !== messageId ? m : {
+        ...m,
+        read: true,
+        actionCompleted: true,
+        actionOutcome: outcome,
+        status: 'action_completed' as InboxMessageStatus,
+      }),
+    }));
   },
 
   addApprovalRequest: (request) => set(s => ({
@@ -2220,14 +2634,75 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
       };
     }
 
+    // Reconcile existing open shortage PR if shortage changed
+    let updatedPurchaseReqs = [...state.purchaseReqs];
+    if (existingPr && ['draft', 'pending_approval', 'approved'].includes(existingPr.status)) {
+      if (shortageItems.length === 0) {
+        updatedPurchaseReqs = updatedPurchaseReqs.map(p => p.id === existingPr.id ? { ...p, status: 'closed' as const, totalQty: 0 } : p);
+      } else {
+        const nextTotal = shortageItems.reduce((s, x) => s + x.shortageQty, 0);
+        if (nextTotal !== existingPr.totalQty) {
+          updatedPurchaseReqs = updatedPurchaseReqs.map(p => p.id === existingPr.id ? {
+            ...p,
+            lineCount: shortageItems.length,
+            totalQty: nextTotal,
+            lines: shortageItems.map((si, idx) => ({
+              id: `${existingPr.id}-l${idx + 1}`,
+              prId: existingPr.id,
+              materialItemId: si.materialItemId,
+              materialCode: si.materialCode,
+              materialName: si.materialName,
+              description: si.materialName,
+              grade: si.grade,
+              requiredQty: si.shortageQty,
+              uom: si.uom,
+              requiredDate: poLinesList[0]?.requiredDate || today,
+            })),
+          } : p);
+        }
+      }
+    } else if (createdPr) {
+      updatedPurchaseReqs = [createdPr, ...updatedPurchaseReqs];
+    }
+
     // Reserve available quantities on lots / inventory / jobMaterialReqs
     const siteLocationIds = new Set(state.storeLocations.filter(sl => sl.siteId === siteId).map(sl => sl.id));
+    let updatedLots = [...state.lots];
     let updatedInventory = [...state.inventory];
     let updatedReqs = [...state.jobMaterialReqs];
     const newMovements: StockMovement[] = [];
     let reservedCount = 0;
 
     for (const item of reservableItems) {
+      let remLot = item.toReserveQty;
+      const nextLots: MaterialLot[] = [];
+      for (const lot of updatedLots) {
+        if (remLot > 0 && lot.materialItemId === item.materialItemId && lot.status === 'available' && siteLocationIds.has(lot.storeLocationId) && lot.primaryQty > 0) {
+          if (lot.primaryQty <= remLot) {
+            remLot -= lot.primaryQty;
+            nextLots.push({
+              ...lot,
+              status: 'reserved' as const,
+            });
+          } else {
+            const take = remLot;
+            remLot = 0;
+            nextLots.push({ ...lot, primaryQty: lot.primaryQty - take });
+            nextLots.push({
+              ...lot,
+              id: `${lot.id}-res-${Date.now().toString(36)}`,
+              lotNumber: `${lot.lotNumber}-RES`,
+              primaryQty: take,
+              status: 'reserved' as const,
+              parentLotId: lot.id,
+            });
+          }
+        } else {
+          nextLots.push(lot);
+        }
+      }
+      updatedLots = nextLots;
+
       let rem = item.toReserveQty;
       updatedInventory = updatedInventory.map(inv => {
         if (rem <= 0 || inv.materialItemId !== item.materialItemId || !siteLocationIds.has(inv.locationId) || inv.availableQty <= 0) return inv;
@@ -2279,26 +2754,45 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
       });
     }
 
+    const prevAvail = po.availabilityStatus ?? 'unchecked';
+    const nextJobReadiness = assessment.overallStatus === 'available'
+      ? 'ready'
+      : assessment.overallStatus === 'partially_available'
+        ? 'partial'
+        : 'awaiting_procurement';
+
     set(s => ({
+      lots: updatedLots,
       inventory: updatedInventory,
       jobMaterialReqs: updatedReqs,
       movements: [...s.movements, ...newMovements],
-      purchaseReqs: createdPr ? [createdPr, ...s.purchaseReqs] : s.purchaseReqs,
+      purchaseReqs: updatedPurchaseReqs,
       customerPos: s.customerPos.map(c => c.id === po.id ? { ...c, availabilityStatus: assessment.overallStatus } : c),
       jobs: targetJob ? s.jobs.map(j => j.id === targetJob.id ? {
         ...j,
-        materialReadiness: assessment.overallStatus === 'available' ? 'ready' : assessment.overallStatus === 'partially_available' ? 'partial' : 'awaiting_procurement',
+        materialReadiness: nextJobReadiness,
       } : j) : s.jobs,
-      auditEvents: [...s.auditEvents, {
-        id: `ae-${Date.now()}`, actor: actorName, actorId: s.currentUser.id,
-        scope: 'CustomerPO', action: 'assess_material_availability', entityId: po.id, entityRef: po.poNumber,
-        timestamp: now, source: 'ui',
+      auditEvents: [...s.auditEvents, createAuditEventRecord({
+        actor: actorName,
+        actorId: s.currentUser.id,
+        role: s.currentUser.role,
+        module: 'Sales',
+        scope: 'CustomerPO',
+        action: 'assess_material_availability',
+        entityId: po.id,
+        entityRef: po.poNumber,
+        timestamp: now,
+        description: `Assessed material availability for ${po.poNumber}: ${assessment.overallStatus.replace(/_/g, ' ')} (${reservedCount} reserved${createdPr ? `, auto-raised ${createdPr.prNumber}` : ''}).`,
+        changes: [
+          { field: 'availabilityStatus', label: 'Material Availability', previousValue: prevAvail, newValue: assessment.overallStatus },
+          ...(reservedCount > 0 ? [{ field: 'reservedQty', label: 'Reserved Qty', previousValue: '0', newValue: String(reservedCount) }] : []),
+        ],
         after: {
           availabilityStatus: assessment.overallStatus,
           reservedQty: reservedCount,
           createdPrNumber: createdPr?.prNumber ?? existingPr?.prNumber,
         },
-      }],
+      })],
     }));
 
     const message = assessment.overallStatus === 'available'
@@ -3117,6 +3611,27 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
         approvedAt: (payload.result === 'pass' || payload.result === 'partial') ? timestamp : i.approvedAt,
       });
 
+      const reconciled = acceptedQty > 0
+        ? reconcilePendingOrdersOnStockAccepted({
+            customerPos: s.customerPos,
+            jobs: s.jobs,
+            jobMaterialReqs: s.jobMaterialReqs,
+            poLines: s.poLines,
+            materials: s.materials,
+            lots,
+            storeLocations: s.storeLocations,
+            sites: s.sites,
+            supplierPos: s.supplierPos,
+            supplierPoLines,
+            purchaseReqs: s.purchaseReqs,
+            acceptedMaterialItemId: lot?.materialItemId,
+            actor: by,
+            actorId: s.currentUser.id,
+            role: s.currentUser.role,
+            timestamp,
+          })
+        : { customerPos: s.customerPos, jobs: s.jobs, jobMaterialReqs: s.jobMaterialReqs, auditEvents: [] };
+
       return {
         inspections,
         lots,
@@ -3124,6 +3639,9 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
         movements,
         supplierPoLines,
         grns,
+        customerPos: reconciled.customerPos,
+        jobs: reconciled.jobs,
+        jobMaterialReqs: reconciled.jobMaterialReqs,
         auditEvents: [...s.auditEvents, createAuditEventRecord({
           actor: by,
           actorId: s.currentUser.id,
@@ -3140,7 +3658,7 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
           relatedEntityId: lot?.id,
           relatedEntityRef: lot?.lotNumber,
           after: { result: payload.result, acceptedQty, rejectedQty, lotId: lot?.id },
-        })],
+        }), ...reconciled.auditEvents],
       };
     });
     get().showToast({ type: 'success', title: 'Inspection recorded', body: 'Lot quality status and inventory availability have been updated.' });
@@ -4535,6 +5053,7 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
       supplierBillLines: state.supplierBillLines ?? [...SEED_SUPPLIER_BILL_LINES],
       supplierPayments: state.supplierPayments ?? [...SEED_SUPPLIER_PAYMENTS],
       supplierPaymentAllocations: state.supplierPaymentAllocations ?? [...SEED_SUPPLIER_PAYMENT_ALLOCATIONS],
+      inboxMessages: mergeById(state.inboxMessages ?? [], SEED_INBOX_MESSAGES),
       auditEvents: mergeById(state.auditEvents, SEED_RICH_AUDIT_EVENTS),
       jobs: state.jobs.map(j => {
         const template = j.stageTemplateId ? STAGE_TEMPLATES.find(t => t.id === j.stageTemplateId) : STAGE_TEMPLATES.find(t => t.stages.length === j.stages.length) ?? STAGE_TEMPLATES[0];

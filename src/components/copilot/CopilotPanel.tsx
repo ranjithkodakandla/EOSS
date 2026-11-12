@@ -21,11 +21,12 @@ interface Props {
 }
 
 const SAMPLE_PROMPTS = [
-  'Which jobs are late?',
-  'What is waiting for my approval?',
-  'Which materials are short?',
-  'Which machines need attention?',
-  'Which documents are expiring?',
+  'Which jobs are running late?',
+  'Which customer orders have material shortages?',
+  'Which supplier POs are overdue?',
+  'What approvals are pending?',
+  'Which customer payments are overdue?',
+  'What requires my attention today?',
 ];
 
 export default function CopilotPanel({ compactTopBar = false, onClose }: Props) {
@@ -38,6 +39,61 @@ export default function CopilotPanel({ compactTopBar = false, onClose }: Props) 
   const answerFromLocalData = (rawQuery: string): AnswerItem => {
     const q = rawQuery.trim().toLowerCase();
     const now = new Date(DEMO_NOW);
+
+    if (q.includes('supplier') && (q.includes('overdue') || q.includes('late') || q.includes('delay'))) {
+      const todayStr = DEMO_NOW.slice(0, 10);
+      const overdueSpos = store.supplierPos.filter(
+        p => !['received', 'closed', 'cancelled'].includes(p.status) && (p.status === 'overdue' || (p.committedDate && p.committedDate < todayStr))
+      );
+      return {
+        id: `ans-${Date.now()}`,
+        question: rawQuery,
+        answer: overdueSpos.length === 0
+          ? 'No Supplier POs are currently overdue.'
+          : `${overdueSpos.length} Supplier PO${overdueSpos.length === 1 ? ' is' : 's are'} overdue: ${overdueSpos.map(p => `${p.poNumber} (${p.supplierName}, committed ${p.committedDate})`).join('; ')}.`,
+        links: [
+          ...overdueSpos.slice(0, 4).map(p => ({ label: `Open ${p.poNumber}`, path: `/procurement/spo/${p.id}` })),
+          { label: 'View All Supplier POs', path: '/procurement?tab=spo' },
+        ],
+      };
+    }
+
+    if (q.includes('overdue') && (q.includes('payment') || q.includes('invoice') || q.includes('customer') || q.includes('receiv'))) {
+      const todayStr = DEMO_NOW.slice(0, 10);
+      const overdueInvs = store.invoices.filter(
+        i => !['paid', 'void', 'cancelled', 'draft'].includes(i.status) && i.outstandingAmount > 0 && i.dueDate < todayStr
+      );
+      const totalOverdue = overdueInvs.reduce((s, i) => s + i.outstandingAmount, 0);
+      return {
+        id: `ans-${Date.now()}`,
+        question: rawQuery,
+        answer: overdueInvs.length === 0
+          ? 'No customer invoices are currently past their due date.'
+          : `${overdueInvs.length} customer invoice${overdueInvs.length === 1 ? ' is' : 's are'} overdue totalling ₹${totalOverdue.toLocaleString('en-IN')}: ${overdueInvs.map(i => `${i.invoiceNumber} (${i.customerName}, due ${i.dueDate})`).join('; ')}.`,
+        links: [
+          ...overdueInvs.slice(0, 4).map(i => ({ label: `Open ${i.invoiceNumber}`, path: `/finance/invoice/${i.id}` })),
+          { label: 'Open Receivables', path: '/finance?tab=receivables' },
+        ],
+      };
+    }
+
+    if (q.includes('attention') || q.includes('today')) {
+      const todayStr = DEMO_NOW.slice(0, 10);
+      const lateJobs = store.jobs.filter(j => !['complete', 'cancelled'].includes(j.status) && j.plannedEnd < todayStr);
+      const pendingApprovals = store.approvalRequests.filter(a => a.status === 'pending');
+      const unreadActions = store.inboxMessages.filter(m => !m.archived && m.actionRequired && !m.actionCompleted);
+      const openQc = store.inspections.filter(i => i.result === 'hold' || i.result === 'pending');
+      return {
+        id: `ans-${Date.now()}`,
+        question: rawQuery,
+        answer: `Today's priorities: ${lateJobs.length} late job(s), ${pendingApprovals.length} pending approval(s), ${openQc.length} open QC inspection(s), and ${unreadActions.length} Inbox message(s) needing action.`,
+        links: [
+          { label: 'Open Inbox', path: '/inbox?folder=needs_action' },
+          { label: 'View Jobs', path: '/jobs' },
+          { label: 'Open Quality', path: '/quality' },
+        ],
+      };
+    }
 
     if (q.includes('late') || q.includes('delay') || q.includes('behind') || q.includes('schedule') || q.includes('risk')) {
       const lateJobs = store.jobs.filter(j => {
@@ -64,7 +120,8 @@ export default function CopilotPanel({ compactTopBar = false, onClose }: Props) 
           ? 'No approvals are currently waiting on you.'
           : `${pending.length} item${pending.length === 1 ? ' is' : 's are'} waiting on you: ${pending.map(a => `${a.entityRef} (${a.description})`).join('; ')}.`,
         links: [
-          { label: 'Open Approvals Inbox', path: '/procurement?tab=approvals' },
+          { label: 'Open Inbox', path: '/inbox?folder=needs_action' },
+          { label: 'Procurement Approvals', path: '/procurement?tab=approvals' },
           ...pending.slice(0, 3).map(a => ({
             label: a.entityRef,
             path: a.requestType.toLowerCase().includes('po') && !a.requestType.toLowerCase().includes('pr') && !a.requestType.toLowerCase().includes('requisition')
@@ -76,9 +133,11 @@ export default function CopilotPanel({ compactTopBar = false, onClose }: Props) 
     }
 
     if (q.includes('short') || q.includes('stock') || q.includes('material') || q.includes('inventory')) {
+      const shortPos = store.customerPos.filter(p => p.availabilityStatus === 'partially_available' || p.availabilityStatus === 'awaiting_procurement');
       const shortJobs = store.jobMaterialReqs.filter(r => r.shortage);
       const lowStock = store.inventory.filter(i => i.shortage);
       const parts: string[] = [];
+      if (shortPos.length > 0) parts.push(`${shortPos.length} customer PO${shortPos.length === 1 ? '' : 's'} with material shortage (${shortPos.map(p => p.poNumber).join(', ')})`);
       if (shortJobs.length > 0) parts.push(`${shortJobs.length} job material shortage${shortJobs.length === 1 ? '' : 's'} (${shortJobs.map(r => r.materialName).join(', ')})`);
       if (lowStock.length > 0) parts.push(`${lowStock.length} stock item${lowStock.length === 1 ? '' : 's'} below reorder point`);
       return {
@@ -86,6 +145,7 @@ export default function CopilotPanel({ compactTopBar = false, onClose }: Props) 
         question: rawQuery,
         answer: parts.length === 0 ? 'All tracked materials are sufficiently stocked.' : `Current material alerts: ${parts.join('; ')}.`,
         links: [
+          ...shortPos.slice(0, 3).map(p => ({ label: `Open ${p.poNumber}`, path: `/sales/po/${p.id}` })),
           { label: 'View Inventory', path: '/inventory?focus=shortage' },
           { label: 'Open Procurement', path: '/procurement' },
         ],
@@ -138,7 +198,7 @@ export default function CopilotPanel({ compactTopBar = false, onClose }: Props) 
       answer: `Currently ${activeJobs} active/on-hold jobs and ${pendingApprovals} pending approvals. Try asking "Which jobs are late?", "What is waiting for my approval?", or "Which materials are short?".`,
       links: [
         { label: 'View Jobs', path: '/jobs' },
-        { label: 'Approvals Inbox', path: '/procurement?tab=approvals' },
+        { label: 'Open Inbox', path: '/inbox' },
       ],
     };
   };

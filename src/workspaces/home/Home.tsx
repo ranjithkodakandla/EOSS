@@ -15,13 +15,13 @@ function getLocalGreeting() {
 }
 
 export default function Home() {
-  const { currentUser, approvalRequests } = useStore();
+  const { currentUser, inboxMessages } = useStore();
   const [mobileTab, setMobileTab] = useState<'today' | 'inbox'>('today');
 
   const nameParts = currentUser?.name ? currentUser.name.trim().split(' ') : ['Ranjith'];
   const firstName = nameParts[0] || 'Ranjith';
   const greeting = getLocalGreeting();
-  const pendingCount = approvalRequests.filter(a => a.status === 'pending').length;
+  const unreadInboxCount = inboxMessages.filter(m => !m.archived && !m.read && m.direction === 'inbound').length;
 
   return (
     <div className="p-3 pb-20 md:px-5 md:py-3 space-y-3">
@@ -56,7 +56,7 @@ export default function Home() {
               color: mobileTab === 'inbox' ? '#FFFFFF' : 'var(--text-2)',
             }}
           >
-            Inbox ({pendingCount})
+            Inbox ({unreadInboxCount})
           </button>
         </div>
         {mobileTab === 'today' ? <OperationalAttentionCard /> : <WaitingOnMeCard />}

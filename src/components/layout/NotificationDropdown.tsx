@@ -165,7 +165,7 @@ export default function NotificationDropdown() {
                 <div className="px-4 py-1.5 text-[10px] font-bold uppercase tracking-wider bg-[var(--surface-2)] text-[var(--text-3)] flex items-center justify-between">
                   <span className="inline-flex items-center gap-1"><CheckSquare size={11} /> Approvals ({approvalItems.length})</span>
                   <button type="button" onClick={() => { setOpen(false); navigate('/procurement?tab=approvals'); }} className="text-[var(--brand)] hover:underline">
-                    View inbox
+                    View approvals
                   </button>
                 </div>
                 <div className="divide-y divide-[var(--border)]">

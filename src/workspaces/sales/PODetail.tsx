@@ -19,6 +19,7 @@ export default function PODetail() {
   const {
     customerPos, poLines, poAmendments, jobs, jobMaterialReqs, quotations, rfqs,
     purchaseReqs, supplierInvitations, supplierQuotations, grns, dispatches, invoices,
+    payments, paymentAllocations,
     materials, lots, storeLocations, sites, supplierPos, supplierPoLines,
     currentUser, updateCustomerPo, resolvePoAmendment, assessAndAllocateCustomerPO, showToast,
   } = useStore();
@@ -59,6 +60,8 @@ export default function PODetail() {
   const linkedGrns = grns.filter(g => linkedSpos.some(sp => sp.id === g.spoId));
   const linkedDispatches = dispatches.filter(d => d.customerPoId === po.id || d.customerPoNumber === po.poNumber);
   const linkedInvoices = invoices.filter(i => i.poId === po.id && i.status !== 'void' && i.status !== 'cancelled');
+  const linkedPaymentIds = new Set(paymentAllocations.filter(a => linkedInvoices.some(i => i.id === a.invoiceId)).map(a => a.paymentId));
+  const linkedPayments = payments.filter(p => linkedPaymentIds.has(p.id) && p.status !== 'reversed');
   const [checkSiteId, setCheckSiteId] = useState(po.deliverToSiteId ?? sites[0]?.id ?? 'hyd');
   const effectiveReqInputs = useMemo(() => {
     if (linkedReqs.length > 0) {
@@ -524,7 +527,7 @@ export default function PODetail() {
                 </div>
               </Card>
 
-              <Card title={`Dispatches & Invoices (${linkedDispatches.length} / ${linkedInvoices.length})`}>
+              <Card title={`Dispatches, Invoices & Receipts (${linkedDispatches.length} / ${linkedInvoices.length} / ${linkedPayments.length})`}>
                 <div className="space-y-2 text-xs">
                   {linkedDispatches.map(d => (
                     <Link key={d.id} to={`/dispatch/${d.id}`} className="flex items-center justify-between px-2.5 py-1.5 rounded border hover:bg-[var(--surface-2)]" style={{ borderColor: 'var(--border)' }}>
@@ -534,12 +537,24 @@ export default function PODetail() {
                   ))}
                   {linkedInvoices.map(inv => (
                     <Link key={inv.id} to={`/finance/invoice/${inv.id}`} className="flex items-center justify-between px-2.5 py-1.5 rounded border hover:bg-[var(--surface-2)]" style={{ borderColor: 'var(--border)' }}>
-                      <span className="font-mono font-semibold text-[var(--brand)]">{inv.invoiceNumber}</span>
+                      <div>
+                        <span className="font-mono font-semibold text-[var(--brand)]">{inv.invoiceNumber}</span>
+                        <span className="ml-2 text-[var(--text-3)]">₹{inv.totalAmount.toLocaleString('en-IN')}</span>
+                      </div>
                       <StatusChip status={inv.status} size="sm" />
                     </Link>
                   ))}
-                  {linkedDispatches.length === 0 && linkedInvoices.length === 0 && (
-                    <p className="text-[var(--text-3)]">No dispatches or invoices generated yet.</p>
+                  {linkedPayments.map(pay => (
+                    <Link key={pay.id} to={`/finance/payment/${pay.id}`} className="flex items-center justify-between px-2.5 py-1.5 rounded border hover:bg-[var(--surface-2)]" style={{ borderColor: 'var(--border)' }}>
+                      <div>
+                        <span className="font-mono font-semibold text-emerald-600">{pay.paymentNumber}</span>
+                        <span className="ml-2 text-[var(--text-3)]">Receipt ₹{pay.amount.toLocaleString('en-IN')}</span>
+                      </div>
+                      <StatusChip status={pay.status} size="sm" />
+                    </Link>
+                  ))}
+                  {linkedDispatches.length === 0 && linkedInvoices.length === 0 && linkedPayments.length === 0 && (
+                    <p className="text-[var(--text-3)]">No dispatches, invoices, or receipts generated yet.</p>
                   )}
                 </div>
               </Card>

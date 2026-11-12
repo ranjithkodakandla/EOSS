@@ -1834,3 +1834,86 @@ export interface SupplierPaymentAllocation {
   allocatedBy: string;
   notes?: string;
 }
+
+// ── Inbox / Business Communication Centre ──
+export type InboxFolder = 'inbox' | 'unread' | 'needs_action' | 'sent' | 'archived';
+
+export type InboxMessageStatus =
+  | 'unread'
+  | 'read'
+  | 'action_required'
+  | 'action_completed'
+  | 'replied'
+  | 'archived';
+
+export type InboxMessageType =
+  | 'supplier_po_amendment'
+  | 'supplier_quotation'
+  | 'supplier_po_confirmation'
+  | 'supplier_delivery_extension'
+  | 'cycle_count_variance'
+  | 'stock_adjustment_request'
+  | 'customer_rfq'
+  | 'customer_quote_revision'
+  | 'customer_delivery_query'
+  | 'customer_payment_confirmation'
+  | 'supplier_invoice'
+  | 'general';
+
+export interface InboxAttachment {
+  id: ID;
+  name: string;
+  size: string;
+  kind: 'pdf' | 'xlsx' | 'img' | 'doc';
+}
+
+export interface InboxThreadEntry {
+  id: ID;
+  senderName: string;
+  senderRoleOrOrg: string;
+  timestamp: string;
+  body: string;
+  isOutgoing?: boolean;
+}
+
+export interface InboxMessage {
+  id: ID;
+  type: InboxMessageType;
+  senderName: string;
+  senderEmail: string;
+  senderOrg: string;
+  recipientName: string;
+  recipientEmail: string;
+  subject: string;
+  preview: string;
+  body: string;
+  timestamp: string;
+  read: boolean;
+  archived: boolean;
+  direction: 'inbound' | 'outbound';
+  status: InboxMessageStatus;
+  actionRequired: boolean;
+  actionCompleted?: boolean;
+  actionOutcome?: 'approved' | 'rejected' | 'confirmed' | 'replied' | 'completed';
+  module: 'Sales' | 'Procurement' | 'Inventory' | 'Dispatch' | 'Finance' | 'Quality';
+  relatedEntityType:
+    | 'CustomerRFQ'
+    | 'CustomerQuotation'
+    | 'CustomerPO'
+    | 'PurchaseRequisition'
+    | 'SupplierQuotation'
+    | 'SupplierPO'
+    | 'GoodsReceipt'
+    | 'Dispatch'
+    | 'CustomerInvoice'
+    | 'SupplierBill'
+    | 'InventoryItem';
+  relatedEntityId: ID;
+  relatedEntityRef: string;
+  relatedPath: string;
+  approvalRequestId?: ID;
+  attachments?: InboxAttachment[];
+  thread?: InboxThreadEntry[];
+  metadata?: Record<string, string | number>;
+}
+

@@ -1,7 +1,7 @@
 import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import {
-  Home, CheckSquare, ShoppingCart, Package, Box, Activity, ShieldCheck,
+  Home, Inbox, ShoppingCart, Package, Box, Activity, ShieldCheck,
   Wrench, Truck, FileText, BarChart3,
   ChevronLeft, ChevronRight, Store, Landmark, Settings, History,
 } from 'lucide-react';
@@ -17,7 +17,7 @@ interface NavItem {
 
 const STATIC_NAV_ITEMS: NavItem[] = [
   { path: '/', label: 'Home', icon: <Home size={17} /> },
-  { path: '/procurement?tab=approvals', label: 'Inbox', icon: <CheckSquare size={17} /> },
+  { path: '/inbox', label: 'Inbox', icon: <Inbox size={17} /> },
   { path: '/sales', label: 'Sales & Orders', icon: <ShoppingCart size={17} /> },
   { path: '/suppliers', label: 'Suppliers', icon: <Store size={17} /> },
   { path: '/procurement', label: 'Procurement', icon: <Package size={17} /> },
@@ -70,12 +70,12 @@ function AuroraWave({ theme }: { theme: string }) {
 }
 
 export default function Sidebar({ mobileOpen = false, onClose }: { mobileOpen?: boolean; onClose?: () => void }) {
-  const { sidebarCollapsed, toggleSidebar, eossTheme, approvalRequests } = useStore();
+  const { sidebarCollapsed, toggleSidebar, eossTheme, inboxMessages } = useStore();
   const location = useLocation();
-  const pendingApprovals = approvalRequests.filter(a => a.status === 'pending').length;
+  const unreadInbox = inboxMessages.filter(m => !m.archived && !m.read && m.direction === 'inbound').length;
   const NAV_ITEMS: NavItem[] = STATIC_NAV_ITEMS.map(item =>
-    item.path === '/procurement?tab=approvals'
-      ? { ...item, badge: pendingApprovals || undefined }
+    item.path === '/inbox'
+      ? { ...item, badge: unreadInbox || undefined }
       : item
   );
   const collapsed = sidebarCollapsed && !mobileOpen;

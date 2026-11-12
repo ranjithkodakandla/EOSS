@@ -16,6 +16,7 @@ export default function SupplierPODetail() {
   const navigate = useNavigate();
   const {
     supplierPos, supplierPoLines, supplierQuotations, supplierInvitations, purchaseReqs, suppliers, grns, poAmendments,
+    supplierBills, supplierPayments, supplierPaymentAllocations,
     setSupplierPoStatus, confirmAndIssueSPO, notifyNonSelectedSuppliers, recordSupplierPOConfirmation,
     resolvePoAmendment, currentUser, showToast,
   } = useStore();
@@ -37,6 +38,11 @@ export default function SupplierPODetail() {
 
   const lines = supplierPoLines.filter(l => l.spoId === id);
   const linkedGrns = grns.filter(g => g.spoId === po.id);
+  const linkedBills = supplierBills.filter(b => b.spoId === po.id && b.status !== 'void');
+  const linkedBillPayIds = new Set(
+    supplierPaymentAllocations.filter(a => linkedBills.some(b => b.id === a.billId)).map(a => a.paymentId)
+  );
+  const linkedSupplierPayments = supplierPayments.filter(p => linkedBillPayIds.has(p.id) && p.status !== 'reversed');
   const canEdit = ['owner', 'buyer', 'storekeeper'].includes(currentUser.role);
   const canApprove = ['owner', 'buyer'].includes(currentUser.role);
   const pr = purchaseReqs.find(p => p.id === po.prId);
@@ -178,6 +184,8 @@ export default function SupplierPODetail() {
             ...(pr ? [{ relationship: 'Upstream' as const, typeLabel: 'Purchase Requisition', reference: pr.prNumber, to: `/procurement/pr/${pr.id}`, status: pr.status, state: { from: originUrl } }] : []),
             ...(selectedQuotation ? [{ relationship: 'Upstream' as const, typeLabel: 'Selected Quote', reference: selectedQuotation.quoteNumber, to: `/procurement/quote/${selectedQuotation.id}`, status: selectedQuotation.status, state: { from: originUrl } }] : []),
             ...linkedGrns.map(g => ({ relationship: 'Downstream' as const, typeLabel: 'GRN', reference: g.grnNumber, to: `/procurement/grn/${g.id}`, status: g.status, state: { from: originUrl } })),
+            ...linkedBills.map(b => ({ relationship: 'Downstream' as const, typeLabel: 'Supplier Bill', reference: b.billNumber, to: `/finance/bill/${b.id}`, status: b.status, state: { from: originUrl } })),
+            ...linkedSupplierPayments.map(p => ({ relationship: 'Downstream' as const, typeLabel: 'Supplier Payment', reference: p.paymentNumber, to: `/finance/supplier-payment/${p.id}`, status: p.status, state: { from: originUrl } })),
           ]}
         />
       </div>
@@ -543,6 +551,46 @@ export default function SupplierPODetail() {
                     : `Approve/confirm this PO (${po.status}) before recording a GRN.`}
             </div>
           )}
+
+          <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 space-y-2">
+            <h3 className="font-semibold text-sm text-[var(--text)]">
+              Bills & Payments ({linkedBills.length} / {linkedSupplierPayments.length})
+            </h3>
+            {linkedBills.length === 0 && linkedSupplierPayments.length === 0 ? (
+              <p className="text-xs text-[var(--text-3)]">No supplier bills or payments recorded yet.</p>
+            ) : (
+              <div className="space-y-1.5 text-xs">
+                {linkedBills.map(b => (
+                  <Link
+                    key={b.id}
+                    to={`/finance/bill/${b.id}`}
+                    state={{ from: originUrl }}
+                    className="flex items-center justify-between px-2.5 py-1.5 rounded border border-[var(--border)] hover:bg-[var(--surface-2)]"
+                  >
+                    <div>
+                      <span className="font-mono font-semibold text-[var(--brand)]">{b.billNumber}</span>
+                      <span className="ml-2 text-[var(--text-3)]">₹{b.totalAmount.toLocaleString('en-IN')}</span>
+                    </div>
+                    <StatusChip status={b.status} size="sm" />
+                  </Link>
+                ))}
+                {linkedSupplierPayments.map(p => (
+                  <Link
+                    key={p.id}
+                    to={`/finance/supplier-payment/${p.id}`}
+                    state={{ from: originUrl }}
+                    className="flex items-center justify-between px-2.5 py-1.5 rounded border border-[var(--border)] hover:bg-[var(--surface-2)]"
+                  >
+                    <div>
+                      <span className="font-mono font-semibold text-emerald-600">{p.paymentNumber}</span>
+                      <span className="ml-2 text-[var(--text-3)]">Paid ₹{p.amount.toLocaleString('en-IN')}</span>
+                    </div>
+                    <StatusChip status={p.status} size="sm" />
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
