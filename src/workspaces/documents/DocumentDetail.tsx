@@ -3,6 +3,7 @@ import { ArrowLeft, FileText, ExternalLink } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useStore } from '../../store';
 import StatusChip from '../../components/layout/StatusChip';
+import RecordHistoryPanel from '../../components/workflow/RecordHistoryPanel';
 
 export default function DocumentDetail() {
   const { id } = useParams<{ id: string }>();
@@ -95,6 +96,13 @@ export default function DocumentDetail() {
           <div className="rounded-xl border p-4 text-sm" style={{ borderColor: 'var(--border)', background: 'var(--surface-2)', color: 'var(--text-2)' }}>
             This prototype shows the document record and its links. File preview and download will be connected when document storage is implemented.
           </div>
+
+          <RecordHistoryPanel
+            entityId={document.id}
+            entityRef={document.title}
+            title="Document Activity & Audit Trail"
+            subtitle="Uploads, versions, renewals, and linked entity associations"
+          />
         </div>
       </div>
     </div>

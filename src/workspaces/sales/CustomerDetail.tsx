@@ -1,15 +1,17 @@
 import React, { useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { ArrowLeft, ChevronRight, Edit2, Phone, Mail, Star, Upload } from 'lucide-react';
 import { useStore } from '../../store';
 import StatusChip from '../../components/layout/StatusChip';
+import RecordHistoryPanel from '../../components/workflow/RecordHistoryPanel';
+import { isRecordOverdue } from '../../domain/finance';
 
-type Tab = 'overview' | 'orders' | 'rfqs' | 'contacts' | 'documents';
+type Tab = 'overview' | 'orders' | 'rfqs' | 'invoices' | 'payments' | 'contacts' | 'documents' | 'history';
 
 export default function CustomerDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { customers, customerPos, rfqs, documents, customerInvoices, addDocument, currentUser, showToast } = useStore();
+  const { customers, customerPos, rfqs, documents, invoices, payments, addDocument, currentUser, showToast } = useStore();
   const [tab, setTab] = useState<Tab>('overview');
 
   const customer = customers.find(c => c.id === id);
@@ -23,20 +25,28 @@ export default function CustomerDetail() {
   const orders = customerPos.filter(po => po.customerId === id);
   const customerRfqs = rfqs.filter(r => r.customerId === id);
   const customerDocuments = documents.filter(d => d.linkedEntities.some(e => e.type === 'Customer' && (e.ref === id || e.ref === customer?.tradingName)));
-  const customerInvoiceRecords = customerInvoices.filter(invoice => invoice.customerId === id);
+  const customerInvoiceRecords = invoices.filter(
+    invoice => invoice.customerId === id && invoice.status !== 'void' && invoice.status !== 'cancelled' && invoice.status !== 'draft',
+  );
+  const customerPaymentRecords = payments.filter(p => p.customerId === id);
   const orderedValue = orders.reduce((sum, po) => sum + po.totalValue, 0);
-  const invoicedValue = customerInvoiceRecords.reduce((sum, invoice) => sum + invoice.amount, 0);
-  const paidValue = customerInvoiceRecords.reduce((sum, invoice) => sum + invoice.amountPaid, 0);
-  const outstandingValue = Math.max(0, invoicedValue - paidValue);
-  const overdueValue = customerInvoiceRecords.filter(invoice => invoice.status === 'overdue').reduce((sum, invoice) => sum + Math.max(0, invoice.amount - invoice.amountPaid), 0);
+  const invoicedValue = customerInvoiceRecords.reduce((sum, invoice) => sum + invoice.totalAmount, 0);
+  const paidValue = customerInvoiceRecords.reduce((sum, invoice) => sum + invoice.paidAmount, 0);
+  const outstandingValue = customerInvoiceRecords.reduce((sum, invoice) => sum + invoice.outstandingAmount, 0);
+  const overdueValue = customerInvoiceRecords
+    .filter(invoice => isRecordOverdue(invoice.status, invoice.dueDate, invoice.outstandingAmount))
+    .reduce((sum, invoice) => sum + invoice.outstandingAmount, 0);
   const availableCredit = customer.creditLimit == null ? undefined : Math.max(0, customer.creditLimit - outstandingValue);
   const creditUtilization = customer.creditLimit && customer.creditLimit > 0 ? Math.min(100, (outstandingValue / customer.creditLimit) * 100) : undefined;
   const TABS: { key: Tab; label: string }[] = [
     { key: 'overview', label: 'Overview' },
     { key: 'orders', label: `Customer POs (${orders.length})` },
     { key: 'rfqs', label: `RFQs (${customerRfqs.length})` },
+    { key: 'invoices', label: `Invoices (${customerInvoiceRecords.length})` },
+    { key: 'payments', label: `Payments (${customerPaymentRecords.length})` },
     { key: 'contacts', label: 'Contacts' },
     { key: 'documents', label: 'Documents' },
+    { key: 'history', label: 'History' },
   ];
 
   return (
@@ -243,12 +253,93 @@ export default function CustomerDetail() {
           </div>
         )}
 
+        {tab === 'invoices' && (
+          <div className="max-w-5xl">
+            <div className="rounded-xl border overflow-hidden" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
+              <div className="px-4 py-3 border-b flex items-center justify-between" style={{ borderColor: 'var(--border)', background: 'var(--surface-2)' }}>
+                <span className="text-sm font-semibold" style={{ color: 'var(--text)' }}>Customer Invoices ({customerInvoiceRecords.length})</span>
+                <Link to="/finance/invoice/new" className="text-xs font-semibold" style={{ color: 'var(--brand)' }}>+ New Invoice</Link>
+              </div>
+              <table className="w-full text-sm">
+                <thead style={{ background: 'var(--surface-2)', borderBottom: '1px solid var(--border)' }}>
+                  <tr>
+                    {['Invoice #', 'PO Ref', 'Invoice Date', 'Due Date', 'Total', 'Balance', 'Status'].map(h => (
+                      <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold" style={{ color: 'var(--text-3)' }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {customerInvoiceRecords.length === 0 ? (
+                    <tr><td colSpan={7} className="px-4 py-8 text-center text-sm" style={{ color: 'var(--text-3)' }}>No posted invoices yet.</td></tr>
+                  ) : customerInvoiceRecords.map(inv => (
+                    <tr key={inv.id} className="cursor-pointer hover:bg-[var(--surface-2)]" style={{ borderBottom: '1px solid var(--border)' }} onClick={() => navigate(`/finance/invoice/${inv.id}`)}>
+                      <td className="px-4 py-3 font-mono text-xs font-bold" style={{ color: 'var(--brand)' }}>{inv.invoiceNumber}</td>
+                      <td className="px-4 py-3 font-mono text-xs" style={{ color: 'var(--text-2)' }}>{inv.poNumber || '—'}</td>
+                      <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-2)' }}>{inv.invoiceDate}</td>
+                      <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-2)' }}>{inv.dueDate}</td>
+                      <td className="px-4 py-3 font-mono text-xs" style={{ color: 'var(--text)' }}>₹{inv.totalAmount.toLocaleString('en-IN')}</td>
+                      <td className="px-4 py-3 font-mono text-xs font-semibold" style={{ color: 'var(--text)' }}>₹{inv.outstandingAmount.toLocaleString('en-IN')}</td>
+                      <td className="px-4 py-3"><StatusChip status={isRecordOverdue(inv.status, inv.dueDate, inv.outstandingAmount) && inv.status !== 'overdue' ? 'overdue' : inv.status} size="sm" /></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {tab === 'payments' && (
+          <div className="max-w-5xl">
+            <div className="rounded-xl border overflow-hidden" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
+              <div className="px-4 py-3 border-b flex items-center justify-between" style={{ borderColor: 'var(--border)', background: 'var(--surface-2)' }}>
+                <span className="text-sm font-semibold" style={{ color: 'var(--text)' }}>Payment Receipts ({customerPaymentRecords.length})</span>
+                <Link to={`/finance/payment/new?customerId=${customer.id}`} className="text-xs font-semibold" style={{ color: 'var(--brand)' }}>+ Record Payment</Link>
+              </div>
+              <table className="w-full text-sm">
+                <thead style={{ background: 'var(--surface-2)', borderBottom: '1px solid var(--border)' }}>
+                  <tr>
+                    {['Receipt #', 'Date', 'Method / UTR', 'Amount', 'Unallocated', 'Status'].map(h => (
+                      <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold" style={{ color: 'var(--text-3)' }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {customerPaymentRecords.length === 0 ? (
+                    <tr><td colSpan={6} className="px-4 py-8 text-center text-sm" style={{ color: 'var(--text-3)' }}>No payment receipts recorded yet.</td></tr>
+                  ) : customerPaymentRecords.map(p => (
+                    <tr key={p.id} className="cursor-pointer hover:bg-[var(--surface-2)]" style={{ borderBottom: '1px solid var(--border)' }} onClick={() => navigate(`/finance/payment/${p.id}`)}>
+                      <td className="px-4 py-3 font-mono text-xs font-bold" style={{ color: 'var(--brand)' }}>{p.paymentNumber}</td>
+                      <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-2)' }}>{p.receiptDate}</td>
+                      <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-2)' }}>{p.paymentMethod.toUpperCase()} · {p.transactionRef}</td>
+                      <td className="px-4 py-3 font-mono text-xs font-semibold" style={{ color: 'var(--text)' }}>₹{p.amount.toLocaleString('en-IN')}</td>
+                      <td className="px-4 py-3 font-mono text-xs" style={{ color: 'var(--text-2)' }}>₹{p.unallocatedAmount.toLocaleString('en-IN')}</td>
+                      <td className="px-4 py-3"><StatusChip status={p.status} size="sm" /></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
         {tab === 'documents' && (
           <div className="max-w-2xl">
             <Card title="Documents">
               <label className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold text-white cursor-pointer mb-4" style={{ background: 'var(--brand-fill)' }}><Upload size={14} /> Upload Customer Document<input type="file" className="hidden" onChange={e => { const file = e.target.files?.[0]; if (!file) return; addDocument({ id: `doc-customer-${Date.now()}`, title: file.name, docType: 'Customer Document', category: 'Customer Documents', uploadedBy: currentUser.name, uploadedAt: new Date().toISOString().slice(0, 10), version: 1, fileSize: `${Math.max(1, Math.round(file.size / 1024))} KB`, linkedEntities: [{ type: 'Customer', ref: customer.id }, { type: 'Customer', ref: customer.tradingName }] }); showToast({ type: 'success', title: 'Customer document uploaded', body: `${file.name} is associated with ${customer.tradingName}.` }); e.target.value = ''; }} /></label>
               {customerDocuments.length === 0 ? <p className="text-sm text-center py-6" style={{ color: 'var(--text-3)' }}>No customer documents attached.</p> : <div className="space-y-2">{customerDocuments.map(d => <div key={d.id} className="rounded-lg border p-3" style={{ borderColor: 'var(--border)' }}><div className="flex items-start justify-between gap-3"><div><div className="text-sm font-semibold text-[var(--text)]">{d.title}</div><div className="text-xs mt-1 text-[var(--text-2)]">{d.docType} · {d.fileSize} · Uploaded {d.uploadedAt} by {d.uploadedBy}</div><div className="text-[11px] mt-1 text-[var(--text-3)]">Status: {d.status ?? 'Active'} · Customer-scoped document</div></div><div className="flex items-center gap-2"><button type="button" onClick={() => showToast({ type: 'info', title: 'Customer document', body: `${d.title} is available in the ${customer.tradingName} document context.` })} className="text-xs font-semibold" style={{ color: 'var(--brand)' }}>View</button><button type="button" onClick={() => showToast({ type: 'info', title: 'Customer document', body: `Download requested for ${d.title}.` })} className="text-xs font-semibold" style={{ color: 'var(--text-2)' }}>Download</button></div></div></div>)}</div>}
             </Card>
+          </div>
+        )}
+
+        {tab === 'history' && (
+          <div className="max-w-4xl">
+            <RecordHistoryPanel
+              entityId={customer.id}
+              entityRef={customer.tradingName}
+              relatedIds={[...orders.map(o => o.id), ...customerInvoiceRecords.map(i => i.id), ...customerPaymentRecords.map(p => p.id)]}
+              title="Customer Master & Transaction History"
+              subtitle="Profile changes, RFQs, orders, invoices, and payment settlements"
+            />
           </div>
         )}
       </div>

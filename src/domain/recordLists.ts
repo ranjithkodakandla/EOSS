@@ -87,20 +87,21 @@ export interface MoneyRow {
 }
 
 export function receivableRows(customerInvoices: CustomerInvoice[], invoices: Invoice[]): MoneyRow[] {
+  const seen = new Set(invoices.map(i => i.id));
   return [
-    ...customerInvoices.map(i => ({
-      id: i.id, number: i.invoiceNumber, party: i.customerName, date: i.invoiceDate, due: i.dueDate,
-      total: i.amount, paid: i.amountPaid, outstanding: i.amount - i.amountPaid, status: i.status as string,
-    })),
-    ...invoices.map(i => ({
+    ...invoices.filter(i => !['void', 'cancelled'].includes(i.status)).map(i => ({
       id: i.id, number: i.invoiceNumber, party: i.customerName, date: i.invoiceDate, due: i.dueDate,
       total: i.totalAmount, paid: i.paidAmount, outstanding: i.outstandingAmount, status: i.status as string,
+    })),
+    ...customerInvoices.filter(i => !seen.has(i.id)).map(i => ({
+      id: i.id, number: i.invoiceNumber, party: i.customerName, date: i.invoiceDate, due: i.dueDate,
+      total: i.amount, paid: i.amountPaid, outstanding: i.amount - i.amountPaid, status: i.status as string,
     })),
   ];
 }
 
 export function openReceivables(customerInvoices: CustomerInvoice[], invoices: Invoice[]) {
-  return receivableRows(customerInvoices, invoices).filter(i => i.status !== 'paid');
+  return receivableRows(customerInvoices, invoices).filter(i => i.status !== 'paid' && i.status !== 'draft' && i.outstanding > 0);
 }
 
 export function openPayables(supplierInvoices: SupplierInvoice[]) {

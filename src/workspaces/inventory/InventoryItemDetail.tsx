@@ -4,6 +4,7 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useStore } from '../../store';
 import { useReturnNavigation } from '../../hooks/useReturnNavigation';
 import StatusChip from '../../components/layout/StatusChip';
+import RecordHistoryPanel from '../../components/workflow/RecordHistoryPanel';
 
 export default function InventoryItemDetail() {
   const { id } = useParams<{ id: string }>();
@@ -107,6 +108,12 @@ export default function InventoryItemDetail() {
       {searchParams.get('view') === 'lots' && <p className="text-xs text-[var(--text-3)]">Lot view opened from Stock on Hand.</p>}
       <p className="text-xs text-[var(--text-3)]">Canonical item record: {material.id}. This page does not duplicate site stock rows.</p>
       {storeLocations.length === 0 && <p className="text-xs text-[var(--text-3)]">No store locations configured.</p>}
+      <RecordHistoryPanel
+        entityId={material.id}
+        entityRef={material.itemCode}
+        title="Item & Stock Adjustment History"
+        subtitle="Material master updates, stock transfers, reservations, issues, and adjustments"
+      />
     </div>
   );
 }

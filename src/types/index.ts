@@ -934,6 +934,11 @@ export interface Dispatch {
   totalQty: number;
   dispatchedQty?: number;
   hasPoD: boolean;
+  podReference?: string;
+  deliveryCondition?: 'good' | 'partial_damage' | 'shortage';
+  deliveryNotes?: string;
+  podRecordedAt?: string;
+  podRecordedBy?: string;
   jobs: string[];
   packages?: DispatchPackage[];
   discrepancyNotes?: string;
@@ -1111,20 +1116,34 @@ export interface CustomerAccount {
 }
 
 // ── Audit Event (append-only) ──
+export interface AuditChange {
+  field: string;
+  label: string;
+  previousValue: string;
+  newValue: string;
+}
+
 export interface AuditEvent {
   id: ID;
   actor: string;
   actorId: ID;
-  scope: string;          // e.g. 'Job', 'CustomerPO', 'SupplierPO'
-  action: string;         // e.g. 'create', 'update', 'approve', 'reject'
+  role?: string;          // Actor's business role (e.g. Owner / MD, Sales, Procurement)
+  module?: string;        // e.g. Sales, Procurement, Inventory, Quality, Production, Dispatch, Maintenance, Finance, Master Data
+  scope: string;          // e.g. 'Job', 'CustomerPO', 'SupplierPO', 'CustomerInvoice', 'SupplierBill'
+  action: string;         // e.g. 'create', 'update', 'approve', 'reject', 'issue', 'payment_recorded'
   entityId: ID;
   entityRef: string;      // human-readable reference number
   timestamp: string;
   source: 'ui' | 'api' | 'system';
+  description?: string;   // Human-readable business summary
+  changes?: AuditChange[];
   before?: Record<string, unknown>;
   after?: Record<string, unknown>;
   reason?: string;
   correlationRef?: string;
+  relatedEntityType?: string;
+  relatedEntityId?: ID;
+  relatedEntityRef?: string;
 }
 
 // ── Approval Policy ──
@@ -1337,37 +1356,57 @@ export interface Invoice {
   poId: ID;
   poNumber: string;
   dispatchIds: ID[];
+  dispatchNumbers?: string[];
   invoiceDate: string;
   dueDate: string;
+  paymentTerms?: string;
   currency: string;
-  status: 'draft' | 'issued' | 'partially_paid' | 'paid' | 'overdue' | 'disputed' | 'cancelled';
+  status: 'draft' | 'issued' | 'partially_paid' | 'paid' | 'overdue' | 'disputed' | 'void' | 'cancelled';
+  taxType?: 'CGST_SGST' | 'IGST' | 'Export_LUT';
   subtotal: number;
+  discountAmount?: number;
+  freightAmount?: number;
+  otherCharges?: number;
   taxAmount: number;
+  cgstAmount?: number;
+  sgstAmount?: number;
+  igstAmount?: number;
   totalAmount: number;
   paidAmount: number;
   outstandingAmount: number;
   overdueDays?: number;
   createdBy: string;
+  createdAt?: string;
+  issuedDate?: string;
+  issuedBy?: string;
+  voidReason?: string;
+  voidedAt?: string;
+  voidedBy?: string;
   notes?: string;
+  isSimulated?: boolean;
 }
 
 export interface InvoiceLine {
   id: ID;
   invoiceId: ID;
+  poLineId?: ID;
   productId: ID;
   productName: string;
   drawingNumber: string;
+  hsnSac?: string;
   quantity: number;
   uom: string;
   unitPrice: number;
+  discountPct?: number;
   taxPct: number;
+  taxableAmount?: number;
   taxAmount: number;
   lineTotal: number;
   dispatchId?: ID;
   dispatchNumber?: string;
 }
 
-// ── Payment ──
+// ── Payment (Customer Receipt AR) ──
 export interface Payment {
   id: ID;
   paymentNumber: string;
@@ -1376,14 +1415,19 @@ export interface Payment {
   receiptDate: string;
   currency: string;
   amount: number;
-  paymentMethod: 'bank_transfer' | 'upi' | 'cheque' | 'other';
+  paymentMethod: 'bank_transfer' | 'neft' | 'rtgs' | 'imps' | 'upi' | 'cheque' | 'cash' | 'other';
   transactionRef: string;
   receivingAccount: string;
   status: 'received' | 'allocated' | 'partially_allocated' | 'reversed';
   allocatedAmount: number;
   unallocatedAmount: number;
+  isAdvance?: boolean;
   notes?: string;
   createdBy: string;
+  reversedReason?: string;
+  reversedAt?: string;
+  reversedBy?: string;
+  isSimulated?: boolean;
 }
 
 export interface PaymentAllocation {
@@ -1627,5 +1671,147 @@ export interface PRLine {
   stageName?: string;
   estimatedPrice?: number;
   justification?: string;
+  notes?: string;
+}
+
+// ── Supplier Bills & Procure-to-Pay (AP) ──
+export type SupplierBillStatus =
+  | 'draft'
+  | 'submitted'
+  | 'matched'
+  | 'mismatch'
+  | 'pending_approval'
+  | 'approved'
+  | 'on_hold'
+  | 'disputed'
+  | 'rejected'
+  | 'partially_paid'
+  | 'paid'
+  | 'overdue'
+  | 'void';
+
+export type ThreeWayMatchStatus =
+  | 'matched'
+  | 'qty_mismatch'
+  | 'rate_mismatch'
+  | 'missing_grn'
+  | 'qc_pending'
+  | 'partial';
+
+export interface ThreeWayMatchLineResult {
+  lineId: ID;
+  description: string;
+  materialItemId?: ID;
+  poOrderedQty: number;
+  poRate: number;
+  grnReceivedQty: number;
+  qcAcceptedQty: number;
+  qcRejectedQty: number;
+  billedQty: number;
+  billedRate: number;
+  uom: string;
+  qtyVariance: number;
+  rateVariance: number;
+  amountVariance: number;
+  status: 'matched' | 'qty_mismatch' | 'rate_mismatch' | 'qc_pending' | 'missing_grn';
+  message: string;
+}
+
+export interface ThreeWayMatchSummary {
+  overallStatus: ThreeWayMatchStatus;
+  lines: ThreeWayMatchLineResult[];
+  hasMismatch: boolean;
+  totalVarianceAmount: number;
+  summaryText: string;
+}
+
+export interface SupplierBillLine {
+  id: ID;
+  billId: ID;
+  spoLineId?: ID;
+  materialItemId?: ID;
+  materialCode?: string;
+  description: string;
+  hsnSac?: string;
+  billedQty: number;
+  uom: string;
+  unitRate: number;
+  taxPct: number;
+  taxAmount: number;
+  lineTotal: number;
+}
+
+export interface SupplierBill {
+  id: ID;
+  billNumber: string;
+  supplierInvoiceNo: string;
+  supplierId: ID;
+  supplierName: string;
+  spoId?: ID;
+  spoNumber?: string;
+  grnIds: ID[];
+  grnNumbers?: string[];
+  billDate: string;
+  receivedDate: string;
+  dueDate: string;
+  paymentTerms?: string;
+  currency: string;
+  status: SupplierBillStatus;
+  matchStatus: ThreeWayMatchStatus;
+  taxType?: 'CGST_SGST' | 'IGST';
+  subtotal: number;
+  taxAmount: number;
+  cgstAmount?: number;
+  sgstAmount?: number;
+  igstAmount?: number;
+  otherCharges?: number;
+  totalAmount: number;
+  paidAmount: number;
+  outstandingAmount: number;
+  mismatchNotes?: string;
+  holdReason?: string;
+  rejectionReason?: string;
+  voidReason?: string;
+  approvedBy?: string;
+  approvedAt?: string;
+  createdBy: string;
+  notes?: string;
+  isSimulated?: boolean;
+}
+
+export interface SupplierPayment {
+  id: ID;
+  paymentNumber: string;
+  supplierId: ID;
+  supplierName: string;
+  paymentDate: string;
+  currency: string;
+  amount: number;
+  paymentMethod: 'neft' | 'rtgs' | 'imps' | 'upi' | 'cheque' | 'bank_transfer' | 'cash' | 'other';
+  transactionRef: string;
+  payingAccount: string;
+  status: 'recorded' | 'partially_allocated' | 'allocated' | 'reversed';
+  allocatedAmount: number;
+  unallocatedAmount: number;
+  isAdvance?: boolean;
+  notes?: string;
+  createdBy: string;
+  reversedReason?: string;
+  reversedAt?: string;
+  reversedBy?: string;
+  isSimulated?: boolean;
+}
+
+export interface SupplierPaymentAllocation {
+  id: ID;
+  paymentId: ID;
+  paymentNumber: string;
+  billId: ID;
+  billNumber: string;
+  supplierInvoiceNo: string;
+  supplierId: ID;
+  allocatedAmount: number;
+  allocatedDate: string;
+  allocatedBy: string;
   notes?: string;
 }

@@ -7,6 +7,7 @@ import {
 import { useStore } from '../../store';
 import StatusChip from '../../components/layout/StatusChip';
 import RelatedRecordsPanel from '../../components/workflow/RelatedRecordsPanel';
+import RecordHistoryPanel from '../../components/workflow/RecordHistoryPanel';
 import { compareAndRecommendQuotations } from '../../domain/quotationComparison';
 import { useReturnNavigation } from '../../hooks/useReturnNavigation';
 import type { SupplierQuotation } from '../../types';
@@ -706,6 +707,13 @@ export default function PRDetail() {
             )}
           </section>
         )}
+
+        <RecordHistoryPanel
+          entityId={pr.id}
+          entityRef={pr.prNumber}
+          title="Purchase Requisition Activity & Audit Trail"
+          subtitle="PR creation, approval workflow, supplier invitations, quotation selection, and PO generation"
+        />
       </div>
 
       {confirming === 'approve' && (

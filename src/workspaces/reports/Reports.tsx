@@ -16,7 +16,7 @@ const REPORT_TYPES = [
 ];
 
 export default function Reports() {
-  const { jobs, inventory, inspections, assets, dispatches, maintenanceEvents, supplierPos, customerInvoices, supplierInvoices, employees, showToast } = useStore();
+  const { jobs, inventory, inspections, assets, dispatches, maintenanceEvents, supplierPos, invoices, supplierBills, employees, showToast } = useStore();
   const [activeReport, setActiveReport] = useState<string | null>(null);
   const [dateFrom, setDateFrom] = useState('2026-10-01');
   const [dateTo, setDateTo] = useState('2026-11-05');
@@ -236,28 +236,31 @@ export default function Reports() {
 
       {activeReport === 'finance' && (() => {
         const fmtINR = (n: number) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n);
-        const revenue = customerInvoices.reduce((s, i) => s + i.amount, 0);
-        const collected = customerInvoices.filter(i => i.status === 'paid').reduce((s, i) => s + i.amount, 0);
-        const outstandingAR = customerInvoices.filter(i => i.status !== 'paid').reduce((s, i) => s + (i.amount - i.amountPaid), 0);
-        const payables = supplierInvoices.reduce((s, i) => s + (i.amount - i.amountPaid), 0);
+        const activeInvoices = invoices.filter(i => i.status !== 'void' && i.status !== 'cancelled' && i.status !== 'draft');
+        const activeBills = supplierBills.filter(b => b.status !== 'rejected' && b.status !== 'void');
+        const revenue = activeInvoices.reduce((s, i) => s + i.totalAmount, 0);
+        const collected = activeInvoices.reduce((s, i) => s + i.paidAmount, 0);
+        const outstandingAR = activeInvoices.reduce((s, i) => s + i.outstandingAmount, 0);
+        const payables = activeBills.reduce((s, b) => s + b.outstandingAmount, 0);
         return (
           <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-5">
             <h3 className="font-semibold text-[var(--text)] mb-4">Financial Summary</h3>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-5">
-              <Stat label="Total Revenue" value={fmtINR(revenue)} color="info" />
+              <Stat label="Total Billed Revenue" value={fmtINR(revenue)} color="info" />
               <Stat label="Collected" value={fmtINR(collected)} color="success" />
               <Stat label="Outstanding AR" value={fmtINR(outstandingAR)} color={outstandingAR > 0 ? 'warning' : 'success'} />
-              <Stat label="Payables" value={fmtINR(payables)} color={payables > 0 ? 'error' : 'success'} />
+              <Stat label="Open Payables (AP)" value={fmtINR(payables)} color={payables > 0 ? 'error' : 'success'} />
             </div>
             <div className="overflow-x-auto">
               <table className="eoss-table">
-                <thead><tr><th>Invoice #</th><th>Customer</th><th>Amount</th><th>Due Date</th><th>Status</th></tr></thead>
+                <thead><tr><th>Invoice #</th><th>Customer</th><th>Total</th><th>Balance Due</th><th>Due Date</th><th>Status</th></tr></thead>
                 <tbody>
-                  {customerInvoices.map(i => (
+                  {activeInvoices.map(i => (
                     <tr key={i.id}>
                       <td className="font-mono text-xs font-bold text-[var(--brand)]">{i.invoiceNumber}</td>
                       <td className="text-sm text-[var(--text)]">{i.customerName}</td>
-                      <td className="font-mono text-sm text-[var(--text)]">{fmtINR(i.amount)}</td>
+                      <td className="font-mono text-sm text-[var(--text)]">{fmtINR(i.totalAmount)}</td>
+                      <td className="font-mono text-sm text-[var(--text-2)]">{fmtINR(i.outstandingAmount)}</td>
                       <td className="text-xs text-[var(--text-2)]">{new Date(i.dueDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</td>
                       <td><StatusChip status={i.status} size="sm" /></td>
                     </tr>

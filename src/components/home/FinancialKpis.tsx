@@ -27,15 +27,24 @@ function fmt(n: number) {
 
 export default function FinancialKpis() {
   const navigate = useNavigate();
-  const { customerInvoices, supplierInvoices, invoices, inventory } = useStore();
+  const { customerInvoices, supplierInvoices, invoices, supplierBills, inventory } = useStore();
 
-  const totalSales = customerInvoices.reduce((s, i) => s + i.amount, 0) + invoices.reduce((s, i) => s + i.totalAmount, 0);
-  const totalPurchases = supplierInvoices.reduce((s, i) => s + i.amount, 0);
+  const seenInvIds = new Set(invoices.map(i => i.id));
+  const activeUnifiedInvs = invoices.filter(i => !['void', 'cancelled'].includes(i.status));
+  const totalSales = activeUnifiedInvs.reduce((s, i) => s + i.totalAmount, 0)
+    + customerInvoices.filter(i => !seenInvIds.has(i.id)).reduce((s, i) => s + i.amount, 0);
+  const activeBills = supplierBills.filter(b => !['rejected', 'void'].includes(b.status));
+  const seenBillIds = new Set(supplierBills.map(b => b.id));
+  const totalPurchases = activeBills.reduce((s, b) => s + b.totalAmount, 0)
+    + supplierInvoices.filter(i => !seenBillIds.has(i.id)).reduce((s, i) => s + i.amount, 0);
   const unpaidIn = openReceivables(customerInvoices, invoices);
-  const unpaidOut = openPayables(supplierInvoices);
+  const openUnifiedBills = activeBills.filter(b => b.status !== 'paid' && b.outstandingAmount > 0);
+  const unpaidOutLegacy = openPayables(supplierInvoices).filter(i => !seenBillIds.has(i.id));
   const totalReceivables = unpaidIn.reduce((s, i) => s + i.outstanding, 0);
-  const totalPayables = unpaidOut.reduce((s, i) => s + (i.amount - i.amountPaid), 0);
-  const dueInWeek = payablesDueWithinDays(supplierInvoices, 7).length;
+  const totalPayables = openUnifiedBills.reduce((s, b) => s + b.outstandingAmount, 0)
+    + unpaidOutLegacy.reduce((s, i) => s + (i.amount - i.amountPaid), 0);
+  const dueInWeek = openUnifiedBills.filter(b => new Date(b.dueDate).getTime() <= Date.now() + 7 * 86400000).length
+    + payablesDueWithinDays(unpaidOutLegacy, 7).length;
   const stockValue = inventory.reduce((s, m) => s + (m.onHandQty * (m.unitCost ?? 120)), 0);
   const profit = totalSales - totalPurchases;
 

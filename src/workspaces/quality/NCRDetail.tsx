@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, AlertTriangle } from 'lucide-react';
 import { useStore } from '../../store';
 import StatusChip from '../../components/layout/StatusChip';
+import RecordHistoryPanel from '../../components/workflow/RecordHistoryPanel';
 
 export default function NCRDetail() {
   const { id } = useParams<{ id: string }>();
@@ -75,6 +76,16 @@ export default function NCRDetail() {
             </button>
           </div>
         )}
+      </div>
+
+      <div className="mt-5">
+        <RecordHistoryPanel
+          entityId={ncr.id}
+          entityRef={ncr.ncrNumber}
+          relatedIds={[...(ncr.lotId ? [ncr.lotId] : []), ...(ncr.jobId ? [ncr.jobId] : [])]}
+          title="NCR & CAPA Audit Trail"
+          subtitle="Non-conformance raise, containment/disposition decision, and closure"
+        />
       </div>
     </div>
   );

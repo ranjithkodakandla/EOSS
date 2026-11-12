@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { useStore, DEMO_USERS } from '../../store';
 import StatusChip from '../../components/layout/StatusChip';
+import RecordHistoryPanel from '../../components/workflow/RecordHistoryPanel';
 import type { DemoUser, RoleKey } from '../../types';
 
 type AdminTab = 'company' | 'sites' | 'users' | 'roles' | 'approvals' | 'integrations' | 'ai' | 'audit';
@@ -201,6 +202,16 @@ export default function AdminSecurity() {
                 </button>
               </div>
             )}
+          </div>
+
+          <div className="mt-5">
+            <RecordHistoryPanel
+              entityId="company-config"
+              entityRef={companyConfig.companyName}
+              scopes={['CompanyConfig', 'ApprovalPolicy', 'UserRole']}
+              title="Company Profile & Governance History"
+              subtitle="Configuration updates, policy changes, and administrative actions"
+            />
           </div>
         </div>
       )}

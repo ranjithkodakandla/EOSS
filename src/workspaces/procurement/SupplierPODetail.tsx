@@ -7,6 +7,7 @@ import ConfirmModal from '../../components/feedback/ConfirmModal';
 import DocumentActions from '../../components/workflow/DocumentActions';
 import WorkflowTimeline from '../../components/workflow/WorkflowTimeline';
 import RelatedRecordsPanel from '../../components/workflow/RelatedRecordsPanel';
+import RecordHistoryPanel from '../../components/workflow/RecordHistoryPanel';
 import { useReturnNavigation } from '../../hooks/useReturnNavigation';
 
 export default function SupplierPODetail() {
@@ -547,6 +548,15 @@ export default function SupplierPODetail() {
               <Truck size={15} /> Record GRN
             </button>
           )}
+          {linkedGrns.length > 0 && (
+            <button
+              type="button"
+              onClick={() => navigate(`/finance/bill/new?spoId=${po.id}&grnId=${linkedGrns[0].id}`)}
+              className="w-full flex items-center justify-center gap-2 py-2 border border-[var(--border)] bg-[var(--surface)] text-[var(--brand)] rounded-xl text-xs font-semibold hover:border-[var(--brand)]"
+            >
+              + Record Supplier Bill
+            </button>
+          )}
           {!canRecordGrn && canEdit && (
             <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-3 text-xs text-[var(--text-2)]">
               {po.status === 'received' || !hasRemainingQty
@@ -586,6 +596,16 @@ export default function SupplierPODetail() {
         onConfirm={handleCancel}
         onCancel={() => setConfirm(false)}
       />
+
+      <div className="mt-5">
+        <RecordHistoryPanel
+          entityId={po.id}
+          entityRef={po.poNumber}
+          relatedIds={linkedGrns.map(g => g.id)}
+          title="Supplier PO Activity & Audit Trail"
+          subtitle="Drafting, issuance, supplier confirmation/decline, amendments, and goods receipts"
+        />
+      </div>
     </div>
   );
 }

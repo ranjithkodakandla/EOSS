@@ -7,17 +7,19 @@ import clsx from 'clsx';
 import DocumentActions from '../../components/workflow/DocumentActions';
 import WorkflowTimeline from '../../components/workflow/WorkflowTimeline';
 import RelatedRecordsPanel from '../../components/workflow/RelatedRecordsPanel';
+import RecordHistoryPanel from '../../components/workflow/RecordHistoryPanel';
 import { useReturnNavigation } from '../../hooks/useReturnNavigation';
 import { assessOrderMaterialRequirements } from '../../domain/materialFeasibility';
 
-type DetailTab = 'overview' | 'lines' | 'amendments' | 'jobs' | 'documents';
+type DetailTab = 'overview' | 'lines' | 'amendments' | 'jobs' | 'documents' | 'history';
 
 export default function PODetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const {
     customerPos, poLines, poAmendments, jobs, jobMaterialReqs, quotations, rfqs,
-    purchaseReqs, lots, storeLocations, sites, supplierPos, supplierPoLines,
+    purchaseReqs, supplierInvitations, supplierQuotations, grns, dispatches, invoices,
+    materials, lots, storeLocations, sites, supplierPos, supplierPoLines,
     currentUser, updateCustomerPo, resolvePoAmendment, assessAndAllocateCustomerPO, showToast,
   } = useStore();
   const { goBack, originUrl } = useReturnNavigation('/sales?tab=pos');
@@ -50,13 +52,54 @@ export default function PODetail() {
   const originatingRfq = rfqs.find(r => r.id === po.rfqId) ?? (quotation ? rfqs.find(r => r.id === quotation.rfqId) : undefined);
   const linkedJobs = jobs.filter(j => j.customerPoId === po.id || j.customerPoNumber === po.poNumber);
   const linkedReqs = jobMaterialReqs.filter(r => linkedJobs.some(j => j.id === r.jobId));
-  const linkedShortagePrs = purchaseReqs.filter(p => p.sourceRefId === po.id || linkedJobs.some(j => j.id === p.jobId));
+  const linkedShortagePrs = purchaseReqs.filter(p => p.sourceRefId === po.id || p.sourceRefLabel === po.poNumber || linkedJobs.some(j => j.id === p.jobId));
+  const linkedSupplierInvites = supplierInvitations.filter(r => linkedShortagePrs.some(pr => pr.id === r.prId));
+  const linkedSupplierQuotes = supplierQuotations.filter(q => linkedSupplierInvites.some(r => r.id === q.invitationId) || linkedShortagePrs.some(pr => pr.id === q.prId));
+  const linkedSpos = supplierPos.filter(sp => linkedShortagePrs.some(pr => pr.id === sp.prId) || sp.originatingRequirementId === po.id);
+  const linkedGrns = grns.filter(g => linkedSpos.some(sp => sp.id === g.spoId));
+  const linkedDispatches = dispatches.filter(d => d.customerPoId === po.id || d.customerPoNumber === po.poNumber);
+  const linkedInvoices = invoices.filter(i => i.poId === po.id && i.status !== 'void' && i.status !== 'cancelled');
   const [checkSiteId, setCheckSiteId] = useState(po.deliverToSiteId ?? sites[0]?.id ?? 'hyd');
+  const effectiveReqInputs = useMemo(() => {
+    if (linkedReqs.length > 0) {
+      return linkedReqs.map(r => {
+        const mat = materials.find(m => m.id === r.materialItemId);
+        return {
+          materialItemId: r.materialItemId,
+          materialCode: mat?.itemCode,
+          materialName: r.materialName,
+          grade: mat?.standardGrade,
+          requiredQty: r.requiredQty,
+          uom: r.uom,
+        };
+      });
+    }
+    return actualLines
+      .map(l => {
+        const mat = materials.find(m =>
+          l.description.toLowerCase().includes(m.name.toLowerCase())
+          || (l.description.toLowerCase().includes('pipe') && m.id === 'mat-msp')
+          || (l.description.toLowerCase().includes('8mm') && m.id === 'mat-ms8')
+          || (l.description.toLowerCase().includes('12mm') && m.id === 'mat-ms12')
+          || (l.description.toLowerCase().includes('304l') && m.id === 'mat-ss3')
+        );
+        return mat ? {
+          materialItemId: mat.id,
+          materialCode: mat.itemCode,
+          materialName: mat.name,
+          grade: mat.standardGrade,
+          requiredQty: l.orderedQty,
+          uom: l.uom || mat.primaryUom,
+        } : null;
+      })
+      .filter((x): x is NonNullable<typeof x> => Boolean(x));
+  }, [linkedReqs, actualLines, materials]);
+
   const liveAvailability = useMemo(
     () =>
-      linkedReqs.length > 0
+      effectiveReqInputs.length > 0
         ? assessOrderMaterialRequirements({
-            requirements: linkedReqs,
+            requirements: effectiveReqInputs,
             assignedSiteId: checkSiteId,
             lots,
             storeLocations,
@@ -65,8 +108,17 @@ export default function PODetail() {
             supplierPoLines,
           })
         : null,
-    [linkedReqs, checkSiteId, lots, storeLocations, sites, supplierPos, supplierPoLines],
+    [effectiveReqInputs, checkSiteId, lots, storeLocations, sites, supplierPos, supplierPoLines],
   );
+  const prQuantityDrift = useMemo(() => {
+    if (!liveAvailability || linkedShortagePrs.length === 0) return null;
+    const totalShortageNow = liveAvailability.items.reduce((s, i) => s + i.shortageQty, 0);
+    const totalPrQty = linkedShortagePrs.reduce((s, pr) => s + (pr.lines?.reduce((ls, l) => ls + l.requiredQty, 0) ?? pr.totalQty ?? 0), 0);
+    if (totalShortageNow > totalPrQty) {
+      return `Additional shortage detected (${totalShortageNow} vs ${totalPrQty} raised in PR). Re-run availability check or amend PR.`;
+    }
+    return null;
+  }, [liveAvailability, linkedShortagePrs]);
   const canEdit = ['owner', 'sales'].includes(currentUser.role);
   const canApprove = currentUser.role === 'owner';
   const returnTo = searchParams.get('from') || '/sales?tab=pos';
@@ -80,6 +132,7 @@ export default function PODetail() {
     { id: 'amendments', label: `Amendments${po.hasAmendment ? ' ·' : ''}` },
     { id: 'jobs', label: `Linked Jobs (${poJobs.length})` },
     { id: 'documents', label: 'Documents' },
+    { id: 'history', label: 'History' },
   ];
 
   return (
@@ -174,6 +227,9 @@ export default function PODetail() {
               ...(quotation ? [{ relationship: 'Upstream' as const, typeLabel: 'Customer Quotation', reference: quotation.quotationNumber, to: `/sales/quotation/${quotation.id}`, status: quotation.status, state: { from: originUrl } }] : []),
               ...linkedJobs.map(j => ({ relationship: 'Downstream' as const, typeLabel: 'Production Job', reference: j.jobNumber, to: `/jobs/${j.id}`, status: j.status, state: { from: originUrl } })),
               ...linkedShortagePrs.map(p => ({ relationship: 'Downstream' as const, typeLabel: 'Shortage PR', reference: p.prNumber, to: `/procurement/pr/${p.id}`, status: p.status, state: { from: originUrl } })),
+              ...linkedSpos.map(sp => ({ relationship: 'Downstream' as const, typeLabel: 'Supplier PO', reference: sp.spoNumber || sp.poNumber, to: `/procurement/spo/${sp.id}`, status: sp.status, state: { from: originUrl } })),
+              ...linkedDispatches.map(d => ({ relationship: 'Downstream' as const, typeLabel: 'Dispatch', reference: d.dispatchNumber, to: `/dispatch/${d.id}`, status: d.status, state: { from: originUrl } })),
+              ...linkedInvoices.map(inv => ({ relationship: 'Downstream' as const, typeLabel: 'Customer Invoice', reference: inv.invoiceNumber, to: `/finance/invoice/${inv.id}`, status: inv.status, meta: `₹${inv.totalAmount.toLocaleString('en-IN')}`, state: { from: originUrl } })),
             ]}
           />
         </div>
@@ -274,6 +330,43 @@ export default function PODetail() {
                   ))}
                 </tbody>
               </table>
+            </div>
+          )}
+
+          {prQuantityDrift && (
+            <div className="p-3 rounded-lg border border-amber-300 bg-amber-50/70 text-xs text-amber-900 font-medium">
+              ⚠ Reconciliation Required: {prQuantityDrift}
+            </div>
+          )}
+
+          {(linkedShortagePrs.length > 0 || linkedSpos.length > 0 || linkedGrns.length > 0) && (
+            <div className="pt-2 border-t border-[var(--border)] flex flex-wrap items-center gap-3 text-xs text-[var(--text-2)]">
+              <span className="font-semibold text-[var(--text)]">Shortage Procurement Progress:</span>
+              {linkedShortagePrs.map(pr => (
+                <Link key={pr.id} to={`/procurement/pr/${pr.id}`} className="px-2 py-0.5 rounded bg-[var(--surface-2)] border border-[var(--border)] font-mono text-[var(--brand)] hover:underline">
+                  PR {pr.prNumber} ({pr.status})
+                </Link>
+              ))}
+              {linkedSupplierInvites.length > 0 && (
+                <span className="px-2 py-0.5 rounded bg-[var(--surface-2)] border border-[var(--border)]">
+                  {linkedSupplierInvites.length} Supplier Invite{linkedSupplierInvites.length > 1 ? 's' : ''}
+                </span>
+              )}
+              {linkedSupplierQuotes.length > 0 && (
+                <span className="px-2 py-0.5 rounded bg-[var(--surface-2)] border border-[var(--border)]">
+                  {linkedSupplierQuotes.length} Quote{linkedSupplierQuotes.length > 1 ? 's' : ''}
+                </span>
+              )}
+              {linkedSpos.map(sp => (
+                <Link key={sp.id} to={`/procurement/spo/${sp.id}`} className="px-2 py-0.5 rounded bg-[var(--surface-2)] border border-[var(--border)] font-mono text-[var(--brand)] hover:underline">
+                  SPO {sp.spoNumber || sp.poNumber} ({sp.status})
+                </Link>
+              ))}
+              {linkedGrns.map(g => (
+                <Link key={g.id} to={`/procurement/grn/${g.id}`} className="px-2 py-0.5 rounded bg-[var(--surface-2)] border border-[var(--border)] font-mono text-[var(--brand)] hover:underline">
+                  GRN {g.grnNumber} ({g.status})
+                </Link>
+              ))}
             </div>
           )}
         </div>
@@ -399,6 +492,33 @@ export default function PODetail() {
                     >
                       Create Revised PO
                     </button>
+                  )}
+                  <Link
+                    to={`/finance/invoice/new?poId=${po.id}${linkedDispatches[0] ? `&dispatchId=${linkedDispatches[0].id}` : ''}`}
+                    className="w-full py-2 rounded-lg text-xs font-semibold text-white text-center block hover:opacity-90 transition-opacity"
+                    style={{ background: 'var(--brand-fill)' }}
+                  >
+                    + Create Customer Invoice
+                  </Link>
+                </div>
+              </Card>
+
+              <Card title={`Dispatches & Invoices (${linkedDispatches.length} / ${linkedInvoices.length})`}>
+                <div className="space-y-2 text-xs">
+                  {linkedDispatches.map(d => (
+                    <Link key={d.id} to={`/dispatch/${d.id}`} className="flex items-center justify-between px-2.5 py-1.5 rounded border hover:bg-[var(--surface-2)]" style={{ borderColor: 'var(--border)' }}>
+                      <span className="font-mono font-semibold text-[var(--brand)]">{d.dispatchNumber}</span>
+                      <StatusChip status={d.status} size="sm" />
+                    </Link>
+                  ))}
+                  {linkedInvoices.map(inv => (
+                    <Link key={inv.id} to={`/finance/invoice/${inv.id}`} className="flex items-center justify-between px-2.5 py-1.5 rounded border hover:bg-[var(--surface-2)]" style={{ borderColor: 'var(--border)' }}>
+                      <span className="font-mono font-semibold text-[var(--brand)]">{inv.invoiceNumber}</span>
+                      <StatusChip status={inv.status} size="sm" />
+                    </Link>
+                  ))}
+                  {linkedDispatches.length === 0 && linkedInvoices.length === 0 && (
+                    <p className="text-[var(--text-3)]">No dispatches or invoices generated yet.</p>
                   )}
                 </div>
               </Card>
@@ -543,6 +663,24 @@ export default function PODetail() {
               </label>
               <p className="mt-3 text-xs text-center" style={{ color: 'var(--text-3)' }}>No documents attached yet.</p>
             </div>
+          </div>
+        )}
+
+        {activeTab === 'history' && (
+          <div className="p-6 max-w-5xl">
+            <RecordHistoryPanel
+              entityId={po.id}
+              entityRef={po.poNumber}
+              relatedIds={[
+                ...linkedJobs.map(j => j.id),
+                ...linkedShortagePrs.map(p => p.id),
+                ...linkedSpos.map(s => s.id),
+                ...linkedDispatches.map(d => d.id),
+                ...linkedInvoices.map(i => i.id),
+              ]}
+              title="Customer PO Activity & Audit Trail"
+              subtitle="Order creation, material availability assessment, shortage PRs, amendments, dispatches, and invoicing"
+            />
           </div>
         )}
       </div>

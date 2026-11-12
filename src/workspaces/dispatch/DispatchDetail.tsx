@@ -1,17 +1,33 @@
-import React from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Truck, Package, CheckCircle, Box } from 'lucide-react';
+import React, { useState } from 'react';
+import { useParams, useNavigate, Link } from 'react-router-dom';
+import { ArrowLeft, Truck, Package, CheckCircle, Box, FileText, Plus } from 'lucide-react';
 import { useStore } from '../../store';
 import StatusChip from '../../components/layout/StatusChip';
+import RecordHistoryPanel from '../../components/workflow/RecordHistoryPanel';
+import type { Dispatch } from '../../types';
 
 export default function DispatchDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { dispatches, currentUser, setDispatchStatus, recordPoD, qualityReleases } = useStore();
+  const { dispatches, currentUser, setDispatchStatus, recordPoD, qualityReleases, invoices, customerPos } = useStore();
 
   const dispatch = dispatches.find(d => d.id === id);
+  const [deliveredDate, setDeliveredDate] = useState(dispatch?.actualDeliveryDate || '2026-11-12');
+  const [receivedByName, setReceivedByName] = useState(dispatch?.receivedByName || '');
+  const [condition, setCondition] = useState<NonNullable<Dispatch['deliveryCondition']>>(dispatch?.deliveryCondition || 'good');
+  const [podReference, setPodReference] = useState(dispatch?.podReference || '');
+  const [deliveryNotes, setDeliveryNotes] = useState(dispatch?.deliveryNotes || '');
+
   if (!dispatch) return <div className="p-6 text-[var(--text-2)]">Dispatch not found</div>;
   const release = dispatch.qualityReleaseId ? qualityReleases.find(r => r.id === dispatch.qualityReleaseId) : null;
+  const linkedPO = dispatch.customerPoId
+    ? customerPos.find(p => p.id === dispatch.customerPoId)
+    : dispatch.customerPoNumber
+    ? customerPos.find(p => p.poNumber === dispatch.customerPoNumber)
+    : undefined;
+  const linkedInvoices = invoices.filter(
+    inv => inv.dispatchIds?.includes(dispatch.id) || (linkedPO && inv.poId === linkedPO.id),
+  );
 
   const canDispatch = ['owner', 'dispatch'].includes(currentUser.role);
 
@@ -175,29 +191,153 @@ export default function DispatchDetail() {
             </div>
           )}
 
-          {/* Delivered — PoD */}
-          {dispatch.status === 'delivered' && (
-            <div className="bg-[var(--surface-2)] border border-[var(--border)] rounded-xl p-4">
-              <div className="flex items-center gap-2 text-[var(--success)] mb-2">
-                <Truck size={16} />
-                <span className="text-sm font-semibold">Delivered</span>
+          {/* Delivered — Delivery Confirmation & PoD */}
+          {(dispatch.status === 'delivered' || dispatch.status === 'delivery_confirmed' || dispatch.status === 'dispatched' || dispatch.status === 'in_transit' || dispatch.hasPoD) && (
+            <div className="bg-[var(--surface-2)] border border-[var(--border)] rounded-xl p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-[var(--success)]">
+                  <Truck size={16} />
+                  <span className="text-sm font-semibold">
+                    {dispatch.hasPoD ? 'Delivery Confirmed (PoD)' : 'Delivery Confirmation & PoD'}
+                  </span>
+                </div>
+                {dispatch.podReference && (
+                  <span className="text-xs font-mono text-[var(--text-3)]">{dispatch.podReference}</span>
+                )}
               </div>
-              {!dispatch.hasPoD && canDispatch && (
-                <button
-                  onClick={() => recordPoD(dispatch.id)}
-                  className="w-full py-2 border border-[var(--border)] text-[var(--text)] rounded-lg text-sm"
-                >
-                  Record Proof of Delivery
-                </button>
-              )}
-              {dispatch.hasPoD && (
-                <p className="text-xs text-[var(--success)] flex items-center gap-1 mt-1">
-                  <CheckCircle size={12} /> PoD received
-                </p>
-              )}
+
+              {dispatch.hasPoD ? (
+                <div className="space-y-1.5 text-xs text-[var(--text-2)]">
+                  <p className="text-[var(--success)] flex items-center gap-1 font-medium">
+                    <CheckCircle size={12} /> Proof of delivery confirmed
+                  </p>
+                  <p>Delivered Date: <strong>{dispatch.actualDeliveryDate || dispatch.dispatchDate}</strong></p>
+                  {dispatch.receivedByName && <p>Received By: <strong>{dispatch.receivedByName}</strong></p>}
+                  {dispatch.deliveryCondition && <p>Condition: <strong className="capitalize">{dispatch.deliveryCondition.replace('_', ' ')}</strong></p>}
+                  {dispatch.deliveryNotes && <p className="text-[var(--text-3)]">{dispatch.deliveryNotes}</p>}
+                </div>
+              ) : canDispatch ? (
+                <div className="space-y-2.5 text-xs">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-[11px] text-[var(--text-3)] mb-1">Delivered Date</label>
+                      <input
+                        type="date"
+                        value={deliveredDate}
+                        onChange={e => setDeliveredDate(e.target.value)}
+                        className="w-full px-2.5 py-1.5 bg-[var(--surface)] border border-[var(--border)] rounded-lg text-[var(--text)]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] text-[var(--text-3)] mb-1">Condition</label>
+                      <select
+                        value={condition}
+                        onChange={e => setCondition(e.target.value as NonNullable<Dispatch['deliveryCondition']>)}
+                        className="w-full px-2.5 py-1.5 bg-[var(--surface)] border border-[var(--border)] rounded-lg text-[var(--text)]"
+                      >
+                        <option value="good">Good — Full Qty</option>
+                        <option value="shortage">Shortage Reported</option>
+                        <option value="partial_damage">Partial Damage</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-[11px] text-[var(--text-3)] mb-1">Received By</label>
+                      <input
+                        type="text"
+                        placeholder="Customer receiver name"
+                        value={receivedByName}
+                        onChange={e => setReceivedByName(e.target.value)}
+                        className="w-full px-2.5 py-1.5 bg-[var(--surface)] border border-[var(--border)] rounded-lg text-[var(--text)]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] text-[var(--text-3)] mb-1">PoD Reference</label>
+                      <input
+                        type="text"
+                        placeholder={`POD-${dispatch.dispatchNumber}`}
+                        value={podReference}
+                        onChange={e => setPodReference(e.target.value)}
+                        className="w-full px-2.5 py-1.5 bg-[var(--surface)] border border-[var(--border)] rounded-lg text-[var(--text)]"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] text-[var(--text-3)] mb-1">Delivery Notes</label>
+                    <input
+                      type="text"
+                      placeholder="Optional site unloading remarks"
+                      value={deliveryNotes}
+                      onChange={e => setDeliveryNotes(e.target.value)}
+                      className="w-full px-2.5 py-1.5 bg-[var(--surface)] border border-[var(--border)] rounded-lg text-[var(--text)]"
+                    />
+                  </div>
+                  <button
+                    onClick={() =>
+                      recordPoD(dispatch.id, {
+                        deliveredDate,
+                        receivedByName: receivedByName.trim() || undefined,
+                        condition,
+                        podReference: podReference.trim() || undefined,
+                        notes: deliveryNotes.trim() || undefined,
+                      })
+                    }
+                    className="w-full py-2 bg-[var(--success)] text-white rounded-lg text-xs font-semibold hover:opacity-90 transition-opacity"
+                  >
+                    Confirm Delivery &amp; Record PoD
+                  </button>
+                </div>
+              ) : null}
             </div>
           )}
+
+          {/* Customer Invoicing */}
+          <div className="bg-[var(--surface-2)] border border-[var(--border)] rounded-xl p-4 space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 text-[var(--text)]">
+                <FileText size={15} className="text-[var(--brand)]" />
+                <span className="text-sm font-semibold">Customer Invoicing</span>
+              </div>
+              {linkedPO && (
+                <Link
+                  to={`/finance/invoice/new?poId=${linkedPO.id}&dispatchId=${dispatch.id}`}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 bg-[var(--brand-fill)] text-white rounded-lg text-xs font-semibold hover:opacity-90"
+                >
+                  <Plus size={12} /> Create Invoice
+                </Link>
+              )}
+            </div>
+            {linkedInvoices.length === 0 ? (
+              <p className="text-xs text-[var(--text-3)]">
+                {linkedPO ? 'Ready to create tax invoice from this dispatch.' : 'Link a Customer PO to raise an invoice.'}
+              </p>
+            ) : (
+              <div className="space-y-1.5">
+                {linkedInvoices.map(inv => (
+                  <Link
+                    key={inv.id}
+                    to={`/finance/invoice/${inv.id}`}
+                    className="flex items-center justify-between px-2.5 py-2 rounded-lg bg-[var(--surface)] border border-[var(--border)] hover:border-[var(--brand)] text-xs"
+                  >
+                    <span className="font-mono font-semibold text-[var(--brand)]">{inv.invoiceNumber}</span>
+                    <StatusChip status={inv.status} size="sm" />
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
+      </div>
+
+      <div className="mt-6">
+        <RecordHistoryPanel
+          entityId={dispatch.id}
+          entityRef={dispatch.dispatchNumber}
+          relatedIds={[...(linkedPO ? [linkedPO.id] : []), ...linkedInvoices.map(i => i.id)]}
+          title="Dispatch & Delivery Activity History"
+          subtitle="Dispatch creation, status updates, PoD confirmation, and customer billing events"
+        />
       </div>
     </div>
   );

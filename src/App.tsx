@@ -56,7 +56,13 @@ import Admin from './workspaces/admin/AdminSecurity';
 import AuditTimeline from './workspaces/admin/AuditTimeline';
 import Finance from './workspaces/finance/Finance';
 import InvoiceDetail from './workspaces/finance/InvoiceDetail';
+import InvoiceCreate from './workspaces/finance/InvoiceCreate';
 import PaymentDetail from './workspaces/finance/PaymentDetail';
+import CustomerPaymentCreate from './workspaces/finance/CustomerPaymentCreate';
+import SupplierBillDetail from './workspaces/finance/SupplierBillDetail';
+import SupplierBillCreate from './workspaces/finance/SupplierBillCreate';
+import SupplierPaymentDetail from './workspaces/finance/SupplierPaymentDetail';
+import SupplierPaymentCreate from './workspaces/finance/SupplierPaymentCreate';
 import Products from './workspaces/products/Products';
 import Allocations from './workspaces/allocations/Allocations';
 import Transfers from './workspaces/transfers/Transfers';
@@ -190,8 +196,15 @@ export default function App() {
           <Route path="documents/:id" element={<DocumentDetail />} />
           <Route path="reports" element={<Reports />} />
           <Route path="finance" element={<Finance />} />
+          <Route path="finance/invoice/new" element={<InvoiceCreate />} />
           <Route path="finance/invoice/:id" element={<InvoiceDetail />} />
+          <Route path="finance/payment/new" element={<CustomerPaymentCreate />} />
           <Route path="finance/payment/:id" element={<PaymentDetail />} />
+          <Route path="finance/bill/new" element={<SupplierBillCreate />} />
+          <Route path="finance/bill/:id" element={<SupplierBillDetail />} />
+          <Route path="finance/supplier-payment/new" element={<SupplierPaymentCreate />} />
+          <Route path="finance/supplier-payment/:id" element={<SupplierPaymentDetail />} />
+          <Route path="audit" element={<AuditTimeline />} />
           <Route path="products" element={<Products />} />
           <Route path="allocations" element={<Allocations />} />
           <Route path="transfers" element={<Transfers />} />

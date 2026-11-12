@@ -3,7 +3,7 @@ import { NavLink } from 'react-router-dom';
 import {
   Home, ShoppingCart, Package, Box, Activity, ShieldCheck,
   Wrench, Truck, Users, FileText, BarChart3,
-  ChevronLeft, ChevronRight, Store, Landmark, Settings,
+  ChevronLeft, ChevronRight, Store, Landmark, Settings, History,
 } from 'lucide-react';
 import clsx from 'clsx';
 import { useStore } from '../../store';
@@ -28,6 +28,7 @@ const NAV_ITEMS: NavItem[] = [
   { path: '/finance', label: 'Finance', icon: <Landmark size={17} /> },
   { path: '/documents', label: 'Documents', icon: <FileText size={17} /> },
   { path: '/reports', label: 'Reports', icon: <BarChart3 size={17} /> },
+  { path: '/audit', label: 'Audit Trail', icon: <History size={17} /> },
 ];
 
 function AuroraWave({ theme }: { theme: string }) {

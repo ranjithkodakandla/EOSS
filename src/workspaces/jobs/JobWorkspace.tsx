@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { useStore } from '../../store';
 import RelatedRecordsPanel from '../../components/workflow/RelatedRecordsPanel';
+import RecordHistoryPanel from '../../components/workflow/RecordHistoryPanel';
 import { useReturnNavigation } from '../../hooks/useReturnNavigation';
 import { EMPLOYEES } from '../../data/seed';
 import StatusChip from '../../components/layout/StatusChip';
@@ -14,7 +15,7 @@ import clsx from 'clsx';
 import { jobMaterialQuantities, materialReadinessForJob, getMaterialReadinessLabel } from '../../domain/inventory';
 import type { JobMaterialReq, JobUpdate } from '../../types';
 
-const TABS = ['Overview', 'Stages', 'Materials', 'Quality', 'NCR / Rework', 'Updates', 'Blockers'];
+const TABS = ['Overview', 'Stages', 'Materials', 'Quality', 'NCR / Rework', 'Updates', 'Blockers', 'History'];
 
 export default function JobWorkspace() {
   const { id } = useParams<{ id: string }>();
@@ -578,6 +579,15 @@ export default function JobWorkspace() {
             ))
           )}
         </div>
+      )}
+
+      {tab === 'History' && (
+        <RecordHistoryPanel
+          entityId={job.id}
+          entityRef={job.jobNumber}
+          title="Job Activity & Production Audit Trail"
+          subtitle="Job release, stage progress, material reservations/issues/returns, blockers, and quality decisions"
+        />
       )}
 
       {recordModalOpen && <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60"><div className="w-full max-w-lg rounded-xl p-5 space-y-4 bg-[var(--surface)] border border-[var(--border)]"><div className="flex items-center justify-between"><div><h3 className="text-sm font-bold text-[var(--text)]">Update {job.jobNumber}</h3><p className="text-xs text-[var(--text-2)]">Changes are saved to the job record and audit history.</p></div><button type="button" onClick={() => setRecordModalOpen(false)}><X size={16} className="text-[var(--text-3)]" /></button></div><div className="grid sm:grid-cols-2 gap-3"><label className="text-xs text-[var(--text-2)]">Job status<select className="eoss-input w-full mt-1" value={recordForm.status} onChange={e => setRecordForm(f => ({ ...f, status: e.target.value as typeof f.status }))}>{['draft', 'active', 'hold', 'complete', 'cancelled'].map(s => <option key={s} value={s}>{s}</option>)}</select></label><label className="text-xs text-[var(--text-2)]">Current production stage<select className="eoss-input w-full mt-1" value={recordForm.currentStage} onChange={e => setRecordForm(f => ({ ...f, currentStage: e.target.value }))}>{job.stages.map(stage => <option key={stage.id} value={stage.name}>{stage.name}</option>)}</select></label><label className="text-xs text-[var(--text-2)]">Owner<input className="eoss-input w-full mt-1" value={recordForm.owner} onChange={e => setRecordForm(f => ({ ...f, owner: e.target.value }))} /></label><label className="text-xs text-[var(--text-2)]">Target completion<input type="date" className="eoss-input w-full mt-1" value={recordForm.plannedEnd} onChange={e => setRecordForm(f => ({ ...f, plannedEnd: e.target.value }))} /></label></div><label className="text-xs text-[var(--text-2)] block">Operational note<textarea rows={3} className="eoss-input w-full mt-1" value={recordForm.notes} onChange={e => setRecordForm(f => ({ ...f, notes: e.target.value }))} /></label><div className="flex justify-end gap-2"><button type="button" onClick={() => setRecordModalOpen(false)} className="btn-ghost text-xs">Cancel</button><button type="button" onClick={() => { updateJob(job.id, { status: recordForm.status, currentStage: recordForm.currentStage, owner: recordForm.owner, plannedEnd: recordForm.plannedEnd, operationalNotes: recordForm.notes.trim() || undefined }); setRecordModalOpen(false); showToast({ type: 'success', title: 'Job record updated' }); }} className="btn-primary text-xs">Save changes</button></div></div></div>}

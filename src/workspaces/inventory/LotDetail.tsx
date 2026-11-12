@@ -4,6 +4,7 @@ import { ArrowLeft, FileText, ArrowRightLeft, CheckCircle } from 'lucide-react';
 import { useStore } from '../../store';
 import { useReturnNavigation } from '../../hooks/useReturnNavigation';
 import StatusChip, { getStatusLabel } from '../../components/layout/StatusChip';
+import RecordHistoryPanel from '../../components/workflow/RecordHistoryPanel';
 import ConfirmModal from '../../components/feedback/ConfirmModal';
 
 export default function LotDetail() {
@@ -195,6 +196,15 @@ export default function LotDetail() {
         onConfirm={confirm?.action === 'release' ? handleRelease : handleReturn}
         onCancel={() => setConfirm(null)}
       />
+
+      <div className="mt-5">
+        <RecordHistoryPanel
+          entityId={lot.id}
+          entityRef={lot.lotNumber}
+          title="Lot Activity & Traceability History"
+          subtitle="GRN receipt, QC hold/release decisions, reservations, issues, and stock adjustments"
+        />
+      </div>
     </div>
   );
 }

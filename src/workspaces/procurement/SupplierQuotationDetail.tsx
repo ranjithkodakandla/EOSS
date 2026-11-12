@@ -4,6 +4,7 @@ import { ArrowLeft, CheckCircle2, FileText, Pencil, Save, XCircle } from 'lucide
 import { useStore } from '../../store';
 import StatusChip from '../../components/layout/StatusChip';
 import RelatedRecordsPanel from '../../components/workflow/RelatedRecordsPanel';
+import RecordHistoryPanel from '../../components/workflow/RecordHistoryPanel';
 import { useReturnNavigation } from '../../hooks/useReturnNavigation';
 
 const fmt = (d?: string) => d ? new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
@@ -309,6 +310,13 @@ export default function SupplierQuotationDetail() {
             <p className="text-sm text-[var(--text-2)]">{quote.notes}</p>
           </div>
         )}
+
+        <RecordHistoryPanel
+          entityId={quote.id}
+          entityRef={quote.quoteNumber}
+          title="Supplier Quotation Activity & Audit Trail"
+          subtitle="Pricing entry, revision updates, selection, approval, and PO conversion"
+        />
       </div>
     </div>
   );

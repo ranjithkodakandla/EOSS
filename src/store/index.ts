@@ -12,11 +12,24 @@ import type {
   FinishedProduct, SiteAllocation, CustomerQuotation, CustomerQuotationLine, POLine,
   PurchaseRequisition, Site, MaterialItem, InventoryTransfer, MaterialReturn, JobCancellationDisposition,
   MeterReading, QualityRelease, InspectionTemplate, StageTemplate,
-  JobMaterialReq, JobBlocker, SupplierPOLine, POAmendment, SupplierInvitation
-  , Party
+  JobMaterialReq, JobBlocker, SupplierPOLine, POAmendment, SupplierInvitation,
+  Party, SupplierBill, SupplierBillLine, SupplierPayment, SupplierPaymentAllocation,
 } from '../types';
 import { stampPlaces } from '../domain/places';
 import { assessOrderMaterialRequirements } from '../domain/materialFeasibility';
+import { createAuditEventRecord, diffRecordFields } from '../domain/audit';
+import { computeGstTotals, computeThreeWayMatch } from '../domain/finance';
+import {
+  SEED_UNIFIED_INVOICES,
+  SEED_UNIFIED_INVOICE_LINES,
+  SEED_UNIFIED_PAYMENTS,
+  SEED_UNIFIED_PAYMENT_ALLOCATIONS,
+  SEED_SUPPLIER_BILLS,
+  SEED_SUPPLIER_BILL_LINES,
+  SEED_SUPPLIER_PAYMENTS,
+  SEED_SUPPLIER_PAYMENT_ALLOCATIONS,
+} from '../data/financeSeed';
+import { SEED_RICH_AUDIT_EVENTS } from '../data/auditSeed';
 import {
   DEMO_SCENARIO_PRS,
   DEMO_SUPPLIER_INVITATIONS,
@@ -188,7 +201,7 @@ interface EOSSState {
   // Dispatch actions
   setDispatchStatus: (dspId: string, status: Dispatch['status']) => void;
   addDispatch: (dispatch: Dispatch) => void;
-  recordPoD: (dspId: string) => void;
+  recordPoD: (dspId: string, payload?: { deliveredDate?: string; receivedByName?: string; condition?: Dispatch['deliveryCondition']; podReference?: string; notes?: string }) => void;
 
   // NCR actions
   addNCR: (ncr: NCR) => void;
@@ -270,12 +283,16 @@ interface EOSSState {
   customerInvoices: CustomerInvoice[];
   supplierInvoices: SupplierInvoice[];
   paymentRecords: PaymentRecord[];
-  // Finance state (rich flagship types)
+  // Finance state (rich flagship + unified AR/AP types)
   invoices: Invoice[];
   invoiceLines: InvoiceLine[];
   payments: Payment[];
   paymentAllocations: PaymentAllocation[];
   collectionActivities: CollectionActivity[];
+  supplierBills: SupplierBill[];
+  supplierBillLines: SupplierBillLine[];
+  supplierPayments: SupplierPayment[];
+  supplierPaymentAllocations: SupplierPaymentAllocation[];
   // Product & allocation catalogue
   finishedProducts: FinishedProduct[];
   siteAllocations: SiteAllocation[];
@@ -285,11 +302,109 @@ interface EOSSState {
   addSupplierInvoice: (inv: SupplierInvoice) => void;
   addPaymentRecord: (pay: PaymentRecord) => void;
   recordPaymentAgainstInvoice: (invoiceId: string, direction: 'inbound' | 'outbound', amount: number) => void;
-  // Finance actions (rich flagship types)
+  // Finance actions (rich Order-to-Cash & Procure-to-Pay)
   addInvoice: (inv: Invoice) => void;
   addPayment: (pay: Payment) => void;
   addPaymentAllocation: (pa: PaymentAllocation) => void;
   addCollectionActivity: (ca: CollectionActivity) => void;
+  createCustomerInvoice: (payload: {
+    poId: string;
+    dispatchIds?: string[];
+    invoiceDate: string;
+    dueDate: string;
+    paymentTerms?: string;
+    taxType: 'CGST_SGST' | 'IGST' | 'Export_LUT';
+    discountAmount?: number;
+    freightAmount?: number;
+    otherCharges?: number;
+    notes?: string;
+    issueNow?: boolean;
+    lines: Array<{
+      poLineId?: string;
+      productId?: string;
+      productName: string;
+      drawingNumber: string;
+      hsnSac?: string;
+      quantity: number;
+      uom: string;
+      unitPrice: number;
+      discountPct?: number;
+      taxPct: number;
+      dispatchId?: string;
+      dispatchNumber?: string;
+    }>;
+  }) => { ok: boolean; invoice?: Invoice; error?: string };
+  updateCustomerInvoiceDraft: (invoiceId: string, payload: Partial<Pick<Invoice, 'invoiceDate' | 'dueDate' | 'paymentTerms' | 'taxType' | 'discountAmount' | 'freightAmount' | 'otherCharges' | 'notes'>> & {
+    lines?: Array<{
+      id?: string;
+      poLineId?: string;
+      productId?: string;
+      productName: string;
+      drawingNumber: string;
+      hsnSac?: string;
+      quantity: number;
+      uom: string;
+      unitPrice: number;
+      discountPct?: number;
+      taxPct: number;
+    }>;
+  }) => { ok: boolean; error?: string };
+  issueCustomerInvoice: (invoiceId: string) => { ok: boolean; error?: string };
+  voidCustomerInvoice: (invoiceId: string, reason: string) => { ok: boolean; error?: string };
+  recordCustomerPayment: (payload: {
+    customerId: string;
+    receiptDate: string;
+    amount: number;
+    paymentMethod: Payment['paymentMethod'];
+    transactionRef: string;
+    receivingAccount: string;
+    notes?: string;
+    isAdvance?: boolean;
+    allocations?: Array<{ invoiceId: string; amount: number; notes?: string }>;
+  }) => { ok: boolean; payment?: Payment; error?: string };
+  allocateCustomerPayment: (paymentId: string, allocations: Array<{ invoiceId: string; amount: number; notes?: string }>) => { ok: boolean; error?: string };
+  reverseCustomerPayment: (paymentId: string, reason: string) => { ok: boolean; error?: string };
+  createSupplierBill: (payload: {
+    supplierId: string;
+    supplierInvoiceNo: string;
+    spoId?: string;
+    grnIds?: string[];
+    billDate: string;
+    receivedDate?: string;
+    dueDate: string;
+    paymentTerms?: string;
+    taxType?: 'CGST_SGST' | 'IGST';
+    otherCharges?: number;
+    mismatchNotes?: string;
+    notes?: string;
+    lines: Array<{
+      spoLineId?: string;
+      materialItemId?: string;
+      materialCode?: string;
+      description: string;
+      hsnSac?: string;
+      billedQty: number;
+      uom: string;
+      unitRate: number;
+      taxPct: number;
+    }>;
+  }) => { ok: boolean; bill?: SupplierBill; error?: string };
+  approveSupplierBill: (billId: string, notes?: string) => { ok: boolean; error?: string };
+  holdOrDisputeSupplierBill: (billId: string, status: 'on_hold' | 'disputed', reason: string) => { ok: boolean; error?: string };
+  rejectSupplierBill: (billId: string, reason: string) => { ok: boolean; error?: string };
+  recordSupplierPayment: (payload: {
+    supplierId: string;
+    paymentDate: string;
+    amount: number;
+    paymentMethod: SupplierPayment['paymentMethod'];
+    transactionRef: string;
+    payingAccount: string;
+    notes?: string;
+    isAdvance?: boolean;
+    allocations?: Array<{ billId: string; amount: number; notes?: string }>;
+  }) => { ok: boolean; payment?: SupplierPayment; error?: string };
+  allocateSupplierPayment: (paymentId: string, allocations: Array<{ billId: string; amount: number; notes?: string }>) => { ok: boolean; error?: string };
+  reverseSupplierPayment: (paymentId: string, reason: string) => { ok: boolean; error?: string };
 
   // Update / soft-delete actions
   updateCustomerPo: (id: string, partial: Partial<CustomerPO>) => void;
@@ -401,16 +516,20 @@ function buildSeed() {
     storeLocations: [...STORE_LOCATIONS],
     supplierInvitations: [...DEMO_SUPPLIER_INVITATIONS],
     supplierQuotations: [...SUPPLIER_QUOTATIONS, ...FLAGSHIP_SUPPLIER_RFQS, ...DEMO_SUPPLIER_QUOTATIONS],
-    auditEvents: [...AUDIT_EVENTS, ...AUDIT_EVENTS_DEMO],
+    auditEvents: [...AUDIT_EVENTS, ...AUDIT_EVENTS_DEMO, ...SEED_RICH_AUDIT_EVENTS],
     approvalPolicies: [...APPROVAL_POLICIES],
     customerInvoices: [...CUSTOMER_INVOICES],
     supplierInvoices: [...SUPPLIER_INVOICES],
     paymentRecords: [...PAYMENT_RECORDS],
-    invoices: [...FLAGSHIP_INVOICES],
-    invoiceLines: [...FLAGSHIP_INVOICE_LINES],
-    payments: [...FLAGSHIP_PAYMENTS],
-    paymentAllocations: [...FLAGSHIP_PAYMENT_ALLOCATIONS],
+    invoices: [...FLAGSHIP_INVOICES, ...SEED_UNIFIED_INVOICES],
+    invoiceLines: [...FLAGSHIP_INVOICE_LINES, ...SEED_UNIFIED_INVOICE_LINES],
+    payments: [...FLAGSHIP_PAYMENTS, ...SEED_UNIFIED_PAYMENTS],
+    paymentAllocations: [...FLAGSHIP_PAYMENT_ALLOCATIONS, ...SEED_UNIFIED_PAYMENT_ALLOCATIONS],
     collectionActivities: [...COLLECTION_ACTIVITIES],
+    supplierBills: [...SEED_SUPPLIER_BILLS],
+    supplierBillLines: [...SEED_SUPPLIER_BILL_LINES],
+    supplierPayments: [...SEED_SUPPLIER_PAYMENTS],
+    supplierPaymentAllocations: [...SEED_SUPPLIER_PAYMENT_ALLOCATIONS],
     finishedProducts: [...FINISHED_PRODUCTS],
     siteAllocations: [...FLAGSHIP_SITE_ALLOCATIONS],
     onboarding: { status: 'complete' as const, completedSteps: [1, 2, 3, 4, 5, 6, 7] },
@@ -824,10 +943,20 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
           approvedAt: timestamp,
           remarks: reason || ins.remarks,
         }),
-        auditEvents: [...s.auditEvents, {
-          id: `ae-${Date.now()}`, actor: by, actorId: s.currentUser.id, scope: 'MaterialLot', action: `qc_${decision}`,
-          entityId: lot.id, entityRef: lot.lotNumber, timestamp, source: 'ui', reason,
-        }],
+        auditEvents: [...s.auditEvents, createAuditEventRecord({
+          actor: by,
+          actorId: s.currentUser.id,
+          role: s.currentUser.role,
+          module: 'Quality',
+          scope: 'MaterialLot',
+          action: `qc_${decision}`,
+          entityId: lot.id,
+          entityRef: lot.lotNumber,
+          timestamp,
+          description: `${lot.lotNumber} (${lot.materialName}, ${qty} ${lot.primaryUom}) released from QC Hold as ${decision === 'available' ? 'Available Stock' : 'Quarantine Scrap'}`,
+          reason,
+          after: { status: decision, qty, materialItemId: lot.materialItemId },
+        })],
       };
     });
     get().showToast({
@@ -1010,40 +1139,170 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
   })),
 
   // ── Document Actions ──
-  addDocument: (doc) => set(s => ({ documents: [doc, ...s.documents] })),
+  addDocument: (doc) => set(s => ({
+    documents: [doc, ...s.documents],
+    auditEvents: [...s.auditEvents, createAuditEventRecord({
+      actor: s.currentUser.name, actorId: s.currentUser.id, role: s.currentUser.role,
+      scope: 'Document', action: 'create', entityId: doc.id, entityRef: doc.title,
+      description: `Uploaded document "${doc.title}" (${doc.docType}).`,
+    })],
+  })),
 
   addDocumentVersion: (previousDocId, newDoc) => {
+    const timestamp = new Date().toISOString();
     set(s => ({
       documents: [
         { ...newDoc, supersedesDocId: previousDocId, status: 'active' as const },
         ...s.documents.map(d => d.id === previousDocId ? { ...d, status: 'superseded' as const } : d),
       ],
+      auditEvents: [
+        ...s.auditEvents,
+        createAuditEventRecord({
+          actor: s.currentUser.name,
+          actorId: s.currentUser.id,
+          role: s.currentUser.role,
+          scope: 'Document',
+          action: 'revise',
+          entityId: newDoc.id,
+          entityRef: newDoc.title,
+          timestamp,
+          description: `Uploaded version ${newDoc.version} of "${newDoc.title}", superseding previous document.`,
+          changes: [{ field: 'version', label: 'Version', previousValue: String(Math.max(1, newDoc.version - 1)), newValue: String(newDoc.version) }],
+        }),
+      ],
     }));
     get().showToast({ type: 'success', title: 'New version uploaded', body: `${newDoc.title} — v${newDoc.version}. Previous version preserved.` });
   },
 
-  updateCertStatus: (certId, status) => set(s => ({
-    certificates: s.certificates.map(c => c.id !== certId ? c : { ...c, verificationStatus: status }),
-  })),
+  updateCertStatus: (certId, status) => set(s => {
+    const existing = s.certificates.find(c => c.id === certId);
+    return {
+      certificates: s.certificates.map(c => c.id !== certId ? c : { ...c, verificationStatus: status }),
+      auditEvents: existing ? [...s.auditEvents, createAuditEventRecord({
+        actor: s.currentUser.name, actorId: s.currentUser.id, role: s.currentUser.role,
+        scope: 'Document', action: 'update', entityId: certId, entityRef: existing.certNumber,
+        description: `Updated certificate ${existing.certNumber} verification status to ${status}.`,
+        before: { verificationStatus: existing.verificationStatus }, after: { verificationStatus: status },
+      })] : s.auditEvents,
+    };
+  }),
 
   // ── Dispatch Actions ──
   setDispatchStatus: (dspId, status) => {
-    set(s => ({ dispatches: s.dispatches.map(d => d.id !== dspId ? d : { ...d, status }) }));
+    set(s => {
+      const existing = s.dispatches.find(d => d.id === dspId);
+      if (!existing) return s;
+      const today = new Date().toISOString().slice(0, 10);
+      const dispatchDate = status === 'dispatched' && !existing.dispatchDate ? today : existing.dispatchDate;
+      const actualDeliveryDate = (status === 'delivered' || status === 'delivery_confirmed') && !existing.actualDeliveryDate ? today : existing.actualDeliveryDate;
+      return {
+        dispatches: s.dispatches.map(d => d.id !== dspId ? d : { ...d, status, dispatchDate, actualDeliveryDate }),
+        auditEvents: [...s.auditEvents, createAuditEventRecord({
+          actor: s.currentUser.name, actorId: s.currentUser.id, role: s.currentUser.role,
+          scope: 'Dispatch',
+          action: status === 'dispatched' ? 'dispatch' : status === 'delivered' ? 'deliver' : 'update',
+          entityId: dspId, entityRef: existing.dispatchNumber,
+          description: `Updated dispatch ${existing.dispatchNumber} status to ${status.replace(/_/g, ' ')}.`,
+          before: { status: existing.status, dispatchDate: existing.dispatchDate, actualDeliveryDate: existing.actualDeliveryDate },
+          after: { status, dispatchDate, actualDeliveryDate },
+        })],
+      };
+    });
     get().showToast({ type: 'success', title: 'Dispatch updated', body: `Status changed to ${status.replace('_', ' ')}` });
   },
 
-  addDispatch: (dispatch) => set(s => ({ dispatches: [dispatch, ...s.dispatches] })),
+  addDispatch: (dispatch) => set(s => ({
+    dispatches: [dispatch, ...s.dispatches],
+    auditEvents: [...s.auditEvents, createAuditEventRecord({
+      actor: s.currentUser.name, actorId: s.currentUser.id, role: s.currentUser.role,
+      scope: 'Dispatch', action: 'create', entityId: dispatch.id, entityRef: dispatch.dispatchNumber,
+      description: `Created dispatch ${dispatch.dispatchNumber} for ${dispatch.customerName} (${dispatch.totalQty} units).`,
+      relatedEntityType: dispatch.customerPoId ? 'CustomerPO' : dispatch.jobId ? 'Job' : undefined,
+      relatedEntityId: dispatch.customerPoId ?? dispatch.jobId,
+      relatedEntityRef: dispatch.customerPoNumber ?? dispatch.jobNumber,
+    })],
+  })),
 
-  recordPoD: (dspId) => {
-    set(s => ({ dispatches: s.dispatches.map(d => d.id !== dspId ? d : { ...d, hasPoD: true }) }));
-    get().showToast({ type: 'success', title: 'Proof of Delivery recorded' });
+  recordPoD: (dspId, payload) => {
+    const timestamp = new Date().toISOString();
+    const today = timestamp.slice(0, 10);
+    set(s => {
+      const existing = s.dispatches.find(d => d.id === dspId);
+      if (!existing) return s;
+      const nextStatus: Dispatch['status'] = payload?.receivedByName || payload?.podReference ? 'delivery_confirmed' : existing.status;
+      const deliveredDate = payload?.deliveredDate || existing.actualDeliveryDate || today;
+      const receivedByName = payload?.receivedByName?.trim() || existing.receivedByName;
+      const deliveryCondition = payload?.condition ?? existing.deliveryCondition ?? 'good';
+      const podReference = payload?.podReference?.trim() || existing.podReference || `POD-${existing.dispatchNumber}`;
+      const deliveryNotes = payload?.notes?.trim() || existing.deliveryNotes;
+      return {
+        dispatches: s.dispatches.map(d => d.id !== dspId ? d : {
+          ...d,
+          hasPoD: true,
+          status: nextStatus,
+          actualDeliveryDate: deliveredDate,
+          receivedByName,
+          deliveryCondition,
+          podReference,
+          deliveryNotes,
+          podRecordedAt: timestamp,
+          podRecordedBy: s.currentUser.name,
+        }),
+        auditEvents: [...s.auditEvents, createAuditEventRecord({
+          actor: s.currentUser.name, actorId: s.currentUser.id, role: s.currentUser.role,
+          scope: 'Dispatch', action: 'deliver', entityId: dspId, entityRef: existing.dispatchNumber,
+          timestamp,
+          description: `Recorded Proof of Delivery (${podReference}) for ${existing.dispatchNumber}${receivedByName ? ` signed by ${receivedByName}` : ''}.`,
+          before: {
+            hasPoD: existing.hasPoD,
+            status: existing.status,
+            actualDeliveryDate: existing.actualDeliveryDate,
+            receivedByName: existing.receivedByName,
+            podReference: existing.podReference,
+          },
+          after: {
+            hasPoD: true,
+            status: nextStatus,
+            actualDeliveryDate: deliveredDate,
+            receivedByName,
+            podReference,
+            deliveryCondition,
+          },
+          reason: deliveryNotes,
+        })],
+      };
+    });
+    get().showToast({ type: 'success', title: 'Delivery confirmation & PoD recorded' });
   },
 
   // ── NCR Actions ──
-  addNCR: (ncr) => set(s => ({ ncrs: [ncr, ...s.ncrs] })),
+  addNCR: (ncr) => set(s => ({
+    ncrs: [ncr, ...s.ncrs],
+    auditEvents: [...s.auditEvents, createAuditEventRecord({
+      actor: s.currentUser.name, actorId: s.currentUser.id, role: s.currentUser.role,
+      scope: 'NCR', action: 'create', entityId: ncr.id, entityRef: ncr.ncrNumber,
+      description: `Raised ${ncr.severity} NCR ${ncr.ncrNumber} (${ncr.affectedQty} units): ${ncr.description.slice(0, 90)}`,
+      relatedEntityType: ncr.inspectionId ? 'Inspection' : ncr.jobId ? 'Job' : undefined,
+      relatedEntityId: ncr.inspectionId ?? ncr.jobId,
+      relatedEntityRef: ncr.jobNumber,
+    })],
+  })),
 
   closeNCR: (ncrId, resolution) => {
-    set(s => ({ ncrs: s.ncrs.map(n => n.id !== ncrId ? n : { ...n, status: 'closed' as const, disposition: resolution as NCR['disposition'] }) }));
+    set(s => {
+      const existing = s.ncrs.find(n => n.id === ncrId);
+      if (!existing) return s;
+      return {
+        ncrs: s.ncrs.map(n => n.id !== ncrId ? n : { ...n, status: 'closed' as const, disposition: resolution as NCR['disposition'] }),
+        auditEvents: [...s.auditEvents, createAuditEventRecord({
+          actor: s.currentUser.name, actorId: s.currentUser.id, role: s.currentUser.role,
+          scope: 'NCR', action: 'close', entityId: ncrId, entityRef: existing.ncrNumber,
+          description: `Closed NCR ${existing.ncrNumber} with disposition: ${resolution}.`,
+          before: { status: existing.status, disposition: existing.disposition },
+          after: { status: 'closed', disposition: resolution },
+        })],
+      };
+    });
     get().showToast({ type: 'success', title: 'NCR closed', body: `Disposition: ${resolution}` });
   },
 
@@ -2467,18 +2726,23 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
         movements,
         supplierPoLines,
         grns,
-        auditEvents: [...s.auditEvents, {
-          id: `ae-${Date.now()}`,
+        auditEvents: [...s.auditEvents, createAuditEventRecord({
           actor: by,
           actorId: s.currentUser.id,
+          role: s.currentUser.role,
+          module: 'Quality',
           scope: 'Inspection',
           action: 'complete_incoming',
           entityId: inspectionId,
           entityRef: ins.inspectionNumber,
           timestamp,
-          source: 'ui',
+          description: `Incoming inspection ${ins.inspectionNumber} completed (${payload.result}): accepted ${acceptedQty}, rejected ${rejectedQty}${lot ? ` on lot ${lot.lotNumber}` : ''}`,
+          reason: payload.remarks,
+          relatedEntityType: lot ? 'MaterialLot' : undefined,
+          relatedEntityId: lot?.id,
+          relatedEntityRef: lot?.lotNumber,
           after: { result: payload.result, acceptedQty, rejectedQty, lotId: lot?.id },
-        }],
+        })],
       };
     });
     get().showToast({ type: 'success', title: 'Inspection recorded', body: 'Lot quality status and inventory availability have been updated.' });
@@ -2513,11 +2777,923 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
     }
   },
 
-  // ── New Finance Actions ──
+  // ── New Finance Actions (Order-to-Cash & Procure-to-Pay) ──
   addInvoice: (inv) => set(s => ({ invoices: [inv, ...s.invoices] })),
   addPayment: (pay) => set(s => ({ payments: [pay, ...s.payments] })),
   addPaymentAllocation: (pa) => set(s => ({ paymentAllocations: [pa, ...s.paymentAllocations] })),
-  addCollectionActivity: (ca) => set(s => ({ collectionActivities: [ca, ...s.collectionActivities] })),
+  addCollectionActivity: (ca) => set(s => ({
+    collectionActivities: [ca, ...s.collectionActivities],
+    auditEvents: [...s.auditEvents, createAuditEventRecord({
+      actor: s.currentUser.name, actorId: s.currentUser.id, role: s.currentUser.role,
+      scope: 'CustomerInvoice', action: 'update', entityId: ca.invoiceId, entityRef: ca.invoiceNumber,
+      description: `Logged collection follow-up (${ca.collectionNumber} via ${ca.channel}): ${(ca.notes ?? '').slice(0, 90)}`,
+    })],
+  })),
+
+  createCustomerInvoice: (payload) => {
+    const state = get();
+    const po = state.customerPos.find(p => p.id === payload.poId);
+    if (!po) return { ok: false, error: 'Customer PO not found.' };
+    if (payload.lines.length === 0 || payload.lines.every(l => l.quantity <= 0)) {
+      return { ok: false, error: 'Add at least one invoice line with quantity > 0.' };
+    }
+    // Duplicate / over-invoicing guard per PO line
+    const poLinesList = state.poLines.filter(l => l.poId === po.id);
+    const activeInvIds = new Set(state.invoices.filter(i => i.poId === po.id && !['void', 'cancelled'].includes(i.status)).map(i => i.id));
+    const existingInvLines = state.invoiceLines.filter(il => activeInvIds.has(il.invoiceId));
+    for (const reqLine of payload.lines) {
+      if (reqLine.quantity <= 0) continue;
+      const poLine = poLinesList.find(pl => pl.id === reqLine.poLineId || pl.drawingNumber === reqLine.drawingNumber);
+      if (poLine) {
+        const alreadyInvoiced = existingInvLines
+          .filter(il => il.poLineId === poLine.id || il.drawingNumber === poLine.drawingNumber)
+          .reduce((s, il) => s + il.quantity, 0);
+        if (alreadyInvoiced + reqLine.quantity > poLine.orderedQty) {
+          return {
+            ok: false,
+            error: `Cannot invoice ${reqLine.quantity} ${reqLine.uom} of "${reqLine.productName}": only ${Math.max(0, poLine.orderedQty - alreadyInvoiced)} ${poLine.uom} remaining uninvoiced on ${po.poNumber}.`,
+          };
+        }
+      }
+    }
+
+    const totals = computeGstTotals({
+      lines: payload.lines,
+      taxType: payload.taxType,
+      invoiceDiscountAmount: payload.discountAmount,
+      freightAmount: payload.freightAmount,
+      otherCharges: payload.otherCharges,
+    });
+    const invId = `cinv-${Date.now()}`;
+    const invoiceNumber = `INV-${payload.invoiceDate.slice(0, 4)}-${String(state.invoices.length + 12).padStart(3, '0')}`;
+    const status: Invoice['status'] = payload.issueNow ? 'issued' : 'draft';
+    const linkedDispatches = state.dispatches.filter(d => (payload.dispatchIds ?? []).includes(d.id));
+    const now = new Date().toISOString();
+
+    const invoice: Invoice = {
+      id: invId,
+      invoiceNumber,
+      customerId: po.customerId,
+      customerName: po.customerName,
+      poId: po.id,
+      poNumber: po.poNumber,
+      dispatchIds: payload.dispatchIds ?? [],
+      dispatchNumbers: linkedDispatches.map(d => d.dispatchNumber),
+      invoiceDate: payload.invoiceDate,
+      dueDate: payload.dueDate,
+      paymentTerms: payload.paymentTerms ?? po.paymentTerms,
+      currency: po.currency || 'INR',
+      status,
+      taxType: payload.taxType,
+      subtotal: totals.subtotal,
+      discountAmount: payload.discountAmount ?? 0,
+      freightAmount: payload.freightAmount ?? 0,
+      otherCharges: payload.otherCharges ?? 0,
+      taxAmount: totals.taxAmount,
+      cgstAmount: totals.cgstAmount,
+      sgstAmount: totals.sgstAmount,
+      igstAmount: totals.igstAmount,
+      totalAmount: totals.totalAmount,
+      paidAmount: 0,
+      outstandingAmount: totals.totalAmount,
+      createdBy: state.currentUser.name,
+      createdAt: now,
+      issuedDate: payload.issueNow ? payload.invoiceDate : undefined,
+      issuedBy: payload.issueNow ? state.currentUser.name : undefined,
+      notes: payload.notes,
+      isSimulated: true,
+    };
+
+    const lines: InvoiceLine[] = payload.lines
+      .filter(l => l.quantity > 0)
+      .map((l, idx) => {
+        const calc = totals.computedLines[idx];
+        return {
+          id: `${invId}-l${idx + 1}`,
+          invoiceId: invId,
+          poLineId: l.poLineId,
+          productId: l.productId ?? `fg-${idx + 1}`,
+          productName: l.productName,
+          drawingNumber: l.drawingNumber,
+          hsnSac: l.hsnSac ?? '7308',
+          quantity: l.quantity,
+          uom: l.uom,
+          unitPrice: l.unitPrice,
+          discountPct: l.discountPct ?? 0,
+          taxPct: payload.taxType === 'Export_LUT' ? 0 : l.taxPct,
+          taxableAmount: calc.taxable,
+          taxAmount: calc.tax,
+          lineTotal: calc.lineTotal,
+          dispatchId: l.dispatchId ?? payload.dispatchIds?.[0],
+          dispatchNumber: l.dispatchNumber ?? linkedDispatches[0]?.dispatchNumber,
+        };
+      });
+
+    set(s => ({
+      invoices: [invoice, ...s.invoices],
+      invoiceLines: [...s.invoiceLines, ...lines],
+      auditEvents: [...s.auditEvents, createAuditEventRecord({
+        actor: s.currentUser.name, actorId: s.currentUser.id, role: s.currentUser.role,
+        scope: 'CustomerInvoice', action: payload.issueNow ? 'issue' : 'create',
+        entityId: invoice.id, entityRef: invoice.invoiceNumber, timestamp: now,
+        description: `${payload.issueNow ? 'Created and issued' : 'Created draft'} Customer Invoice ${invoice.invoiceNumber} (₹${invoice.totalAmount.toLocaleString('en-IN')}) for ${po.customerName}.`,
+        relatedEntityType: 'CustomerPO', relatedEntityId: po.id, relatedEntityRef: po.poNumber,
+      })],
+    }));
+    get().showToast({ type: 'success', title: `Invoice ${invoiceNumber} ${payload.issueNow ? 'issued' : 'saved as draft'}` });
+    return { ok: true, invoice };
+  },
+
+  updateCustomerInvoiceDraft: (invoiceId, payload) => {
+    const state = get();
+    const existing = state.invoices.find(i => i.id === invoiceId);
+    if (!existing) return { ok: false, error: 'Invoice not found.' };
+    if (existing.status !== 'draft') return { ok: false, error: 'Only draft invoices can be edited. Void and reissue if an issued invoice needs correction.' };
+
+    const existingLines = state.invoiceLines.filter(l => l.invoiceId === invoiceId);
+    const nextTaxType = payload.taxType ?? existing.taxType ?? 'CGST_SGST';
+    const nextDiscount = payload.discountAmount ?? existing.discountAmount ?? 0;
+    const nextFreight = payload.freightAmount ?? existing.freightAmount ?? 0;
+    const nextOther = payload.otherCharges ?? existing.otherCharges ?? 0;
+    const sourceLines = payload.lines ?? existingLines.map(l => ({
+      id: l.id,
+      poLineId: l.poLineId,
+      productId: l.productId,
+      productName: l.productName,
+      drawingNumber: l.drawingNumber,
+      hsnSac: l.hsnSac,
+      quantity: l.quantity,
+      uom: l.uom,
+      unitPrice: l.unitPrice,
+      discountPct: l.discountPct,
+      taxPct: l.taxPct,
+    }));
+
+    const totals = computeGstTotals({
+      lines: sourceLines,
+      taxType: nextTaxType,
+      invoiceDiscountAmount: nextDiscount,
+      freightAmount: nextFreight,
+      otherCharges: nextOther,
+    });
+
+    const updatedInvoice: Invoice = {
+      ...existing,
+      invoiceDate: payload.invoiceDate ?? existing.invoiceDate,
+      dueDate: payload.dueDate ?? existing.dueDate,
+      paymentTerms: payload.paymentTerms ?? existing.paymentTerms,
+      taxType: nextTaxType,
+      discountAmount: nextDiscount,
+      freightAmount: nextFreight,
+      otherCharges: nextOther,
+      subtotal: totals.subtotal,
+      taxAmount: totals.taxAmount,
+      cgstAmount: totals.cgstAmount,
+      sgstAmount: totals.sgstAmount,
+      igstAmount: totals.igstAmount,
+      totalAmount: totals.totalAmount,
+      outstandingAmount: Math.max(0, totals.totalAmount - existing.paidAmount),
+      notes: payload.notes ?? existing.notes,
+    };
+
+    const updatedLines: InvoiceLine[] = sourceLines.map((l, idx) => {
+      const calc = totals.computedLines[idx];
+      return {
+        id: l.id ?? `${invoiceId}-l${idx + 1}`,
+        invoiceId,
+        poLineId: l.poLineId,
+        productId: l.productId ?? `fg-${idx + 1}`,
+        productName: l.productName,
+        drawingNumber: l.drawingNumber,
+        hsnSac: l.hsnSac ?? '7308',
+        quantity: l.quantity,
+        uom: l.uom,
+        unitPrice: l.unitPrice,
+        discountPct: l.discountPct ?? 0,
+        taxPct: nextTaxType === 'Export_LUT' ? 0 : l.taxPct,
+        taxableAmount: calc.taxable,
+        taxAmount: calc.tax,
+        lineTotal: calc.lineTotal,
+      };
+    });
+
+    set(s => ({
+      invoices: s.invoices.map(i => i.id === invoiceId ? updatedInvoice : i),
+      invoiceLines: [...s.invoiceLines.filter(l => l.invoiceId !== invoiceId), ...updatedLines],
+      auditEvents: [...s.auditEvents, createAuditEventRecord({
+        actor: s.currentUser.name, actorId: s.currentUser.id, role: s.currentUser.role,
+        scope: 'CustomerInvoice', action: 'edit', entityId: invoiceId, entityRef: existing.invoiceNumber,
+        description: `Edited draft invoice ${existing.invoiceNumber} (Updated total: ₹${updatedInvoice.totalAmount.toLocaleString('en-IN')}).`,
+        before: { dueDate: existing.dueDate, totalAmount: existing.totalAmount, paymentTerms: existing.paymentTerms, notes: existing.notes },
+        after: { dueDate: updatedInvoice.dueDate, totalAmount: updatedInvoice.totalAmount, paymentTerms: updatedInvoice.paymentTerms, notes: updatedInvoice.notes },
+      })],
+    }));
+    get().showToast({ type: 'success', title: `Draft invoice ${existing.invoiceNumber} updated` });
+    return { ok: true };
+  },
+
+  issueCustomerInvoice: (invoiceId) => {
+    const state = get();
+    const existing = state.invoices.find(i => i.id === invoiceId);
+    if (!existing) return { ok: false, error: 'Invoice not found.' };
+    if (existing.status !== 'draft') return { ok: false, error: 'Only draft invoices can be issued.' };
+    const today = new Date().toISOString().slice(0, 10);
+    set(s => ({
+      invoices: s.invoices.map(i => i.id === invoiceId ? { ...i, status: 'issued' as const, issuedDate: today, issuedBy: s.currentUser.name } : i),
+      auditEvents: [...s.auditEvents, createAuditEventRecord({
+        actor: s.currentUser.name, actorId: s.currentUser.id, role: s.currentUser.role,
+        scope: 'CustomerInvoice', action: 'issue', entityId: invoiceId, entityRef: existing.invoiceNumber,
+        description: `Issued Customer Invoice ${existing.invoiceNumber} for ₹${existing.totalAmount.toLocaleString('en-IN')} to ${existing.customerName}.`,
+        before: { status: existing.status }, after: { status: 'issued', issuedDate: today },
+      })],
+    }));
+    get().showToast({ type: 'success', title: `Invoice ${existing.invoiceNumber} issued` });
+    return { ok: true };
+  },
+
+  voidCustomerInvoice: (invoiceId, reason) => {
+    const state = get();
+    const existing = state.invoices.find(i => i.id === invoiceId);
+    if (!existing) return { ok: false, error: 'Invoice not found.' };
+    if (!reason.trim()) return { ok: false, error: 'Cancellation / void reason is mandatory.' };
+    if (existing.paidAmount > 0) return { ok: false, error: 'Cannot void an invoice with active allocated payments. Reverse linked payments first.' };
+    const now = new Date().toISOString();
+    set(s => ({
+      invoices: s.invoices.map(i => i.id === invoiceId ? {
+        ...i, status: 'void' as const, outstandingAmount: 0, voidReason: reason.trim(), voidedAt: now, voidedBy: s.currentUser.name,
+      } : i),
+      auditEvents: [...s.auditEvents, createAuditEventRecord({
+        actor: s.currentUser.name, actorId: s.currentUser.id, role: s.currentUser.role,
+        scope: 'CustomerInvoice', action: 'void', entityId: invoiceId, entityRef: existing.invoiceNumber, timestamp: now,
+        description: `Voided Customer Invoice ${existing.invoiceNumber}.`,
+        before: { status: existing.status, outstandingAmount: existing.outstandingAmount },
+        after: { status: 'void', outstandingAmount: 0 },
+        reason: reason.trim(),
+      })],
+    }));
+    get().showToast({ type: 'info', title: `Invoice ${existing.invoiceNumber} voided` });
+    return { ok: true };
+  },
+
+  recordCustomerPayment: (payload) => {
+    const state = get();
+    const customer = state.customers.find(c => c.id === payload.customerId);
+    if (!customer) return { ok: false, error: 'Customer not found.' };
+    if (!(payload.amount > 0)) return { ok: false, error: 'Payment amount must be greater than zero.' };
+    const allocs = (payload.allocations ?? []).filter(a => a.amount > 0);
+    const totalAllocated = allocs.reduce((s, a) => s + a.amount, 0);
+    if (totalAllocated > payload.amount) return { ok: false, error: 'Total allocated amount exceeds receipt amount.' };
+
+    for (const a of allocs) {
+      const inv = state.invoices.find(i => i.id === a.invoiceId);
+      if (!inv) return { ok: false, error: `Invoice ${a.invoiceId} not found.` };
+      if (['draft', 'void', 'cancelled'].includes(inv.status)) return { ok: false, error: `Invoice ${inv.invoiceNumber} is ${inv.status} and cannot receive payment.` };
+      if (a.amount > inv.outstandingAmount) return { ok: false, error: `Allocation ₹${a.amount.toLocaleString('en-IN')} exceeds outstanding ₹${inv.outstandingAmount.toLocaleString('en-IN')} on ${inv.invoiceNumber}.` };
+    }
+
+    const now = new Date().toISOString();
+    const payId = `pay-${Date.now()}`;
+    const paymentNumber = `PAY-${payload.receiptDate.slice(0, 4)}-${String(state.payments.length + 10).padStart(3, '0')}`;
+    const unallocated = Math.max(0, payload.amount - totalAllocated);
+    const status: Payment['status'] = totalAllocated === 0 ? 'received' : unallocated > 0 ? 'partially_allocated' : 'allocated';
+
+    const payment: Payment = {
+      id: payId,
+      paymentNumber,
+      customerId: customer.id,
+      customerName: customer.tradingName,
+      receiptDate: payload.receiptDate,
+      currency: customer.currency || 'INR',
+      amount: payload.amount,
+      paymentMethod: payload.paymentMethod,
+      transactionRef: payload.transactionRef.trim() || `SIM-${paymentNumber}`,
+      receivingAccount: payload.receivingAccount || 'Apex Precision — HDFC 50200012345',
+      status,
+      allocatedAmount: totalAllocated,
+      unallocatedAmount: unallocated,
+      isAdvance: payload.isAdvance || totalAllocated === 0,
+      notes: payload.notes,
+      createdBy: state.currentUser.name,
+      isSimulated: true,
+    };
+
+    const newAllocs: PaymentAllocation[] = allocs.map((a, idx) => {
+      const inv = state.invoices.find(i => i.id === a.invoiceId)!;
+      return {
+        id: `pa-${Date.now()}-${idx + 1}`,
+        paymentId: payId,
+        paymentNumber,
+        invoiceId: inv.id,
+        invoiceNumber: inv.invoiceNumber,
+        customerId: customer.id,
+        allocatedAmount: a.amount,
+        allocatedDate: payload.receiptDate,
+        allocatedBy: state.currentUser.name,
+        notes: a.notes,
+      };
+    });
+
+    const newAuditEvents: AuditEvent[] = [
+      createAuditEventRecord({
+        actor: state.currentUser.name, actorId: state.currentUser.id, role: state.currentUser.role,
+        scope: 'CustomerPayment', action: 'payment_recorded', entityId: payId, entityRef: paymentNumber, timestamp: now,
+        description: `Recorded simulated customer payment ${paymentNumber} of ₹${payload.amount.toLocaleString('en-IN')} from ${customer.tradingName} (${payload.paymentMethod.toUpperCase()} · ${payment.transactionRef}).`,
+        relatedEntityType: 'Customer', relatedEntityId: customer.id, relatedEntityRef: customer.tradingName,
+      }),
+    ];
+
+    set(s => {
+      const invoices = s.invoices.map(inv => {
+        const alloc = allocs.find(a => a.invoiceId === inv.id);
+        if (!alloc) return inv;
+        const paidAmount = inv.paidAmount + alloc.amount;
+        const outstandingAmount = Math.max(0, inv.totalAmount - paidAmount);
+        const invStatus: Invoice['status'] = outstandingAmount === 0 ? 'paid' : 'partially_paid';
+        newAuditEvents.push(createAuditEventRecord({
+          actor: s.currentUser.name, actorId: s.currentUser.id, role: s.currentUser.role,
+          scope: 'CustomerInvoice', action: 'allocate', entityId: inv.id, entityRef: inv.invoiceNumber, timestamp: now,
+          description: `Allocated ₹${alloc.amount.toLocaleString('en-IN')} from receipt ${paymentNumber} to ${inv.invoiceNumber}.`,
+          before: { paidAmount: inv.paidAmount, outstandingAmount: inv.outstandingAmount, status: inv.status },
+          after: { paidAmount, outstandingAmount, status: invStatus },
+          relatedEntityType: 'CustomerPayment', relatedEntityId: payId, relatedEntityRef: paymentNumber,
+        }));
+        return { ...inv, paidAmount, outstandingAmount, status: invStatus };
+      });
+      return {
+        payments: [payment, ...s.payments],
+        paymentAllocations: [...newAllocs, ...s.paymentAllocations],
+        invoices,
+        auditEvents: [...s.auditEvents, ...newAuditEvents],
+      };
+    });
+
+    get().showToast({ type: 'success', title: `Receipt ${paymentNumber} recorded`, body: `₹${payload.amount.toLocaleString('en-IN')} recorded (${unallocated > 0 ? `₹${unallocated.toLocaleString('en-IN')} unallocated advance` : 'fully allocated'}).` });
+    return { ok: true, payment };
+  },
+
+  allocateCustomerPayment: (paymentId, allocations) => {
+    const state = get();
+    const pay = state.payments.find(p => p.id === paymentId);
+    if (!pay) return { ok: false, error: 'Payment not found.' };
+    if (pay.status === 'reversed') return { ok: false, error: 'Cannot allocate a reversed payment.' };
+    const validAllocs = allocations.filter(a => a.amount > 0);
+    if (validAllocs.length === 0) return { ok: false, error: 'Enter at least one positive allocation amount.' };
+    const addTotal = validAllocs.reduce((s, a) => s + a.amount, 0);
+    if (addTotal > pay.unallocatedAmount) return { ok: false, error: `Allocation ₹${addTotal.toLocaleString('en-IN')} exceeds unallocated balance ₹${pay.unallocatedAmount.toLocaleString('en-IN')}.` };
+
+    for (const a of validAllocs) {
+      const inv = state.invoices.find(i => i.id === a.invoiceId);
+      if (!inv || inv.outstandingAmount < a.amount) {
+        return { ok: false, error: `Invalid allocation for invoice ${inv?.invoiceNumber ?? a.invoiceId}.` };
+      }
+    }
+
+    const now = new Date().toISOString();
+    const today = now.slice(0, 10);
+    const createdAllocs: PaymentAllocation[] = validAllocs.map((a, idx) => {
+      const inv = state.invoices.find(i => i.id === a.invoiceId)!;
+      return {
+        id: `pa-${Date.now()}-${idx + 1}`,
+        paymentId: pay.id,
+        paymentNumber: pay.paymentNumber,
+        invoiceId: inv.id,
+        invoiceNumber: inv.invoiceNumber,
+        customerId: pay.customerId,
+        allocatedAmount: a.amount,
+        allocatedDate: today,
+        allocatedBy: state.currentUser.name,
+        notes: a.notes,
+      };
+    });
+
+    set(s => {
+      const extraEvents: AuditEvent[] = [];
+      const nextAllocated = pay.allocatedAmount + addTotal;
+      const nextUnallocated = Math.max(0, pay.amount - nextAllocated);
+      const nextPayStatus: Payment['status'] = nextUnallocated === 0 ? 'allocated' : 'partially_allocated';
+      const invoices = s.invoices.map(inv => {
+        const a = validAllocs.find(x => x.invoiceId === inv.id);
+        if (!a) return inv;
+        const paidAmount = inv.paidAmount + a.amount;
+        const outstandingAmount = Math.max(0, inv.totalAmount - paidAmount);
+        const status: Invoice['status'] = outstandingAmount === 0 ? 'paid' : 'partially_paid';
+        extraEvents.push(createAuditEventRecord({
+          actor: s.currentUser.name, actorId: s.currentUser.id, role: s.currentUser.role,
+          scope: 'CustomerInvoice', action: 'allocate', entityId: inv.id, entityRef: inv.invoiceNumber, timestamp: now,
+          description: `Allocated ₹${a.amount.toLocaleString('en-IN')} from advance/receipt ${pay.paymentNumber}.`,
+          before: { paidAmount: inv.paidAmount, outstandingAmount: inv.outstandingAmount, status: inv.status },
+          after: { paidAmount, outstandingAmount, status },
+          relatedEntityType: 'CustomerPayment', relatedEntityId: pay.id, relatedEntityRef: pay.paymentNumber,
+        }));
+        return { ...inv, paidAmount, outstandingAmount, status };
+      });
+      extraEvents.push(createAuditEventRecord({
+        actor: s.currentUser.name, actorId: s.currentUser.id, role: s.currentUser.role,
+        scope: 'CustomerPayment', action: 'allocate', entityId: pay.id, entityRef: pay.paymentNumber, timestamp: now,
+        description: `Allocated ₹${addTotal.toLocaleString('en-IN')} across ${validAllocs.length} invoice(s).`,
+        before: { allocatedAmount: pay.allocatedAmount, unallocatedAmount: pay.unallocatedAmount, status: pay.status },
+        after: { allocatedAmount: nextAllocated, unallocatedAmount: nextUnallocated, status: nextPayStatus },
+      }));
+      return {
+        payments: s.payments.map(p => p.id === pay.id ? { ...p, allocatedAmount: nextAllocated, unallocatedAmount: nextUnallocated, status: nextPayStatus } : p),
+        paymentAllocations: [...createdAllocs, ...s.paymentAllocations],
+        invoices,
+        auditEvents: [...s.auditEvents, ...extraEvents],
+      };
+    });
+    get().showToast({ type: 'success', title: `Allocated ₹${addTotal.toLocaleString('en-IN')} from ${pay.paymentNumber}` });
+    return { ok: true };
+  },
+
+  reverseCustomerPayment: (paymentId, reason) => {
+    const state = get();
+    const pay = state.payments.find(p => p.id === paymentId);
+    if (!pay) return { ok: false, error: 'Payment not found.' };
+    if (pay.status === 'reversed') return { ok: false, error: 'Payment is already reversed.' };
+    if (!reason.trim()) return { ok: false, error: 'Reversal reason is required.' };
+    const now = new Date().toISOString();
+    const linkedAllocs = state.paymentAllocations.filter(pa => pa.paymentId === paymentId);
+
+    set(s => {
+      const extraEvents: AuditEvent[] = [];
+      const invoices = s.invoices.map(inv => {
+        const reversedAmt = linkedAllocs.filter(pa => pa.invoiceId === inv.id).reduce((sum, pa) => sum + pa.allocatedAmount, 0);
+        if (reversedAmt <= 0) return inv;
+        const paidAmount = Math.max(0, inv.paidAmount - reversedAmt);
+        const outstandingAmount = Math.max(0, inv.totalAmount - paidAmount);
+        const status: Invoice['status'] = paidAmount > 0 ? 'partially_paid' : (new Date(inv.dueDate) < new Date(now.slice(0, 10)) ? 'overdue' : 'issued');
+        extraEvents.push(createAuditEventRecord({
+          actor: s.currentUser.name, actorId: s.currentUser.id, role: s.currentUser.role,
+          scope: 'CustomerInvoice', action: 'deallocate', entityId: inv.id, entityRef: inv.invoiceNumber, timestamp: now,
+          description: `Reversed ₹${reversedAmt.toLocaleString('en-IN')} allocation following reversal of ${pay.paymentNumber}.`,
+          before: { paidAmount: inv.paidAmount, outstandingAmount: inv.outstandingAmount, status: inv.status },
+          after: { paidAmount, outstandingAmount, status },
+          reason: reason.trim(),
+          relatedEntityType: 'CustomerPayment', relatedEntityId: pay.id, relatedEntityRef: pay.paymentNumber,
+        }));
+        return { ...inv, paidAmount, outstandingAmount, status };
+      });
+      extraEvents.push(createAuditEventRecord({
+        actor: s.currentUser.name, actorId: s.currentUser.id, role: s.currentUser.role,
+        scope: 'CustomerPayment', action: 'reverse', entityId: pay.id, entityRef: pay.paymentNumber, timestamp: now,
+        description: `Reversed Customer Payment ${pay.paymentNumber} (₹${pay.amount.toLocaleString('en-IN')}).`,
+        before: { status: pay.status, allocatedAmount: pay.allocatedAmount },
+        after: { status: 'reversed', allocatedAmount: 0 },
+        reason: reason.trim(),
+      }));
+      return {
+        payments: s.payments.map(p => p.id === paymentId ? {
+          ...p, status: 'reversed' as const, allocatedAmount: 0, unallocatedAmount: 0, reversedReason: reason.trim(), reversedAt: now, reversedBy: s.currentUser.name,
+        } : p),
+        paymentAllocations: s.paymentAllocations.filter(pa => pa.paymentId !== paymentId),
+        invoices,
+        auditEvents: [...s.auditEvents, ...extraEvents],
+      };
+    });
+    get().showToast({ type: 'warning', title: `Payment ${pay.paymentNumber} reversed` });
+    return { ok: true };
+  },
+
+  createSupplierBill: (payload) => {
+    const state = get();
+    const supplier = state.suppliers.find(sp => sp.id === payload.supplierId);
+    if (!supplier) return { ok: false, error: 'Supplier not found.' };
+    if (!payload.supplierInvoiceNo.trim()) return { ok: false, error: 'Supplier Invoice Number is required.' };
+    const dup = state.supplierBills.find(
+      b => b.supplierId === payload.supplierId
+        && b.supplierInvoiceNo.trim().toLowerCase() === payload.supplierInvoiceNo.trim().toLowerCase()
+        && b.status !== 'void' && b.status !== 'rejected'
+    );
+    if (dup) {
+      return { ok: false, error: `Duplicate supplier invoice "${payload.supplierInvoiceNo}" already captured under ${dup.billNumber}.` };
+    }
+    if (payload.lines.length === 0 || payload.lines.every(l => l.billedQty <= 0)) {
+      return { ok: false, error: 'Add at least one bill line with quantity > 0.' };
+    }
+
+    const taxType = payload.taxType ?? 'CGST_SGST';
+    const totals = computeGstTotals({
+      lines: payload.lines.map(l => ({ quantity: l.billedQty, unitPrice: l.unitRate, taxPct: l.taxPct })),
+      taxType,
+      otherCharges: payload.otherCharges,
+    });
+    const billId = `bill-${Date.now()}`;
+    const billNumber = `BILL-${payload.billDate.slice(0, 4)}-${String(state.supplierBills.length + 10).padStart(3, '0')}`;
+    const spo = payload.spoId ? state.supplierPos.find(p => p.id === payload.spoId) : undefined;
+    const grnIds = payload.grnIds ?? [];
+    const linkedGrns = state.grns.filter(g => grnIds.includes(g.id));
+
+    const billLines: SupplierBillLine[] = payload.lines
+      .filter(l => l.billedQty > 0)
+      .map((l, idx) => {
+        const calc = totals.computedLines[idx];
+        return {
+          id: `${billId}-l${idx + 1}`,
+          billId,
+          spoLineId: l.spoLineId,
+          materialItemId: l.materialItemId,
+          materialCode: l.materialCode,
+          description: l.description,
+          hsnSac: l.hsnSac ?? '7208',
+          billedQty: l.billedQty,
+          uom: l.uom,
+          unitRate: l.unitRate,
+          taxPct: l.taxPct,
+          taxAmount: calc.tax,
+          lineTotal: calc.lineTotal,
+        };
+      });
+
+    const match = computeThreeWayMatch({
+      bill: { spoId: payload.spoId, grnIds, supplierId: payload.supplierId },
+      billLines,
+      spo,
+      spoLines: state.supplierPoLines,
+      grns: state.grns,
+      lots: state.lots,
+      inspections: state.inspections,
+    });
+
+    const initialStatus: SupplierBill['status'] = match.overallStatus === 'matched'
+      ? (totals.totalAmount > 100000 ? 'pending_approval' : 'matched')
+      : match.overallStatus === 'qc_pending' || match.overallStatus === 'missing_grn'
+        ? 'on_hold'
+        : 'pending_approval';
+
+    const now = new Date().toISOString();
+    const bill: SupplierBill = {
+      id: billId,
+      billNumber,
+      supplierInvoiceNo: payload.supplierInvoiceNo.trim(),
+      supplierId: supplier.id,
+      supplierName: supplier.tradingName,
+      spoId: spo?.id,
+      spoNumber: spo?.poNumber,
+      grnIds,
+      grnNumbers: linkedGrns.map(g => g.grnNumber),
+      billDate: payload.billDate,
+      receivedDate: payload.receivedDate ?? now.slice(0, 10),
+      dueDate: payload.dueDate,
+      paymentTerms: payload.paymentTerms ?? spo?.paymentTerms ?? supplier.paymentTerms,
+      currency: supplier.currency || 'INR',
+      status: initialStatus,
+      matchStatus: match.overallStatus,
+      taxType,
+      subtotal: totals.subtotal,
+      taxAmount: totals.taxAmount,
+      cgstAmount: totals.cgstAmount,
+      sgstAmount: totals.sgstAmount,
+      igstAmount: totals.igstAmount,
+      otherCharges: payload.otherCharges ?? 0,
+      totalAmount: totals.totalAmount,
+      paidAmount: 0,
+      outstandingAmount: totals.totalAmount,
+      mismatchNotes: payload.mismatchNotes || (match.hasMismatch ? match.summaryText : undefined),
+      holdReason: initialStatus === 'on_hold' ? match.summaryText : undefined,
+      createdBy: state.currentUser.name,
+      notes: payload.notes,
+      isSimulated: true,
+    };
+
+    const approvalReq: ApprovalRequest | undefined = initialStatus === 'pending_approval' ? {
+      id: `apr-bill-${billId}`,
+      requestType: match.hasMismatch ? 'Supplier Bill Variance Approval' : 'Supplier Bill Approval',
+      entityRef: billNumber,
+      entityId: billId,
+      description: `${billNumber} (${supplier.tradingName}, ₹${totals.totalAmount.toLocaleString('en-IN')}) — ${match.summaryText}`,
+      requestedBy: state.currentUser.name,
+      requestedAt: now,
+      status: 'pending',
+      thresholdValue: 100000,
+      currentValue: totals.totalAmount,
+      approvalCycle: 1,
+    } : undefined;
+
+    set(s => ({
+      supplierBills: [bill, ...s.supplierBills],
+      supplierBillLines: [...s.supplierBillLines, ...billLines],
+      ...(approvalReq ? { approvalRequests: [approvalReq, ...s.approvalRequests] } : {}),
+      auditEvents: [...s.auditEvents, createAuditEventRecord({
+        actor: s.currentUser.name, actorId: s.currentUser.id, role: s.currentUser.role,
+        scope: 'SupplierBill', action: 'submit', entityId: billId, entityRef: billNumber, timestamp: now,
+        description: `Recorded Supplier Bill ${billNumber} (Vendor Inv: ${bill.supplierInvoiceNo}, ₹${bill.totalAmount.toLocaleString('en-IN')}). 3-Way Match: ${match.overallStatus.replace(/_/g, ' ')}.`,
+        reason: bill.mismatchNotes,
+        relatedEntityType: spo ? 'SupplierPO' : undefined,
+        relatedEntityId: spo?.id,
+        relatedEntityRef: spo?.poNumber,
+      })],
+    }));
+    get().showToast({
+      type: match.hasMismatch ? 'warning' : 'success',
+      title: `Supplier Bill ${billNumber} captured`,
+      body: match.summaryText,
+    });
+    return { ok: true, bill };
+  },
+
+  approveSupplierBill: (billId, notes) => {
+    const state = get();
+    const bill = state.supplierBills.find(b => b.id === billId);
+    if (!bill) return { ok: false, error: 'Supplier bill not found.' };
+    if (['paid', 'rejected', 'void'].includes(bill.status)) return { ok: false, error: `Cannot approve a bill in status ${bill.status}.` };
+    const now = new Date().toISOString();
+    const nextStatus: SupplierBill['status'] = bill.paidAmount > 0 ? 'partially_paid' : 'approved';
+    set(s => ({
+      supplierBills: s.supplierBills.map(b => b.id === billId ? {
+        ...b,
+        status: nextStatus,
+        holdReason: undefined,
+        approvedBy: s.currentUser.name,
+        approvedAt: now,
+        notes: notes?.trim() ? `${b.notes ? `${b.notes}\n` : ''}Approval note: ${notes.trim()}` : b.notes,
+      } : b),
+      approvalRequests: s.approvalRequests.map(ar => ar.entityId === billId && ar.status === 'pending'
+        ? { ...ar, status: 'approved' as const, decidedBy: s.currentUser.name, decidedAt: now, decisionNotes: notes }
+        : ar),
+      auditEvents: [...s.auditEvents, createAuditEventRecord({
+        actor: s.currentUser.name, actorId: s.currentUser.id, role: s.currentUser.role,
+        scope: 'SupplierBill', action: 'approve', entityId: billId, entityRef: bill.billNumber, timestamp: now,
+        description: `Approved Supplier Bill ${bill.billNumber} (₹${bill.totalAmount.toLocaleString('en-IN')}) for payment.`,
+        before: { status: bill.status }, after: { status: nextStatus, approvedBy: s.currentUser.name },
+        reason: notes?.trim() || (bill.matchStatus !== 'matched' ? `Approved with variance (${bill.matchStatus.replace(/_/g, ' ')})` : undefined),
+      })],
+    }));
+    get().showToast({ type: 'success', title: `Supplier Bill ${bill.billNumber} approved for payment` });
+    return { ok: true };
+  },
+
+  holdOrDisputeSupplierBill: (billId, status, reason) => {
+    const state = get();
+    const bill = state.supplierBills.find(b => b.id === billId);
+    if (!bill) return { ok: false, error: 'Supplier bill not found.' };
+    if (!reason.trim()) return { ok: false, error: 'Please specify a reason for hold/dispute.' };
+    const now = new Date().toISOString();
+    set(s => ({
+      supplierBills: s.supplierBills.map(b => b.id === billId ? { ...b, status, holdReason: reason.trim() } : b),
+      auditEvents: [...s.auditEvents, createAuditEventRecord({
+        actor: s.currentUser.name, actorId: s.currentUser.id, role: s.currentUser.role,
+        scope: 'SupplierBill', action: status === 'on_hold' ? 'hold' : 'dispute',
+        entityId: billId, entityRef: bill.billNumber, timestamp: now,
+        description: `Marked Supplier Bill ${bill.billNumber} as ${status === 'on_hold' ? 'On Hold' : 'Disputed'}.`,
+        before: { status: bill.status }, after: { status, holdReason: reason.trim() },
+        reason: reason.trim(),
+      })],
+    }));
+    get().showToast({ type: 'warning', title: `Bill ${bill.billNumber} placed ${status === 'on_hold' ? 'on hold' : 'under dispute'}` });
+    return { ok: true };
+  },
+
+  rejectSupplierBill: (billId, reason) => {
+    const state = get();
+    const bill = state.supplierBills.find(b => b.id === billId);
+    if (!bill) return { ok: false, error: 'Supplier bill not found.' };
+    if (!reason.trim()) return { ok: false, error: 'Rejection reason is required.' };
+    if (bill.paidAmount > 0) return { ok: false, error: 'Cannot reject a bill that already has payments allocated. Reverse payments first.' };
+    const now = new Date().toISOString();
+    set(s => ({
+      supplierBills: s.supplierBills.map(b => b.id === billId ? {
+        ...b, status: 'rejected' as const, outstandingAmount: 0, rejectionReason: reason.trim(),
+      } : b),
+      approvalRequests: s.approvalRequests.map(ar => ar.entityId === billId && ar.status === 'pending'
+        ? { ...ar, status: 'rejected' as const, decidedBy: s.currentUser.name, decidedAt: now, decisionNotes: reason.trim() }
+        : ar),
+      auditEvents: [...s.auditEvents, createAuditEventRecord({
+        actor: s.currentUser.name, actorId: s.currentUser.id, role: s.currentUser.role,
+        scope: 'SupplierBill', action: 'reject', entityId: billId, entityRef: bill.billNumber, timestamp: now,
+        description: `Rejected Supplier Bill ${bill.billNumber}.`,
+        before: { status: bill.status, outstandingAmount: bill.outstandingAmount },
+        after: { status: 'rejected', outstandingAmount: 0 },
+        reason: reason.trim(),
+      })],
+    }));
+    get().showToast({ type: 'info', title: `Supplier Bill ${bill.billNumber} rejected` });
+    return { ok: true };
+  },
+
+  recordSupplierPayment: (payload) => {
+    const state = get();
+    const supplier = state.suppliers.find(sp => sp.id === payload.supplierId);
+    if (!supplier) return { ok: false, error: 'Supplier not found.' };
+    if (!(payload.amount > 0)) return { ok: false, error: 'Payment amount must be greater than zero.' };
+    const allocs = (payload.allocations ?? []).filter(a => a.amount > 0);
+    const totalAllocated = allocs.reduce((s, a) => s + a.amount, 0);
+    if (totalAllocated > payload.amount) return { ok: false, error: 'Total allocated amount exceeds payment amount.' };
+
+    for (const a of allocs) {
+      const bill = state.supplierBills.find(b => b.id === a.billId);
+      if (!bill) return { ok: false, error: `Supplier Bill ${a.billId} not found.` };
+      if (['rejected', 'void', 'on_hold', 'disputed'].includes(bill.status)) {
+        return { ok: false, error: `Bill ${bill.billNumber} is ${bill.status.replace(/_/g, ' ')} and cannot be paid until resolved/approved.` };
+      }
+      if (a.amount > bill.outstandingAmount) {
+        return { ok: false, error: `Payment ₹${a.amount.toLocaleString('en-IN')} exceeds outstanding ₹${bill.outstandingAmount.toLocaleString('en-IN')} on ${bill.billNumber}.` };
+      }
+    }
+
+    const now = new Date().toISOString();
+    const payId = `spay-${Date.now()}`;
+    const paymentNumber = `SPAY-${payload.paymentDate.slice(0, 4)}-${String(state.supplierPayments.length + 10).padStart(3, '0')}`;
+    const unallocated = Math.max(0, payload.amount - totalAllocated);
+    const status: SupplierPayment['status'] = totalAllocated === 0 ? 'recorded' : unallocated > 0 ? 'partially_allocated' : 'allocated';
+
+    const payment: SupplierPayment = {
+      id: payId,
+      paymentNumber,
+      supplierId: supplier.id,
+      supplierName: supplier.tradingName,
+      paymentDate: payload.paymentDate,
+      currency: supplier.currency || 'INR',
+      amount: payload.amount,
+      paymentMethod: payload.paymentMethod,
+      transactionRef: payload.transactionRef.trim() || `SIM-${paymentNumber}`,
+      payingAccount: payload.payingAccount || 'Apex Precision — HDFC 50200012345',
+      status,
+      allocatedAmount: totalAllocated,
+      unallocatedAmount: unallocated,
+      isAdvance: payload.isAdvance || totalAllocated === 0,
+      notes: payload.notes,
+      createdBy: state.currentUser.name,
+      isSimulated: true,
+    };
+
+    const newAllocs: SupplierPaymentAllocation[] = allocs.map((a, idx) => {
+      const bill = state.supplierBills.find(b => b.id === a.billId)!;
+      return {
+        id: `spa-${Date.now()}-${idx + 1}`,
+        paymentId: payId,
+        paymentNumber,
+        billId: bill.id,
+        billNumber: bill.billNumber,
+        supplierInvoiceNo: bill.supplierInvoiceNo,
+        supplierId: supplier.id,
+        allocatedAmount: a.amount,
+        allocatedDate: payload.paymentDate,
+        allocatedBy: state.currentUser.name,
+        notes: a.notes,
+      };
+    });
+
+    const newEvents: AuditEvent[] = [
+      createAuditEventRecord({
+        actor: state.currentUser.name, actorId: state.currentUser.id, role: state.currentUser.role,
+        scope: 'SupplierPayment', action: 'payment_recorded', entityId: payId, entityRef: paymentNumber, timestamp: now,
+        description: `Recorded simulated outward supplier payment ${paymentNumber} of ₹${payload.amount.toLocaleString('en-IN')} to ${supplier.tradingName} (${payload.paymentMethod.toUpperCase()} · ${payment.transactionRef}).`,
+        relatedEntityType: 'Supplier', relatedEntityId: supplier.id, relatedEntityRef: supplier.tradingName,
+      }),
+    ];
+
+    set(s => {
+      const supplierBills = s.supplierBills.map(bill => {
+        const alloc = allocs.find(a => a.billId === bill.id);
+        if (!alloc) return bill;
+        const paidAmount = bill.paidAmount + alloc.amount;
+        const outstandingAmount = Math.max(0, bill.totalAmount - paidAmount);
+        const billStatus: SupplierBill['status'] = outstandingAmount === 0 ? 'paid' : 'partially_paid';
+        newEvents.push(createAuditEventRecord({
+          actor: s.currentUser.name, actorId: s.currentUser.id, role: s.currentUser.role,
+          scope: 'SupplierBill', action: 'allocate', entityId: bill.id, entityRef: bill.billNumber, timestamp: now,
+          description: `Allocated supplier payment ${paymentNumber} (₹${alloc.amount.toLocaleString('en-IN')}) to ${bill.billNumber}.`,
+          before: { paidAmount: bill.paidAmount, outstandingAmount: bill.outstandingAmount, status: bill.status },
+          after: { paidAmount, outstandingAmount, status: billStatus },
+          relatedEntityType: 'SupplierPayment', relatedEntityId: payId, relatedEntityRef: paymentNumber,
+        }));
+        return { ...bill, paidAmount, outstandingAmount, status: billStatus };
+      });
+      return {
+        supplierPayments: [payment, ...s.supplierPayments],
+        supplierPaymentAllocations: [...newAllocs, ...s.supplierPaymentAllocations],
+        supplierBills,
+        auditEvents: [...s.auditEvents, ...newEvents],
+      };
+    });
+
+    get().showToast({ type: 'success', title: `Supplier Payment ${paymentNumber} recorded` });
+    return { ok: true, payment };
+  },
+
+  allocateSupplierPayment: (paymentId, allocations) => {
+    const state = get();
+    const pay = state.supplierPayments.find(p => p.id === paymentId);
+    if (!pay) return { ok: false, error: 'Supplier payment not found.' };
+    if (pay.status === 'reversed') return { ok: false, error: 'Cannot allocate a reversed payment.' };
+    const validAllocs = allocations.filter(a => a.amount > 0);
+    if (validAllocs.length === 0) return { ok: false, error: 'Enter at least one positive allocation amount.' };
+    const addTotal = validAllocs.reduce((s, a) => s + a.amount, 0);
+    if (addTotal > pay.unallocatedAmount) return { ok: false, error: `Allocation ₹${addTotal.toLocaleString('en-IN')} exceeds unallocated balance.` };
+
+    for (const a of validAllocs) {
+      const bill = state.supplierBills.find(b => b.id === a.billId);
+      if (!bill || ['rejected', 'void', 'on_hold', 'disputed'].includes(bill.status) || a.amount > bill.outstandingAmount) {
+        return { ok: false, error: `Bill ${bill?.billNumber ?? a.billId} is not eligible for ₹${a.amount.toLocaleString('en-IN')} allocation.` };
+      }
+    }
+
+    const now = new Date().toISOString();
+    const today = now.slice(0, 10);
+    const createdAllocs: SupplierPaymentAllocation[] = validAllocs.map((a, idx) => {
+      const bill = state.supplierBills.find(b => b.id === a.billId)!;
+      return {
+        id: `spa-${Date.now()}-${idx + 1}`,
+        paymentId: pay.id,
+        paymentNumber: pay.paymentNumber,
+        billId: bill.id,
+        billNumber: bill.billNumber,
+        supplierInvoiceNo: bill.supplierInvoiceNo,
+        supplierId: pay.supplierId,
+        allocatedAmount: a.amount,
+        allocatedDate: today,
+        allocatedBy: state.currentUser.name,
+        notes: a.notes,
+      };
+    });
+
+    set(s => {
+      const extraEvents: AuditEvent[] = [];
+      const nextAllocated = pay.allocatedAmount + addTotal;
+      const nextUnallocated = Math.max(0, pay.amount - nextAllocated);
+      const nextPayStatus: SupplierPayment['status'] = nextUnallocated === 0 ? 'allocated' : 'partially_allocated';
+      const supplierBills = s.supplierBills.map(bill => {
+        const a = validAllocs.find(x => x.billId === bill.id);
+        if (!a) return bill;
+        const paidAmount = bill.paidAmount + a.amount;
+        const outstandingAmount = Math.max(0, bill.totalAmount - paidAmount);
+        const status: SupplierBill['status'] = outstandingAmount === 0 ? 'paid' : 'partially_paid';
+        extraEvents.push(createAuditEventRecord({
+          actor: s.currentUser.name, actorId: s.currentUser.id, role: s.currentUser.role,
+          scope: 'SupplierBill', action: 'allocate', entityId: bill.id, entityRef: bill.billNumber, timestamp: now,
+          description: `Allocated ₹${a.amount.toLocaleString('en-IN')} from advance/payment ${pay.paymentNumber}.`,
+          before: { paidAmount: bill.paidAmount, outstandingAmount: bill.outstandingAmount, status: bill.status },
+          after: { paidAmount, outstandingAmount, status },
+          relatedEntityType: 'SupplierPayment', relatedEntityId: pay.id, relatedEntityRef: pay.paymentNumber,
+        }));
+        return { ...bill, paidAmount, outstandingAmount, status };
+      });
+      extraEvents.push(createAuditEventRecord({
+        actor: s.currentUser.name, actorId: s.currentUser.id, role: s.currentUser.role,
+        scope: 'SupplierPayment', action: 'allocate', entityId: pay.id, entityRef: pay.paymentNumber, timestamp: now,
+        description: `Allocated ₹${addTotal.toLocaleString('en-IN')} across ${validAllocs.length} supplier bill(s).`,
+        before: { allocatedAmount: pay.allocatedAmount, unallocatedAmount: pay.unallocatedAmount, status: pay.status },
+        after: { allocatedAmount: nextAllocated, unallocatedAmount: nextUnallocated, status: nextPayStatus },
+      }));
+      return {
+        supplierPayments: s.supplierPayments.map(p => p.id === pay.id ? { ...p, allocatedAmount: nextAllocated, unallocatedAmount: nextUnallocated, status: nextPayStatus } : p),
+        supplierPaymentAllocations: [...createdAllocs, ...s.supplierPaymentAllocations],
+        supplierBills,
+        auditEvents: [...s.auditEvents, ...extraEvents],
+      };
+    });
+    get().showToast({ type: 'success', title: `Allocated ₹${addTotal.toLocaleString('en-IN')} from ${pay.paymentNumber}` });
+    return { ok: true };
+  },
+
+  reverseSupplierPayment: (paymentId, reason) => {
+    const state = get();
+    const pay = state.supplierPayments.find(p => p.id === paymentId);
+    if (!pay) return { ok: false, error: 'Supplier payment not found.' };
+    if (pay.status === 'reversed') return { ok: false, error: 'Payment is already reversed.' };
+    if (!reason.trim()) return { ok: false, error: 'Reversal reason is required.' };
+    const now = new Date().toISOString();
+    const linkedAllocs = state.supplierPaymentAllocations.filter(spa => spa.paymentId === paymentId);
+
+    set(s => {
+      const extraEvents: AuditEvent[] = [];
+      const supplierBills = s.supplierBills.map(bill => {
+        const revAmt = linkedAllocs.filter(a => a.billId === bill.id).reduce((sum, a) => sum + a.allocatedAmount, 0);
+        if (revAmt <= 0) return bill;
+        const paidAmount = Math.max(0, bill.paidAmount - revAmt);
+        const outstandingAmount = Math.max(0, bill.totalAmount - paidAmount);
+        const status: SupplierBill['status'] = paidAmount > 0 ? 'partially_paid' : (new Date(bill.dueDate) < new Date(now.slice(0, 10)) ? 'overdue' : 'approved');
+        extraEvents.push(createAuditEventRecord({
+          actor: s.currentUser.name, actorId: s.currentUser.id, role: s.currentUser.role,
+          scope: 'SupplierBill', action: 'deallocate', entityId: bill.id, entityRef: bill.billNumber, timestamp: now,
+          description: `Reversed ₹${revAmt.toLocaleString('en-IN')} payment allocation after ${pay.paymentNumber} was reversed.`,
+          before: { paidAmount: bill.paidAmount, outstandingAmount: bill.outstandingAmount, status: bill.status },
+          after: { paidAmount, outstandingAmount, status },
+          reason: reason.trim(),
+          relatedEntityType: 'SupplierPayment', relatedEntityId: pay.id, relatedEntityRef: pay.paymentNumber,
+        }));
+        return { ...bill, paidAmount, outstandingAmount, status };
+      });
+      extraEvents.push(createAuditEventRecord({
+        actor: s.currentUser.name, actorId: s.currentUser.id, role: s.currentUser.role,
+        scope: 'SupplierPayment', action: 'reverse', entityId: pay.id, entityRef: pay.paymentNumber, timestamp: now,
+        description: `Reversed Supplier Payment ${pay.paymentNumber} (₹${pay.amount.toLocaleString('en-IN')}).`,
+        before: { status: pay.status, allocatedAmount: pay.allocatedAmount },
+        after: { status: 'reversed', allocatedAmount: 0 },
+        reason: reason.trim(),
+      }));
+      return {
+        supplierPayments: s.supplierPayments.map(p => p.id === paymentId ? {
+          ...p, status: 'reversed' as const, allocatedAmount: 0, unallocatedAmount: 0, reversedReason: reason.trim(), reversedAt: now, reversedBy: s.currentUser.name,
+        } : p),
+        supplierPaymentAllocations: s.supplierPaymentAllocations.filter(a => a.paymentId !== paymentId),
+        supplierBills,
+        auditEvents: [...s.auditEvents, ...extraEvents],
+      };
+    });
+    get().showToast({ type: 'warning', title: `Supplier payment ${pay.paymentNumber} reversed` });
+    return { ok: true };
+  },
 
   // ── Update / Soft-delete Actions ──
   updateCustomerPo: (id, partial) => set(s => {
@@ -2527,26 +3703,93 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
     if (current.commercialLocked && commercialChange) return s;
     const safePartial = { ...partial, poNumber: current.poNumber };
     const next = { ...current, ...safePartial };
+    const changes = diffRecordFields(current as unknown as Record<string, unknown>, next as unknown as Record<string, unknown>);
     return {
       customerPos: s.customerPos.map(p => p.id === id ? next : p),
-      auditEvents: commercialChange ? [...s.auditEvents, {
-        id: `ae-${Date.now()}`, actor: s.currentUser.name, actorId: s.currentUser.id, scope: 'CustomerPO', action: 'update',
-        entityId: id, entityRef: current.poNumber, timestamp: new Date().toISOString(), source: 'ui', before: current as unknown as Record<string, unknown>, after: next as unknown as Record<string, unknown>,
-      }] : s.auditEvents,
+      auditEvents: changes.length > 0 ? [...s.auditEvents, createAuditEventRecord({
+        actor: s.currentUser.name, actorId: s.currentUser.id, role: s.currentUser.role,
+        scope: 'CustomerPO', action: 'update', entityId: id, entityRef: current.poNumber,
+        description: `Updated Customer PO ${current.poNumber}.`,
+        changes, before: current as unknown as Record<string, unknown>, after: next as unknown as Record<string, unknown>,
+      })] : s.auditEvents,
     };
   }),
-  updateCustomer: (id, partial) => set(s => ({
-    customers: s.customers.map(c => c.id === id ? { ...c, ...partial } : c),
-    auditEvents: [...s.auditEvents, {
-      id: `ae-${Date.now()}`, actor: s.currentUser.name, actorId: s.currentUser.id, scope: 'Customer', action: 'update', entityId: id,
-      entityRef: s.customers.find(c => c.id === id)?.tradingName ?? id, timestamp: new Date().toISOString(), source: 'ui', after: partial as Record<string, unknown>,
-    }],
+  updateCustomer: (id, partial) => set(s => {
+    const existing = s.customers.find(c => c.id === id);
+    if (!existing) return s;
+    const next = { ...existing, ...partial };
+    const changes = diffRecordFields(existing as unknown as Record<string, unknown>, next as unknown as Record<string, unknown>);
+    return {
+      customers: s.customers.map(c => c.id === id ? next : c),
+      auditEvents: [...s.auditEvents, createAuditEventRecord({
+        actor: s.currentUser.name, actorId: s.currentUser.id, role: s.currentUser.role,
+        scope: 'Customer', action: 'update', entityId: id, entityRef: existing.tradingName,
+        description: `Updated Customer master record for ${existing.tradingName}.`,
+        changes,
+      })],
+    };
+  }),
+  addCustomer: (customer) => set(s => ({
+    customers: [customer, ...s.customers],
+    auditEvents: [...s.auditEvents, createAuditEventRecord({
+      actor: s.currentUser.name, actorId: s.currentUser.id, role: s.currentUser.role,
+      scope: 'Customer', action: 'create', entityId: customer.id, entityRef: customer.tradingName,
+      description: `Created Customer "${customer.tradingName}" (${customer.city}, ${customer.state}).`,
+    })],
   })),
-  addCustomer: (customer) => set(s => ({ customers: [customer, ...s.customers] })),
-  updateSupplier: (id, partial) => set(s => ({ suppliers: s.suppliers.map(supplier => supplier.id === id ? { ...supplier, ...partial } : supplier) })),
-  addSupplier: (supplier) => set(s => ({ suppliers: [supplier, ...s.suppliers] })),
-  updateRfq: (id, partial) => set(s => ({ rfqs: s.rfqs.map(r => r.id === id ? { ...r, ...partial } : r) })),
-  updateSupplierPo: (id, partial) => set(s => ({ supplierPos: s.supplierPos.map(p => p.id === id ? { ...p, ...partial } : p) })),
+  updateSupplier: (id, partial) => set(s => {
+    const existing = s.suppliers.find(sup => sup.id === id);
+    if (!existing) return s;
+    const next = { ...existing, ...partial };
+    const changes = diffRecordFields(existing as unknown as Record<string, unknown>, next as unknown as Record<string, unknown>);
+    return {
+      suppliers: s.suppliers.map(supplier => supplier.id === id ? next : supplier),
+      auditEvents: [...s.auditEvents, createAuditEventRecord({
+        actor: s.currentUser.name, actorId: s.currentUser.id, role: s.currentUser.role,
+        scope: 'Supplier', action: 'update', entityId: id, entityRef: existing.tradingName,
+        description: `Updated Supplier master record for ${existing.tradingName}.`,
+        changes,
+      })],
+    };
+  }),
+  addSupplier: (supplier) => set(s => ({
+    suppliers: [supplier, ...s.suppliers],
+    auditEvents: [...s.auditEvents, createAuditEventRecord({
+      actor: s.currentUser.name, actorId: s.currentUser.id, role: s.currentUser.role,
+      scope: 'Supplier', action: 'create', entityId: supplier.id, entityRef: supplier.tradingName,
+      description: `Onboarded Supplier "${supplier.tradingName}" (${supplier.city}, ${supplier.state}).`,
+    })],
+  })),
+  updateRfq: (id, partial) => set(s => {
+    const existing = s.rfqs.find(r => r.id === id);
+    if (!existing) return s;
+    const next = { ...existing, ...partial };
+    const changes = diffRecordFields(existing as unknown as Record<string, unknown>, next as unknown as Record<string, unknown>);
+    return {
+      rfqs: s.rfqs.map(r => r.id === id ? next : r),
+      auditEvents: changes.length > 0 ? [...s.auditEvents, createAuditEventRecord({
+        actor: s.currentUser.name, actorId: s.currentUser.id, role: s.currentUser.role,
+        scope: 'CustomerRFQ', action: 'update', entityId: id, entityRef: existing.rfqNumber,
+        description: `Updated Customer RFQ ${existing.rfqNumber}.`,
+        changes,
+      })] : s.auditEvents,
+    };
+  }),
+  updateSupplierPo: (id, partial) => set(s => {
+    const existing = s.supplierPos.find(p => p.id === id);
+    if (!existing) return s;
+    const next = { ...existing, ...partial };
+    const changes = diffRecordFields(existing as unknown as Record<string, unknown>, next as unknown as Record<string, unknown>);
+    return {
+      supplierPos: s.supplierPos.map(p => p.id === id ? next : p),
+      auditEvents: changes.length > 0 ? [...s.auditEvents, createAuditEventRecord({
+        actor: s.currentUser.name, actorId: s.currentUser.id, role: s.currentUser.role,
+        scope: 'SupplierPO', action: 'update', entityId: id, entityRef: existing.poNumber,
+        description: `Updated Supplier PO ${existing.poNumber}.`,
+        changes,
+      })] : s.auditEvents,
+    };
+  }),
   updateJob: (id, partial) => set(s => {
     const current = s.jobs.find(j => j.id === id);
     if (!current) return s;
@@ -2641,12 +3884,25 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
   updateOnboarding: (partial) => set(s => ({ onboarding: { ...s.onboarding, ...partial } })),
   completeOnboarding: () => set({ onboarding: { status: 'complete', completedSteps: [1, 2, 3, 4, 5, 6, 7] } }),
   resetOnboarding: () => set({ onboarding: { status: 'not_started', completedSteps: [] } }),
-  updateCompanyConfig: (partial) => set(s => ({ companyConfig: { ...s.companyConfig, ...partial } })),
+  updateCompanyConfig: (partial) => set(s => {
+    const prev = s.companyConfig as unknown as Record<string, unknown>;
+    const next = { ...s.companyConfig, ...partial };
+    const changes = diffRecordFields(prev, next as unknown as Record<string, unknown>);
+    return {
+      companyConfig: next,
+      auditEvents: changes.length > 0 ? [...s.auditEvents, createAuditEventRecord({
+        actor: s.currentUser.name, actorId: s.currentUser.id, role: s.currentUser.role,
+        scope: 'CompanyConfig', action: 'update', entityId: 'company-config', entityRef: next.companyName,
+        description: `Updated company profile / statutory configuration.`,
+        changes,
+      })] : s.auditEvents,
+    };
+  }),
 
   // ── Audit Actions (append-only) ──
   appendAuditEvent: (event) => {
     const id = `ae-${Date.now()}`;
-    set(s => ({ auditEvents: [...s.auditEvents, { ...event, id }] }));
+    set(s => ({ auditEvents: [...s.auditEvents, createAuditEventRecord({ ...event, id, role: event.role ?? s.currentUser.role })] }));
   },
 
   // ── Toast Actions ──
@@ -2666,9 +3922,13 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
 }), {
   name: 'eoss-demo-store',
   storage: createJSONStorage(() => localStorage),
-  version: 3,
+  version: 4,
   migrate: (persistedState, version) => {
     let state = persistedState as Partial<EOSSState>;
+    const mergeById = <T extends { id: string }>(existing: T[] = [], additions: T[]) => {
+      const seen = new Set(existing.map(x => x.id));
+      return [...existing, ...additions.filter(a => !seen.has(a.id))];
+    };
     if (version < 2) {
       const lots = (state.lots ?? []).map(lot => lot.id === 'lot-301'
         ? { ...lot, grnId: lot.grnId ?? 'grn-rw-003' }
@@ -2689,10 +3949,6 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
       };
     }
     if (version < 3) {
-      const mergeById = <T extends { id: string }>(existing: T[] = [], additions: T[]) => {
-        const seen = new Set(existing.map(x => x.id));
-        return [...existing, ...additions.filter(a => !seen.has(a.id))];
-      };
       state = {
         ...state,
         purchaseReqs: mergeById(state.purchaseReqs, DEMO_SCENARIO_PRS),
@@ -2714,6 +3970,20 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
         materials: [...MATERIALS],
       };
     }
+    if (version < 4) {
+      state = {
+        ...state,
+        invoices: mergeById(state.invoices, SEED_UNIFIED_INVOICES),
+        invoiceLines: mergeById(state.invoiceLines, SEED_UNIFIED_INVOICE_LINES),
+        payments: mergeById(state.payments, SEED_UNIFIED_PAYMENTS),
+        paymentAllocations: mergeById(state.paymentAllocations, SEED_UNIFIED_PAYMENT_ALLOCATIONS),
+        supplierBills: mergeById(state.supplierBills, SEED_SUPPLIER_BILLS),
+        supplierBillLines: mergeById(state.supplierBillLines, SEED_SUPPLIER_BILL_LINES),
+        supplierPayments: mergeById(state.supplierPayments, SEED_SUPPLIER_PAYMENTS),
+        supplierPaymentAllocations: mergeById(state.supplierPaymentAllocations, SEED_SUPPLIER_PAYMENT_ALLOCATIONS),
+        auditEvents: mergeById(state.auditEvents, SEED_RICH_AUDIT_EVENTS),
+      };
+    }
     return state;
   },
   // Theme/sidebar prefs already persist themselves via their own localStorage keys;
@@ -2724,6 +3994,10 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
   },
   onRehydrateStorage: () => (state) => {
     if (!state) return;
+    const mergeById = <T extends { id: string }>(existing: T[] = [], additions: T[]) => {
+      const seen = new Set(existing.map(x => x.id));
+      return [...existing, ...additions.filter(a => !seen.has(a.id))];
+    };
     const repairedLots = state.lots.map(lot => lot.id === 'lot-301'
       ? { ...lot, grnId: lot.grnId ?? 'grn-rw-003' }
       : lot.id === 'lot-302'
@@ -2754,6 +4028,15 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
       transfers: state.transfers ?? [],
       materialReturns: state.materialReturns ?? [],
       supplierInvitations: state.supplierInvitations ?? [...DEMO_SUPPLIER_INVITATIONS],
+      invoices: mergeById(state.invoices, SEED_UNIFIED_INVOICES),
+      invoiceLines: mergeById(state.invoiceLines, SEED_UNIFIED_INVOICE_LINES),
+      payments: mergeById(state.payments, SEED_UNIFIED_PAYMENTS),
+      paymentAllocations: mergeById(state.paymentAllocations, SEED_UNIFIED_PAYMENT_ALLOCATIONS),
+      supplierBills: state.supplierBills ?? [...SEED_SUPPLIER_BILLS],
+      supplierBillLines: state.supplierBillLines ?? [...SEED_SUPPLIER_BILL_LINES],
+      supplierPayments: state.supplierPayments ?? [...SEED_SUPPLIER_PAYMENTS],
+      supplierPaymentAllocations: state.supplierPaymentAllocations ?? [...SEED_SUPPLIER_PAYMENT_ALLOCATIONS],
+      auditEvents: mergeById(state.auditEvents, SEED_RICH_AUDIT_EVENTS),
       jobs: state.jobs.map(j => {
         const template = j.stageTemplateId ? STAGE_TEMPLATES.find(t => t.id === j.stageTemplateId) : STAGE_TEMPLATES.find(t => t.stages.length === j.stages.length) ?? STAGE_TEMPLATES[0];
         return { ...j, stageTemplateId: j.stageTemplateId ?? template?.id, stageTemplateName: j.stageTemplateName && !j.stageTemplateName.toLowerCase().startsWith('custom') ? j.stageTemplateName : template?.name };

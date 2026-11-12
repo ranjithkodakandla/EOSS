@@ -6,6 +6,7 @@ import { useReturnNavigation } from '../../hooks/useReturnNavigation';
 import { DEMO_NOW } from '../../data/seed';
 import type { NCR, QualityRelease } from '../../types';
 import StatusChip from '../../components/layout/StatusChip';
+import RecordHistoryPanel from '../../components/workflow/RecordHistoryPanel';
 
 let ncrSeq = 50;
 
@@ -316,6 +317,16 @@ export default function InspectionDetail() {
             </div>
           )}
         </div>
+      </div>
+
+      <div className="mt-5">
+        <RecordHistoryPanel
+          entityId={ins.id}
+          entityRef={ins.inspectionNumber}
+          relatedIds={[...(ins.lotId ? [ins.lotId] : []), ...(ins.jobId ? [ins.jobId] : [])]}
+          title="Inspection & Quality Decision History"
+          subtitle="Incoming/final inspection completion, accepted/rejected quantities, NCR raises, and quality releases"
+        />
       </div>
     </div>
   );

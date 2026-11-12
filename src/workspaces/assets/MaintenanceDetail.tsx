@@ -4,6 +4,7 @@ import { ArrowLeft, AlertTriangle } from 'lucide-react';
 import { useStore } from '../../store';
 import { DEMO_NOW } from '../../data/seed';
 import StatusChip from '../../components/layout/StatusChip';
+import RecordHistoryPanel from '../../components/workflow/RecordHistoryPanel';
 import clsx from 'clsx';
 
 export default function MaintenanceDetail() {
@@ -173,6 +174,16 @@ export default function MaintenanceDetail() {
             </div>
           )}
         </div>
+      </div>
+
+      <div className="mt-5">
+        <RecordHistoryPanel
+          entityId={event.id}
+          entityRef={event.eventNumber}
+          relatedIds={asset ? [asset.id] : []}
+          title="Maintenance Event Activity & Audit Trail"
+          subtitle="Breakdown/PM log creation, spare parts usage, diagnosis, and closure"
+        />
       </div>
     </div>
   );

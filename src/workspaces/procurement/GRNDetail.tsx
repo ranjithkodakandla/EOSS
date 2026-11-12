@@ -5,6 +5,7 @@ import { useStore } from '../../store';
 import { useReturnNavigation } from '../../hooks/useReturnNavigation';
 import StatusChip from '../../components/layout/StatusChip';
 import DocumentActions from '../../components/workflow/DocumentActions';
+import RecordHistoryPanel from '../../components/workflow/RecordHistoryPanel';
 
 export default function GRNDetail() {
   const { id } = useParams<{ id: string }>();
@@ -238,11 +239,31 @@ export default function GRNDetail() {
       )}
 
       {grn.status === 'accepted' && (
-        <div className="bg-[var(--success-bg)] border border-[var(--success)] rounded-xl p-4 flex items-center gap-2 text-xs text-[var(--text)]">
-          <CheckCircle size={15} className="text-[var(--success)]" />
-          <span>GRN accepted — approved lots have entered available inventory.</span>
+        <div className="bg-[var(--success-bg)] border border-[var(--success)] rounded-xl p-4 flex flex-wrap items-center justify-between gap-2 text-xs text-[var(--text)]">
+          <div className="flex items-center gap-2">
+            <CheckCircle size={15} className="text-[var(--success)]" />
+            <span>GRN accepted — approved lots have entered available inventory.</span>
+          </div>
+          {grn.spoId && (
+            <button
+              type="button"
+              onClick={() => navigate(`/finance/bill/new?spoId=${grn.spoId}&grnId=${grn.id}`)}
+              className="px-3 py-1.5 rounded-lg bg-[var(--brand-fill)] text-white font-semibold text-xs hover:opacity-90"
+            >
+              + Record Supplier Bill
+            </button>
+          )}
         </div>
       )}
+
+      <div className="mt-5">
+        <RecordHistoryPanel
+          entityId={grn.id}
+          entityRef={grn.grnNumber}
+          title="GRN Receipt & Inspection History"
+          subtitle="Receipt creation, lot generation, QC inspection results, and rejection/acceptance"
+        />
+      </div>
 
       {rejectModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">

@@ -6,6 +6,7 @@ import { useReturnNavigation } from '../../hooks/useReturnNavigation';
 import { computeMaintenanceDue } from '../../domain/maintenanceDue';
 import { DEMO_NOW } from '../../data/seed';
 import StatusChip from '../../components/layout/StatusChip';
+import RecordHistoryPanel from '../../components/workflow/RecordHistoryPanel';
 import clsx from 'clsx';
 
 export default function AssetDetail() {
@@ -299,6 +300,15 @@ export default function AssetDetail() {
           </div>
         </div>
       )}
+
+      <div className="mt-5">
+        <RecordHistoryPanel
+          entityId={asset.id}
+          entityRef={asset.assetCode}
+          title="Asset Lifecycle & Audit Trail"
+          subtitle="Master updates, breakdown reports, repairs completed, and meter readings"
+        />
+      </div>
     </div>
   );
 }

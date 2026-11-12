@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { useStore } from '../../store';
 import StatusChip from '../../components/layout/StatusChip';
+import RecordHistoryPanel from '../../components/workflow/RecordHistoryPanel';
 import type { CustomerRFQ } from '../../types';
 
 const fmt = (d: string) => d ? new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
@@ -352,21 +353,29 @@ export default function RFQDetail() {
         )}
 
         {tab === 'history' && (
-          <div className="space-y-3 max-w-2xl">
-            {revisions.length === 0 ? (
-              <div className="text-center py-12 text-sm text-[var(--text-3)]">No revision history.</div>
-            ) : (
-              revisions.map((r: any, i: number) => (
-                <div key={r.id ?? i} className="flex items-start gap-3 p-3 rounded-lg border" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
-                  <Clock size={15} className="text-[var(--text-3)] mt-0.5 flex-shrink-0" />
-                  <div>
-                    <div className="text-sm font-medium text-[var(--text)]">Rev {r.revision} — {r.changedBy}</div>
-                    <div className="text-xs text-[var(--text-2)] mt-0.5">{r.changeDescription}</div>
-                    <div className="text-xs text-[var(--text-3)] mt-1">{r.changedAt ? fmt(r.changedAt) : ''}</div>
+          <div className="space-y-4 max-w-4xl">
+            <div className="space-y-3 max-w-2xl">
+              {revisions.length === 0 ? (
+                <div className="text-center py-6 text-sm text-[var(--text-3)]">No revision entries.</div>
+              ) : (
+                revisions.map((r: any, i: number) => (
+                  <div key={r.id ?? i} className="flex items-start gap-3 p-3 rounded-lg border" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
+                    <Clock size={15} className="text-[var(--text-3)] mt-0.5 flex-shrink-0" />
+                    <div>
+                      <div className="text-sm font-medium text-[var(--text)]">Rev {r.revision} — {r.changedBy}</div>
+                      <div className="text-xs text-[var(--text-2)] mt-0.5">{r.changeDescription}</div>
+                      <div className="text-xs text-[var(--text-3)] mt-1">{r.changedAt ? fmt(r.changedAt) : ''}</div>
+                    </div>
                   </div>
-                </div>
-              ))
-            )}
+                ))
+              )}
+            </div>
+            <RecordHistoryPanel
+              entityId={rfq.id}
+              entityRef={rfq.rfqNumber}
+              title="RFQ Audit Trail"
+              subtitle="Enquiry capture, clarifications, status updates, and conversion"
+            />
           </div>
         )}
       </div>

@@ -6,6 +6,7 @@ import StatusChip from '../../components/layout/StatusChip';
 import type { CustomerPO, CustomerQuotation, CustomerQuotationLine, POLine } from '../../types';
 import DocumentActions from '../../components/workflow/DocumentActions';
 import RelatedRecordsPanel from '../../components/workflow/RelatedRecordsPanel';
+import RecordHistoryPanel from '../../components/workflow/RecordHistoryPanel';
 import { useReturnNavigation } from '../../hooks/useReturnNavigation';
 
 const fmt = (d: string) => d ? new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
@@ -296,6 +297,15 @@ export default function QuotationDetail() {
             <p className="text-sm text-[var(--text-2)]">{quotation.notes}</p>
           </div>
         )}
+
+        <div className="mt-5">
+          <RecordHistoryPanel
+            entityId={quotation.id}
+            entityRef={quotation.quotationNumber}
+            title="Quotation Activity & Audit Trail"
+            subtitle="Drafting, revisions, submission, acceptance, and PO conversion"
+          />
+        </div>
       </div>
 
       {/* Confirm dialogs */}
