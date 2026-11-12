@@ -326,14 +326,17 @@ export default function PODetail() {
                   </tr>
                 </thead>
                 <tbody>
-                  {liveAvailability.items.map(item => (
+                  {liveAvailability.items.map(item => {
+                    const poReserved = linkedReqs.find(r => r.materialItemId === item.materialItemId)?.reservedQty
+                      ?? (po.availabilityStatus && po.availabilityStatus !== 'not_assessed' ? item.toReserveQty : item.reservedQty);
+                    return (
                     <tr key={item.materialItemId}>
                       <td>
                         <div className="font-medium text-xs text-[var(--text)]">{item.materialName}</div>
                         <div className="text-[11px] font-mono text-[var(--text-3)]">{item.materialCode ?? 'ITEM'}</div>
                       </td>
                       <td className="text-right font-mono text-xs">{item.requiredQty} {item.uom}</td>
-                      <td className="text-right font-mono text-xs">{item.reservedQty}</td>
+                      <td className="text-right font-mono text-xs">{poReserved}</td>
                       <td className="text-right font-mono text-xs font-semibold">{item.eligibleAvailableQty}</td>
                       <td className="text-right font-mono text-xs text-[var(--text-3)]">{item.qcHoldQty} / {item.incomingQty}</td>
                       <td className="text-right font-mono text-xs font-semibold text-amber-700">{item.shortageQty}</td>
@@ -344,7 +347,8 @@ export default function PODetail() {
                         />
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
