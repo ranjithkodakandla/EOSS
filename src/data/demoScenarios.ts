@@ -31,14 +31,14 @@ export const DEMO_SCENARIO_PRS: PurchaseRequisition[] = [
     raisedBy: 'Suresh Kumar',
     department: 'Production',
     raisedDate: '2026-11-05',
-    requiredBy: '2026-11-22',
+    requiredBy: '2026-11-26',
     sourceType: 'manual',
     status: 'approved',
     lineCount: 1,
     totalQty: 250,
     priority: 'normal',
     deliverToSiteId: 'site-hyd',
-    deliverToSiteName: 'Hyderabad Factory',
+    deliverToSiteName: 'Hyderabad Plant 1',
     deliverToStoreId: 'loc-rm',
     deliverToStoreName: 'Raw Material Store',
     purpose: 'Scheduled SS 304L sheet restock for Q4 pressure enclosures',
@@ -73,7 +73,7 @@ export const DEMO_SCENARIO_PRS: PurchaseRequisition[] = [
     totalQty: 1300,
     priority: 'high',
     deliverToSiteId: 'site-hyd',
-    deliverToSiteName: 'Hyderabad Factory',
+    deliverToSiteName: 'Hyderabad Plant 1',
     deliverToStoreId: 'loc-rm',
     deliverToStoreName: 'Raw Material Store',
     purpose: 'Frame plates and structural Grade 8.8 fastener kit',
@@ -120,7 +120,7 @@ export const DEMO_SCENARIO_PRS: PurchaseRequisition[] = [
     totalQty: 500,
     priority: 'high',
     deliverToSiteId: 'site-hyd',
-    deliverToSiteName: 'Hyderabad Factory',
+    deliverToSiteName: 'Hyderabad Plant 1',
     deliverToStoreId: 'loc-rm',
     deliverToStoreName: 'Raw Material Store',
     purpose: 'Base plate requirement — compare 2 received quotes while awaiting 3rd',
@@ -154,7 +154,7 @@ export const DEMO_SCENARIO_PRS: PurchaseRequisition[] = [
     totalQty: 1200,
     priority: 'normal',
     deliverToSiteId: 'site-hyd',
-    deliverToSiteName: 'Hyderabad Factory',
+    deliverToSiteName: 'Hyderabad Plant 1',
     deliverToStoreId: 'loc-rm',
     deliverToStoreName: 'Raw Material Store',
     purpose: 'Flat bars and welding bay consumables batch',
@@ -214,7 +214,7 @@ export const DEMO_SCENARIO_PRS: PurchaseRequisition[] = [
     totalQty: 8,
     priority: 'high',
     deliverToSiteId: 'site-hyd',
-    deliverToSiteName: 'Hyderabad Factory',
+    deliverToSiteName: 'Hyderabad Plant 1',
     deliverToStoreId: 'loc-rm',
     deliverToStoreName: 'Raw Material Store',
     purpose: 'Urgent Argon shielding gas refill for TIG welding cells',
@@ -281,7 +281,7 @@ export const DEMO_SCENARIO_PRS: PurchaseRequisition[] = [
     totalQty: 120,
     priority: 'normal',
     deliverToSiteId: 'site-hyd',
-    deliverToSiteName: 'Hyderabad Factory',
+    deliverToSiteName: 'Hyderabad Plant 1',
     deliverToStoreId: 'loc-rm',
     deliverToStoreName: 'Raw Material Store',
     purpose: 'MIG wire replenishment — PO issued to Apex Consumables, awaiting confirmation',
@@ -348,7 +348,7 @@ export const DEMO_SCENARIO_PRS: PurchaseRequisition[] = [
     totalQty: 600,
     priority: 'high',
     deliverToSiteId: 'site-hyd',
-    deliverToSiteName: 'Hyderabad Factory',
+    deliverToSiteName: 'Hyderabad Plant 1',
     deliverToStoreId: 'loc-qrn',
     deliverToStoreName: 'Quarantine Store',
     purpose: 'Alloy steel 42CrMo4 forged billets — 2-lot GRN with 1 lot released & 1 on QC hold',
@@ -380,12 +380,14 @@ export const DEMO_SCENARIO_PRS: PurchaseRequisition[] = [
     sourceRefId: 'cpo-demo-short',
     sourceRefLabel: 'CPO-2026-201',
     sourceMaterialReqId: 'jmr-demo-b1',
+    jobId: 'job-demo-short',
+    jobNumber: 'J-210',
     status: 'approved',
     lineCount: 1,
     totalQty: 320,
     priority: 'urgent',
     deliverToSiteId: 'site-hyd',
-    deliverToSiteName: 'Hyderabad Factory',
+    deliverToSiteName: 'Hyderabad Plant 1',
     deliverToStoreId: 'loc-rm',
     deliverToStoreName: 'Raw Material Store',
     purpose: 'Shortfall cover (320 kg MS Pipe 100NB Sch40) against Customer PO CPO-2026-201',
@@ -419,7 +421,7 @@ export const DEMO_SCENARIO_PRS: PurchaseRequisition[] = [
     totalQty: 750,
     priority: 'urgent',
     deliverToSiteId: 'site-hyd',
-    deliverToSiteName: 'Hyderabad Factory',
+    deliverToSiteName: 'Hyderabad Plant 1',
     deliverToStoreId: 'loc-rm',
     deliverToStoreName: 'Raw Material Store',
     purpose: 'Bulk SS Sheet 3mm 304L reserve for Q4 export header batch (₹1,42,500 — exceeds ₹1,00,000 approval threshold)',
@@ -453,11 +455,14 @@ export const DEMO_SCENARIO_PRS: PurchaseRequisition[] = [
     totalQty: 250,
     priority: 'normal',
     deliverToSiteId: 'site-hyd',
-    deliverToSiteName: 'Hyderabad Factory',
+    deliverToSiteName: 'Hyderabad Plant 1',
     deliverToStoreId: 'loc-rm',
     deliverToStoreName: 'Raw Material Store',
     purpose: 'Additional MS Flat Bar 50×6 buffer request',
     reason: 'Rejected by Ranjith Kodakandla (03 Nov): Duplicate buffer request — 236 kg already available in LOT-2024-006.',
+    rejectionReason: 'Duplicate buffer request — 236 kg already available in LOT-2024-006.',
+    rejectedBy: 'Ranjith Kodakandla',
+    rejectedAt: '2026-11-03T11:15:00',
     lines: [
       {
         id: 'prdl-12a',
@@ -681,10 +686,10 @@ export const DEMO_SUPPLIER_POS: SupplierPO[] = [
   // Scenario 5: Draft PO waiting Confirm & Issue
   {
     id: 'spo-demo-105', poNumber: 'SPO-2026-105', spoNumber: 'SPO-2026-105', orderDate: '2026-11-04',
-    supplierId: 'supp-bgs', supplierName: 'Bharat Gas Supply Co', raisedDate: '2026-11-04', committedDate: '2026-11-10',
+    supplierId: 'supp-bgs', supplierName: 'Bharat Gas Supply Co', raisedDate: '2026-11-04', committedDate: '2026-11-18',
     status: 'draft', totalValue: 16992, currency: 'INR', paymentTerms: 'Net 15',
     prId: 'pr-demo-05', prNumber: 'PR-2026-105', supplierQuotationId: 'sq-demo-105a', supplierQuotationRef: 'SQ-2026-105A',
-    lineCount: 1, deliverToSiteId: 'site-hyd', deliverToSiteName: 'Hyderabad Factory', deliverToStoreId: 'loc-rm', deliverToStoreName: 'Raw Material Store',
+    lineCount: 1, deliverToSiteId: 'site-hyd', deliverToSiteName: 'Hyderabad Plant 1', deliverToStoreId: 'loc-rm', deliverToStoreName: 'Raw Material Store',
     notes: 'Draft PO generated from approved quotation SQ-2026-105A; review commercial terms and confirm to issue.',
   },
   // Scenario 7: Issued SPO awaiting supplier confirmation
@@ -694,7 +699,7 @@ export const DEMO_SUPPLIER_POS: SupplierPO[] = [
     status: 'awaiting_supplier_confirmation', totalValue: 20107, currency: 'INR', paymentTerms: 'Net 30',
     prId: 'pr-demo-07', prNumber: 'PR-2026-107', supplierQuotationId: 'sq-demo-107a', supplierQuotationRef: 'SQ-2026-107A',
     sentAt: '2026-11-02T14:30:00', issuedBy: 'Karthik Raju', supplierResponseStatus: 'pending',
-    lineCount: 1, deliverToSiteId: 'site-hyd', deliverToSiteName: 'Hyderabad Factory', deliverToStoreId: 'loc-rm', deliverToStoreName: 'Raw Material Store',
+    lineCount: 1, deliverToSiteId: 'site-hyd', deliverToSiteName: 'Hyderabad Plant 1', deliverToStoreId: 'loc-rm', deliverToStoreName: 'Raw Material Store',
   },
   // Scenario 8: Supplier declined PO
   {
@@ -716,7 +721,7 @@ export const DEMO_SUPPLIER_POS: SupplierPO[] = [
     sentAt: '2026-10-27T10:15:00', issuedBy: 'Karthik Raju', supplierResponseStatus: 'accepted',
     supplierConfirmedDate: '2026-11-12', supplierRefNumber: 'SFA-ACK-8841', supplierRespondedAt: '2026-10-28T09:45:00',
     supplierResponseNotes: 'Dispatched Heat #HT-SFA-901/902 first 400 kg batch; balance 200 kg in next lot.',
-    lineCount: 1, deliverToSiteId: 'site-hyd', deliverToSiteName: 'Hyderabad Factory', deliverToStoreId: 'loc-qrn', deliverToStoreName: 'Quarantine Store',
+    lineCount: 1, deliverToSiteId: 'site-hyd', deliverToSiteName: 'Hyderabad Plant 1', deliverToStoreId: 'loc-qrn', deliverToStoreName: 'Quarantine Store',
   },
 ];
 
@@ -742,7 +747,7 @@ export const DEMO_GRNS: GoodsReceipt[] = [
     status: 'qc_hold',
     lineCount: 1,
     siteId: 'site-hyd',
-    siteName: 'Hyderabad Factory',
+    siteName: 'Hyderabad Plant 1',
     storeLocationId: 'loc-qrn',
     storeLocationName: 'Quarantine Store',
     lines: [
@@ -847,14 +852,14 @@ export const DEMO_SALES_POS: CustomerPO[] = [
     id: 'cpo-demo-a', poNumber: 'CPO-2026-200', customerId: 'cust-mer', customerName: 'Meridian Engineering',
     acceptedDate: '2026-11-02', paymentTerms: 'Net 30', status: 'active', totalValue: 240000, currency: 'INR',
     lineCount: 1, quotationRef: 'QT-2026-201-R2', quotationId: 'qt-demo-a', rfqId: 'rfq-demo-a', rfqRef: 'RFQ-2026-201',
-    deliveryTerms: 'Ex-Works Hyderabad', originType: 'from_quotation', availabilityStatus: 'available', deliverToSiteId: 'site-hyd', deliverToSiteName: 'Hyderabad Factory',
+    deliveryTerms: 'Ex-Works Hyderabad', originType: 'from_quotation', availabilityStatus: 'available', deliverToSiteId: 'site-hyd', deliverToSiteName: 'Hyderabad Plant 1',
   },
   // Scenario B: Material Unavailable -> Auto PR (PR-2026-110)
   {
     id: 'cpo-demo-short', poNumber: 'CPO-2026-201', customerId: 'cust-lt', customerName: 'L&T Hydrocarbon',
     acceptedDate: '2026-11-04', paymentTerms: 'Net 45', status: 'active', totalValue: 330000, currency: 'INR',
     lineCount: 1, quotationRef: 'QT-2026-202', quotationId: 'qt-demo-b', rfqId: 'rfq-demo-b', rfqRef: 'RFQ-2026-202',
-    deliveryTerms: 'DDP Mumbai', originType: 'from_quotation', availabilityStatus: 'awaiting_procurement', deliverToSiteId: 'site-hyd', deliverToSiteName: 'Hyderabad Factory',
+    deliveryTerms: 'DDP Mumbai', originType: 'from_quotation', availabilityStatus: 'awaiting_procurement', deliverToSiteId: 'site-hyd', deliverToSiteName: 'Hyderabad Plant 1',
   },
   // Scenario C: Ready for live Partial Availability Check (600 kg MS Plate 8mm required vs ~515 kg eligible available)
   {
@@ -862,7 +867,7 @@ export const DEMO_SALES_POS: CustomerPO[] = [
     acceptedDate: '2026-11-05', paymentTerms: 'Net 15', status: 'active', totalValue: 195000, currency: 'INR',
     lineCount: 1, deliveryTerms: 'Ex-Works Hyderabad', isDirectOrder: true, originType: 'direct_order',
     directOrderReason: 'Repeat heavy base frame order — partial stock check ready to run',
-    availabilityStatus: 'not_assessed', deliverToSiteId: 'site-hyd', deliverToSiteName: 'Hyderabad Factory',
+    availabilityStatus: 'not_assessed', deliverToSiteId: 'site-hyd', deliverToSiteName: 'Hyderabad Plant 1',
   },
   // Scenario D: Direct Customer Order without RFQ or Quotation
   {
@@ -870,7 +875,7 @@ export const DEMO_SALES_POS: CustomerPO[] = [
     acceptedDate: '2026-11-05', paymentTerms: 'Net 60', status: 'active', totalValue: 165000, currency: 'INR',
     lineCount: 1, deliveryTerms: 'FOR NTPC Ramagundam', isDirectOrder: true, originType: 'direct_order',
     directOrderReason: 'Direct emergency spare flange assembly order against Annual Rate Contract',
-    availabilityStatus: 'available', deliverToSiteId: 'site-hyd', deliverToSiteName: 'Hyderabad Factory',
+    availabilityStatus: 'available', deliverToSiteId: 'site-hyd', deliverToSiteName: 'Hyderabad Plant 1',
   },
 ];
 
@@ -886,7 +891,7 @@ export const DEMO_SALES_JOBS: Job[] = [
   {
     id: 'job-demo-a', jobNumber: 'J-211', customerId: 'cust-mer', customerName: 'Meridian Engineering',
     customerPoId: 'cpo-demo-a', customerPoNumber: 'CPO-2026-200', poLineId: 'cpol-da1', drawingRef: 'MER-SKD-201 Rev B',
-    description: 'MS Fabricated Pump Skid Base — 20 pcs', siteId: 'site-hyd', siteName: 'Hyderabad Factory',
+    description: 'MS Fabricated Pump Skid Base — 20 pcs', siteId: 'site-hyd', siteName: 'Hyderabad Plant 1',
     status: 'active', priority: 'normal', plannedStart: '2026-11-03', plannedEnd: '2026-11-26', actualStart: '2026-11-03',
     owner: 'Suresh Kumar', currentStage: 'Welding', materialReadiness: 'ready', hasBlocker: false, value: 240000,
     stageTemplateId: 'tmpl-standard-fabrication', stageTemplateName: 'Standard Fabrication Workflow',
@@ -902,7 +907,7 @@ export const DEMO_SALES_JOBS: Job[] = [
   {
     id: 'job-demo-short', jobNumber: 'J-210', customerId: 'cust-lt', customerName: 'L&T Hydrocarbon',
     customerPoId: 'cpo-demo-short', customerPoNumber: 'CPO-2026-201', poLineId: 'cpol-db1', drawingRef: 'LTH-HDR-202 Rev A',
-    description: '100NB Sch40 Process Header Spools — awaiting procurement (PR-2026-110)', siteId: 'site-hyd', siteName: 'Hyderabad Factory',
+    description: '100NB Sch40 Process Header Spools — awaiting procurement (PR-2026-110)', siteId: 'site-hyd', siteName: 'Hyderabad Plant 1',
     status: 'hold', priority: 'urgent', plannedStart: '2026-11-06', plannedEnd: '2026-11-29',
     owner: 'Suresh Kumar', currentStage: 'Cutting', materialReadiness: 'awaiting_procurement', hasBlocker: true, value: 330000,
     stageTemplateId: 'tmpl-standard-fabrication', stageTemplateName: 'Standard Fabrication Workflow',
@@ -916,7 +921,7 @@ export const DEMO_SALES_JOBS: Job[] = [
   {
     id: 'job-demo-direct', jobNumber: 'J-213', customerId: 'cust-ntpc', customerName: 'NTPC Vendor Division',
     customerPoId: 'cpo-demo-direct', customerPoNumber: 'CPO-2026-203', poLineId: 'cpol-dd1', drawingRef: 'NTPC-FLG-203 Rev C',
-    description: 'Direct Order: Machined Coupling Flange Set — 15 sets', siteId: 'site-hyd', siteName: 'Hyderabad Factory',
+    description: 'Direct Order: Machined Coupling Flange Set — 15 sets', siteId: 'site-hyd', siteName: 'Hyderabad Plant 1',
     status: 'active', priority: 'high', plannedStart: '2026-11-05', plannedEnd: '2026-11-21', actualStart: '2026-11-05',
     owner: 'Suresh Kumar', currentStage: 'Machining', materialReadiness: 'ready', hasBlocker: false, value: 165000,
     stageTemplateId: 'tmpl-structural-express', stageTemplateName: 'Express Machined Component Route',
@@ -929,14 +934,16 @@ export const DEMO_SALES_JOBS: Job[] = [
   // Cancelled job preserving history and inventory disposition
   {
     id: 'job-demo-cancel', jobNumber: 'J-214', customerId: 'cust-sv', customerName: 'SV Industries',
-    drawingRef: 'SV-DWG-092', description: 'Cancelled prototype bracket batch (Customer design change)', siteId: 'site-hyd', siteName: 'Hyderabad Factory',
+    drawingRef: 'SV-DWG-092', description: 'Cancelled prototype bracket batch (Customer design change)', siteId: 'site-hyd', siteName: 'Hyderabad Plant 1',
     status: 'cancelled', priority: 'low', plannedStart: '2026-10-28', plannedEnd: '2026-11-15', actualStart: '2026-10-29',
-    owner: 'Suresh Kumar', currentStage: 'Cutting', materialReadiness: 'ready', hasBlocker: false, value: 64000,
+    owner: 'Suresh Kumar', currentStage: 'Cancelled', materialReadiness: 'ready', hasBlocker: false, value: 64000,
     cancellationReason: 'Customer withdrew design Rev A in favour of welded assembly; 80 kg unused reserved MS Flat Bar returned to free stock.',
     cancelledAt: '2026-11-02T15:30:00',
     cancelledBy: 'Ranjith Kodakandla',
     cancellationDisposition: {
       reason: 'Customer design change Rev A -> Rev B',
+      materialName: 'MS Flat Bar 50×6',
+      materialUom: 'kg',
       reservedReleasedQty: 80,
       issuedQty: 20,
       consumedQty: 20,
@@ -947,8 +954,8 @@ export const DEMO_SALES_JOBS: Job[] = [
     },
     stageTemplateId: 'tmpl-structural-express', stageTemplateName: 'Express Machined Component Route',
     stages: [
-      { id: 'stgd-214-1', jobId: 'job-demo-cancel', sequence: 1, name: 'Machining', status: 'hold', plannedStart: '2026-10-29', plannedEnd: '2026-11-05', actualStart: '2026-10-29', owner: 'Mohan Das', workCentre: 'Machining Bay', inputQty: 10, completedGoodQty: 2, rejectedQty: 0, reworkQty: 0, scrapQty: 0, uom: 'pcs' },
-      { id: 'stgd-214-2', jobId: 'job-demo-cancel', sequence: 2, name: 'Final Inspection', status: 'pending', plannedStart: '2026-11-06', plannedEnd: '2026-11-08', owner: '', workCentre: 'QC Bay', inputQty: 10, completedGoodQty: 0, rejectedQty: 0, reworkQty: 0, scrapQty: 0, uom: 'pcs' },
+      { id: 'stgd-214-1', jobId: 'job-demo-cancel', sequence: 1, name: 'Machining', status: 'skipped', plannedStart: '2026-10-29', plannedEnd: '2026-11-05', actualStart: '2026-10-29', owner: 'Mohan Das', workCentre: 'Machining Bay', inputQty: 10, completedGoodQty: 2, rejectedQty: 0, reworkQty: 0, scrapQty: 0, uom: 'pcs' },
+      { id: 'stgd-214-2', jobId: 'job-demo-cancel', sequence: 2, name: 'Final Inspection', status: 'skipped', plannedStart: '2026-11-06', plannedEnd: '2026-11-08', owner: '', workCentre: 'QC Bay', inputQty: 10, completedGoodQty: 0, rejectedQty: 0, reworkQty: 0, scrapQty: 0, uom: 'pcs' },
     ],
   },
 ];
@@ -956,6 +963,7 @@ export const DEMO_SALES_JOBS: Job[] = [
 export const DEMO_SALES_JOB_REQS: JobMaterialReq[] = [
   { id: 'jmr-demo-a1', jobId: 'job-demo-a', stageId: 'stgd-211-1', stageName: 'Cutting', materialItemId: 'mat-ms8', materialName: 'MS Plate 8mm', requiredQty: 180, reservedQty: 180, issuedQty: 180, uom: 'kg', shortage: false, lotIds: ['lot-001'] },
   { id: 'jmr-demo-b1', jobId: 'job-demo-short', stageId: 'stgd-210-1', stageName: 'Cutting', materialItemId: 'mat-msp', materialName: 'MS Pipe 100NB Sch40', requiredQty: 320, reservedQty: 0, issuedQty: 0, uom: 'kg', shortage: true, lotIds: [] },
+  { id: 'jmr-demo-d1', jobId: 'job-demo-direct', stageId: 'stgd-213-1', stageName: 'Machining', materialItemId: 'mat-msfb', materialName: 'MS Flat Bar 50×6', requiredQty: 120, reservedQty: 120, issuedQty: 60, uom: 'kg', shortage: false, lotIds: ['lot-006'] },
 ];
 
 export const DEMO_SALES_DISPATCHES: Dispatch[] = [
@@ -964,6 +972,9 @@ export const DEMO_SALES_DISPATCHES: Dispatch[] = [
     dispatchNumber: 'DSP-2026-201',
     customerId: 'cust-mer',
     customerName: 'Meridian Engineering',
+    customerPoId: 'cpo-demo-a',
+    customerPoNumber: 'CPO-2026-200',
+    poLineId: 'cpol-da1',
     jobId: 'job-demo-a',
     jobNumber: 'J-211',
     jobs: ['J-211'],

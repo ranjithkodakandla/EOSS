@@ -71,7 +71,7 @@ export function maintenanceDueSoon<T extends Asset>(assets: T[], readings: Meter
 }
 
 export function documentsDue(documents: VaultDocument[], now = DEMO_DATE()) {
-  return listExpiringDocuments(documents.filter(d => d.status !== 'superseded'), now);
+  return listExpiringDocuments(documents.filter(d => d.status !== 'superseded' && d.status !== 'archived'), now);
 }
 
 export interface MoneyRow {

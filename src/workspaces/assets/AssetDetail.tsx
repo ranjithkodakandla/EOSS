@@ -7,6 +7,8 @@ import { computeMaintenanceDue } from '../../domain/maintenanceDue';
 import { DEMO_NOW } from '../../data/seed';
 import StatusChip from '../../components/layout/StatusChip';
 import RecordHistoryPanel from '../../components/workflow/RecordHistoryPanel';
+import LinkedDocumentsSection from '../../components/workflow/LinkedDocumentsSection';
+import { formatDisplayDate } from '../../domain/dates';
 import clsx from 'clsx';
 
 export default function AssetDetail() {
@@ -25,6 +27,7 @@ export default function AssetDetail() {
   const asset = assets.find(a => a.id === id);
   if (!asset) return <div className="p-6 text-[var(--text-2)]">Asset not found</div>;
 
+  const isRetired = asset.status === 'retired' || Boolean(asset.archivedAt);
   const events = maintenanceEvents.filter(m => m.assetId === id);
   const openBreakdown = events.find(m => m.type === 'Breakdown' && m.status !== 'closed');
   const readings = meterReadings.filter(r => r.assetId === id).slice().sort((a, b) => b.readingDate.localeCompare(a.readingDate));
@@ -75,7 +78,9 @@ export default function AssetDetail() {
           </div>
           <h1 className="text-lg font-bold text-[var(--text)]">{asset.name}</h1>
         </div>
-        <button type="button" onClick={() => navigate(`/assets?edit=${asset.id}`)} className="btn-ghost text-xs inline-flex items-center gap-1.5"><Pencil size={13} /> Edit Asset</button>
+        {!isRetired && (
+          <button type="button" onClick={() => navigate(`/assets?edit=${asset.id}`)} className="btn-ghost text-xs inline-flex items-center gap-1.5"><Pencil size={13} /> Edit Asset</button>
+        )}
       </div>
 
       {asset.status === 'breakdown' && (
@@ -138,34 +143,44 @@ export default function AssetDetail() {
                 <Field label="Meter Type" value={asset.meterType} />
                 {asset.currentReading != null && <Field label="Current Reading" value={`${asset.currentReading.toLocaleString()} ${asset.meterType}`} />}
                 {(asset.pmFrequencyMetric ?? asset.pmFrequencyHours) && <Field label="PM Frequency" value={`${asset.pmFrequencyMetric ?? asset.pmFrequencyHours} ${asset.meterType === 'none' ? 'metric' : asset.meterType}`} />}
-                {asset.lastServiceDate && <Field label="Last Service" value={new Date(asset.lastServiceDate).toLocaleDateString('en-IN')} />}
+                {asset.lastServiceDate && <Field label="Last Service" value={formatDisplayDate(asset.lastServiceDate)} />}
                 {asset.nextServiceDate && (
                   <div>
                     <dt className="text-xs text-[var(--text-3)]">Next Service</dt>
-                    <dd className={clsx('text-sm mt-0.5', asset.status === 'pm_overdue' ? 'text-[var(--error)] font-semibold' : 'text-[var(--text)]')}>{new Date(asset.nextServiceDate).toLocaleDateString('en-IN')}</dd>
+                    <dd className={clsx('text-sm mt-0.5', asset.status === 'pm_overdue' ? 'text-[var(--error)] font-semibold' : 'text-[var(--text)]')}>{formatDisplayDate(asset.nextServiceDate)}</dd>
                   </div>
                 )}
               </dl>
             </div>
 
-            <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
-              <h3 className="font-semibold text-sm text-[var(--text)] mb-3">Actions</h3>
-              <div className="space-y-2">
-                {asset.meterType && asset.meterType !== 'none' && (
-                  <button onClick={() => setReadingModalOpen(true)} className="w-full py-2 border border-[var(--border)] text-[var(--text)] rounded-lg text-sm hover:bg-[var(--surface-2)] transition-colors flex items-center justify-center gap-2">
-                    <Gauge size={14} /> Log Meter Reading
+            {!isRetired && (
+              <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
+                <h3 className="font-semibold text-sm text-[var(--text)] mb-3">Actions</h3>
+                <div className="space-y-2">
+                  {asset.meterType && asset.meterType !== 'none' && (
+                    <button onClick={() => setReadingModalOpen(true)} className="w-full py-2 border border-[var(--border)] text-[var(--text)] rounded-lg text-sm hover:bg-[var(--surface-2)] transition-colors flex items-center justify-center gap-2">
+                      <Gauge size={14} /> Log Meter Reading
+                    </button>
+                  )}
+                  <button onClick={() => navigate(`/assets?log=${asset.id}`)} className="w-full py-2 border border-[var(--border)] text-[var(--text)] rounded-lg text-sm hover:bg-[var(--surface-2)] transition-colors flex items-center justify-center gap-2">
+                    <Wrench size={14} /> Log Maintenance Event
                   </button>
-                )}
-                <button onClick={() => navigate(`/assets?log=${asset.id}`)} className="w-full py-2 border border-[var(--border)] text-[var(--text)] rounded-lg text-sm hover:bg-[var(--surface-2)] transition-colors flex items-center justify-center gap-2">
-                  <Wrench size={14} /> Log Maintenance Event
-                </button>
-                {asset.status === 'breakdown' && (
-                  <button type="button" onClick={() => setRepairModalOpen(true)} className="w-full py-2 bg-[var(--success)] text-white rounded-lg text-sm font-medium">
-                    Mark Repaired
-                  </button>
-                )}
+                  {asset.status === 'breakdown' && (
+                    <button type="button" onClick={() => setRepairModalOpen(true)} className="w-full py-2 bg-[var(--success)] text-white rounded-lg text-sm font-medium">
+                      Mark Repaired
+                    </button>
+                  )}
+                </div>
               </div>
-            </div>
+            )}
+
+            <LinkedDocumentsSection
+              entityType="Asset"
+              entityId={asset.id}
+              entityRef={asset.assetCode}
+              entityName={asset.name}
+              title="Asset Documents & Certificates"
+            />
           </div>
         </div>
       )}

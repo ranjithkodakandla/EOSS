@@ -165,7 +165,7 @@ export default function Onboarding() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Company Name *</label>
-                  <input className="eoss-input w-full" value={step2.companyName} onChange={e => setStep2(s => ({ ...s, companyName: e.target.value }))} placeholder="e.g. Shankar Metalworks Pvt. Ltd." />
+                  <input className="eoss-input w-full" value={step2.companyName} onChange={e => setStep2(s => ({ ...s, companyName: e.target.value }))} placeholder="e.g. Apex Precision Engineering Pvt. Ltd." />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Trading Name</label>
@@ -283,7 +283,7 @@ export default function Onboarding() {
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Site Name *</label>
-                      <input className="eoss-input w-full" value={site.name} onChange={e => { const u = [...sites]; u[i] = { ...site, name: e.target.value }; setSites(u); }} placeholder="e.g. Hyderabad Factory" />
+                      <input className="eoss-input w-full" value={site.name} onChange={e => { const u = [...sites]; u[i] = { ...site, name: e.target.value }; setSites(u); }} placeholder="e.g. Hyderabad Plant 1" />
                     </div>
                     <div>
                       <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Type</label>

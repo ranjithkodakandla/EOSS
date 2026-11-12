@@ -8,7 +8,7 @@ import {
 } from '../../domain/attentionItems';
 import { DEMO_DATE } from '../../domain/recordLists';
 
-const PREVIEW = 4;
+const PREVIEW = 7;
 
 const DOT = {
   critical: 'var(--error, #DC2626)',
@@ -25,7 +25,12 @@ function Row({ item, onHide }: { item: AttentionItem; onHide: () => void }) {
         onClick={() => navigate(item.recordPath)}
         className="min-w-0 flex-1 text-left"
       >
-        <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-3)]">{item.stage}</span>
+        <span
+          className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-3)]"
+          title={item.code ? `${item.stage} (${item.code})` : item.stage}
+        >
+          {item.stage}
+        </span>
         <span className="block text-[13px] font-medium text-[var(--text)] leading-snug truncate">{item.text}</span>
       </button>
       <button
@@ -68,6 +73,8 @@ export default function OperationalAttentionCard() {
     documents: store.documents,
     qualityReleases: store.qualityReleases,
     dispatches: store.dispatches,
+    purchaseReqs: store.purchaseReqs,
+    approvalRequests: store.approvalRequests,
   }, now).filter(item => !isAttentionHidden(item.id, now));
   void hiddenTick;
 
@@ -84,14 +91,21 @@ export default function OperationalAttentionCard() {
 
   return (
     <div
-      className="p-3 rounded-2xl border flex flex-col h-full min-h-0"
+      className="p-3.5 rounded-2xl border flex flex-col h-full min-h-0"
       style={{ background: 'var(--card-gradient, var(--surface))', borderColor: 'var(--border)' }}
     >
-      <div className="flex items-baseline justify-between gap-2 mb-1">
-        <h3 className="text-sm font-bold text-[var(--text)] tracking-tight">Needs attention</h3>
+      <div className="flex items-baseline justify-between gap-2 mb-1.5">
+        <div className="flex items-center gap-2">
+          <h3 className="text-sm font-bold text-[var(--text)] tracking-tight">Today</h3>
+          {items.length > 0 && (
+            <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full" style={{ background: 'var(--surface-2)', color: 'var(--text-2)' }}>
+              {items.length}
+            </span>
+          )}
+        </div>
         {items.length > PREVIEW && (
-          <button type="button" onClick={() => setShowAll(true)} className="text-[11px] font-semibold text-[var(--text-3)] hover:text-[var(--brand)]">
-            View all {items.length}
+          <button type="button" onClick={() => setShowAll(true)} className="text-[11px] font-semibold text-[var(--brand)] hover:underline">
+            View all ({items.length})
           </button>
         )}
       </div>
@@ -108,8 +122,8 @@ export default function OperationalAttentionCard() {
 
       {showAll && (
         <RecordSheet
-          title="Needs attention"
-          subtitle={`${items.length} record${items.length === 1 ? '' : 's'} waiting on a next step`}
+          title="Today — Needs attention"
+          subtitle={`${items.length} record${items.length === 1 ? '' : 's'} sorted by urgency`}
           onClose={() => setShowAll(false)}
           width="lg"
         >

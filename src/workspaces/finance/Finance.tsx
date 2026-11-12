@@ -605,7 +605,7 @@ export default function Finance() {
                       <p className="text-[11px] text-[var(--text-2)] mt-0.5">{ev.description || ev.reason || 'Recorded transaction'}</p>
                     </div>
                     <div className="text-right shrink-0 text-[11px] text-[var(--text-3)]">
-                      <p>{ev.actor} ({formatRoleLabel(ev.role)})</p>
+                      <p>{ev.actor} ({formatRoleLabel(ev.role, ev.actorId)})</p>
                       <p>{fmtDate(ev.timestamp)}</p>
                     </div>
                   </div>
@@ -1100,7 +1100,7 @@ export default function Finance() {
                       <p className="text-[11px] text-[var(--text-2)] mt-0.5">{ev.description || ev.reason || 'Recorded transaction'}</p>
                     </div>
                     <div className="text-right shrink-0 text-[11px] text-[var(--text-3)]">
-                      <p>{ev.actor} · {formatRoleLabel(ev.role)}</p>
+                      <p>{ev.actor} · {formatRoleLabel(ev.role, ev.actorId)}</p>
                       <p>{fmtDate(ev.timestamp)}</p>
                     </div>
                   </div>

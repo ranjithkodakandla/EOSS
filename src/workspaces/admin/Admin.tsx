@@ -4,12 +4,7 @@ import { Users, Settings, Shield, Clock, ChevronRight } from 'lucide-react';
 import { useStore, DEMO_USERS } from '../../store';
 import { COMPANY } from '../../context/company';
 import StatusChip from '../../components/layout/StatusChip';
-
-const ROLE_LABELS: Record<string, string> = {
-  owner: 'Owner / MD', sales: 'Sales Executive', buyer: 'Buyer / Purchase',
-  storekeeper: 'Storekeeper', supervisor: 'Production Supervisor', operator: 'Machine Operator',
-  qc: 'QC Inspector', maintenance: 'Maintenance Tech', dispatch: 'Dispatch Executive', auditor: 'Auditor',
-};
+import { ROLE_LABELS } from '../../domain/audit';
 
 export default function Admin() {
   const navigate = useNavigate();

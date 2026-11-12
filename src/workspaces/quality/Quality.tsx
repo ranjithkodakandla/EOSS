@@ -317,7 +317,7 @@ function NewInspectionModal({ onClose, onSave, prefilledJobId, jobs }: {
     if (form.type !== 'Incoming' && !form.jobId) { setErr('Job reference is required for this inspection type'); return; }
     if (!form.inspectorName) { setErr('Inspector name is required'); return; }
     const id = `ins-${Date.now()}`;
-    const num = `INS-2026-${String(Math.floor(Math.random() * 900 + 100))}`;
+    const num = `INSP-2026-${String(Math.floor(Math.random() * 900 + 100))}`;
     onSave({
       id, inspectionNumber: num, type: form.type, subject: form.subject.trim(), date: '2026-11-05',
       inspectorId: 'usr-demo', inspectorName: form.inspectorName,

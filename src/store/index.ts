@@ -19,6 +19,7 @@ import { stampPlaces } from '../domain/places';
 import { assessOrderMaterialRequirements } from '../domain/materialFeasibility';
 import { createAuditEventRecord, diffRecordFields } from '../domain/audit';
 import { computeGstTotals, computeThreeWayMatch } from '../domain/finance';
+import { nextSequentialNumber } from '../domain/docNumbers';
 import {
   SEED_UNIFIED_INVOICES,
   SEED_UNIFIED_INVOICE_LINES,
@@ -197,6 +198,8 @@ interface EOSSState {
   addDocument: (doc: VaultDocument) => void;
   updateCertStatus: (certId: string, status: MaterialCertificate['verificationStatus']) => void;
   addDocumentVersion: (previousDocId: string, newDoc: VaultDocument) => void;
+  renewDocument: (previousDocId: string, payload: { title?: string; fileName: string; fileSize: string; issueDate?: string; expiryDate: string; reminderDays?: number; uploadedBy?: string }) => VaultDocument | undefined;
+  archiveDocument: (docId: string, reason: string, by?: string) => void;
 
   // Dispatch actions
   setDispatchStatus: (dspId: string, status: Dispatch['status']) => void;
@@ -453,6 +456,93 @@ export interface Toast {
 }
 
 let toastSeq = 0;
+
+function isQuarantineLocation(loc?: StoreLocation | null): boolean {
+  if (!loc) return false;
+  return loc.id === 'loc-qrn' || loc.locationType.toLowerCase() === 'quarantine' || loc.name.toLowerCase().includes('quarantine');
+}
+
+/** Relocate released stock out of Quarantine Store into the site's Raw Material Store and clamp qcHoldQty <= onHandQty. */
+function applyReleasedStockLocation(params: {
+  inventory: InventoryItem[];
+  storeLocations: StoreLocation[];
+  materials: MaterialItem[];
+  lot: MaterialLot;
+  acceptedQty: number;
+  rejectedQty: number;
+}): {
+  inventory: InventoryItem[];
+  targetStoreId: string;
+  targetStoreName: string;
+} {
+  const { storeLocations, materials, lot, acceptedQty, rejectedQty } = params;
+  let inventory = [...params.inventory];
+  const curLoc = storeLocations.find(sl => sl.id === lot.storeLocationId);
+  const inQuarantine = isQuarantineLocation(curLoc) || lot.storeLocationName.toLowerCase().includes('quarantine');
+  const rmStore = inQuarantine
+    ? (storeLocations.find(sl => sl.siteId === curLoc?.siteId && (sl.locationType === 'RM' || sl.id === 'loc-rm'))
+      ?? storeLocations.find(sl => sl.id === 'loc-rm'))
+    : undefined;
+  const targetStoreId = rmStore?.id ?? lot.storeLocationId;
+  const targetStoreName = rmStore?.name ?? lot.storeLocationName;
+  const movedOutFromSource = (inQuarantine ? acceptedQty : 0) + rejectedQty;
+  const removedHold = acceptedQty + rejectedQty;
+
+  const srcIdx = inventory.findIndex(i => i.materialItemId === lot.materialItemId && i.locationId === lot.storeLocationId);
+  if (srcIdx >= 0) {
+    const src = inventory[srcIdx];
+    const nextOnHand = Math.max(0, src.onHandQty - movedOutFromSource);
+    const nextHold = Math.min(nextOnHand, Math.max(0, src.qcHoldQty - removedHold));
+    const nextAvail = inQuarantine ? src.availableQty : src.availableQty + acceptedQty;
+    inventory[srcIdx] = {
+      ...src,
+      onHandQty: nextOnHand,
+      qcHoldQty: nextHold,
+      availableQty: nextAvail,
+      lotCount: Math.max(0, src.lotCount - (inQuarantine && acceptedQty === lot.primaryQty ? 1 : rejectedQty === lot.primaryQty ? 1 : 0)),
+      shortage: nextAvail < src.reorderPoint,
+    };
+  }
+
+  if (inQuarantine && acceptedQty > 0) {
+    const dstIdx = inventory.findIndex(i => i.materialItemId === lot.materialItemId && i.locationId === targetStoreId);
+    if (dstIdx >= 0) {
+      const dst = inventory[dstIdx];
+      const nextOnHand = dst.onHandQty + acceptedQty;
+      const nextAvail = dst.availableQty + acceptedQty;
+      inventory[dstIdx] = {
+        ...dst,
+        onHandQty: nextOnHand,
+        availableQty: nextAvail,
+        qcHoldQty: Math.min(nextOnHand, dst.qcHoldQty),
+        lotCount: dst.lotCount + 1,
+        shortage: nextAvail < dst.reorderPoint,
+      };
+    } else {
+      const mat = materials.find(m => m.id === lot.materialItemId);
+      inventory.unshift({
+        id: `inv-${Date.now()}-${lot.materialItemId}-${targetStoreId}`,
+        materialItemId: lot.materialItemId,
+        materialCode: mat?.itemCode ?? lot.materialItemId,
+        materialName: lot.materialName,
+        categoryName: mat?.categoryName ?? 'Uncategorised',
+        locationId: targetStoreId,
+        locationName: targetStoreName,
+        onHandQty: acceptedQty,
+        availableQty: acceptedQty,
+        reservedQty: 0,
+        qcHoldQty: 0,
+        inTransitQty: 0,
+        primaryUom: lot.primaryUom,
+        reorderPoint: mat?.reorderPoint ?? 0,
+        shortage: acceptedQty < (mat?.reorderPoint ?? 0),
+        lotCount: 1,
+      });
+    }
+  }
+
+  return { inventory, targetStoreId, targetStoreName };
+}
 
 // Everything the demo scenario seeds — rebuilt fresh on first load AND on an
 // explicit "Reset Demo Data". Kept as one function so both call sites can
@@ -890,35 +980,24 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
       const lot = s.lots.find(l => l.id === lotId);
       if (!lot || lot.status !== 'qc_hold') return s;
       const qty = lot.primaryQty;
-      const stock = s.inventory.find(i => i.materialItemId === lot.materialItemId && i.locationId === lot.storeLocationId);
-      const inventory = stock
-        ? s.inventory.map(i => {
-            if (i.id !== stock.id) return i;
-            if (decision === 'available') {
-              const nextAvail = i.availableQty + qty;
-              return {
-                ...i,
-                qcHoldQty: Math.max(0, i.qcHoldQty - qty),
-                availableQty: nextAvail,
-                shortage: nextAvail < i.reorderPoint,
-              };
-            }
-            return {
-              ...i,
-              onHandQty: Math.max(0, i.onHandQty - qty),
-              qcHoldQty: Math.max(0, i.qcHoldQty - qty),
-              shortage: i.availableQty < i.reorderPoint,
-            };
-          })
-        : s.inventory;
+      const acceptedQty = decision === 'available' ? qty : 0;
+      const rejectedQty = decision === 'scrapped' ? qty : 0;
+      const relocated = applyReleasedStockLocation({
+        inventory: s.inventory,
+        storeLocations: s.storeLocations,
+        materials: s.materials,
+        lot,
+        acceptedQty,
+        rejectedQty,
+      });
       const movement: StockMovement = {
         id: `sm-${Date.now()}`,
         lotId,
-        movementType: decision === 'available' ? 'Adjustment' : 'Scrap',
+        movementType: decision === 'available' ? 'Transfer-In' : 'Scrap',
         primaryQty: qty,
         uom: lot.primaryUom,
         fromLocation: `${lot.storeLocationName} (QC Hold)`,
-        toLocation: decision === 'available' ? lot.storeLocationName : 'Rejected / Quarantine Scrap',
+        toLocation: decision === 'available' ? relocated.targetStoreName : 'Rejected / Quarantine Scrap',
         referenceType: 'QC Decision',
         referenceId: lot.id,
         referenceNumber: lot.lotNumber,
@@ -930,16 +1009,18 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
         lots: s.lots.map(l => l.id !== lotId ? l : {
           ...l,
           status: decision,
-          acceptedQty: decision === 'available' ? qty : 0,
-          rejectedQty: decision === 'scrapped' ? qty : 0,
+          storeLocationId: decision === 'available' ? relocated.targetStoreId : l.storeLocationId,
+          storeLocationName: decision === 'available' ? relocated.targetStoreName : l.storeLocationName,
+          acceptedQty,
+          rejectedQty,
         }),
-        inventory,
+        inventory: relocated.inventory,
         movements: [...s.movements, movement],
         inspections: s.inspections.map(ins => ins.lotId !== lotId || ins.result === 'pass' || ins.result === 'fail' ? ins : {
           ...ins,
           result: decision === 'available' ? 'pass' : 'fail',
-          acceptedQty: decision === 'available' ? qty : 0,
-          rejectedQty: decision === 'scrapped' ? qty : 0,
+          acceptedQty,
+          rejectedQty,
           approvedAt: timestamp,
           remarks: reason || ins.remarks,
         }),
@@ -953,9 +1034,9 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
           entityId: lot.id,
           entityRef: lot.lotNumber,
           timestamp,
-          description: `${lot.lotNumber} (${lot.materialName}, ${qty} ${lot.primaryUom}) released from QC Hold as ${decision === 'available' ? 'Available Stock' : 'Quarantine Scrap'}`,
+          description: `${lot.lotNumber} (${lot.materialName}, ${qty} ${lot.primaryUom}) released from QC Hold to ${decision === 'available' ? relocated.targetStoreName : 'Quarantine Scrap'}`,
           reason,
-          after: { status: decision, qty, materialItemId: lot.materialItemId },
+          after: { status: decision, qty, storeLocationName: decision === 'available' ? relocated.targetStoreName : lot.storeLocationName },
         })],
       };
     });
@@ -966,7 +1047,20 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
   },
 
   // ── Asset Actions ──
-  addAsset: (asset) => set(s => ({ assets: [asset, ...s.assets] })),
+  addAsset: (asset) => set(s => ({
+    assets: [asset, ...s.assets],
+    auditEvents: [...s.auditEvents, createAuditEventRecord({
+      actor: s.currentUser.name,
+      actorId: s.currentUser.id,
+      role: s.currentUser.role,
+      scope: 'Asset',
+      action: 'create',
+      entityId: asset.id,
+      entityRef: asset.assetCode,
+      description: `Added Asset ${asset.assetCode} — ${asset.name} (${asset.category}, ${asset.workCentre}).`,
+      after: { assetCode: asset.assetCode, name: asset.name, status: asset.status, siteId: asset.siteId },
+    })],
+  })),
 
   archiveAsset: (assetId, reason, by) => {
     set(s => {
@@ -981,33 +1075,89 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
           archivedBy: by,
           archiveReason: reason.trim(),
         } : a),
-        auditEvents: [...s.auditEvents, {
-          id: `ae-${Date.now()}`, actor: by, actorId: s.currentUser.id, scope: 'Asset', action: 'archive',
-          entityId: assetId, entityRef: asset.assetCode, timestamp, source: 'ui',
-          reason: reason.trim(), before: { status: asset.status }, after: { status: 'retired', archivedAt: timestamp },
-        }],
+        auditEvents: [...s.auditEvents, createAuditEventRecord({
+          actor: by, actorId: s.currentUser.id, role: s.currentUser.role,
+          scope: 'Asset', action: 'archive',
+          entityId: assetId, entityRef: asset.assetCode, timestamp,
+          description: `Retired Asset ${asset.assetCode} (${asset.name}).`,
+          reason: reason.trim(),
+          before: { status: asset.status },
+          after: { status: 'retired', archivedAt: timestamp },
+        })],
       };
     });
     get().showToast({ type: 'success', title: 'Asset archived', body: 'The asset is hidden from active lists and its history is preserved.' });
   },
 
-  setAssetStatus: (assetId, status) => set(s => ({
-    assets: s.assets.map(a => a.id !== assetId ? a : { ...a, status }),
-  })),
+  setAssetStatus: (assetId, status) => set(s => {
+    const existing = s.assets.find(a => a.id === assetId);
+    if (!existing) return s;
+    return {
+      assets: s.assets.map(a => a.id !== assetId ? a : { ...a, status }),
+      auditEvents: [...s.auditEvents, createAuditEventRecord({
+        actor: s.currentUser.name, actorId: s.currentUser.id, role: s.currentUser.role,
+        scope: 'Asset', action: 'update', entityId: assetId, entityRef: existing.assetCode,
+        description: `Updated ${existing.assetCode} status to ${status}.`,
+        before: { status: existing.status }, after: { status },
+      })],
+    };
+  }),
 
-  addMaintenanceEvent: (event) => set(s => ({
-    maintenanceEvents: [event, ...s.maintenanceEvents],
-    assets: s.assets.map(a => {
-      if (a.id !== event.assetId || a.status === 'retired') return a;
-      if (event.type === 'Breakdown' && event.status !== 'closed') {
-        return { ...a, status: 'breakdown' as const };
-      }
-      if ((event.type === 'Preventive' || event.type === 'Corrective') && event.status === 'in_progress' && a.status === 'operational') {
-        return { ...a, status: 'in_maintenance' as const };
-      }
-      return a;
-    }),
-  })),
+  addMaintenanceEvent: (event) => set(s => {
+    const timestamp = new Date().toISOString();
+    const isOpenBreakdown = event.type === 'Breakdown' && event.status !== 'closed';
+    const newBlockers: JobBlocker[] = isOpenBreakdown
+      ? (event.affectedJobs ?? []).map((aj, idx) => ({
+          id: `blk-me-${Date.now()}-${idx}`,
+          jobId: aj.jobId,
+          jobNumber: aj.jobNumber,
+          type: 'Machine' as const,
+          category: 'Machine',
+          description: `Blocked due to ${event.eventNumber} on ${event.assetCode} (${event.assetName}): ${event.symptom}`,
+          raisedBy: s.currentUser.name,
+          raisedAt: timestamp,
+          status: 'open',
+          linkedAssetId: event.assetId,
+          linkedAssetCode: event.assetCode,
+          linkedMaintenanceEventId: event.id,
+          linkedMaintenanceEventNumber: event.eventNumber,
+        }))
+      : [];
+    const affectedJobIds = new Set(newBlockers.map(b => b.jobId));
+    const jobAuditEvents: AuditEvent[] = newBlockers.map((b, idx) => createAuditEventRecord({
+      id: `ae-blk-${Date.now()}-${idx}`,
+      actor: s.currentUser.name, actorId: s.currentUser.id, role: s.currentUser.role,
+      scope: 'Job', action: 'hold', entityId: b.jobId, entityRef: b.jobNumber ?? b.jobId, timestamp,
+      description: `Machine breakdown ${event.eventNumber} (${event.assetCode}) flagged ${b.jobNumber} as blocked.`,
+      relatedEntityType: 'Maintenance', relatedEntityId: event.id, relatedEntityRef: event.eventNumber,
+    }));
+    return {
+      maintenanceEvents: [event, ...s.maintenanceEvents],
+      assets: s.assets.map(a => {
+        if (a.id !== event.assetId || a.status === 'retired') return a;
+        if (isOpenBreakdown) return { ...a, status: 'breakdown' as const };
+        if ((event.type === 'Preventive' || event.type === 'Corrective') && event.status === 'in_progress' && a.status === 'operational') {
+          return { ...a, status: 'in_maintenance' as const };
+        }
+        return a;
+      }),
+      jobBlockers: newBlockers.length > 0 ? [...newBlockers, ...s.jobBlockers] : s.jobBlockers,
+      jobs: affectedJobIds.size > 0
+        ? s.jobs.map(j => affectedJobIds.has(j.id) ? { ...j, hasBlocker: true } : j)
+        : s.jobs,
+      auditEvents: [
+        ...s.auditEvents,
+        createAuditEventRecord({
+          actor: s.currentUser.name, actorId: s.currentUser.id, role: s.currentUser.role,
+          scope: 'Maintenance', action: 'create', entityId: event.id, entityRef: event.eventNumber, timestamp,
+          description: `Logged ${event.type} event ${event.eventNumber} on ${event.assetCode} (${event.assetName}): ${event.symptom}.`,
+          relatedEntityType: 'Asset', relatedEntityId: event.assetId, relatedEntityRef: event.assetCode,
+          after: { type: event.type, status: event.status, severity: event.severity, affectedJobs: event.affectedJobs?.length ?? 0 },
+        }),
+        ...jobAuditEvents,
+      ],
+    };
+  }),
 
   closeMaintenanceEvent: (eventId, diagnosis, workDone, options) => {
     set(s => {
@@ -1039,7 +1189,29 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
           ...(target.type === 'Preventive' ? { lastServiceDate: compDate } : {}),
         };
       });
-      return { maintenanceEvents, assets };
+      const updatedBlockers = s.jobBlockers.map(b =>
+        b.linkedMaintenanceEventId === eventId && b.status === 'open'
+          ? { ...b, status: 'resolved' as const, resolvedAt: now }
+          : b
+      );
+      const jobs = s.jobs.map(j => {
+        const hadLinkedBlocker = s.jobBlockers.some(b => b.jobId === j.id && b.linkedMaintenanceEventId === eventId);
+        if (!hadLinkedBlocker) return j;
+        return { ...j, hasBlocker: updatedBlockers.some(b => b.jobId === j.id && b.status === 'open') };
+      });
+      return {
+        maintenanceEvents,
+        assets,
+        jobBlockers: updatedBlockers,
+        jobs,
+        auditEvents: [...s.auditEvents, createAuditEventRecord({
+          actor: s.currentUser.name, actorId: s.currentUser.id, role: s.currentUser.role,
+          scope: 'Maintenance', action: 'close', entityId: eventId, entityRef: target.eventNumber, timestamp: now,
+          description: `Closed ${target.type} event ${target.eventNumber} on ${target.assetCode}. Work done: ${workDone}.`,
+          relatedEntityType: 'Asset', relatedEntityId: target.assetId, relatedEntityRef: target.assetCode,
+          before: { status: target.status }, after: { status: 'closed', completionDate: compDate },
+        })],
+      };
     });
     get().showToast({ type: 'success', title: 'Maintenance event closed' });
   },
@@ -1103,11 +1275,18 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
     set(s => {
       const request = s.approvalRequests.find(a => a.id === aprId);
       if (!request) return s;
+      const timestamp = new Date().toISOString();
+      const updatedNotifications = s.notifications.map(n =>
+        n.entityId === request.entityId || n.entityRef === request.entityRef || n.title.includes(request.entityRef)
+          ? { ...n, read: true }
+          : n
+      );
       return {
         approvalRequests: s.approvalRequests.map(a =>
-          a.id !== aprId ? a : { ...a, status: resolution, approvedBy: by, notes, decisionAt: new Date().toISOString() }),
-        pulseExceptions: s.pulseExceptions.filter(pe => pe.affectedId !== aprId),
-        unreadCount: Math.max(0, s.unreadCount - 1),
+          a.id !== aprId ? a : { ...a, status: resolution, approvedBy: by, notes, decisionAt: timestamp }),
+        pulseExceptions: s.pulseExceptions.filter(pe => pe.affectedId !== aprId && pe.affectedId !== request.entityId),
+        notifications: updatedNotifications,
+        unreadCount: updatedNotifications.filter(n => !n.read).length,
         customerPos: request.requestType === 'Customer PO Credit Limit Approval'
           ? s.customerPos.map(po => po.id === request.entityId ? { ...po, status: resolution === 'approved' ? 'active' as const : 'on_hold' as const } : po)
           : s.customerPos,
@@ -1116,14 +1295,32 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
               ...pr,
               status: resolution === 'approved' ? 'approved' as const : 'rejected' as const,
               reason: notes || pr.reason,
+              ...(resolution === 'rejected'
+                ? { rejectionReason: notes || pr.rejectionReason || pr.reason || 'Rejected during approval review', rejectedBy: by, rejectedAt: timestamp }
+                : { approvedBy: by, approvedAt: timestamp }),
             } : pr)
           : s.purchaseReqs,
-        auditEvents: [...s.auditEvents, {
-          id: `ae-${Date.now()}`,
-          actor: by, actorId: s.currentUser.id, scope: 'ApprovalRequest', action: resolution,
-          entityId: request.entityId, entityRef: request.entityRef, timestamp: new Date().toISOString(),
-          source: 'ui', reason: notes, after: { approvalId: aprId, status: resolution },
-        }],
+        supplierPos: request.requestType === 'Supplier PO Approval'
+          ? s.supplierPos.map(spo => spo.id === request.entityId ? {
+              ...spo,
+              status: resolution === 'approved' ? 'confirmed' as const : 'draft' as const,
+            } : spo)
+          : s.supplierPos,
+        auditEvents: [...s.auditEvents, createAuditEventRecord({
+          actor: by,
+          actorId: s.currentUser.id,
+          role: s.currentUser.role,
+          module: 'Approvals',
+          scope: request.requestType === 'PR Approval' ? 'PurchaseRequisition' : request.requestType === 'Supplier PO Approval' ? 'SupplierPO' : 'Approval',
+          action: resolution === 'approved' ? 'approve' : 'reject',
+          entityId: request.entityId,
+          entityRef: request.entityRef,
+          timestamp,
+          description: `${resolution === 'approved' ? 'Approved' : 'Rejected'} ${request.requestType} (${request.entityRef}).`,
+          reason: notes,
+          before: { status: request.status },
+          after: { status: resolution, approvalId: aprId },
+        })],
       };
     });
     get().showToast({ type: resolution === 'approved' ? 'success' : 'info', title: `Request ${resolution}`, body: `Approval request resolved.` });
@@ -1131,11 +1328,12 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
 
   addApprovalRequest: (request) => set(s => ({
     approvalRequests: [request, ...s.approvalRequests],
-    auditEvents: [...s.auditEvents, {
-      id: `ae-${Date.now()}`, actor: s.currentUser.name, actorId: s.currentUser.id,
-      scope: 'ApprovalRequest', action: 'create', entityId: request.entityId, entityRef: request.entityRef,
-      timestamp: new Date().toISOString(), source: 'ui', after: request as unknown as Record<string, unknown>,
-    }],
+    auditEvents: [...s.auditEvents, createAuditEventRecord({
+      actor: s.currentUser.name, actorId: s.currentUser.id, role: s.currentUser.role,
+      scope: 'Approval', action: 'create', entityId: request.entityId, entityRef: request.entityRef,
+      description: `Submitted approval request for ${request.entityRef} (${request.requestType}).`,
+      after: { requestType: request.requestType, status: request.status },
+    })],
   })),
 
   // ── Document Actions ──
@@ -1172,6 +1370,96 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
       ],
     }));
     get().showToast({ type: 'success', title: 'New version uploaded', body: `${newDoc.title} — v${newDoc.version}. Previous version preserved.` });
+  },
+
+  renewDocument: (previousDocId, payload) => {
+    const state = get();
+    const prev = state.documents.find(d => d.id === previousDocId);
+    if (!prev) return undefined;
+    const timestamp = new Date().toISOString();
+    const today = timestamp.slice(0, 10);
+    const nextVersion = (prev.version || 1) + 1;
+    const renewedDoc: VaultDocument = {
+      ...prev,
+      id: `doc-${Date.now()}`,
+      title: payload.title?.trim() || prev.title,
+      fileName: payload.fileName,
+      fileSize: payload.fileSize || prev.fileSize,
+      uploadedAt: today,
+      uploadedBy: payload.uploadedBy || state.currentUser.name,
+      issueDate: payload.issueDate || today,
+      expiryDate: payload.expiryDate,
+      reminderDays: payload.reminderDays ?? prev.reminderDays ?? 30,
+      version: nextVersion,
+      supersedesDocId: prev.id,
+      renewedFromDocId: prev.id,
+      status: 'active',
+      obligation: {
+        renewalDue: payload.expiryDate,
+        responsible: prev.obligation?.responsible || state.currentUser.name,
+      },
+    };
+    set(s => ({
+      documents: [
+        renewedDoc,
+        ...s.documents.map(d => d.id === previousDocId ? { ...d, status: 'superseded' as const } : d),
+      ],
+      auditEvents: [
+        ...s.auditEvents,
+        createAuditEventRecord({
+          actor: state.currentUser.name,
+          actorId: state.currentUser.id,
+          role: state.currentUser.role,
+          scope: 'Document',
+          action: 'renew',
+          entityId: renewedDoc.id,
+          entityRef: renewedDoc.title,
+          timestamp,
+          description: `Renewed "${renewedDoc.title}" (v${nextVersion}, file: ${payload.fileName}) with new expiry ${payload.expiryDate}.`,
+          relatedEntityType: 'Document',
+          relatedEntityId: prev.id,
+          relatedEntityRef: prev.title,
+          before: { version: prev.version, expiryDate: prev.expiryDate, status: prev.status ?? 'expired' },
+          after: { version: nextVersion, expiryDate: payload.expiryDate, status: 'active' },
+        }),
+      ],
+    }));
+    get().showToast({ type: 'success', title: 'Document renewed', body: `${renewedDoc.title} v${nextVersion} active until ${payload.expiryDate}.` });
+    return renewedDoc;
+  },
+
+  archiveDocument: (docId, reason, by) => {
+    if (!reason.trim()) return;
+    const timestamp = new Date().toISOString();
+    set(s => {
+      const existing = s.documents.find(d => d.id === docId);
+      if (!existing || existing.status === 'archived') return s;
+      const actor = by || s.currentUser.name;
+      return {
+        documents: s.documents.map(d => d.id === docId ? {
+          ...d,
+          status: 'archived' as const,
+          archivedAt: timestamp,
+          archivedBy: actor,
+          archiveReason: reason.trim(),
+        } : d),
+        auditEvents: [...s.auditEvents, createAuditEventRecord({
+          actor,
+          actorId: s.currentUser.id,
+          role: s.currentUser.role,
+          scope: 'Document',
+          action: 'archive',
+          entityId: docId,
+          entityRef: existing.title,
+          timestamp,
+          description: `Archived document "${existing.title}". History preserved.`,
+          reason: reason.trim(),
+          before: { status: existing.status ?? 'active' },
+          after: { status: 'archived', archiveReason: reason.trim() },
+        })],
+      };
+    });
+    get().showToast({ type: 'info', title: 'Document archived', body: 'Document moved to Archive; audit history preserved.' });
   },
 
   updateCertStatus: (certId, status) => set(s => {
@@ -1355,12 +1643,13 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
           ? { ...p, status: 'quotation_in_progress' as const }
           : p
       ),
-      auditEvents: [...s.auditEvents, {
-        id: `ae-${Date.now()}`, actor: s.currentUser.name, actorId: s.currentUser.id,
+      auditEvents: [...s.auditEvents, createAuditEventRecord({
+        actor: s.currentUser.name, actorId: s.currentUser.id, role: s.currentUser.role,
         scope: 'PurchaseRequisition', action: 'send_invitations', entityId: pr.id, entityRef: pr.prNumber,
-        timestamp: now, source: 'ui',
+        timestamp: now,
+        description: `Sent quotation requests to ${created.map(c => c.supplierName).join(', ')} via ${channel}.`,
         after: { invitedCount: created.length, suppliers: created.map(c => c.supplierName), channel },
-      }],
+      })],
     }));
     get().showToast({
       type: 'success',
@@ -1392,12 +1681,13 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
           ? { ...p, status: 'quotation_in_progress' as const }
           : p)
         : s.purchaseReqs,
-      auditEvents: [...s.auditEvents, {
-        id: `ae-${Date.now()}`, actor: s.currentUser.name, actorId: s.currentUser.id,
+      auditEvents: [...s.auditEvents, createAuditEventRecord({
+        actor: s.currentUser.name, actorId: s.currentUser.id, role: s.currentUser.role,
         scope: 'SupplierQuotation', action: 'create', entityId: quote.id, entityRef: quote.quoteNumber,
-        timestamp: now, source: 'ui',
+        timestamp: now,
+        description: `Recorded quotation ${quote.quoteNumber} from ${quote.supplierName}${quote.prNumber ? ` for ${quote.prNumber}` : ''}.`,
         after: { supplierName: quote.supplierName, prNumber: quote.prNumber, totalLines: quote.lines.length },
-      }],
+      })],
     };
   }),
 
@@ -1407,7 +1697,7 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
 
   selectQuotation: (quoteId, overrideReason) => set(s => {
     const target = s.supplierQuotations.find(sq => sq.id === quoteId);
-    if (!target) return s;
+    if (!target || ['approval_rejected', 'rejected', 'expired'].includes(target.status)) return s;
     const now = new Date().toISOString();
     return {
       supplierQuotations: s.supplierQuotations.map(q => {
@@ -1419,20 +1709,21 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
         }
         return q;
       }),
-      auditEvents: [...s.auditEvents, {
-        id: `ae-${Date.now()}`, actor: s.currentUser.name, actorId: s.currentUser.id,
+      auditEvents: [...s.auditEvents, createAuditEventRecord({
+        actor: s.currentUser.name, actorId: s.currentUser.id, role: s.currentUser.role,
         scope: 'SupplierQuotation', action: 'select', entityId: target.id, entityRef: target.quoteNumber,
-        timestamp: now, source: 'ui',
+        timestamp: now,
+        description: `Selected quotation ${target.quoteNumber} (${target.supplierName})${overrideReason ? ` with override reason` : ''}.`,
         reason: overrideReason,
         after: { supplierName: target.supplierName, prNumber: target.prNumber },
-      }],
+      })],
     };
   }),
 
   approveFinalizeQuotation: (quoteId, approverName, notes) => {
     const state = get();
     const target = state.supplierQuotations.find(q => q.id === quoteId);
-    if (!target) return;
+    if (!target || ['approval_rejected', 'rejected', 'expired'].includes(target.status)) return;
     const now = new Date().toISOString();
     set(s => ({
       supplierQuotations: s.supplierQuotations.map(q => {
@@ -1453,12 +1744,14 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
       purchaseReqs: target.prId
         ? s.purchaseReqs.map(p => p.id === target.prId ? { ...p, status: 'approved_for_po' as const } : p)
         : s.purchaseReqs,
-      auditEvents: [...s.auditEvents, {
-        id: `ae-${Date.now()}`, actor: approverName, actorId: s.currentUser.id,
+      auditEvents: [...s.auditEvents, createAuditEventRecord({
+        actor: approverName, actorId: s.currentUser.id, role: s.currentUser.role,
         scope: 'SupplierQuotation', action: 'approve', entityId: target.id, entityRef: target.quoteNumber,
-        timestamp: now, source: 'ui', reason: notes,
+        timestamp: now,
+        description: `Approved quotation ${target.quoteNumber} from ${target.supplierName}${notes ? ` (${notes})` : ''}.`,
+        reason: notes,
         after: { supplierName: target.supplierName, prNumber: target.prNumber, status: 'selected' },
-      }],
+      })],
     }));
     get().showToast({ type: 'success', title: `Quotation ${target.quoteNumber} approved`, body: `Ready to generate Draft Supplier PO for ${target.supplierName}.` });
   },
@@ -1481,12 +1774,14 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
       purchaseReqs: target.prId
         ? s.purchaseReqs.map(p => p.id === target.prId ? { ...p, status: 'quotation_in_progress' as const } : p)
         : s.purchaseReqs,
-      auditEvents: [...s.auditEvents, {
-        id: `ae-${Date.now()}`, actor: rejectedBy, actorId: s.currentUser.id,
+      auditEvents: [...s.auditEvents, createAuditEventRecord({
+        actor: rejectedBy, actorId: s.currentUser.id, role: s.currentUser.role,
         scope: 'SupplierQuotation', action: 'reject_approval', entityId: target.id, entityRef: target.quoteNumber,
-        timestamp: now, source: 'ui', reason: reason.trim(),
-        after: { supplierName: target.supplierName, prNumber: target.prNumber, returnedToComparison: true },
-      }],
+        timestamp: now,
+        description: `Rejected quotation ${target.quoteNumber} (${target.supplierName}) and returned PR to comparison.`,
+        reason: reason.trim(),
+        after: { supplierName: target.supplierName, prNumber: target.prNumber, status: 'approval_rejected' },
+      })],
     }));
     get().showToast({ type: 'warning', title: `${target.quoteNumber} rejected`, body: 'Decision recorded. Returned PR to quotation comparison.' });
   },
@@ -1516,9 +1811,13 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
     const now = new Date();
     const today = now.toISOString().slice(0, 10);
     const committed = opts?.committedDate || new Date(now.getTime() + Math.max(1, quote.deliveryDays || 7) * 86400000).toISOString().slice(0, 10);
-    const seq = state.supplierPos.length + 110;
     const spoId = `spo-${Date.now()}`;
-    const poNumber = `SPO-${now.getFullYear()}-${String(seq).padStart(4, '0')}`;
+    const poNumber = nextSequentialNumber(
+      `SPO-${now.getFullYear()}`,
+      state.supplierPos.map(p => p.poNumber),
+      3,
+      101,
+    );
     const lineTotalValue = quote.lines.reduce((sum, l) => {
       const base = l.lineTotal || (l.quotedQty ?? l.orderedQty ?? l.qty ?? 1) * (l.unitRate ?? l.unitPrice ?? 0);
       const tax = l.taxPct ? base * (l.taxPct / 100) : 0;
@@ -1591,11 +1890,14 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
       supplierPos: [spo, ...s.supplierPos],
       supplierPoLines: [...s.supplierPoLines, ...spoLines],
       purchaseReqs: pr ? s.purchaseReqs.map(p => p.id === pr.id ? { ...p, status: 'po_drafted' as const } : p) : s.purchaseReqs,
-      auditEvents: [...s.auditEvents, {
-        id: `ae-${Date.now()}`, actor: s.currentUser.name, actorId: s.currentUser.id, scope: 'SupplierPO', action: 'draft_from_quotation',
-        entityId: spoId, entityRef: poNumber, timestamp: now.toISOString(), source: 'ui',
-        after: { quoteId, quoteNumber: quote.quoteNumber, prId: pr?.id, prNumber: pr?.prNumber, status: 'draft', totalValue: spo.totalValue },
-      }],
+      auditEvents: [...s.auditEvents, createAuditEventRecord({
+        actor: s.currentUser.name, actorId: s.currentUser.id, role: s.currentUser.role,
+        scope: 'SupplierPO', action: 'draft_from_quotation',
+        entityId: spoId, entityRef: poNumber, timestamp: now.toISOString(),
+        description: `Drafted Supplier PO ${poNumber} for ${quote.supplierName} from quotation ${quote.quoteNumber}.`,
+        relatedEntityType: 'SupplierQuotation', relatedEntityId: quoteId, relatedEntityRef: quote.quoteNumber,
+        after: { quoteNumber: quote.quoteNumber, prNumber: pr?.prNumber, status: 'draft', totalValue: spo.totalValue },
+      })],
     }));
     get().showToast({ type: 'success', title: `Draft Supplier PO ${poNumber} prepared`, body: `Review details and click Confirm & Issue PO.` });
     return { spo };
@@ -1745,17 +2047,20 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
             return { ...pr, status: decision === 'accepted' ? 'converted' as const : 'quotation_in_progress' as const };
           })
         : s.purchaseReqs,
-      auditEvents: [...s.auditEvents, {
-        id: `ae-${Date.now()}`, actor: data.recordedBy, actorId: s.currentUser.id,
-        scope: 'SupplierPO', action: decision === 'accepted' ? 'supplier_accepted' : 'supplier_declined',
-        entityId: spo.id, entityRef: spo.poNumber, timestamp: now, source: 'ui',
+      auditEvents: [...s.auditEvents, createAuditEventRecord({
+        actor: data.recordedBy, actorId: s.currentUser.id, role: s.currentUser.role,
+        scope: 'SupplierPO', action: decision === 'accepted' ? 'supplier_confirmed' : 'supplier_declined',
+        entityId: spo.id, entityRef: spo.poNumber, timestamp: now,
+        description: decision === 'accepted'
+          ? `Supplier confirmed ${spo.poNumber} for delivery ${updatedSpo.supplierConfirmedDate}.`
+          : `Supplier declined ${spo.poNumber}. Linked PR returned to comparison.`,
         reason: data.declineReason || data.notes,
         after: {
           status: updatedSpo.status,
           confirmedDate: updatedSpo.supplierConfirmedDate,
           supplierRef: updatedSpo.supplierRefNumber,
         },
-      }],
+      })],
     }));
 
     get().showToast({
@@ -1867,7 +2172,12 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
     let createdPr: PurchaseRequisition | undefined;
     if (shortageItems.length > 0 && !existingPr) {
       const prId = `pr-auto-${Date.now()}`;
-      const prNumber = `PR-${today.slice(0, 4)}-${String(state.purchaseReqs.length + 111).padStart(3, '0')}`;
+      const prNumber = nextSequentialNumber(
+        `PR-${today.slice(0, 4)}`,
+        state.purchaseReqs.map(p => p.prNumber),
+        3,
+        101,
+      );
       const rmStore = state.storeLocations.find(sl => sl.siteId === siteId && sl.locationType === 'RM') ?? state.storeLocations.find(sl => sl.siteId === siteId);
       createdPr = {
         id: prId,
@@ -2032,8 +2342,63 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
       }],
     };
   }),
-  addPurchaseReq: (pr) => set(s => ({ purchaseReqs: [pr, ...s.purchaseReqs] })),
-  updatePurchaseReq: (id, partial) => set(s => ({ purchaseReqs: s.purchaseReqs.map(p => p.id === id ? { ...p, ...partial } : p) })),
+  addPurchaseReq: (pr) => set(s => ({
+    purchaseReqs: [pr, ...s.purchaseReqs],
+    auditEvents: [...s.auditEvents, createAuditEventRecord({
+      actor: s.currentUser.name, actorId: s.currentUser.id, role: s.currentUser.role,
+      scope: 'PurchaseRequisition', action: 'create', entityId: pr.id, entityRef: pr.prNumber,
+      description: `Raised Purchase Requisition ${pr.prNumber} (${pr.lineCount} line${pr.lineCount === 1 ? '' : 's'}).`,
+      after: { status: pr.status, priority: pr.priority, requiredBy: pr.requiredBy },
+    })],
+  })),
+  updatePurchaseReq: (id, partial) => set(s => {
+    const existing = s.purchaseReqs.find(p => p.id === id);
+    if (!existing) return s;
+    const timestamp = new Date().toISOString();
+    const next = { ...existing, ...partial };
+    const changes = diffRecordFields(existing as unknown as Record<string, unknown>, next as unknown as Record<string, unknown>);
+    const isDecision = partial.status === 'approved' || partial.status === 'rejected';
+    const decisionBy = (partial.status === 'approved' ? partial.approvedBy : partial.rejectedBy) ?? s.currentUser.name;
+    const decisionReason = partial.rejectionReason || partial.reason;
+    const approvalRequests = isDecision
+      ? s.approvalRequests.map(a =>
+          (a.entityId === id || a.entityRef === existing.prNumber) && a.status === 'pending'
+            ? { ...a, status: partial.status as 'approved' | 'rejected', approvedBy: decisionBy, notes: decisionReason ?? a.notes, decisionAt: timestamp }
+            : a
+        )
+      : s.approvalRequests;
+    const matchedAprIds = new Set(
+      approvalRequests
+        .filter(a => (a.entityId === id || a.entityRef === existing.prNumber) && a.status !== 'pending')
+        .map(a => a.id)
+    );
+    const pulseExceptions = isDecision
+      ? s.pulseExceptions.filter(pe => pe.affectedId !== id && !matchedAprIds.has(pe.affectedId))
+      : s.pulseExceptions;
+    const notifications = isDecision
+      ? s.notifications.map(n => n.entityId === id || n.entityRef === existing.prNumber || n.title.includes(existing.prNumber) ? { ...n, read: true } : n)
+      : s.notifications;
+    return {
+      purchaseReqs: s.purchaseReqs.map(p => p.id === id ? next : p),
+      approvalRequests,
+      pulseExceptions,
+      notifications,
+      unreadCount: notifications.filter(n => !n.read).length,
+      auditEvents: (changes.length > 0 || isDecision) ? [...s.auditEvents, createAuditEventRecord({
+        actor: decisionBy, actorId: s.currentUser.id, role: s.currentUser.role,
+        scope: 'PurchaseRequisition',
+        action: partial.status === 'approved' ? 'approve' : partial.status === 'rejected' ? 'reject' : 'update',
+        entityId: id, entityRef: existing.prNumber, timestamp,
+        description: partial.status === 'approved'
+          ? `Approved Purchase Requisition ${existing.prNumber}.`
+          : partial.status === 'rejected'
+            ? `Rejected Purchase Requisition ${existing.prNumber}.`
+            : `Updated Purchase Requisition ${existing.prNumber}.`,
+        reason: decisionReason,
+        changes,
+      })] : s.auditEvents,
+    };
+  }),
   addCustomerPO: (po, lines) => set(s => {
     const customer = s.customers.find(c => c.id === po.customerId);
     const exposure = s.customerPos.filter(p => p.customerId === po.customerId && ['active', 'partial', 'on_hold'].includes(p.status)).reduce((sum, p) => sum + p.totalValue, 0);
@@ -2195,7 +2560,12 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
     const storeId = input.storeLocationId || spo.deliverToStoreId || defaultQuarantine?.id || '';
     const storeName = state.storeLocations.find(sl => sl.id === storeId)?.name || spo.deliverToStoreName || defaultQuarantine?.name || 'Quarantine & QC Hold';
     const grnId = `grn-${Date.now()}`;
-    const grnNumber = `GRN-${now.getFullYear()}-${String(state.grns.length + 1).padStart(4, '0')}`;
+    const grnNumber = nextSequentialNumber(
+      `GRN-${now.getFullYear()}`,
+      state.grns.map(g => g.grnNumber),
+      3,
+      101,
+    );
 
     const newLots: MaterialLot[] = [];
     const newMovements: StockMovement[] = [];
@@ -2493,7 +2863,12 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
     const siteName = grn?.siteName ?? state.sites.find(st => st.id === siteId)?.name;
     const ins: Inspection = {
       id: `ins-${Date.now()}-${lot.id.slice(-4)}`,
-      inspectionNumber: `INS-${new Date().getFullYear()}-${String(state.inspections.length + 1).padStart(4, '0')}`,
+      inspectionNumber: nextSequentialNumber(
+        `INSP-${new Date().getFullYear()}`,
+        state.inspections.map(i => i.inspectionNumber),
+        3,
+        1,
+      ),
       type: 'Incoming',
       origin: 'internal',
       lotId: lot.id,
@@ -2537,7 +2912,12 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
     const lineSummary = grn.lines?.[0];
     const ins: Inspection = {
       id: `ins-${Date.now()}`,
-      inspectionNumber: `INS-${new Date().getFullYear()}-${String(state.inspections.length + 1).padStart(4, '0')}`,
+      inspectionNumber: nextSequentialNumber(
+        `INSP-${new Date().getFullYear()}`,
+        state.inspections.map(i => i.inspectionNumber),
+        3,
+        1,
+      ),
       type: 'Incoming',
       origin: 'internal',
       grnId: grn.id,
@@ -2589,17 +2969,41 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
       let grns = [...s.grns];
 
       if (lot && lot.status === 'qc_hold' && payload.result !== 'hold' && (acceptedQty > 0 || rejectedQty > 0)) {
+        const relocated = applyReleasedStockLocation({
+          inventory,
+          storeLocations: s.storeLocations,
+          materials: s.materials,
+          lot,
+          acceptedQty,
+          rejectedQty,
+        });
+        inventory = relocated.inventory;
         const extraLots: MaterialLot[] = [];
         lots = lots.map(l => {
           if (l.id !== lot.id) return l;
           if (acceptedQty > 0 && rejectedQty === 0 && holdQty === 0) {
-            return { ...l, status: 'available' as const, acceptedQty, rejectedQty: 0 };
+            return {
+              ...l,
+              status: 'available' as const,
+              storeLocationId: relocated.targetStoreId,
+              storeLocationName: relocated.targetStoreName,
+              acceptedQty,
+              rejectedQty: 0,
+            };
           }
           if (acceptedQty === 0 && rejectedQty > 0 && holdQty === 0) {
             return { ...l, status: 'scrapped' as const, acceptedQty: 0, rejectedQty };
           }
           if (acceptedQty > 0) {
-            return { ...l, primaryQty: acceptedQty, acceptedQty, rejectedQty: 0, status: 'available' as const };
+            return {
+              ...l,
+              primaryQty: acceptedQty,
+              acceptedQty,
+              rejectedQty: 0,
+              status: 'available' as const,
+              storeLocationId: relocated.targetStoreId,
+              storeLocationName: relocated.targetStoreName,
+            };
           }
           return { ...l, primaryQty: holdQty, acceptedQty: 0, rejectedQty, status: 'qc_hold' as const };
         });
@@ -2633,28 +3037,15 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
           lots = [...lots, ...extraLots];
         }
 
-        const stock = inventory.find(i => i.materialItemId === lot.materialItemId && i.locationId === lot.storeLocationId);
-        if (stock) {
-          const nextAvail = stock.availableQty + acceptedQty;
-          inventory = inventory.map(i => i.id !== stock.id ? i : {
-            ...i,
-            qcHoldQty: Math.max(0, i.qcHoldQty - (acceptedQty + rejectedQty)),
-            availableQty: nextAvail,
-            onHandQty: Math.max(0, i.onHandQty - rejectedQty),
-            lotCount: i.lotCount + extraLots.length,
-            shortage: nextAvail < i.reorderPoint,
-          });
-        }
-
         if (acceptedQty > 0) {
           movements.push({
             id: `sm-insp-acc-${Date.now()}`,
             lotId: lot.id,
-            movementType: 'Adjustment',
+            movementType: relocated.targetStoreId !== lot.storeLocationId ? 'Transfer-In' : 'Adjustment',
             primaryQty: acceptedQty,
             uom: lot.primaryUom,
             fromLocation: `${lot.storeLocationName} (QC Hold)`,
-            toLocation: lot.storeLocationName,
+            toLocation: relocated.targetStoreName,
             referenceType: 'Incoming Inspection',
             referenceId: ins.id,
             referenceNumber: ins.inspectionNumber,
@@ -2825,7 +3216,12 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
       otherCharges: payload.otherCharges,
     });
     const invId = `cinv-${Date.now()}`;
-    const invoiceNumber = `INV-${payload.invoiceDate.slice(0, 4)}-${String(state.invoices.length + 12).padStart(3, '0')}`;
+    const invoiceNumber = nextSequentialNumber(
+      `INV-${payload.invoiceDate.slice(0, 4)}`,
+      state.invoices.map(i => i.invoiceNumber),
+      3,
+      1,
+    );
     const status: Invoice['status'] = payload.issueNow ? 'issued' : 'draft';
     const linkedDispatches = state.dispatches.filter(d => (payload.dispatchIds ?? []).includes(d.id));
     const now = new Date().toISOString();
@@ -3053,7 +3449,12 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
 
     const now = new Date().toISOString();
     const payId = `pay-${Date.now()}`;
-    const paymentNumber = `PAY-${payload.receiptDate.slice(0, 4)}-${String(state.payments.length + 10).padStart(3, '0')}`;
+    const paymentNumber = nextSequentialNumber(
+      `PAY-${payload.receiptDate.slice(0, 4)}`,
+      state.payments.map(p => p.paymentNumber),
+      3,
+      1,
+    );
     const unallocated = Math.max(0, payload.amount - totalAllocated);
     const status: Payment['status'] = totalAllocated === 0 ? 'received' : unallocated > 0 ? 'partially_allocated' : 'allocated';
 
@@ -3278,7 +3679,12 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
       otherCharges: payload.otherCharges,
     });
     const billId = `bill-${Date.now()}`;
-    const billNumber = `BILL-${payload.billDate.slice(0, 4)}-${String(state.supplierBills.length + 10).padStart(3, '0')}`;
+    const billNumber = nextSequentialNumber(
+      `BILL-${payload.billDate.slice(0, 4)}`,
+      state.supplierBills.map(b => b.billNumber),
+      3,
+      1,
+    );
     const spo = payload.spoId ? state.supplierPos.find(p => p.id === payload.spoId) : undefined;
     const grnIds = payload.grnIds ?? [];
     const linkedGrns = state.grns.filter(g => grnIds.includes(g.id));
@@ -3492,7 +3898,12 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
 
     const now = new Date().toISOString();
     const payId = `spay-${Date.now()}`;
-    const paymentNumber = `SPAY-${payload.paymentDate.slice(0, 4)}-${String(state.supplierPayments.length + 10).padStart(3, '0')}`;
+    const paymentNumber = nextSequentialNumber(
+      `SPAY-${payload.paymentDate.slice(0, 4)}`,
+      state.supplierPayments.map(p => p.paymentNumber),
+      3,
+      1,
+    );
     const unallocated = Math.max(0, payload.amount - totalAllocated);
     const status: SupplierPayment['status'] = totalAllocated === 0 ? 'recorded' : unallocated > 0 ? 'partially_allocated' : 'allocated';
 
@@ -3794,10 +4205,15 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
     const current = s.jobs.find(j => j.id === id);
     if (!current) return s;
     const next = { ...current, ...partial };
+    const changes = diffRecordFields(current as unknown as Record<string, unknown>, next as unknown as Record<string, unknown>);
     return {
       jobs: s.jobs.map(j => j.id === id ? next : j),
-      auditEvents: [...s.auditEvents, { id: `ae-${Date.now()}`, actor: s.currentUser.name, actorId: s.currentUser.id, scope: 'Job', action: 'update',
-        entityId: id, entityRef: current.jobNumber, timestamp: new Date().toISOString(), source: 'ui', before: current as unknown as Record<string, unknown>, after: next as unknown as Record<string, unknown> }],
+      auditEvents: changes.length > 0 ? [...s.auditEvents, createAuditEventRecord({
+        actor: s.currentUser.name, actorId: s.currentUser.id, role: s.currentUser.role,
+        scope: 'Job', action: 'update', entityId: id, entityRef: current.jobNumber,
+        description: `Updated Job ${current.jobNumber}.`,
+        changes,
+      })] : s.auditEvents,
     };
   }),
   cancelJob: (id, reason, by, disposition) => {
@@ -3815,12 +4231,32 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
         return release > 0 ? { ...item, reservedQty: Math.max(0, item.reservedQty - release), availableQty: item.availableQty + release } : item;
       });
       const timestamp = new Date().toISOString();
+      const primaryReq = requirements[0];
       const cancellationDisposition: JobCancellationDisposition = {
-        reason: reason.trim(), reservedReleasedQty: releasable, issuedQty: issued, consumedQty: issued,
+        reason: reason.trim(),
+        materialName: primaryReq?.materialName,
+        materialUom: primaryReq?.uom,
+        reservedReleasedQty: releasable, issuedQty: issued, consumedQty: issued,
         wip: disposition.wip, finishedGoods: disposition.finishedGoods, recordedAt: timestamp, recordedBy: by,
       };
+      const cleanedStages = job.stages.map(st =>
+        ['in_progress', 'hold', 'rework'].includes(st.status)
+          ? { ...st, status: 'skipped' as const, skipReason: st.skipReason ? `${st.skipReason} (Halted on cancellation)` : 'Halted on job cancellation' }
+          : st
+      );
       return {
-        jobs: s.jobs.map(j => j.id === id ? { ...j, status: 'cancelled' as const, cancellationReason: reason.trim(), cancelledAt: timestamp, cancelledBy: by, cancellationDisposition } : j),
+        jobs: s.jobs.map(j => j.id === id ? {
+          ...j,
+          status: 'cancelled' as const,
+          currentStage: 'Cancelled',
+          hasBlocker: false,
+          stages: cleanedStages,
+          cancellationReason: reason.trim(),
+          cancelledAt: timestamp,
+          cancelledBy: by,
+          cancellationDisposition,
+        } : j),
+        jobBlockers: s.jobBlockers.map(b => b.jobId === id && b.status === 'open' ? { ...b, status: 'resolved' as const, resolvedAt: timestamp } : b),
         inventory,
         jobMaterialReqs: s.jobMaterialReqs.map(r => r.jobId === id ? { ...r, reservedQty: r.issuedQty, shortage: false } : r),
         movements: releasable > 0 ? [...s.movements, ...requirements.filter(r => r.reservedQty > r.issuedQty).map(r => ({
@@ -3828,8 +4264,12 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
           primaryQty: Math.max(0, r.reservedQty - r.issuedQty), uom: r.uom, fromLocation: `Reserved for ${job.jobNumber}`,
           toLocation: job.siteName, referenceType: 'Job Cancellation', referenceId: job.id, referenceNumber: job.jobNumber, performedBy: by, timestamp,
         }))] : s.movements,
-        auditEvents: [...s.auditEvents, { id: `ae-${Date.now()}`, actor: by, actorId: s.currentUser.id, scope: 'Job', action: 'cancel', entityId: id,
-          entityRef: job.jobNumber, timestamp, source: 'ui', reason, before: { status: job.status }, after: { status: 'cancelled', releasedQty: releasable, disposition: cancellationDisposition } }],
+        auditEvents: [...s.auditEvents, createAuditEventRecord({
+          actor: by, actorId: s.currentUser.id, role: s.currentUser.role,
+          scope: 'Job', action: 'cancel', entityId: id, entityRef: job.jobNumber, timestamp,
+          description: `Cancelled Job ${job.jobNumber}. Reserved unissued stock released.`,
+          reason, before: { status: job.status }, after: { status: 'cancelled', releasedQty: releasable },
+        })],
       };
     });
     get().showToast({ type: 'success', title: 'Job cancelled', body: 'The job remains in history; reserved but unissued material was released.' });
@@ -3865,15 +4305,20 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
         readingType: 'routine',
         notes: `Updated via Asset Edit (${existing.currentReading ?? 0} → ${partial.currentReading})`,
       } : undefined;
+      const mergedNext = { ...existing, ...partial };
+      const changes = diffRecordFields(
+        existing as unknown as Record<string, unknown>,
+        mergedNext as unknown as Record<string, unknown>,
+      );
       return {
-        assets: s.assets.map(a => a.id === id ? { ...a, ...partial } : a),
+        assets: s.assets.map(a => a.id === id ? mergedNext : a),
         meterReadings: newReadingEntry ? [...s.meterReadings, newReadingEntry] : s.meterReadings,
-        auditEvents: [...s.auditEvents, {
-          id: `ae-${Date.now()}`, actor: s.currentUser.name, actorId: s.currentUser.id, scope: 'Asset', action: 'update',
-          entityId: id, entityRef: existing.assetCode, timestamp: now, source: 'ui',
-          before: { status: existing.status, currentReading: existing.currentReading },
-          after: partial as Record<string, unknown>,
-        }],
+        auditEvents: changes.length > 0 ? [...s.auditEvents, createAuditEventRecord({
+          actor: s.currentUser.name, actorId: s.currentUser.id, role: s.currentUser.role,
+          scope: 'Asset', action: 'update', entityId: id, entityRef: existing.assetCode, timestamp: now,
+          description: `Updated Asset ${existing.assetCode} (${changes.map(c => c.label).join(', ')}).`,
+          changes,
+        })] : s.auditEvents,
       };
     });
     return { ok: true };
@@ -3922,7 +4367,7 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
 }), {
   name: 'eoss-demo-store',
   storage: createJSONStorage(() => localStorage),
-  version: 4,
+  version: 5,
   migrate: (persistedState, version) => {
     let state = persistedState as Partial<EOSSState>;
     const mergeById = <T extends { id: string }>(existing: T[] = [], additions: T[]) => {
@@ -3982,6 +4427,31 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
         supplierPayments: mergeById(state.supplierPayments, SEED_SUPPLIER_PAYMENTS),
         supplierPaymentAllocations: mergeById(state.supplierPaymentAllocations, SEED_SUPPLIER_PAYMENT_ALLOCATIONS),
         auditEvents: mergeById(state.auditEvents, SEED_RICH_AUDIT_EVENTS),
+      };
+    }
+    if (version < 5) {
+      const fresh = buildInitialData();
+      const replaceById = <T extends { id: string }>(existing: T[] = [], replacements: T[]) => {
+        const repMap = new Map(replacements.map(r => [r.id, r]));
+        const updated = existing.map(item => repMap.get(item.id) ?? item);
+        return mergeById(updated, replacements);
+      };
+      state = {
+        ...state,
+        inventory: replaceById(state.inventory, fresh.inventory).map(inv => ({
+          ...inv,
+          qcHoldQty: Math.min(inv.qcHoldQty ?? 0, inv.onHandQty ?? 0),
+        })),
+        assets: replaceById(state.assets, fresh.assets),
+        jobBlockers: replaceById(state.jobBlockers, fresh.jobBlockers),
+        purchaseReqs: replaceById(state.purchaseReqs, fresh.purchaseReqs.filter(p => ['pr-demo-10', 'pr-demo-12', 'pr-demo-01'].includes(p.id))),
+        jobs: replaceById(state.jobs, fresh.jobs.filter(j => j.id === 'job-demo-cancel')),
+        jobMaterialReqs: mergeById(state.jobMaterialReqs, fresh.jobMaterialReqs),
+        dispatches: replaceById(state.dispatches, fresh.dispatches.filter(d => d.id === 'dsp-demo-201')),
+        invoices: replaceById(state.invoices, fresh.invoices.filter(i => ['cinv-004', 'cinv-005', 'cinv-008'].includes(i.id))),
+        invoiceLines: replaceById(state.invoiceLines, fresh.invoiceLines.filter(l => ['invl-c04', 'invl-c05'].includes(l.id))),
+        supplierBills: replaceById(state.supplierBills, fresh.supplierBills.filter(b => ['sinv-002', 'bill-demo-rw1'].includes(b.id))),
+        inspections: replaceById(state.inspections, fresh.inspections),
       };
     }
     return state;

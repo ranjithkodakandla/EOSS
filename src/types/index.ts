@@ -404,6 +404,11 @@ export interface PurchaseRequisition {
   deliverToStoreName?: string;
   purpose?: string;
   reason?: string;
+  rejectionReason?: string;
+  approvedBy?: string;
+  approvedAt?: string;
+  rejectedBy?: string;
+  rejectedAt?: string;
   notes?: string;
   attachments?: { id: string; name: string; size?: string }[];
   lines?: PRLine[];
@@ -472,6 +477,8 @@ export type JobDisposition = 'not_applicable' | 'retain' | 'rework' | 'scrap' | 
 
 export interface JobCancellationDisposition {
   reason: string;
+  materialName?: string;
+  materialUom?: string;
   reservedReleasedQty: number;
   issuedQty: number;
   consumedQty: number;
@@ -540,9 +547,15 @@ export interface JobMaterialReq {
 export interface JobBlocker {
   id: ID;
   jobId: ID;
+  jobNumber?: string;
   stageId?: ID;
   type: 'Material' | 'Machine' | 'Manpower' | 'Customer' | 'Design' | 'Other';
+  category?: string;
   description: string;
+  linkedAssetId?: ID;
+  linkedAssetCode?: string;
+  linkedMaintenanceEventId?: ID;
+  linkedMaintenanceEventNumber?: string;
   raisedBy: string;
   raisedAt: string;
   resolvedAt?: string;
@@ -957,12 +970,18 @@ export interface VaultDocument {
   expiryDate?: string;
   version: number;
   fileSize: string;
+  fileName?: string;
+  reminderDays?: number;
   linkedEntities: { type: string; ref: string }[];
   certStatus?: 'ai_extracted' | 'verified' | 'pending';
   aiClassification?: string;
   obligation?: { renewalDue: string; responsible: string };
   supersedesDocId?: ID;
-  status?: 'active' | 'superseded' | 'expired';
+  renewedFromDocId?: ID;
+  status?: 'active' | 'superseded' | 'expired' | 'archived';
+  archivedAt?: string;
+  archivedBy?: string;
+  archiveReason?: string;
 }
 
 // ── Approval Requests ──

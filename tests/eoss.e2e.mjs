@@ -56,7 +56,7 @@ try {
   const readinessTexts = await page.evaluate(() =>
     Array.from(document.querySelectorAll('table tbody td')).map(td => td.textContent?.trim() ?? '')
   );
-  assert.ok(readinessTexts.some(t => ['Available', 'Shortage', 'Partially Available', 'Awaiting Procurement', 'Awaiting GRN', 'Quality Hold', 'Not Assessed'].includes(t)),
+  assert.ok(readinessTexts.some(t => ['Available', 'Shortage', 'Partially Available', 'Awaiting Procurement', 'Awaiting goods receipt', 'Quality Hold', 'Not Assessed'].includes(t)),
     'Jobs table should render Title Case Material Readiness badges');
 
   // Open New Job Modal & confirm only New PO / Existing POs (no "None" option)

@@ -8,7 +8,7 @@ import { useStore } from '../../store';
 
 interface SearchResult {
   id: string;
-  type: 'Sales Order' | 'Job' | 'Material' | 'Asset' | 'Supplier PO' | 'Document' | 'Customer' | 'Supplier';
+  type: 'Quotation' | 'Sales Order' | 'Job' | 'Material' | 'Asset' | 'Purchase Req' | 'Supplier PO' | 'Document' | 'Customer' | 'Supplier' | 'Approvals';
   code: string;
   title: string;
   subtitle?: string;
@@ -35,7 +35,8 @@ export default function GlobalSearchModal({ isOpen, onClose }: Props) {
   });
 
   const {
-    jobs, inventory, lots, assets, documents, customerPos, supplierPos
+    jobs, inventory, lots, assets, documents, customerPos, supplierPos,
+    quotations, purchaseReqs, customers, suppliers, approvalRequests,
   } = useStore();
 
   const navigate = useNavigate();
@@ -70,6 +71,35 @@ export default function GlobalSearchModal({ isOpen, onClose }: Props) {
     if (!q) return [];
 
     const items: SearchResult[] = [];
+
+    // 0. Approvals & "Waiting on me" shortcut
+    if ('approvals waiting on me'.includes(q) || q.includes('approv')) {
+      const pendingCount = approvalRequests.filter(a => a.status === 'pending').length;
+      items.push({
+        id: 'nav-approvals',
+        type: 'Approvals',
+        code: `${pendingCount} Pending`,
+        title: 'Waiting on me — Approvals Inbox',
+        subtitle: 'Review and approve or reject Purchase Requisitions and Supplier POs',
+        status: pendingCount > 0 ? 'Pending' : 'Clear',
+        url: '/procurement?tab=approvals',
+      });
+    }
+
+    // 0.5 Quotations (QT-*)
+    quotations.forEach(qt => {
+      if (qt.quotationNumber.toLowerCase().includes(q) || qt.customerName.toLowerCase().includes(q)) {
+        items.push({
+          id: qt.id,
+          type: 'Quotation',
+          code: qt.quotationNumber,
+          title: qt.customerName,
+          subtitle: `Valid until ${qt.validUntil} · ₹${(qt.totalAmount ?? qt.totalValue).toLocaleString('en-IN')}`,
+          status: qt.status,
+          url: `/sales?tab=quotations&q=${encodeURIComponent(qt.quotationNumber)}`,
+        });
+      }
+    });
 
     // 1. Customer POs / Sales Orders
     customerPos.forEach(po => {
@@ -118,7 +148,21 @@ export default function GlobalSearchModal({ isOpen, onClose }: Props) {
       }
     });
 
-    // 4. Supplier POs
+    // 4. Purchase Requisitions & Supplier POs
+    purchaseReqs.forEach(pr => {
+      if (pr.prNumber.toLowerCase().includes(q) || (pr.purpose ?? '').toLowerCase().includes(q)) {
+        items.push({
+          id: pr.id,
+          type: 'Purchase Req',
+          code: pr.prNumber,
+          title: pr.purpose || 'Purchase Requisition',
+          subtitle: `Required by ${pr.requiredBy}`,
+          status: pr.status,
+          url: `/procurement/pr/${pr.id}`,
+        });
+      }
+    });
+
     supplierPos.forEach(spo => {
       if (spo.poNumber.toLowerCase().includes(q) || spo.supplierName.toLowerCase().includes(q)) {
         items.push({
@@ -157,14 +201,42 @@ export default function GlobalSearchModal({ isOpen, onClose }: Props) {
           code: doc.docType,
           title: doc.title,
           subtitle: `${doc.category} · By ${doc.uploadedBy}`,
-          status: 'Active',
-          url: `/documents`
+          status: doc.status ?? 'Active',
+          url: `/documents/${doc.id}`
+        });
+      }
+    });
+
+    // 7. Customers & Suppliers
+    customers.forEach(c => {
+      if (c.tradingName.toLowerCase().includes(q) || c.legalName.toLowerCase().includes(q)) {
+        items.push({
+          id: c.id,
+          type: 'Customer',
+          code: c.city,
+          title: c.tradingName,
+          subtitle: c.legalName,
+          status: c.status,
+          url: `/sales/customers/${c.id}`,
+        });
+      }
+    });
+    suppliers.forEach(s => {
+      if (s.tradingName.toLowerCase().includes(q) || s.legalName.toLowerCase().includes(q)) {
+        items.push({
+          id: s.id,
+          type: 'Supplier',
+          code: s.city,
+          title: s.tradingName,
+          subtitle: s.legalName,
+          status: s.status,
+          url: `/suppliers/${s.id}`,
         });
       }
     });
 
     return items.slice(0, 12);
-  }, [query, jobs, inventory, customerPos, supplierPos, assets, documents]);
+  }, [query, jobs, inventory, customerPos, supplierPos, quotations, purchaseReqs, assets, documents, customers, suppliers, approvalRequests]);
 
   const handleSelect = (item: SearchResult) => {
     // Record recent search
@@ -205,7 +277,7 @@ export default function GlobalSearchModal({ isOpen, onClose }: Props) {
             type="text"
             value={query}
             onChange={e => setQuery(e.target.value)}
-            placeholder="Search orders, customers, suppliers, materials, documents..."
+            placeholder="Search orders, quotes (QT-*), jobs, approvals, materials, documents..."
             className="flex-1 bg-transparent text-sm md:text-base text-[var(--text)] placeholder-[var(--text-2)]/60 focus:outline-none"
           />
           {query ? (

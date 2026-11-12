@@ -49,7 +49,7 @@ export default function Inventory() {
   }, [shortageFocus, search, selectedLocation, statusFilter, searchParams, setSearchParams, location.key]);
 
   const getInventoryRowStatus = (item: (typeof inventory)[number]) => {
-    if (item.availableQty <= 0 && item.inTransitQty > 0 && item.qcHoldQty === 0) return 'Awaiting GRN';
+    if (item.availableQty <= 0 && item.inTransitQty > 0 && item.qcHoldQty === 0) return 'Awaiting goods receipt';
     return deriveInventoryStatus(item);
   };
 
@@ -141,7 +141,7 @@ export default function Inventory() {
     );
   }, [inventory, search, selectedLocation, statusFilter, sortKey, sortDir]);
 
-  const inventoryStatusOptions = ['Available', 'Shortage', 'Quality Hold', 'Reserved', 'Awaiting GRN'] as const;
+  const inventoryStatusOptions = ['Available', 'Shortage', 'Quality Hold', 'Reserved', 'Awaiting goods receipt'] as const;
   const statusCounts = useMemo(() => {
     const counts: Record<string, number> = {};
     for (const s of inventoryStatusOptions) counts[s] = 0;

@@ -64,6 +64,7 @@ export default function InvoiceDetail() {
 
   const [showVoidModal, setShowVoidModal] = useState(false);
   const [voidReason, setVoidReason] = useState('');
+  const [showIssueConfirm, setShowIssueConfirm] = useState(false);
   const [feedback, setFeedback] = useState<{ type: 'ok' | 'err'; msg: string } | null>(null);
 
   const customer = customers.find(c => c.id === invoice?.customerId);
@@ -255,7 +256,7 @@ export default function InvoiceDetail() {
                   <Edit3 size={13} /> Edit Draft
                 </button>
                 <button
-                  onClick={handleIssue}
+                  onClick={() => setShowIssueConfirm(true)}
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--accent-fg)] rounded-lg transition-colors"
                 >
                   <Send size={13} /> Issue Invoice
@@ -299,6 +300,16 @@ export default function InvoiceDetail() {
                 ...(invoice.dispatchNumbers || []).map(dn => `Dispatch: ${dn}`),
               ]}
               notes={invoice.notes}
+              includeBankDetails
+              gstBreakup={{
+                taxableSubtotal: invoice.subtotal,
+                taxType: invoice.taxType,
+                cgstAmount: invoice.cgstAmount,
+                sgstAmount: invoice.sgstAmount,
+                igstAmount: invoice.igstAmount,
+                taxAmount: invoice.taxAmount,
+                totalAmount: invoice.totalAmount,
+              }}
             />
           </div>
         </div>
@@ -804,6 +815,62 @@ export default function InvoiceDetail() {
           <RelatedRecordsPanel records={relatedRecords} title="Related Order-to-Cash Records" />
         </div>
       </div>
+
+      {/* Issue Confirmation Modal */}
+      {showIssueConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-[var(--surface-2)] border border-[var(--border)] rounded-xl max-w-md w-full p-5 space-y-4">
+            <div className="flex items-center gap-2 text-[var(--text-1)]">
+              <Send size={17} className="text-[var(--accent)]" />
+              <h3 className="text-sm font-semibold">Issue Invoice {invoice.invoiceNumber}?</h3>
+            </div>
+            {(() => {
+              const pendingDispatches = linkedDispatches.filter(d => !['delivered', 'closed'].includes(d.status));
+              return (
+                <>
+                  {pendingDispatches.length > 0 ? (
+                    <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900 space-y-1">
+                      <div className="font-semibold flex items-center gap-1.5">
+                        <AlertTriangle size={14} /> Linked Dispatch Not Delivered / Docs Pending
+                      </div>
+                      <p>
+                        {pendingDispatches.map(d => `${d.dispatchNumber} (${d.status.replace(/_/g, ' ')})`).join(', ')} has not been marked Delivered.
+                        Confirm if you still want to finalize and issue this invoice.
+                      </p>
+                    </div>
+                  ) : linkedDispatches.length === 0 ? (
+                    <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900">
+                      No delivered dispatch is linked to this invoice yet. Confirm if you want to issue now.
+                    </div>
+                  ) : null}
+                  <p className="text-xs text-[var(--text-2)]">
+                    Issuing locks GST tax totals ({fmtINR(invoice.totalAmount)}) and updates open customer receivables (Prototype Simulation).
+                  </p>
+                </>
+              );
+            })()}
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setShowIssueConfirm(false)}
+                className="px-3 py-1.5 text-xs rounded-lg border border-[var(--border)] text-[var(--text-2)]"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowIssueConfirm(false);
+                  handleIssue();
+                }}
+                className="px-4 py-1.5 text-xs font-semibold rounded-lg bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--accent-fg)]"
+              >
+                Confirm &amp; Issue
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Void Confirmation Modal */}
       {showVoidModal && (

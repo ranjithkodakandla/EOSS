@@ -1,8 +1,8 @@
 import React from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, useLocation } from 'react-router-dom';
 import {
-  Home, ShoppingCart, Package, Box, Activity, ShieldCheck,
-  Wrench, Truck, Users, FileText, BarChart3,
+  Home, CheckSquare, ShoppingCart, Package, Box, Activity, ShieldCheck,
+  Wrench, Truck, FileText, BarChart3,
   ChevronLeft, ChevronRight, Store, Landmark, Settings, History,
 } from 'lucide-react';
 import clsx from 'clsx';
@@ -15,8 +15,9 @@ interface NavItem {
   badge?: number;
 }
 
-const NAV_ITEMS: NavItem[] = [
+const STATIC_NAV_ITEMS: NavItem[] = [
   { path: '/', label: 'Home', icon: <Home size={17} /> },
+  { path: '/procurement?tab=approvals', label: 'Waiting on me', icon: <CheckSquare size={17} /> },
   { path: '/sales', label: 'Sales & Orders', icon: <ShoppingCart size={17} /> },
   { path: '/suppliers', label: 'Suppliers', icon: <Store size={17} /> },
   { path: '/procurement', label: 'Procurement', icon: <Package size={17} /> },
@@ -69,7 +70,14 @@ function AuroraWave({ theme }: { theme: string }) {
 }
 
 export default function Sidebar({ mobileOpen = false, onClose }: { mobileOpen?: boolean; onClose?: () => void }) {
-  const { sidebarCollapsed, toggleSidebar, eossTheme } = useStore();
+  const { sidebarCollapsed, toggleSidebar, eossTheme, approvalRequests } = useStore();
+  const location = useLocation();
+  const pendingApprovals = approvalRequests.filter(a => a.status === 'pending').length;
+  const NAV_ITEMS: NavItem[] = STATIC_NAV_ITEMS.map(item =>
+    item.path === '/procurement?tab=approvals'
+      ? { ...item, badge: pendingApprovals || undefined }
+      : item
+  );
   const collapsed = sidebarCollapsed && !mobileOpen;
 
   const sidebarBg = eossTheme === 'graphite'
@@ -128,28 +136,35 @@ export default function Sidebar({ mobileOpen = false, onClose }: { mobileOpen?: 
 
       {/* Nav Items */}
       <nav className="flex-1 overflow-y-auto py-2 px-2 space-y-0.5 relative z-10">
-        {NAV_ITEMS.map((item, idx) => (
+        {NAV_ITEMS.map((item, idx) => {
+          const isApprovalsLink = item.path === '/procurement?tab=approvals';
+          const onApprovalsTab = location.pathname === '/procurement' && location.search.includes('tab=approvals');
+          return (
           <NavLink
             key={`${item.path}-${idx}`}
             to={item.path}
             end={item.path === '/'}
             title={collapsed ? item.label : undefined}
             onClick={onClose}
-            className={({ isActive }) => clsx(
+            className={({ isActive }) => {
+              const active = isApprovalsLink ? onApprovalsTab : (item.path === '/procurement' ? isActive && !onApprovalsTab : isActive);
+              return clsx(
               'flex items-center gap-3 rounded-xl transition-all duration-150 text-[13px] font-medium',
               collapsed ? 'justify-center p-2 mx-auto w-9 h-9' : 'px-3 py-2',
-              isActive
+              active
                 ? 'text-white shadow-md'
                 : 'text-white/70 hover:text-white hover:bg-white/10'
-            )}
-            style={({ isActive }) => ({
-              background: isActive
+            );}}
+            style={({ isActive }) => {
+              const active = isApprovalsLink ? onApprovalsTab : (item.path === '/procurement' ? isActive && !onApprovalsTab : isActive);
+              return ({
+              background: active
                 ? 'var(--sidebar-active-bg, linear-gradient(135deg, var(--brand), var(--brand-secondary)))'
                 : 'transparent',
-              boxShadow: isActive
+              boxShadow: active
                 ? '0 4px 14px -2px rgba(0, 0, 0, 0.3), inset 0 1px 1px rgba(255, 255, 255, 0.4)'
                 : undefined,
-            })}
+            });}}
           >
             <span className="flex-shrink-0">{item.icon}</span>
             {!collapsed && <span className="truncate">{item.label}</span>}
@@ -159,7 +174,7 @@ export default function Sidebar({ mobileOpen = false, onClose }: { mobileOpen?: 
               </span>
             )}
           </NavLink>
-        ))}
+        );})}
       </nav>
 
       {/* Aurora wave ornament (rendered behind footer) */}

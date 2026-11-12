@@ -12,7 +12,7 @@ import SortableHeader from '../../components/layout/SortableHeader';
 import { sortRows } from '../../domain/tableSort';
 import CustomerDirectory from './CustomerDirectory';
 
-type POTab = 'pos' | 'rfqs' | 'customers';
+type POTab = 'pos' | 'rfqs' | 'quotations' | 'customers';
 type SalesSortKey = 'number' | 'name' | 'date' | 'requiredBy' | 'value' | 'lines' | 'terms' | 'status' | 'channel' | 'quotation' | 'owner';
 
 export default function Sales() {
@@ -95,6 +95,12 @@ export default function Sales() {
     return values[key] ?? r.receivedDate;
   });
 
+  const filteredQuotations = quotations.filter(qt => {
+    const q = search.toLowerCase();
+    return (!customerFilter || qt.customerId === customerFilter)
+      && (!q || qt.quotationNumber.toLowerCase().includes(q) || qt.customerName.toLowerCase().includes(q) || (qt.rfqNumber ?? '').toLowerCase().includes(q));
+  });
+
   const handleSort = (key: SalesSortKey) => {
     if (sortKey === key) setSortDir(direction => direction === 'asc' ? 'desc' : 'asc');
     else { setSortKey(key); setSortDir('asc'); }
@@ -117,7 +123,7 @@ export default function Sales() {
         style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
       >
         <div>
-          <h1 className="text-lg font-bold" style={{ color: 'var(--text)' }}>{tab === 'pos' ? 'Customer POs' : tab === 'rfqs' ? 'Customer RFQs' : 'Customer Directory'}</h1>
+          <h1 className="text-lg font-bold" style={{ color: 'var(--text)' }}>{tab === 'pos' ? 'Customer POs' : tab === 'rfqs' ? 'Customer RFQs' : tab === 'quotations' ? 'Quotations' : 'Customer Directory'}</h1>
           <p className="text-xs mt-0.5" style={{ color: 'var(--text-2)' }}>
             <button type="button" onClick={() => { setTab('pos'); setStatusFilter('active'); }} className="font-semibold" style={{ color: 'var(--brand)' }}>
               {customerPos.filter(p => p.status === 'active').length} Active Customer POs
@@ -147,6 +153,7 @@ export default function Sales() {
         {([
           { id: 'pos', label: `Customer POs (${filteredPos.length})` },
           { id: 'rfqs', label: `RFQs (${filteredRfqs.length})` },
+          { id: 'quotations', label: `Quotations (${filteredQuotations.length})` },
           { id: 'customers', label: 'Customer Directory' },
         ] as { id: POTab; label: string }[]).map(t => (
           <button
@@ -186,7 +193,7 @@ export default function Sales() {
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}
-            placeholder={tab === 'rfqs' ? 'Search RFQ number or customer name' : 'Search Customer PO number or customer name'}
+            placeholder={tab === 'rfqs' ? 'Search RFQ number or customer name' : tab === 'quotations' ? 'Search quotation number, RFQ or customer' : 'Search Customer PO number or customer name'}
             className="eoss-search-input"
           />
         </div>
@@ -355,6 +362,42 @@ export default function Sales() {
                 ))}
                 {filteredRfqs.length === 0 && (
                   <tr><td colSpan={10} className="text-center py-12 text-sm" style={{ color: 'var(--text-3)' }}>No RFQs found</td></tr>
+                )}
+              </tbody>
+            </table>
+          )}
+          {tab === 'quotations' && (
+            <table className="w-full text-sm">
+              <thead style={{ background: 'var(--surface-2)', borderBottom: '1px solid var(--border)' }}>
+                <tr>
+                  <th className="text-left px-4 py-2.5 text-xs font-semibold text-[var(--text-3)]">Quotation #</th>
+                  <th className="text-left px-4 py-2.5 text-xs font-semibold text-[var(--text-3)]">Customer</th>
+                  <th className="text-left px-4 py-2.5 text-xs font-semibold text-[var(--text-3)]">RFQ Ref</th>
+                  <th className="text-left px-4 py-2.5 text-xs font-semibold text-[var(--text-3)]">Quoted Date</th>
+                  <th className="text-left px-4 py-2.5 text-xs font-semibold text-[var(--text-3)]">Valid Until</th>
+                  <th className="text-right px-4 py-2.5 text-xs font-semibold text-[var(--text-3)]">Total Value</th>
+                  <th className="text-left px-4 py-2.5 text-xs font-semibold text-[var(--text-3)]">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredQuotations.map(qt => (
+                  <tr
+                    key={qt.id}
+                    onClick={() => openWithOrigin(`/sales/quotation/${qt.id}`)}
+                    className="cursor-pointer transition-colors hover:bg-[var(--surface-2)]"
+                    style={{ borderBottom: '1px solid var(--border)' }}
+                  >
+                    <td className="px-4 py-3 font-mono text-xs font-bold text-[var(--brand)]">{qt.quotationNumber}</td>
+                    <td className="px-4 py-3 text-sm font-medium text-[var(--text)]">{qt.customerName}</td>
+                    <td className="px-4 py-3 font-mono text-xs text-[var(--text-2)]">{qt.rfqNumber ?? '—'}</td>
+                    <td className="px-4 py-3 text-xs text-[var(--text-2)]">{fmt(qt.quotationDate)}</td>
+                    <td className="px-4 py-3 text-xs text-[var(--text-2)]">{fmt(qt.validUntil)}</td>
+                    <td className="px-4 py-3 text-right font-mono text-xs font-semibold text-[var(--text)]">₹{(qt.totalAmount ?? qt.totalValue ?? 0).toLocaleString('en-IN')}</td>
+                    <td className="px-4 py-3"><StatusChip status={qt.status} /></td>
+                  </tr>
+                ))}
+                {filteredQuotations.length === 0 && (
+                  <tr><td colSpan={7} className="text-center py-12 text-sm" style={{ color: 'var(--text-3)' }}>No quotations found</td></tr>
                 )}
               </tbody>
             </table>

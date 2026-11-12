@@ -172,6 +172,14 @@ export default function SupplierBillDetail() {
   ];
 
   const effectiveMatchStatus = matchSummary?.overallStatus || bill.matchStatus;
+  const matchStatusLabels: Record<string, string> = {
+    matched: '3-Way Matched',
+    missing_grn: 'Missing goods receipt (GRN)',
+    qty_variance: 'Quantity mismatch',
+    rate_variance: 'Rate mismatch',
+    pending: 'Match pending',
+  };
+  const matchStatusLabel = matchStatusLabels[effectiveMatchStatus] ?? effectiveMatchStatus.replace(/_/g, ' ');
 
   return (
     <div className="p-6 max-w-6xl mx-auto">
@@ -186,11 +194,11 @@ export default function SupplierBillDetail() {
               <StatusChip status={overdue && bill.status !== 'overdue' ? 'overdue' : bill.status} />
             </div>
             <p className="text-xs text-[var(--text-2)] mt-1">
-              {supplier?.tradingName || bill.supplierName} · Vendor Inv: {bill.supplierInvoiceNo} · 3-Way Match: {effectiveMatchStatus.replace('_', ' ')}
+              {supplier?.tradingName || bill.supplierName} · Vendor Inv: {bill.supplierInvoiceNo} · 3-Way Match: {matchStatusLabel}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            {!isClosed && bill.status !== 'paid' && bill.status !== 'approved' && canManageAP && (
+            {!isClosed && bill.status !== 'paid' && bill.status !== 'approved' && effectiveMatchStatus !== 'missing_grn' && canManageAP && (
               <button
                 onClick={() => { setReasonText(''); setActionModal('approve'); }}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-[var(--success)] text-white rounded-lg hover:opacity-90"
@@ -506,8 +514,8 @@ export default function SupplierBillDetail() {
       </div>
 
       {actionModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="bg-[var(--surface-2)] border border-[var(--border)] rounded-xl max-w-md w-full p-5 space-y-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-[var(--surface-2)] border border-[var(--border)] rounded-xl max-w-md w-full max-h-[90vh] overflow-y-auto p-5 space-y-4">
             <h3 className="text-sm font-semibold text-[var(--text-1)] capitalize">
               {actionModal === 'approve'
                 ? `Approve Supplier Bill ${bill.billNumber}`

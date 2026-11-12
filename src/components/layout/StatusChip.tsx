@@ -54,7 +54,7 @@ const STATUS_MAP: Record<string, { label: string; cls: string }> = {
   ready: { label: 'Available', cls: 'bg-[var(--success-bg)] text-[var(--success)]' },
   partially_available: { label: 'Partially Available', cls: 'bg-[var(--warning-bg)] text-[var(--warning)]' },
   awaiting_procurement: { label: 'Awaiting Procurement', cls: 'bg-[var(--info-bg)] text-[var(--info)]' },
-  awaiting_grn: { label: 'Awaiting GRN', cls: 'bg-[var(--info-bg)] text-[var(--info)]' },
+  awaiting_grn: { label: 'Awaiting goods receipt', cls: 'bg-[var(--info-bg)] text-[var(--info)]' },
   not_assessed: { label: 'Not Assessed', cls: 'bg-[var(--surface-2)] text-[var(--text-2)]' },
   reserved: { label: 'Reserved', cls: 'bg-[var(--warning-bg)] text-[var(--warning)]' },
   issued: { label: 'Issued', cls: 'bg-[var(--info-bg)] text-[var(--info)]' },

@@ -7,6 +7,8 @@ import {
 import { useStore } from '../../store';
 import RelatedRecordsPanel from '../../components/workflow/RelatedRecordsPanel';
 import RecordHistoryPanel from '../../components/workflow/RecordHistoryPanel';
+import LinkedDocumentsSection from '../../components/workflow/LinkedDocumentsSection';
+import { formatDisplayDate } from '../../domain/dates';
 import { useReturnNavigation } from '../../hooks/useReturnNavigation';
 import { EMPLOYEES } from '../../data/seed';
 import StatusChip from '../../components/layout/StatusChip';
@@ -213,9 +215,33 @@ export default function JobWorkspace() {
           </div>
           <div className="text-sm text-[var(--text)]">
             {isBlocked ? (
-              <span className="font-semibold text-[var(--error)]">
-                {blockers[0]?.description ?? 'Job is blocked.'}
-              </span>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-semibold text-[var(--error)]">
+                  {blockers[0]?.description ?? 'Job is blocked.'}
+                </span>
+                {blockers[0]?.linkedAssetId && (
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/assets/${blockers[0].linkedAssetId}`)}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md border text-xs font-mono font-semibold hover:underline"
+                    style={{ borderColor: 'var(--border)', color: 'var(--brand)', background: 'var(--surface)' }}
+                  >
+                    {blockers[0].linkedAssetCode ?? 'Asset'}
+                    <ExternalLink size={11} />
+                  </button>
+                )}
+                {blockers[0]?.linkedMaintenanceEventId && (
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/assets/me/${blockers[0].linkedMaintenanceEventId}`)}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md border text-xs font-mono font-semibold hover:underline"
+                    style={{ borderColor: 'var(--border)', color: 'var(--brand)', background: 'var(--surface)' }}
+                  >
+                    {blockers[0].linkedMaintenanceEventNumber ?? 'Maintenance Event'}
+                    <ExternalLink size={11} />
+                  </button>
+                )}
+              </div>
             ) : (
               <span>
                 <strong>Stage {activeStage.sequence}: {activeStage.name}</strong> is in progress ({activeStage.completedGoodQty}/{activeStage.inputQty} good units by {activeStage.owner || 'Mohan Das'}).
@@ -347,7 +373,24 @@ export default function JobWorkspace() {
               </div>
             </div>
           </div>
-          {job.cancellationDisposition && <div className="p-4 rounded-xl border space-y-2 text-xs" style={{ borderColor: 'var(--warning)', background: 'var(--surface)' }}><div className="font-bold text-[var(--text)]">Cancellation disposition</div><div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-[var(--text-2)]"><span>WIP: <strong>{job.cancellationDisposition.wip.replace(/_/g, ' ')}</strong></span><span>Finished goods: <strong>{job.cancellationDisposition.finishedGoods.replace(/_/g, ' ')}</strong></span><span>Released: <strong>{job.cancellationDisposition.reservedReleasedQty}</strong></span><span>Issued/consumed: <strong>{job.cancellationDisposition.issuedQty}</strong></span></div><div className="text-[var(--text-3)]">Recorded by {job.cancellationDisposition.recordedBy} · {new Date(job.cancellationDisposition.recordedAt).toLocaleString('en-IN')}</div></div>}
+          {job.cancellationDisposition && (
+            <div className="p-4 rounded-xl border space-y-2 text-xs" style={{ borderColor: 'var(--warning)', background: 'var(--surface)' }}>
+              <div className="font-bold text-[var(--text)]">Cancellation disposition</div>
+              {job.cancellationDisposition.materialName && (
+                <div className="text-sm font-semibold text-[var(--text)]">
+                  {job.cancellationDisposition.reservedReleasedQty} {job.cancellationDisposition.materialUom ?? ''} {job.cancellationDisposition.materialName} returned, {job.cancellationDisposition.issuedQty} {job.cancellationDisposition.materialUom ?? ''} consumed
+                </div>
+              )}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-[var(--text-2)]">
+                <span>WIP: <strong>{job.cancellationDisposition.wip.replace(/_/g, ' ')}</strong></span>
+                <span>Finished goods: <strong>{job.cancellationDisposition.finishedGoods.replace(/_/g, ' ')}</strong></span>
+                <span>Released: <strong>{job.cancellationDisposition.reservedReleasedQty}{job.cancellationDisposition.materialUom ? ` ${job.cancellationDisposition.materialUom}` : ''}</strong></span>
+                <span>Issued/consumed: <strong>{job.cancellationDisposition.issuedQty}{job.cancellationDisposition.materialUom ? ` ${job.cancellationDisposition.materialUom}` : ''}</strong></span>
+              </div>
+              <div className="text-[var(--text-3)]">Recorded by {job.cancellationDisposition.recordedBy} · {formatDisplayDate(job.cancellationDisposition.recordedAt)}</div>
+            </div>
+          )}
+          <LinkedDocumentsSection entityType="Job" entityId={job.id} entityRef={job.jobNumber} title="Job Documents & Drawings" />
         </div>
       )}
 
@@ -568,7 +611,31 @@ export default function JobWorkspace() {
                     <StatusChip status={b.status} size="sm" />
                   </div>
                   <p className="text-sm text-[var(--text)] mt-1.5">{b.description}</p>
-                  <p className="text-xs text-[var(--text-3)] mt-1">Raised by {b.raisedBy} · {new Date(b.raisedAt).toLocaleDateString('en-IN')}</p>
+                  {(b.linkedAssetId || b.linkedMaintenanceEventId) && (
+                    <div className="flex flex-wrap items-center gap-2 mt-2">
+                      {b.linkedAssetId && (
+                        <button
+                          type="button"
+                          onClick={() => navigate(`/assets/${b.linkedAssetId}`)}
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded border text-xs font-mono font-semibold hover:underline"
+                          style={{ borderColor: 'var(--border)', color: 'var(--brand)', background: 'var(--surface-2)' }}
+                        >
+                          Asset {b.linkedAssetCode ?? b.linkedAssetId} <ExternalLink size={11} />
+                        </button>
+                      )}
+                      {b.linkedMaintenanceEventId && (
+                        <button
+                          type="button"
+                          onClick={() => navigate(`/assets/me/${b.linkedMaintenanceEventId}`)}
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded border text-xs font-mono font-semibold hover:underline"
+                          style={{ borderColor: 'var(--border)', color: 'var(--brand)', background: 'var(--surface-2)' }}
+                        >
+                          Event {b.linkedMaintenanceEventNumber ?? b.linkedMaintenanceEventId} <ExternalLink size={11} />
+                        </button>
+                      )}
+                    </div>
+                  )}
+                  <p className="text-xs text-[var(--text-3)] mt-1">Raised by {b.raisedBy} · {formatDisplayDate(b.raisedAt)}</p>
                 </div>
                 {b.status === 'open' && (
                   <button type="button" onClick={() => handleResolveJobBlocker(b.id)} className="btn-primary text-xs">

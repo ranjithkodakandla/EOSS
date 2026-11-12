@@ -11,7 +11,7 @@ export const MATERIAL_READINESS_LABELS: Record<string, string> = {
   partially_available: 'Partially Available',
   shortage: 'Shortage',
   awaiting_procurement: 'Awaiting Procurement',
-  awaiting_grn: 'Awaiting GRN',
+  awaiting_grn: 'Awaiting goods receipt',
   quality_hold: 'Quality Hold',
   qc_hold: 'Quality Hold',
   reserved: 'Reserved',
@@ -22,11 +22,11 @@ export function getMaterialReadinessLabel(status?: string): string {
   return MATERIAL_READINESS_LABELS[status] ?? status.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 }
 
-export type InventoryDerivedStatus = 'Available' | 'Shortage' | 'Quality Hold' | 'Reserved' | 'Awaiting GRN';
+export type InventoryDerivedStatus = 'Available' | 'Shortage' | 'Quality Hold' | 'Reserved' | 'Awaiting goods receipt';
 
 export function deriveInventoryStatus(item: InventoryItem): InventoryDerivedStatus {
   if (item.qcHoldQty > 0 && item.availableQty === 0) return 'Quality Hold';
-  if (item.availableQty <= 0 && item.inTransitQty > 0) return 'Awaiting GRN';
+  if (item.availableQty <= 0 && item.inTransitQty > 0) return 'Awaiting goods receipt';
   if (item.shortage) return 'Shortage';
   if (item.reservedQty > 0 && item.availableQty === 0) return 'Reserved';
   return 'Available';

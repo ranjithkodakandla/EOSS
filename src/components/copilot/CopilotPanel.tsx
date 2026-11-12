@@ -1,21 +1,17 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import {
-  Sparkles, Zap, Package, BarChart3, AlertTriangle, Send,
-  ArrowRight, X, ChevronRight, Bot, RefreshCw
-} from 'lucide-react';
+import { Search, Send, ArrowRight, ChevronDown, ChevronUp, X } from 'lucide-react';
 import { useStore } from '../../store';
-import clsx from 'clsx';
+import { DEMO_NOW } from '../../data/seed';
+import { computeProductionStatus } from '../../domain/productionStatus';
+import { listExpiringDocuments } from '../../domain/documentExpiry';
+import { maintenanceOverdue } from '../../domain/recordLists';
 
-interface Message {
+interface AnswerItem {
   id: string;
-  sender: 'user' | 'assistant';
-  text: string;
-  action?: {
-    label: string;
-    path: string;
-  };
-  timestamp: string;
+  question: string;
+  answer: string;
+  links: Array<{ label: string; path: string }>;
 }
 
 interface Props {
@@ -23,350 +19,242 @@ interface Props {
   onClose?: () => void;
 }
 
-export default function CopilotPanel({ isDrawer, onClose }: Props) {
+const SAMPLE_PROMPTS = [
+  'Which jobs are late?',
+  'What is waiting for my approval?',
+  'Which materials are short?',
+  'Which machines need attention?',
+  'Which documents are expiring?',
+];
+
+export default function CopilotPanel({ onClose }: Props) {
   const navigate = useNavigate();
-  const { eossTheme } = useStore();
-
+  const store = useStore();
+  const [expanded, setExpanded] = useState(false);
   const [input, setInput] = useState('');
-  const [isTyping, setIsTyping] = useState(false);
-  const [messages, setMessages] = useState<Message[]>([]);
-  const chatBottomRef = useRef<HTMLDivElement>(null);
+  const [history, setHistory] = useState<AnswerItem[]>([]);
 
-  useEffect(() => {
-    if (messages.length > 0) {
-      chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }
-  }, [messages, isTyping]);
+  const answerFromLocalData = (rawQuery: string): AnswerItem => {
+    const q = rawQuery.trim().toLowerCase();
+    const now = new Date(DEMO_NOW);
 
-  const isGraphite = eossTheme === 'graphite';
-  const isOcean = eossTheme === 'ocean';
-  const mascotFilter = isGraphite
-    ? 'hue-rotate(118deg) saturate(1.15)'
-    : isOcean
-    ? 'hue-rotate(-92deg) saturate(1.05)'
-    : 'none';
-
-  const themeConfig = {
-    panelBg: isGraphite
-      ? '#1C1D24'
-      : isOcean
-      ? '#06404A'
-      : '#1E0A4C',
-    panelBorder: isGraphite
-      ? '1px solid rgba(245, 158, 11, 0.35)'
-      : isOcean
-      ? '1px solid rgba(255, 255, 255, 0.18)'
-      : '1px solid rgba(255, 255, 255, 0.18)',
-    panelShadow: isGraphite
-      ? '0 16px 40px -8px rgba(0,0,0,0.6), 0 0 24px -2px rgba(245,158,11,0.25)'
-      : isOcean
-      ? '0 16px 40px -8px rgba(8,127,140,0.45)'
-      : '0 16px 40px -8px rgba(112,72,245,0.45)',
-    sparkleColor: isGraphite ? '#F59E0B' : isOcean ? '#22D3EE' : '#FCD34D',
-sendBtnBg: isGraphite
-      ? '#9A3412'
-      : isOcean
-      ? '#155E75'
-      : '#5B21B6',
-    sendBtnShadow: isGraphite
-      ? '0 4px 14px rgba(229,138,54,0.4)'
-      : isOcean
-      ? '0 4px 14px rgba(8,127,140,0.4)'
-      : '0 4px 14px rgba(112,72,245,0.4)',
-    chevronColor: isGraphite ? '#E58A36' : isOcean ? '#087F8C' : '#7048F5',
-    iconColorZap: isGraphite ? '#E58A36' : isOcean ? '#087F8C' : '#7048F5',
-    iconColorBox: isGraphite ? '#E58A36' : isOcean ? '#087F8C' : '#7048F5',
-    iconColorChart: isGraphite ? '#E58A36' : isOcean ? '#087F8C' : '#4F46E5',
-    iconColorWarn: isGraphite ? '#E58A36' : '#EA580C',
-  };
-
-  const suggestions = [
-    {
-      id: 'plan-prod',
-      icon: <Zap size={17} style={{ color: themeConfig.iconColorZap }} strokeWidth={2.5} />,
-      text: 'Plan production for pending orders',
-      response: `Look at the active jobs and stage the next machine slot for the one already on the lathe. I can open that job so you can record the stage yourself.`,
-      action: { label: 'Open Job J-101', path: '/jobs/job-101' },
-    },
-    {
-      id: 'suggest-po',
-      icon: <Package size={17} style={{ color: themeConfig.iconColorBox }} strokeWidth={2.5} />,
-      text: 'Suggest material purchase',
-      response: `A raw-material line is sitting under its reorder point. Open procurement and raise a supplier order from the preferred vendor — I will not place it for you.`,
-      action: { label: 'Create Supplier PO', path: '/procurement' },
-    },
-    {
-      id: 'check-status',
-      icon: <BarChart3 size={17} style={{ color: themeConfig.iconColorChart }} strokeWidth={2.5} />,
-      text: 'Check order status',
-      response: `Open production to see which jobs are moving and which stage each one is on. I can take you to the job list — the counts on Home already match those lists.`,
-      action: { label: 'View All Jobs', path: '/jobs' },
-    },
-    {
-      id: 'stock-risk',
-      icon: <AlertTriangle size={17} style={{ color: themeConfig.iconColorWarn }} strokeWidth={2.5} />,
-      text: 'Show stock at risk',
-      response: `A couple of grades are tight against open jobs. Open inventory and raise a purchase request from the row if you want more stock in.`,
-      action: { label: 'View Inventory Alerts', path: '/inventory' },
-    },
-  ];
-
-  const handleSend = (textToSend?: string) => {
-    const query = (textToSend || input).trim();
-    if (!query) return;
-
-    const userMsg: Message = {
-      id: `u-${Date.now()}`,
-      sender: 'user',
-      text: query,
-      timestamp: 'Just now',
-    };
-
-    setMessages(prev => [...prev, userMsg]);
-    setInput('');
-    setIsTyping(true);
-
-    setTimeout(() => {
-      const matched = suggestions.find(s => s.text.toLowerCase() === query.toLowerCase());
-      const replyText = matched
-        ? matched.response
-        : `I can open a job, a purchase request, or the inventory list. I won't repeat the attention board — use Home for what is blocked, short, or overdue.`;
-
-      const aiMsg: Message = {
-        id: `a-${Date.now()}`,
-        sender: 'assistant',
-        text: replyText,
-        action: matched?.action || { label: 'Review Active Jobs', path: '/jobs' },
-        timestamp: 'Just now',
+    if (q.includes('late') || q.includes('delay') || q.includes('behind') || q.includes('schedule') || q.includes('risk')) {
+      const lateJobs = store.jobs.filter(j => {
+        if (j.status === 'complete' || j.status === 'cancelled') return false;
+        const st = computeProductionStatus(j, now);
+        return st.risk === 'delayed' || st.risk === 'at_risk' || (st.projectedCompletion && st.projectedCompletion > j.plannedEnd) || j.plannedEnd < DEMO_NOW;
+      });
+      return {
+        id: `ans-${Date.now()}`,
+        question: rawQuery,
+        answer: lateJobs.length === 0
+          ? 'No active jobs are currently running behind target completion.'
+          : `${lateJobs.length} active job${lateJobs.length === 1 ? ' is' : 's are'} running late or at risk: ${lateJobs.map(j => `${j.jobNumber} (${j.currentStage}, target ${j.plannedEnd})`).join('; ')}.`,
+        links: lateJobs.slice(0, 4).map(j => ({ label: `Open ${j.jobNumber}`, path: `/jobs/${j.id}` })),
       };
+    }
 
-      setMessages(prev => [...prev, aiMsg]);
-      setIsTyping(false);
-    }, 600);
+    if (q.includes('approv') || q.includes('waiting') || q.includes('pending')) {
+      const pending = store.approvalRequests.filter(a => a.status === 'pending');
+      return {
+        id: `ans-${Date.now()}`,
+        question: rawQuery,
+        answer: pending.length === 0
+          ? 'No approvals are currently waiting on you.'
+          : `${pending.length} item${pending.length === 1 ? ' is' : 's are'} waiting on you: ${pending.map(a => `${a.entityRef} (${a.description})`).join('; ')}.`,
+        links: [
+          { label: 'Open Approvals Inbox', path: '/procurement?tab=approvals' },
+          ...pending.slice(0, 3).map(a => ({
+            label: a.entityRef,
+            path: a.requestType.toLowerCase().includes('po') && !a.requestType.toLowerCase().includes('pr') && !a.requestType.toLowerCase().includes('requisition')
+              ? `/procurement/spo/${a.entityId}`
+              : `/procurement/pr/${a.entityId}`,
+          })),
+        ],
+      };
+    }
+
+    if (q.includes('short') || q.includes('stock') || q.includes('material') || q.includes('inventory')) {
+      const shortJobs = store.jobMaterialReqs.filter(r => r.shortage);
+      const lowStock = store.inventory.filter(i => i.shortage);
+      const parts: string[] = [];
+      if (shortJobs.length > 0) parts.push(`${shortJobs.length} job material shortage${shortJobs.length === 1 ? '' : 's'} (${shortJobs.map(r => r.materialName).join(', ')})`);
+      if (lowStock.length > 0) parts.push(`${lowStock.length} stock item${lowStock.length === 1 ? '' : 's'} below reorder point`);
+      return {
+        id: `ans-${Date.now()}`,
+        question: rawQuery,
+        answer: parts.length === 0 ? 'All tracked materials are sufficiently stocked.' : `Current material alerts: ${parts.join('; ')}.`,
+        links: [
+          { label: 'View Inventory', path: '/inventory?focus=shortage' },
+          { label: 'Open Procurement', path: '/procurement' },
+        ],
+      };
+    }
+
+    if (q.includes('machine') || q.includes('asset') || q.includes('breakdown') || q.includes('maint')) {
+      const broken = store.assets.filter(a => a.status === 'breakdown' && !a.archivedAt);
+      const overdue = maintenanceOverdue(store.assets.filter(a => !a.archivedAt), store.meterReadings, now);
+      return {
+        id: `ans-${Date.now()}`,
+        question: rawQuery,
+        answer: `${broken.length} machine breakdown${broken.length === 1 ? '' : 's'} (${broken.map(a => `${a.assetCode} ${a.name}`).join(', ') || 'none'}) and ${overdue.length} preventive service overdue.`,
+        links: [
+          ...broken.slice(0, 2).map(a => ({ label: `Open ${a.assetCode}`, path: `/assets/${a.id}` })),
+          { label: 'View Maintenance', path: '/assets' },
+        ],
+      };
+    }
+
+    if (q.includes('doc') || q.includes('expir') || q.includes('cert')) {
+      const activeDocs = store.documents.filter(d => d.status !== 'superseded' && d.status !== 'archived');
+      const due = listExpiringDocuments(activeDocs, now);
+      return {
+        id: `ans-${Date.now()}`,
+        question: rawQuery,
+        answer: due.length === 0
+          ? 'No active documents are expired or expiring soon.'
+          : `${due.length} document${due.length === 1 ? '' : 's'} expired or expiring soon: ${due.map(d => `${d.doc.title} (${d.info.status})`).join('; ')}.`,
+        links: [{ label: 'Review Expiring Docs', path: '/documents?attention=due' }],
+      };
+    }
+
+    if (q.includes('invoice') || q.includes('pay') || q.includes('receiv') || q.includes('bill')) {
+      const openInv = store.invoices.filter(i => !['paid', 'void', 'cancelled'].includes(i.status));
+      const openTotal = openInv.reduce((sum, i) => sum + i.outstandingAmount, 0);
+      return {
+        id: `ans-${Date.now()}`,
+        question: rawQuery,
+        answer: `${openInv.length} customer invoice${openInv.length === 1 ? '' : 's'} open totalling ₹${openTotal.toLocaleString('en-IN')} receivable.`,
+        links: [{ label: 'Open Finance', path: '/finance' }],
+      };
+    }
+
+    const activeJobs = store.jobs.filter(j => j.status === 'active' || j.status === 'hold').length;
+    const pendingApprovals = store.approvalRequests.filter(a => a.status === 'pending').length;
+    return {
+      id: `ans-${Date.now()}`,
+      question: rawQuery,
+      answer: `Currently ${activeJobs} active/on-hold jobs and ${pendingApprovals} pending approvals. Try asking "Which jobs are late?", "What is waiting for my approval?", or "Which materials are short?".`,
+      links: [
+        { label: 'View Jobs', path: '/jobs' },
+        { label: 'Approvals Inbox', path: '/procurement?tab=approvals' },
+      ],
+    };
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      handleSend();
-    }
+  const submitQuery = (text?: string) => {
+    const prompt = (text ?? input).trim();
+    if (!prompt) return;
+    const ans = answerFromLocalData(prompt);
+    setHistory(prev => [ans, ...prev].slice(0, 5));
+    setInput('');
+    setExpanded(true);
   };
 
   return (
     <div
-      className={clsx(
-        'flex flex-col h-full rounded-3xl overflow-hidden relative select-none',
-        isDrawer ? 'w-full max-w-md' : 'w-full'
-      )}
-      style={{
-        background: themeConfig.panelBg,
-        border: themeConfig.panelBorder,
-        boxShadow: themeConfig.panelShadow,
-      }}
+      className="rounded-xl border px-3.5 py-2.5 transition-all"
+      style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
     >
-      {/* ── Hero ── */}
-      <div
-        className="relative flex-shrink-0 overflow-hidden"
-        style={{ height: 200, background: themeConfig.panelBg }}
-      >
-        <img
-          src="/assets/copilot/hero_aurora.png"
-          alt=""
-          aria-hidden
-          style={{
-            position: 'absolute',
-            right: 0,
-            top: 20,
-            height: '108%',
-            width: 'auto',
-            WebkitMaskImage: 'linear-gradient(to right, transparent 0%, black 38%)',
-            maskImage: 'linear-gradient(to right, transparent 0%, black 38%)',
-            filter: mascotFilter,
-            pointerEvents: 'none',
-          }}
-        />
-
-        {/* Bottom fade into panel bg */}
-        <div style={{
-          position: 'absolute', bottom: 0, left: 0, right: 0, height: 48,
-          background: `linear-gradient(to bottom, transparent, ${themeConfig.panelBg})`,
-          zIndex: 2,
-        }} />
-
-        {/* Left content column — header at top, bubble at bottom */}
-        <div
-          className="relative flex flex-col justify-between p-4"
-          style={{ width: '54%', height: '100%', zIndex: 3 }}
+      <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+        <span className="text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded-md flex-shrink-0" style={{ background: 'var(--surface-2)', color: 'var(--text-2)' }}>
+          Ask
+        </span>
+        <form
+          onSubmit={e => { e.preventDefault(); submitQuery(); }}
+          className="flex-1 flex items-center gap-2 min-w-[180px]"
         >
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-white/20 backdrop-blur-md flex items-center justify-center flex-shrink-0">
-              <Sparkles size={15} style={{ color: themeConfig.sparkleColor }} />
-            </div>
-            <div className="flex items-center gap-1 font-extrabold text-white text-[13px] leading-none whitespace-nowrap">
-              EOSS Copilot
-              <span style={{ color: themeConfig.sparkleColor }} className="text-xs mx-0.5">✦</span>
-              <span className="text-[10px] font-medium" style={{ color: '#F5F3FF' }}>Your intelligent partner</span>
-            </div>
+          <div className="relative flex-1">
+            <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--text-3)]" />
+            <input
+              type="text"
+              value={input}
+              onFocus={() => setExpanded(true)}
+              onChange={e => setInput(e.target.value)}
+              placeholder="Ask about late jobs, pending approvals, material shortages, or machines…"
+              className="w-full pl-8 pr-3 py-1.5 text-xs sm:text-sm rounded-lg border outline-none"
+              style={{ borderColor: 'var(--border)', background: 'var(--surface-2)', color: 'var(--text)' }}
+            />
           </div>
-
-          {messages.length === 0 && (
-            <div
-              className="px-3 py-2.5 rounded-2xl text-[13px] font-bold leading-snug"
-              style={{
-                background: 'linear-gradient(180deg, #FFFFFF 0%, #F8FAFC 100%)',
-                color: '#1A1F36',
-                boxShadow: '0 6px 20px -4px rgba(0,0,0,0.20), inset 0 1px 1px #FFFFFF',
-                border: '1px solid rgba(255,255,255,0.9)',
-              }}
-            >
-              How can I help your<br />business today?
-            </div>
-          )}
-        </div>
-
-        {/* Close button */}
-        {isDrawer && onClose && (
           <button
-            onClick={onClose}
-            className="absolute top-3 right-3 z-10 p-1.5 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer"
+            type="submit"
+            disabled={!input.trim()}
+            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-white disabled:opacity-40"
+            style={{ background: 'var(--brand-fill)' }}
           >
-            <X size={16} />
+            <Send size={12} /> Ask
           </button>
-        )}
+        </form>
+        <button
+          type="button"
+          onClick={() => setExpanded(e => !e)}
+          className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium text-[var(--text-2)] hover:text-[var(--text)]"
+          aria-expanded={expanded}
+        >
+          {expanded ? <>Hide <ChevronUp size={13} /></> : <>Quick questions <ChevronDown size={13} /></>}
+        </button>
       </div>
 
-      {/* ── Content area below hero ── */}
-      <div className="flex-1 overflow-y-auto scrollbar-none flex flex-col">
-
-        {/* Welcome state: suggestion pills */}
-        {messages.length === 0 && (
-          <div className="p-3.5 md:p-4 space-y-2">
-            {suggestions.map(s => (
+      {expanded && (
+        <div className="mt-3 pt-3 border-t space-y-3" style={{ borderColor: 'var(--border)' }}>
+          <div className="flex flex-wrap gap-1.5">
+            {SAMPLE_PROMPTS.map(prompt => (
               <button
-                key={s.id}
-                onClick={() => handleSend(s.text)}
-                className="w-full flex items-center justify-between px-4 py-2.5 rounded-full transition-all text-left text-xs md:text-[13px] font-semibold group cursor-pointer hover:-translate-y-0.5"
-                style={{
-                  background: 'linear-gradient(180deg, #FFFFFF 0%, #F9FAFB 100%)',
-                  boxShadow: '0 4px 14px -2px rgba(0,0,0,0.08), inset 0 1px 1px #FFFFFF',
-                  border: '1px solid rgba(255,255,255,0.85)',
-                  color: '#1A1F36',
-                }}
+                key={prompt}
+                type="button"
+                onClick={() => submitQuery(prompt)}
+                className="px-2.5 py-1 rounded-full border text-xs font-medium hover:border-[var(--brand)] transition-colors"
+                style={{ borderColor: 'var(--border)', background: 'var(--surface-2)', color: 'var(--text-2)' }}
               >
-                <div className="flex items-center gap-3 truncate pr-2">
-                  <div className="flex items-center justify-center flex-shrink-0">
-                    {s.icon}
-                  </div>
-                  <span className="truncate font-bold" style={{ color: '#1A1F36' }}>
-                    {s.text}
-                  </span>
-                </div>
-                <ChevronRight
-                  size={15}
-                  className="group-hover:translate-x-0.5 transition-all flex-shrink-0"
-                  style={{ color: themeConfig.chevronColor }}
-                />
+                {prompt}
               </button>
             ))}
           </div>
-        )}
 
-        {/* Conversation Transcript */}
-        {messages.length > 0 && (
-          <div className="p-4 md:p-5 space-y-3">
-            {messages.map(msg => (
-              <div
-                key={msg.id}
-                className={clsx(
-                  'flex flex-col space-y-1 text-xs md:text-sm animate-in fade-in',
-                  msg.sender === 'user' ? 'items-end' : 'items-start'
-                )}
-              >
+          {history.length > 0 && (
+            <div className="space-y-2 max-h-60 overflow-y-auto">
+              {history.map(item => (
                 <div
-                  className={clsx(
-                    'p-3.5 rounded-2xl max-w-[90%] shadow-md leading-relaxed',
-                    msg.sender === 'user'
-                      ? 'bg-white rounded-br-xs font-semibold'
-                      : 'bg-white/20 backdrop-blur-md text-white border border-white/20 rounded-bl-xs'
-                  )}
-                  style={msg.sender === 'user' ? { color: '#1A1F36' } : {}}
+                  key={item.id}
+                  className="rounded-lg border p-3 text-xs space-y-2"
+                  style={{ borderColor: 'var(--border)', background: 'var(--surface-2)' }}
                 >
-                  {msg.text}
-
-                  {msg.action && (
-                    <div className="mt-2.5 pt-2 border-t border-white/20 flex justify-end">
-                      <button
-                        onClick={() => {
-                          if (onClose) onClose();
-                          navigate(msg.action!.path);
-                        }}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white font-bold text-xs hover:bg-gray-50 transition-colors shadow-sm cursor-pointer"
-                        style={{ color: themeConfig.chevronColor }}
-                      >
-                        <span>{msg.action.label}</span>
-                        <ArrowRight size={12} />
-                      </button>
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="font-semibold text-[var(--text)]">{item.question}</div>
+                    <button
+                      type="button"
+                      onClick={() => setHistory(prev => prev.filter(h => h.id !== item.id))}
+                      className="text-[var(--text-3)] hover:text-[var(--text)]"
+                      aria-label="Clear answer"
+                    >
+                      <X size={12} />
+                    </button>
+                  </div>
+                  <p className="text-[var(--text-2)] leading-relaxed">{item.answer}</p>
+                  {item.links.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5">
+                      {item.links.map(link => (
+                        <button
+                          key={link.path}
+                          type="button"
+                          onClick={() => {
+                            if (onClose) onClose();
+                            navigate(link.path);
+                          }}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md border text-[11px] font-semibold"
+                          style={{ borderColor: 'var(--border)', background: 'var(--surface)', color: 'var(--brand)' }}
+                        >
+                          {link.label} <ArrowRight size={11} />
+                        </button>
+                      ))}
                     </div>
                   )}
                 </div>
-
-                <span className="text-[10px] px-1" style={{ color: '#F5F3FF' }}>{msg.timestamp}</span>
-              </div>
-            ))}
-
-            {isTyping && (
-              <div className="flex items-center gap-2 text-xs p-2" style={{ color: '#F5F3FF' }}>
-                <Bot size={14} className="animate-bounce" />
-                <span className="italic">EOSS Copilot is analyzing telemetry...</span>
-              </div>
-            )}
-
-            <div className="p-2 rounded-lg bg-white/10 text-[10px] text-center flex items-center justify-center gap-1.5" style={{ color: '#F5F3FF' }}>
-              <RefreshCw size={10} className="text-amber-300" />
-              <span>Simulated AI telemetry · Human sign-off required for PO release</span>
+              ))}
             </div>
-          </div>
-        )}
-
-        <div ref={chatBottomRef} />
-      </div>
-
-      <div className="h-8 px-3 flex items-center gap-2 border-t border-white/10 bg-black/15 flex-shrink-0">
-        <span className="inline-flex items-center h-5 px-2 rounded-full bg-black/25 text-[10px] font-semibold leading-none whitespace-nowrap" style={{ color: '#F5F3FF' }}>Guardrails active</span>
-        <span className="text-[10px] leading-none truncate" style={{ color: '#F5F3FF' }}>Advisory only · Simulated · Nothing leaves this browser</span>
-      </div>
-
-      {/* ── Bottom composer ── */}
-      <div className="p-3.5 md:p-4 bg-black/15 backdrop-blur-md border-t border-white/10 flex-shrink-0">
-        <div className="relative flex items-center">
-          <input
-            type="text"
-            value={input}
-            onChange={e => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Ask a question..."
-            className="copilot-ask w-full bg-white text-xs md:text-sm rounded-full py-2.5 pl-4 pr-11 focus:outline-none focus:ring-2 focus:ring-white/80"
-            style={{
-              color: '#1A1F36',
-              boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.08)',
-            }}
-          />
-          <button
-            type="button"
-            onClick={() => handleSend()}
-            disabled={!input.trim()}
-            className="absolute right-1.5 w-8 h-8 rounded-full flex items-center justify-center transition-all disabled:opacity-40 disabled:cursor-not-allowed hover:scale-105 cursor-pointer"
-            style={{
-              background: themeConfig.sendBtnBg,
-              boxShadow: themeConfig.sendBtnShadow,
-              color: '#FFFFFF',
-            }}
-            title="Send inquiry"
-          >
-            <Send size={14} className="-ml-0.5" />
-          </button>
+          )}
         </div>
-      </div>
+      )}
     </div>
   );
 }

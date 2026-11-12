@@ -41,6 +41,30 @@ export function isRecordOverdue(status: string, dueDate: string, outstandingAmou
   return computeDaysOverdue(dueDate, refDateStr) > 0;
 }
 
+/** Infer tax type using GSTIN 2-digit state codes (or country / state fallback). */
+export function inferTaxTypeFromGstins(params: {
+  sellerGstin?: string;
+  buyerGstin?: string;
+  buyerCountry?: string;
+  sellerState?: string;
+  buyerState?: string;
+}): 'CGST_SGST' | 'IGST' | 'Export_LUT' {
+  if (params.buyerCountry && params.buyerCountry.trim().toLowerCase() !== 'india') {
+    return 'Export_LUT';
+  }
+  const sellerCode = /^\d{2}/.exec((params.sellerGstin ?? '').trim())?.[0];
+  const buyerCode = /^\d{2}/.exec((params.buyerGstin ?? '').trim())?.[0];
+  if (sellerCode && buyerCode) {
+    return sellerCode === buyerCode ? 'CGST_SGST' : 'IGST';
+  }
+  if (params.sellerState && params.buyerState) {
+    return params.sellerState.trim().toLowerCase() === params.buyerState.trim().toLowerCase()
+      ? 'CGST_SGST'
+      : 'IGST';
+  }
+  return 'CGST_SGST';
+}
+
 export function computeGstTotals(params: {
   lines: Array<{ quantity: number; unitPrice: number; discountPct?: number; taxPct: number }>;
   freightAmount?: number;

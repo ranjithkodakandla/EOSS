@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, FileText, Info, AlertCircle } from 'lucide-react';
 import { useStore } from '../../store';
-import { computeGstTotals, getEligiblePOLinesForInvoice } from '../../domain/finance';
+import { computeGstTotals, getEligiblePOLinesForInvoice, inferTaxTypeFromGstins } from '../../domain/finance';
 
 interface DraftLine {
   poLineId?: string;
@@ -37,7 +37,7 @@ export default function InvoiceCreate() {
   const initialDispatchId = searchParams.get('dispatchId') ?? '';
 
   const {
-    customerPos, poLines, dispatches, invoices, invoiceLines, customers,
+    customerPos, poLines, dispatches, invoices, invoiceLines, customers, companyConfig,
     createCustomerInvoice, showToast,
   } = useStore();
 
@@ -83,9 +83,12 @@ export default function InvoiceCreate() {
     const days = parsePaymentDays(po.paymentTerms);
     setPaymentTerms(po.paymentTerms || 'Net 30');
     setDueDate(addDays(invoiceDate, days));
-    if (customer?.currency && customer.currency !== 'INR') setTaxType('Export_LUT');
-    else if (customer?.state && customer.state.toLowerCase() !== 'telangana') setTaxType('IGST');
-    else setTaxType('CGST_SGST');
+    setTaxType(inferTaxTypeFromGstins({
+      sellerGstin: companyConfig.gstin,
+      buyerGstin: customer?.gstin,
+      buyerState: customer?.state,
+      buyerCountry: customer?.currency && customer.currency !== 'INR' ? 'Export' : undefined,
+    }));
 
     if (eligible.length > 0) {
       setLines(eligible.map(e => ({

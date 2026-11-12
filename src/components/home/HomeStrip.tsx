@@ -46,6 +46,8 @@ function topAttentionIds(now: Date) {
     documents: s.documents,
     qualityReleases: s.qualityReleases,
     dispatches: s.dispatches,
+    purchaseReqs: s.purchaseReqs,
+    approvalRequests: s.approvalRequests,
   }, now).filter(item => !isAttentionHidden(item.id, now)).slice(0, TOP_ATTENTION);
   const ids = new Set<string>();
   for (const item of items) {

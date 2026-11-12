@@ -103,7 +103,7 @@ export const SEED_RICH_AUDIT_EVENTS: AuditEvent[] = [
     entityRef: 'CPO-2026-200',
     timestamp: '2026-11-02T11:00:00',
     source: 'ui',
-    description: 'Verified MS Plate 8mm availability at Hyderabad Factory and reserved 180 kg from LOT-2024-001.',
+    description: 'Verified MS Plate 8mm availability at Hyderabad Plant 1 and reserved 180 kg from LOT-2024-001.',
     changes: [
       { field: 'availabilityStatus', label: 'Material Availability', previousValue: 'Not Assessed', newValue: 'Available' },
       { field: 'reservedQty', label: 'Reserved Qty', previousValue: '0 kg', newValue: '180 kg' },
@@ -181,7 +181,7 @@ export const SEED_RICH_AUDIT_EVENTS: AuditEvent[] = [
     entityRef: 'CPO-2026-201',
     timestamp: '2026-11-04T10:30:00',
     source: 'system',
-    description: 'Detected 320 kg shortage of MS Pipe 100NB Sch40 at Hyderabad Factory; auto-generated shortage PR-2026-110.',
+    description: 'Detected 320 kg shortage of MS Pipe 100NB Sch40 at Hyderabad Plant 1; auto-generated shortage PR-2026-110.',
     changes: [
       { field: 'availabilityStatus', label: 'Material Availability', previousValue: 'Not Assessed', newValue: 'Awaiting Procurement' },
       { field: 'shortageQty', label: 'Shortage Qty', previousValue: '0 kg', newValue: '320 kg' },

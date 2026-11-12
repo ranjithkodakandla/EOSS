@@ -41,7 +41,7 @@ export default function AuditTimeline() {
     moduleLabel: getAuditModule(e.scope, e.module),
     scopeLabel: getAuditScopeLabel(e.scope),
     actionLabel: getAuditActionLabel(e.action),
-    roleLabel: e.role ?? formatRoleLabel(undefined),
+    roleLabel: formatRoleLabel(e.role, e.actorId),
     changesList: extractEventChanges(e),
     route: getAuditEntityRoute(e.scope, e.entityId),
   })), [auditEvents]);

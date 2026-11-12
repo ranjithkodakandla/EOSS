@@ -1,4 +1,5 @@
 import type { AuditChange, AuditEvent } from '../types';
+import { formatDisplayDate, formatDisplayDateTime } from './dates';
 
 export const ROLE_LABELS: Record<string, string> = {
   owner: 'Owner / Managing Director',
@@ -7,6 +8,7 @@ export const ROLE_LABELS: Record<string, string> = {
   storekeeper: 'Storekeeper / Inventory',
   qc: 'Quality Control',
   supervisor: 'Production Supervisor',
+  operator: 'Shop Floor Operator',
   maintenance: 'Maintenance Engineering',
   dispatch: 'Logistics & Dispatch',
   finance: 'Finance & Accounts',
@@ -27,7 +29,9 @@ const SCOPE_META: Record<string, { label: string; module: string; route: (id: st
   SupplierQuotation: { label: 'Supplier Quotation', module: 'Procurement', route: (id) => `/procurement/quote/${id}` },
   SupplierPO: { label: 'Supplier PO', module: 'Procurement', route: (id) => `/procurement/spo/${id}` },
   GRN: { label: 'Goods Receipt (GRN)', module: 'Procurement', route: (id) => `/procurement/grn/${id}` },
+  GoodsReceipt: { label: 'Goods Receipt (GRN)', module: 'Procurement', route: (id) => `/procurement/grn/${id}` },
   Lot: { label: 'Material Lot', module: 'Inventory', route: (id) => `/inventory/lot/${id}` },
+  MaterialLot: { label: 'Material Lot', module: 'Inventory', route: (id) => `/inventory/lot/${id}` },
   Inventory: { label: 'Inventory', module: 'Inventory', route: () => `/inventory` },
   Material: { label: 'Material Item', module: 'Inventory', route: (id) => `/inventory/item/${id}` },
   Inspection: { label: 'Quality Inspection', module: 'Quality', route: (id) => `/quality/inspection/${id}` },
@@ -152,11 +156,40 @@ const ACTION_LABELS: Record<string, string> = {
   complete_incoming: 'Incoming Inspection Recorded',
   payment_recorded: 'Payment Recorded',
   email_sent: 'Email Simulated',
+  renew: 'Renewed',
+  archive: 'Archived',
+  qc_available: 'QC Released to Stock',
+  qc_scrapped: 'QC Rejected / Scrapped',
+  reject_approval: 'Quote Rejected',
+  draft_from_quotation: 'Draft PO Created',
+  confirm_and_issue: 'Confirmed & Issued',
+  supplier_confirmed: 'Supplier Confirmed',
+  supplier_declined: 'Supplier Declined',
+  notify_non_selected_suppliers: 'Suppliers Notified',
+  create_direct: 'Direct Quotation Created',
 };
 
-export function formatRoleLabel(role?: string): string {
-  if (!role) return 'Operations';
-  return ROLE_LABELS[role] ?? role.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+const DEFAULT_ROLE_BY_ACTOR_ID: Record<string, string> = {
+  'u-owner': 'owner',
+  'u-sales': 'sales',
+  'u-buyer': 'buyer',
+  'u-store': 'storekeeper',
+  'u-super': 'supervisor',
+  'u-oper': 'operator',
+  'u-qc': 'qc',
+  'u-maint': 'maintenance',
+  'u-disp': 'dispatch',
+  'u-audit': 'auditor',
+  'ext-tuv': 'qc',
+};
+
+export function formatRoleLabel(role?: string, actorId?: string): string {
+  const effectiveRole = role || (actorId ? DEFAULT_ROLE_BY_ACTOR_ID[actorId] : undefined);
+  if (!effectiveRole) return 'Operations';
+  const normalized = effectiveRole.trim();
+  if (ROLE_LABELS[normalized]) return ROLE_LABELS[normalized];
+  if (Object.values(ROLE_LABELS).includes(normalized)) return normalized;
+  return normalized.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 }
 
 export function getAuditModule(scope: string, explicitModule?: string): string {
@@ -195,7 +228,13 @@ function stringifyVal(val: unknown): string {
     const entries = Object.entries(val as Record<string, unknown>).slice(0, 4);
     return entries.map(([k, v]) => `${formatFieldLabel(k)}: ${stringifyVal(v)}`).join(', ');
   }
-  return String(val);
+  const str = String(val);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return formatDisplayDate(str);
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(str)) return formatDisplayDateTime(str);
+  if (/^[a-z0-9]+(_[a-z0-9]+)+$/.test(str)) {
+    return str.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+  }
+  return str;
 }
 
 const SKIP_DIFF_KEYS = new Set([
@@ -219,7 +258,7 @@ export function diffRecordFields(
     if (prevRaw === undefined && nextRaw === undefined) continue;
     const prevStr = stringifyVal(prevRaw);
     const nextStr = stringifyVal(nextRaw);
-    if (prevStr === nextStr && prevRaw !== undefined) continue;
+    if (prevStr === nextStr) continue;
     changes.push({
       field: key,
       label: customLabels?.[key] ?? formatFieldLabel(key),

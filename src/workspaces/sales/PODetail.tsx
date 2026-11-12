@@ -211,7 +211,18 @@ export default function PODetail() {
           </div>
         </div>
 
-        <WorkflowTimeline steps={['Customer RFQ', 'Quotation', 'Customer PO', 'Material Check', 'Production & Dispatch']} current={po.availabilityStatus && po.availabilityStatus !== 'not_assessed' ? 3 : 2} />
+        <WorkflowTimeline
+          steps={
+            po.isDirectOrder || po.originType === 'direct_order'
+              ? ['Direct Customer PO', 'Material Check', 'Production & Dispatch']
+              : ['Customer RFQ', 'Quotation', 'Customer PO', 'Material Check', 'Production & Dispatch']
+          }
+          current={
+            po.isDirectOrder || po.originType === 'direct_order'
+              ? (po.availabilityStatus && po.availabilityStatus !== 'not_assessed' ? 1 : 0)
+              : (po.availabilityStatus && po.availabilityStatus !== 'not_assessed' ? 3 : 2)
+          }
+        />
 
         <div className="my-4">
           <RelatedRecordsPanel
@@ -294,7 +305,13 @@ export default function PODetail() {
             </div>
           )}
 
-          {liveAvailability && liveAvailability.items.length > 0 && (
+          {(!po.availabilityStatus || po.availabilityStatus === 'not_assessed') && !allocResultMsg && (
+            <div className="p-3 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] text-xs text-[var(--text-2)]">
+              Status: <strong>Not assessed</strong> — click <strong>Run Availability Check &amp; Reserve</strong> to check eligible site stock and raise a PR for any net shortage.
+            </div>
+          )}
+
+          {liveAvailability && liveAvailability.items.length > 0 && po.availabilityStatus && po.availabilityStatus !== 'not_assessed' && (
             <div className="overflow-x-auto border border-[var(--border)] rounded-lg">
               <table className="eoss-table">
                 <thead>

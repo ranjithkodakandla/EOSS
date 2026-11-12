@@ -22,7 +22,7 @@ test('Material Readiness & Inventory statuses render in consistent Title Case', 
   assert.equal(getMaterialReadinessLabel('partial'), 'Partially Available');
   assert.equal(getMaterialReadinessLabel('shortage'), 'Shortage');
   assert.equal(getMaterialReadinessLabel('awaiting_procurement'), 'Awaiting Procurement');
-  assert.equal(getMaterialReadinessLabel('awaiting_grn'), 'Awaiting GRN');
+  assert.equal(getMaterialReadinessLabel('awaiting_grn'), 'Awaiting goods receipt');
   assert.equal(getMaterialReadinessLabel('quality_hold'), 'Quality Hold');
   assert.equal(getMaterialReadinessLabel('reserved'), 'Reserved');
   assert.equal(getStatusLabel('qc_hold'), 'Quality Hold');

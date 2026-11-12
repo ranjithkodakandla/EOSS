@@ -4,6 +4,7 @@ import { ArrowLeft, Plus, Building2, Package, Receipt, CreditCard, ClipboardList
 import { useStore } from '../../store';
 import StatusChip from '../../components/layout/StatusChip';
 import RecordHistoryPanel from '../../components/workflow/RecordHistoryPanel';
+import LinkedDocumentsSection from '../../components/workflow/LinkedDocumentsSection';
 
 const fmtINR = (n: number) =>
   new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n);
@@ -267,6 +268,14 @@ export default function SupplierDetail() {
               </div>
             )}
           </div>
+
+          <LinkedDocumentsSection
+            entityType="Supplier"
+            entityId={supplier.id}
+            entityRef={supplier.tradingName}
+            entityName={supplier.legalName}
+            title="Supplier Documents & Certificates"
+          />
 
           <RecordHistoryPanel
             entityId={supplier.id}

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { FileDown, Mail, X, CheckCircle2, Info } from 'lucide-react';
 import { useStore } from '../../store';
 import { getStatusLabel } from '../layout/StatusChip';
+import { formatDisplayDate } from '../../domain/dates';
 
 interface DocumentLine {
   description: string;
@@ -9,6 +10,16 @@ interface DocumentLine {
   uom?: string;
   rate?: number;
   amount?: number;
+}
+
+interface GstBreakup {
+  taxableSubtotal: number;
+  taxType?: string;
+  cgstAmount?: number;
+  sgstAmount?: number;
+  igstAmount?: number;
+  taxAmount: number;
+  totalAmount: number;
 }
 
 interface Props {
@@ -24,6 +35,8 @@ interface Props {
   lines?: DocumentLine[];
   references?: string[];
   notes?: string;
+  gstBreakup?: GstBreakup;
+  includeBankDetails?: boolean;
   defaultSubject?: string;
   defaultBody?: string;
 }
@@ -41,6 +54,8 @@ export default function DocumentActions({
   lines = [],
   references = [],
   notes,
+  gstBreakup,
+  includeBankDetails,
   defaultSubject,
   defaultBody,
 }: Props) {
@@ -48,9 +63,10 @@ export default function DocumentActions({
   const [emailOpen, setEmailOpen] = useState(false);
   const [to, setTo] = useState(recipient ?? '');
   const [subject, setSubject] = useState(defaultSubject || `${documentType} ${reference}${revision ? ` (Rev ${revision})` : ''} — ${companyConfig.tradingName}`);
+  const formattedDate = date ? formatDisplayDate(date) : '';
   const [body, setBody] = useState(
     defaultBody ||
-    `Dear ${partyName},\n\nPlease find attached ${documentType} ${reference}${revision ? ` (Rev ${revision})` : ''}${date ? ` dated ${new Date(date).toLocaleDateString('en-IN')}` : ''}${total != null ? ` for ₹${total.toLocaleString('en-IN')}` : ''}.\n\n${references.length > 0 ? `References: ${references.join(' | ')}\n` : ''}${terms.length > 0 ? `Terms: ${terms.join(' · ')}\n` : ''}\nRegards,\n${currentUser.name}\n${companyConfig.companyName}`
+    `Dear ${partyName},\n\nPlease find attached ${documentType} ${reference}${revision ? ` (Rev ${revision})` : ''}${formattedDate ? ` dated ${formattedDate}` : ''}${total != null ? ` for ₹${total.toLocaleString('en-IN')}` : ''}.\n\n${references.length > 0 ? `References: ${references.join(' | ')}\n` : ''}${terms.length > 0 ? `Terms: ${terms.join(' · ')}\n` : ''}\nRegards,\n${currentUser.name}\n${companyConfig.companyName}`
   );
   const [attachPdf, setAttachPdf] = useState(true);
   const [sent, setSent] = useState(false);
@@ -105,10 +121,22 @@ export default function DocumentActions({
       </div>
       <div class="meta">
         <div class="box"><strong>Counterparty / Party</strong><br/>${escapeHtml(partyName)}</div>
-        <div class="box"><strong>Date:</strong> ${escapeHtml(date ? new Date(date).toLocaleDateString('en-IN') : '—')}<br/><strong>References:</strong> ${escapeHtml(references.join(' · ') || '—')}${terms.length > 0 ? `<br/><strong>Terms:</strong> ${escapeHtml(terms.join(' · '))}` : ''}</div>
+        <div class="box"><strong>Date:</strong> ${escapeHtml(date ? formatDisplayDate(date) : '—')}<br/><strong>References:</strong> ${escapeHtml(references.join(' · ') || '—')}${terms.length > 0 ? `<br/><strong>Terms:</strong> ${escapeHtml(terms.join(' · '))}` : ''}</div>
       </div>
       <table><thead><tr><th>#</th><th>Description</th><th style="text-align:right">Qty</th><th style="text-align:right">Rate</th><th style="text-align:right">Amount</th></tr></thead><tbody>${rowsHtml}</tbody></table>
-      ${total != null ? `<div class="total">Total Value: ₹${total.toLocaleString('en-IN')}</div>` : ''}
+      ${gstBreakup ? `
+        <div style="margin-top:16px;margin-left:auto;max-width:300px;font-size:13px;line-height:1.7">
+          <div style="display:flex;justify-content:space-between"><span>Taxable Subtotal</span><span>₹${gstBreakup.taxableSubtotal.toLocaleString('en-IN')}</span></div>
+          ${gstBreakup.taxType === 'IGST'
+            ? `<div style="display:flex;justify-content:space-between"><span>IGST</span><span>₹${(gstBreakup.igstAmount ?? gstBreakup.taxAmount).toLocaleString('en-IN')}</span></div>`
+            : gstBreakup.taxType === 'Export_LUT'
+              ? `<div style="display:flex;justify-content:space-between"><span>GST (Export LUT)</span><span>₹0</span></div>`
+              : `<div style="display:flex;justify-content:space-between"><span>CGST</span><span>₹${(gstBreakup.cgstAmount ?? Math.round(gstBreakup.taxAmount / 2)).toLocaleString('en-IN')}</span></div><div style="display:flex;justify-content:space-between"><span>SGST</span><span>₹${(gstBreakup.sgstAmount ?? (gstBreakup.taxAmount - Math.round(gstBreakup.taxAmount / 2))).toLocaleString('en-IN')}</span></div>`
+          }
+          <div style="display:flex;justify-content:space-between;font-weight:700;font-size:15px;border-top:1px solid #d4d4d8;padding-top:6px;margin-top:4px"><span>Grand Total</span><span>₹${gstBreakup.totalAmount.toLocaleString('en-IN')}</span></div>
+        </div>
+      ` : (total != null ? `<div class="total">Total Value: ₹${total.toLocaleString('en-IN')}</div>` : '')}
+      ${includeBankDetails && companyConfig.bankName ? `<div class="notes"><strong>Remittance / Bank Details:</strong> ${escapeHtml(companyConfig.bankName)}${companyConfig.bankBranch ? ` (${escapeHtml(companyConfig.bankBranch)})` : ''} · A/c: ${escapeHtml(companyConfig.bankAccountNo ?? '')} · IFSC: ${escapeHtml(companyConfig.ifscCode ?? '')}</div>` : ''}
       ${notes ? `<div class="notes"><strong>Notes:</strong> ${escapeHtml(notes)}</div>` : ''}
       <div class="footer">
         <span>Prepared by ${escapeHtml(currentUser.name)}</span>

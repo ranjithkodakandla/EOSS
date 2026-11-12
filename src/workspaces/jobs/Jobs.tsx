@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
-import { Plus, Search, X } from 'lucide-react';
+import { Plus, Search, X, MoreVertical } from 'lucide-react';
 import { useStore, CUSTOMERS } from '../../store';
 import { computeProductionStatus } from '../../domain/productionStatus';
 import { jobsBlocked, DEFAULT_SITE_ID, DEFAULT_SITE_NAME } from '../../domain/recordLists';
 import { DEMO_NOW } from '../../data/seed';
+import { formatDisplayDate } from '../../domain/dates';
 import RecordSheet from '../../components/layout/RecordSheet';
 import SiteStoreField from '../../components/forms/SiteStoreField';
 import StatusChip from '../../components/layout/StatusChip';
@@ -42,6 +43,7 @@ export default function Jobs() {
   const [siteFilter, setSiteFilter] = useState(searchParams.get('site') ?? 'all');
   const [showNewJob, setShowNewJob] = useState(false);
   const [cancelJobId, setCancelJobId] = useState<string | null>(null);
+  const [menuJobId, setMenuJobId] = useState<string | null>(null);
   const canManage = ['owner', 'supervisor'].includes(currentUser.role);
   const now = new Date(DEMO_NOW);
 
@@ -71,6 +73,16 @@ export default function Jobs() {
     setCancelJobId(null);
   };
 
+  const daysLeft = (end: string) => {
+    const diff = new Date(end).getTime() - now.getTime();
+    return Math.ceil(diff / 86400000);
+  };
+  const isJobLate = (job: Job) => {
+    if (job.status === 'complete' || job.status === 'cancelled') return false;
+    const st = statusByJob[job.id];
+    return Boolean((st.projectedCompletion && st.projectedCompletion > job.plannedEnd) || st.risk === 'delayed' || daysLeft(job.plannedEnd) < 0);
+  };
+
   const matchJob = (j: Job, status: string, readinessOverride?: string) => {
     const q = search.toLowerCase();
     const matchSearch = !q || j.jobNumber.toLowerCase().includes(q) ||
@@ -80,6 +92,8 @@ export default function Jobs() {
     const risk = statusByJob[j.id].risk;
     const matchRisk = riskFilter === 'watch'
       ? risk === 'at_risk' || risk === 'delayed'
+      : riskFilter === 'late'
+      ? isJobLate(j)
       : (!riskFilter || risk === riskFilter);
     const readiness = readinessByJob[j.id];
     const rFilter = readinessOverride ?? readinessFilter;
@@ -114,14 +128,11 @@ export default function Jobs() {
 
   const scoped = jobs.filter(j => matchJob(j, 'all'));
   const riskCounts = {
+    late: scoped.filter(isJobLate).length,
     at_risk: scoped.filter(j => statusByJob[j.id].risk === 'at_risk').length,
     delayed: scoped.filter(j => statusByJob[j.id].risk === 'delayed').length,
     blocked: jobsBlocked(scoped, now).length,
     awaiting_material: scoped.filter(j => statusByJob[j.id].risk === 'awaiting_material').length,
-  };
-  const daysLeft = (end: string) => {
-    const diff = new Date(end).getTime() - now.getTime();
-    return Math.ceil(diff / 86400000);
   };
 
   const jobNext = (j: Job) => {
@@ -181,6 +192,7 @@ export default function Jobs() {
 
       <div className="flex-shrink-0 flex gap-2 px-4 py-2.5 overflow-x-auto border-b" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
         {([
+          ['late', 'Late', riskCounts.late, 'error'],
           ['at_risk', 'At risk', riskCounts.at_risk, 'warning'],
           ['delayed', 'Delayed', riskCounts.delayed, 'error'],
           ['blocked', 'Blocked', riskCounts.blocked, 'error'],
@@ -261,8 +273,9 @@ export default function Jobs() {
           <tbody>
             {sortedJobs.map(j => {
               const dl = daysLeft(j.plannedEnd);
-              const isLate = dl < 0 && j.status !== 'complete';
               const status = statusByJob[j.id];
+              const isLate = isJobLate(j);
+              const menuOpen = menuJobId === j.id;
               return (
                 <tr key={j.id} className="cursor-pointer" style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}
                   onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--surface-2)'; }}
@@ -271,6 +284,11 @@ export default function Jobs() {
                   <td className="px-4 py-3 whitespace-nowrap">
                     <div className="flex items-center gap-1.5">
                       <span className="font-mono text-xs font-bold" style={{ color: 'var(--brand)' }}>{j.jobNumber}</span>
+                      {isLate && (
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: 'var(--error-bg,#FEF2F2)', color: 'var(--error,#DC2626)' }}>
+                          Late
+                        </span>
+                      )}
                     </div>
                   </td>
                   <td className="px-4 py-3"><StatusChip status={readinessByJob[j.id]} label={getMaterialReadinessLabel(readinessByJob[j.id])} size="sm" /></td>
@@ -282,25 +300,60 @@ export default function Jobs() {
                   <td className="px-4 py-3"><StatusChip status={j.status} size="sm" /></td>
                   <td className="px-4 py-3">
                     <span className="text-xs" style={{ color: isLate ? 'var(--error,#DC2626)' : 'var(--text-2)', fontWeight: isLate ? 600 : undefined }}>
-                      {new Date(j.plannedEnd).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
-                      {isLate && ` · ${Math.abs(dl)}d late`}
-                      {!isLate && j.status !== 'complete' && dl <= 3 && ` · ${dl}d left`}
+                      {formatDisplayDate(j.plannedEnd)}
+                      {dl < 0 && j.status !== 'complete' && j.status !== 'cancelled' && ` · ${Math.abs(dl)}d overdue`}
+                      {dl >= 0 && j.status !== 'complete' && j.status !== 'cancelled' && dl <= 3 && ` · ${dl}d left`}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-2)' }} title={status.projectionBasis}>
-                    {status.projectedCompletion ? new Date(status.projectedCompletion).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '—'}
+                  <td className="px-4 py-3 text-xs" style={{ color: isLate ? 'var(--error,#DC2626)' : 'var(--text-2)', fontWeight: isLate ? 600 : undefined }} title={status.projectionBasis}>
+                    {status.projectedCompletion ? formatDisplayDate(status.projectedCompletion) : '—'}
                   </td>
-                  <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
-                    <div className="flex items-center gap-1">
+                  <td className="px-4 py-3 relative" onClick={e => e.stopPropagation()}>
+                    <div className="flex items-center justify-end gap-1">
                       {guided && (
                         <button type="button" onClick={() => openWithOrigin(jobNext(j).path)}
                           className="px-2 py-1 rounded-lg text-xs font-semibold text-white" style={{ background: 'var(--brand-fill)' }}>
                           {jobNext(j).label}
                         </button>
                       )}
-                      {canManage && !['complete', 'cancelled'].includes(j.status) && (
-                        <button onClick={e => { e.stopPropagation(); setCancelJobId(j.id); }} className="px-2 py-1 rounded text-xs font-semibold border" style={{ borderColor: 'var(--error)', color: 'var(--error)' }} title="Cancel job">Cancel</button>
-                      )}
+                      <div className="relative">
+                        <button
+                          type="button"
+                          onClick={() => setMenuJobId(menuOpen ? null : j.id)}
+                          className="p-1.5 rounded-lg hover:bg-[var(--surface-2)] text-[var(--text-3)] hover:text-[var(--text)]"
+                          title="Job actions"
+                          aria-label={`Actions for ${j.jobNumber}`}
+                        >
+                          <MoreVertical size={14} />
+                        </button>
+                        {menuOpen && (
+                          <>
+                            <div className="fixed inset-0 z-20" onClick={() => setMenuJobId(null)} />
+                            <div
+                              className="absolute right-0 top-full mt-1 w-40 rounded-xl border shadow-lg py-1 z-30"
+                              style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}
+                            >
+                              <button
+                                type="button"
+                                onClick={() => { setMenuJobId(null); openWithOrigin(`/jobs/${j.id}`); }}
+                                className="w-full text-left px-3 py-1.5 text-xs hover:bg-[var(--surface-2)] text-[var(--text)]"
+                              >
+                                Open job
+                              </button>
+                              {canManage && !['complete', 'cancelled'].includes(j.status) && (
+                                <button
+                                  type="button"
+                                  onClick={() => { setMenuJobId(null); setCancelJobId(j.id); }}
+                                  className="w-full text-left px-3 py-1.5 text-xs hover:bg-[var(--surface-2)] font-medium"
+                                  style={{ color: 'var(--error,#DC2626)' }}
+                                >
+                                  Cancel job…
+                                </button>
+                              )}
+                            </div>
+                          </>
+                        )}
+                      </div>
                     </div>
                   </td>
                 </tr>

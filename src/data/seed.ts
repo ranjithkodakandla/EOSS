@@ -174,11 +174,11 @@ export const CUSTOMER_POS: CustomerPO[] = [
 
 // ── Supplier POs ──
 export const SUPPLIER_POS: SupplierPO[] = [
-  { id: 'spo-001', poNumber: 'SPO-2024-001', supplierId: 'supp-msk', supplierName: 'MSK Steel Pvt Ltd', raisedDate: '2026-10-28', committedDate: '2026-11-08', status: 'confirmed', totalValue: 95000, currency: 'INR', paymentTerms: 'Net 30', lineCount: 2, deliverToSiteId: 'site-hyd', deliverToSiteName: 'Hyderabad Factory' },
-  { id: 'spo-002', poNumber: 'SPO-2024-002', supplierId: 'supp-ssi', supplierName: 'Stainless Source India', raisedDate: '2026-10-25', committedDate: '2026-11-02', status: 'overdue', totalValue: 54000, currency: 'INR', paymentTerms: 'Net 45', prId: 'pr-001', supplierQuotationId: 'sq-001', supplierQuotationRef: 'SQ-2024-001', lineCount: 1, hasAmendment: true, deliverToSiteId: 'site-hyd', deliverToSiteName: 'Hyderabad Factory' },
-  { id: 'spo-003', poNumber: 'SPO-2024-003', supplierId: 'supp-apex', supplierName: 'Apex Consumables', raisedDate: '2026-10-10', committedDate: '2026-10-18', status: 'received', totalValue: 18500, currency: 'INR', paymentTerms: 'Net 30', lineCount: 2, deliverToSiteId: 'site-hyd', deliverToSiteName: 'Hyderabad Factory' },
-  { id: 'spo-004', poNumber: 'SPO-2024-004', supplierId: 'supp-bgs', supplierName: 'Bharat Gas Supply', raisedDate: '2026-10-20', committedDate: '2026-10-28', status: 'partial', totalValue: 9000, currency: 'INR', paymentTerms: 'Net 15', lineCount: 2, deliverToSiteId: 'site-hyd', deliverToSiteName: 'Hyderabad Factory' },
-  { id: 'spo-005', poNumber: 'SPO-2024-005', supplierId: 'supp-sct', supplierName: 'SteelCraft Tubes', raisedDate: '2026-10-15', committedDate: '2026-11-05', status: 'confirmed', totalValue: 42000, currency: 'INR', paymentTerms: 'Net 30', lineCount: 1, deliverToSiteId: 'site-hyd', deliverToSiteName: 'Hyderabad Factory' },
+  { id: 'spo-001', poNumber: 'SPO-2024-001', supplierId: 'supp-msk', supplierName: 'MSK Steel Pvt Ltd', raisedDate: '2026-10-28', committedDate: '2026-11-08', status: 'confirmed', totalValue: 95000, currency: 'INR', paymentTerms: 'Net 30', lineCount: 2, deliverToSiteId: 'site-hyd', deliverToSiteName: 'Hyderabad Plant 1' },
+  { id: 'spo-002', poNumber: 'SPO-2024-002', supplierId: 'supp-ssi', supplierName: 'Stainless Source India', raisedDate: '2026-10-25', committedDate: '2026-11-02', status: 'overdue', totalValue: 54000, currency: 'INR', paymentTerms: 'Net 45', prId: 'pr-001', supplierQuotationId: 'sq-001', supplierQuotationRef: 'SQ-2024-001', lineCount: 1, hasAmendment: true, deliverToSiteId: 'site-hyd', deliverToSiteName: 'Hyderabad Plant 1' },
+  { id: 'spo-003', poNumber: 'SPO-2024-003', supplierId: 'supp-apex', supplierName: 'Apex Consumables', raisedDate: '2026-10-10', committedDate: '2026-10-18', status: 'received', totalValue: 18500, currency: 'INR', paymentTerms: 'Net 30', lineCount: 2, deliverToSiteId: 'site-hyd', deliverToSiteName: 'Hyderabad Plant 1' },
+  { id: 'spo-004', poNumber: 'SPO-2024-004', supplierId: 'supp-bgs', supplierName: 'Bharat Gas Supply', raisedDate: '2026-10-20', committedDate: '2026-10-28', status: 'partial', totalValue: 9000, currency: 'INR', paymentTerms: 'Net 15', lineCount: 2, deliverToSiteId: 'site-hyd', deliverToSiteName: 'Hyderabad Plant 1' },
+  { id: 'spo-005', poNumber: 'SPO-2024-005', supplierId: 'supp-sct', supplierName: 'SteelCraft Tubes', raisedDate: '2026-10-15', committedDate: '2026-11-05', status: 'confirmed', totalValue: 42000, currency: 'INR', paymentTerms: 'Net 30', lineCount: 1, deliverToSiteId: 'site-hyd', deliverToSiteName: 'Hyderabad Plant 1' },
 ];
 
 export const SUPPLIER_PO_LINES: SupplierPOLine[] = [
@@ -194,7 +194,7 @@ export const PURCHASE_REQS: PurchaseRequisition[] = [
   {
     id: 'pr-001', prNumber: 'PR-2024-018', raisedBy: 'Suresh Kumar', department: 'Production', raisedDate: '2026-10-26', requiredBy: '2026-11-05',
     status: 'converted', lineCount: 1, totalQty: 300, priority: 'urgent',
-    deliverToSiteId: 'site-hyd', deliverToSiteName: 'Hyderabad Factory', deliverToStoreId: 'loc-rm', deliverToStoreName: 'Raw Material Store',
+    deliverToSiteId: 'site-hyd', deliverToSiteName: 'Hyderabad Plant 1', deliverToStoreId: 'loc-rm', deliverToStoreName: 'Raw Material Store',
     purpose: 'SS 304L replenishment for upcoming fabrication schedules',
     lines: [
       { id: 'prl-001', prId: 'pr-001', materialItemId: 'mat-ss3', materialCode: 'SS-SHT-304-3', materialName: 'SS Sheet 3mm 304L', grade: 'ASTM A240 304L', requiredQty: 300, uom: 'kg', requiredDate: '2026-11-05', estimatedPrice: 180 },
@@ -203,7 +203,7 @@ export const PURCHASE_REQS: PurchaseRequisition[] = [
   {
     id: 'pr-002', prNumber: 'PR-2024-019', raisedBy: 'Suresh Kumar', department: 'Machining & Assembly', raisedDate: '2026-11-01', requiredBy: '2026-11-10',
     status: 'approved', lineCount: 2, totalQty: 150, priority: 'high',
-    deliverToSiteId: 'site-hyd', deliverToSiteName: 'Hyderabad Factory', deliverToStoreId: 'loc-rm', deliverToStoreName: 'Raw Material Store',
+    deliverToSiteId: 'site-hyd', deliverToSiteName: 'Hyderabad Plant 1', deliverToStoreId: 'loc-rm', deliverToStoreName: 'Raw Material Store',
     purpose: 'Restock MS flat bars and argon consumables',
     lines: [
       { id: 'prl-002a', prId: 'pr-002', materialItemId: 'mat-msfb', materialCode: 'MS-FLT-50x6', materialName: 'MS Flat Bar 50×6', grade: 'IS 2062', requiredQty: 100, uom: 'kg', requiredDate: '2026-11-10', estimatedPrice: 78 },
@@ -213,7 +213,7 @@ export const PURCHASE_REQS: PurchaseRequisition[] = [
   {
     id: 'pr-003', prNumber: 'PR-2024-017', raisedBy: 'Asha Nair', department: 'Stores', raisedDate: '2026-10-20', requiredBy: '2026-11-01',
     status: 'approved', lineCount: 2, totalQty: 500, priority: 'normal',
-    deliverToSiteId: 'site-hyd', deliverToSiteName: 'Hyderabad Factory', deliverToStoreId: 'loc-rm', deliverToStoreName: 'Raw Material Store',
+    deliverToSiteId: 'site-hyd', deliverToSiteName: 'Hyderabad Plant 1', deliverToStoreId: 'loc-rm', deliverToStoreName: 'Raw Material Store',
     purpose: 'Buffer stock replenishment for structural plates',
     lines: [
       { id: 'prl-003a', prId: 'pr-003', materialItemId: 'mat-ms8', materialCode: 'MS-PLT-008', materialName: 'MS Plate 8mm', grade: 'IS 2062 E250A', requiredQty: 300, uom: 'kg', requiredDate: '2026-11-01', estimatedPrice: 79 },
@@ -227,7 +227,7 @@ function weekOut(id: string, jobNumber: string, customerId: string, customerName
   const done = status === 'complete';
   return {
     id, jobNumber, customerId, customerName, description: `Dispatch ${jobNumber} — ${qty} ${uom}`,
-    siteId: 'site-hyd', siteName: 'Hyderabad Factory', status, priority: done ? 'normal' : 'high',
+    siteId: 'site-hyd', siteName: 'Hyderabad Plant 1', status, priority: done ? 'normal' : 'high',
     plannedStart: '2026-10-20', plannedEnd, actualStart: '2026-10-20', actualEnd, owner: 'Suresh Kumar',
     currentStage: done ? 'Dispatched' : 'Dispatch', materialReadiness: 'ready', hasBlocker: false,
     stages: [
@@ -239,7 +239,7 @@ function weekOut(id: string, jobNumber: string, customerId: string, customerName
 
 export const JOBS: Job[] = [
   {
-    id: 'job-101', jobNumber: 'J-101', customerId: 'cust-mer', customerName: 'Meridian Engineering', customerPoId: 'cpo-101', customerPoNumber: 'CPO-2024-101', drawingRef: 'MER-DWG-2024-RC-V3', description: 'Pressure vessel assembly – reactor chamber', siteId: 'site-hyd', siteName: 'Hyderabad Factory', status: 'active', priority: 'high', plannedStart: '2026-10-28', plannedEnd: '2026-11-18', actualStart: '2026-10-29', owner: 'Suresh Kumar', currentStage: 'Fit-up', materialReadiness: 'ready', hasBlocker: false, value: 185000,
+    id: 'job-101', jobNumber: 'J-101', customerId: 'cust-mer', customerName: 'Meridian Engineering', customerPoId: 'cpo-101', customerPoNumber: 'CPO-2024-101', drawingRef: 'MER-DWG-2024-RC-V3', description: 'Pressure vessel assembly – reactor chamber', siteId: 'site-hyd', siteName: 'Hyderabad Plant 1', status: 'active', priority: 'high', plannedStart: '2026-10-28', plannedEnd: '2026-11-18', actualStart: '2026-10-29', owner: 'Suresh Kumar', currentStage: 'Fit-up', materialReadiness: 'ready', hasBlocker: false, value: 185000,
     stages: [
       { id: 'stg-101-1', jobId: 'job-101', sequence: 1, name: 'Cutting', status: 'complete', plannedStart: '2026-10-28', plannedEnd: '2026-10-31', actualStart: '2026-10-29', actualEnd: '2026-10-31', owner: 'Mohan Das', workCentre: 'Cutting Bay', inputQty: 10, completedGoodQty: 10, rejectedQty: 0, reworkQty: 0, scrapQty: 0, uom: 'pcs' },
       { id: 'stg-101-2', jobId: 'job-101', sequence: 2, name: 'Fit-up', status: 'in_progress', plannedStart: '2026-11-01', plannedEnd: '2026-11-05', actualStart: '2026-11-01', owner: 'Mohan Das', workCentre: 'Fabrication Bay', inputQty: 10, completedGoodQty: 6, rejectedQty: 0, reworkQty: 0, scrapQty: 0, uom: 'pcs' },
@@ -249,7 +249,7 @@ export const JOBS: Job[] = [
     ]
   },
   {
-    id: 'job-102', jobNumber: 'J-102', customerId: 'cust-bpe', customerName: 'Bharat Power Equipment', customerPoId: 'cpo-102', customerPoNumber: 'CPO-2024-102', drawingRef: 'BPE-DWG-2024-HX-B', description: 'Heat exchanger shell fabrication – SS', siteId: 'site-hyd', siteName: 'Hyderabad Factory', status: 'hold', priority: 'urgent', plannedStart: '2026-11-04', plannedEnd: '2026-11-22', owner: 'Suresh Kumar', currentStage: 'Material Pending', materialReadiness: 'shortage', hasBlocker: true, value: 320000,
+    id: 'job-102', jobNumber: 'J-102', customerId: 'cust-bpe', customerName: 'Bharat Power Equipment', customerPoId: 'cpo-102', customerPoNumber: 'CPO-2024-102', drawingRef: 'BPE-DWG-2024-HX-B', description: 'Heat exchanger shell fabrication – SS', siteId: 'site-hyd', siteName: 'Hyderabad Plant 1', status: 'hold', priority: 'urgent', plannedStart: '2026-11-04', plannedEnd: '2026-11-22', owner: 'Suresh Kumar', currentStage: 'Material Pending', materialReadiness: 'shortage', hasBlocker: true, value: 320000,
     stages: [
       { id: 'stg-102-1', jobId: 'job-102', sequence: 1, name: 'Cutting', status: 'hold', plannedStart: '2026-11-04', plannedEnd: '2026-11-07', owner: 'Mohan Das', workCentre: 'Cutting Bay', inputQty: 6, completedGoodQty: 0, rejectedQty: 0, reworkQty: 0, scrapQty: 0, uom: 'sheets' },
       { id: 'stg-102-2', jobId: 'job-102', sequence: 2, name: 'Rolling', status: 'pending', plannedStart: '2026-11-08', plannedEnd: '2026-11-11', owner: '', workCentre: 'Rolling Bay', inputQty: 6, completedGoodQty: 0, rejectedQty: 0, reworkQty: 0, scrapQty: 0, uom: 'sheets' },
@@ -258,7 +258,7 @@ export const JOBS: Job[] = [
     ]
   },
   {
-    id: 'job-103', jobNumber: 'J-103', customerId: 'cust-af', customerName: 'Anand Fabricators', customerPoId: 'cpo-103', customerPoNumber: 'CPO-2024-098', description: 'Structural skid frame – 2 units', siteId: 'site-hyd', siteName: 'Hyderabad Factory', status: 'complete', priority: 'normal', plannedStart: '2026-10-01', plannedEnd: '2026-10-28', actualStart: '2026-10-02', actualEnd: '2026-10-27', owner: 'Suresh Kumar', currentStage: 'Complete', materialReadiness: 'ready', hasBlocker: false, value: 128000,
+    id: 'job-103', jobNumber: 'J-103', customerId: 'cust-af', customerName: 'Anand Fabricators', customerPoId: 'cpo-103', customerPoNumber: 'CPO-2024-098', description: 'Structural skid frame – 2 units', siteId: 'site-hyd', siteName: 'Hyderabad Plant 1', status: 'complete', priority: 'normal', plannedStart: '2026-10-01', plannedEnd: '2026-10-28', actualStart: '2026-10-02', actualEnd: '2026-10-27', owner: 'Suresh Kumar', currentStage: 'Complete', materialReadiness: 'ready', hasBlocker: false, value: 128000,
     stages: [
       { id: 'stg-103-1', jobId: 'job-103', sequence: 1, name: 'Cutting', status: 'complete', plannedStart: '2026-10-02', plannedEnd: '2026-10-05', actualStart: '2026-10-02', actualEnd: '2026-10-05', owner: 'Mohan Das', workCentre: 'Cutting Bay', inputQty: 2, completedGoodQty: 2, rejectedQty: 0, reworkQty: 0, scrapQty: 0, uom: 'units' },
       { id: 'stg-103-2', jobId: 'job-103', sequence: 2, name: 'Fabrication', status: 'complete', plannedStart: '2026-10-07', plannedEnd: '2026-10-18', actualStart: '2026-10-07', actualEnd: '2026-10-19', owner: 'Mohan Das', workCentre: 'Fabrication Bay', inputQty: 2, completedGoodQty: 2, rejectedQty: 0, reworkQty: 0, scrapQty: 0, uom: 'units' },
@@ -267,7 +267,7 @@ export const JOBS: Job[] = [
     ]
   },
   {
-    id: 'job-104', jobNumber: 'J-104', customerId: 'cust-ntpc', customerName: 'NTPC Vendor Division', customerPoId: 'cpo-104', customerPoNumber: 'CPO-2024-099', drawingRef: 'NTPC-DWG-2024-FLG-R1', description: 'Flanged pipe assemblies – 20 sets', siteId: 'site-hyd', siteName: 'Hyderabad Factory', status: 'hold', priority: 'high', plannedStart: '2026-11-01', plannedEnd: '2026-11-20', actualStart: '2026-11-01', owner: 'Suresh Kumar', currentStage: 'Cutting (Blocked)', materialReadiness: 'ready', hasBlocker: true, value: 325000,
+    id: 'job-104', jobNumber: 'J-104', customerId: 'cust-ntpc', customerName: 'NTPC Vendor Division', customerPoId: 'cpo-104', customerPoNumber: 'CPO-2024-099', drawingRef: 'NTPC-DWG-2024-FLG-R1', description: 'Flanged pipe assemblies – 20 sets', siteId: 'site-hyd', siteName: 'Hyderabad Plant 1', status: 'hold', priority: 'high', plannedStart: '2026-11-01', plannedEnd: '2026-11-20', actualStart: '2026-11-01', owner: 'Suresh Kumar', currentStage: 'Cutting (Blocked)', materialReadiness: 'ready', hasBlocker: true, value: 325000,
     stages: [
       { id: 'stg-104-1', jobId: 'job-104', sequence: 1, name: 'Cutting', status: 'hold', plannedStart: '2026-11-01', plannedEnd: '2026-11-05', actualStart: '2026-11-01', owner: 'Mohan Das', workCentre: 'Cutting Bay', inputQty: 20, completedGoodQty: 8, rejectedQty: 0, reworkQty: 0, scrapQty: 0, uom: 'sets' },
       { id: 'stg-104-2', jobId: 'job-104', sequence: 2, name: 'Drilling', status: 'pending', plannedStart: '2026-11-06', plannedEnd: '2026-11-09', owner: '', workCentre: 'Drill Bay', inputQty: 20, completedGoodQty: 0, rejectedQty: 0, reworkQty: 0, scrapQty: 0, uom: 'sets' },
@@ -275,7 +275,7 @@ export const JOBS: Job[] = [
     ]
   },
   {
-    id: 'job-105', jobNumber: 'J-105', customerId: 'cust-lt', customerName: 'L&T Hydrocarbon', customerPoId: 'cpo-105', customerPoNumber: 'CPO-2024-100', drawingRef: 'LTH-DWG-2024-WLD-A2', description: 'Welded pipe spools – 15 pcs', siteId: 'site-hyd', siteName: 'Hyderabad Factory', status: 'active', priority: 'normal', plannedStart: '2026-10-25', plannedEnd: '2026-11-15', actualStart: '2026-10-25', owner: 'Suresh Kumar', currentStage: 'Welding', materialReadiness: 'partial', hasBlocker: false, value: 290000,
+    id: 'job-105', jobNumber: 'J-105', customerId: 'cust-lt', customerName: 'L&T Hydrocarbon', customerPoId: 'cpo-105', customerPoNumber: 'CPO-2024-100', drawingRef: 'LTH-DWG-2024-WLD-A2', description: 'Welded pipe spools – 15 pcs', siteId: 'site-hyd', siteName: 'Hyderabad Plant 1', status: 'active', priority: 'normal', plannedStart: '2026-10-25', plannedEnd: '2026-11-15', actualStart: '2026-10-25', owner: 'Suresh Kumar', currentStage: 'Welding', materialReadiness: 'partial', hasBlocker: false, value: 290000,
     stages: [
       { id: 'stg-105-1', jobId: 'job-105', sequence: 1, name: 'Cutting', status: 'complete', plannedStart: '2026-10-25', plannedEnd: '2026-10-29', actualStart: '2026-10-25', actualEnd: '2026-10-29', owner: 'Mohan Das', workCentre: 'Cutting Bay', inputQty: 15, completedGoodQty: 15, rejectedQty: 0, reworkQty: 0, scrapQty: 0, uom: 'pcs' },
       { id: 'stg-105-2', jobId: 'job-105', sequence: 2, name: 'Welding', status: 'in_progress', plannedStart: '2026-10-30', plannedEnd: '2026-11-08', actualStart: '2026-10-30', owner: 'Mohan Das', workCentre: 'Welding Bay', inputQty: 15, completedGoodQty: 9, rejectedQty: 1, reworkQty: 1, scrapQty: 0, uom: 'pcs' },
@@ -283,7 +283,7 @@ export const JOBS: Job[] = [
     ]
   },
   {
-    id: 'job-106', jobNumber: 'J-106', customerId: 'cust-bpe', customerName: 'Bharat Power Equipment', customerPoId: 'cpo-106', customerPoNumber: 'CPO-2024-103', drawingRef: 'BPE-DWG-2024-TK-R1', description: 'Storage tank – 1 unit', siteId: 'site-hyd', siteName: 'Hyderabad Factory', status: 'active', priority: 'normal', plannedStart: '2026-11-04', plannedEnd: '2026-11-28', actualStart: '2026-11-04', owner: 'Suresh Kumar', currentStage: 'NDT', materialReadiness: 'ready', hasBlocker: false, value: 180000,
+    id: 'job-106', jobNumber: 'J-106', customerId: 'cust-bpe', customerName: 'Bharat Power Equipment', customerPoId: 'cpo-106', customerPoNumber: 'CPO-2024-103', drawingRef: 'BPE-DWG-2024-TK-R1', description: 'Storage tank – 1 unit', siteId: 'site-hyd', siteName: 'Hyderabad Plant 1', status: 'active', priority: 'normal', plannedStart: '2026-11-04', plannedEnd: '2026-11-28', actualStart: '2026-11-04', owner: 'Suresh Kumar', currentStage: 'NDT', materialReadiness: 'ready', hasBlocker: false, value: 180000,
     stages: [
       { id: 'stg-106-1', jobId: 'job-106', sequence: 1, name: 'Cutting', status: 'complete', plannedStart: '2026-11-04', plannedEnd: '2026-11-06', actualStart: '2026-11-04', actualEnd: '2026-11-06', owner: 'Mohan Das', workCentre: 'Cutting Bay', inputQty: 1, completedGoodQty: 1, rejectedQty: 0, reworkQty: 0, scrapQty: 0, uom: 'unit' },
       { id: 'stg-106-2', jobId: 'job-106', sequence: 2, name: 'Fabrication', status: 'complete', plannedStart: '2026-11-07', plannedEnd: '2026-11-14', actualStart: '2026-11-07', actualEnd: '2026-11-14', owner: 'Mohan Das', workCentre: 'Fabrication Bay', inputQty: 1, completedGoodQty: 1, rejectedQty: 0, reworkQty: 0, scrapQty: 0, uom: 'unit' },
@@ -293,7 +293,7 @@ export const JOBS: Job[] = [
     ]
   },
   {
-    id: 'job-107', jobNumber: 'J-107', customerId: 'cust-sv', customerName: 'SV Industries', customerPoId: 'cpo-107', customerPoNumber: 'CPO-2024-104', description: 'Conveyor frame – structural', siteId: 'site-hyd', siteName: 'Hyderabad Factory', status: 'active', priority: 'low', plannedStart: '2026-11-01', plannedEnd: '2026-11-20', actualStart: '2026-11-01', owner: 'Suresh Kumar', currentStage: 'Final Inspection', materialReadiness: 'ready', hasBlocker: false, value: 95000,
+    id: 'job-107', jobNumber: 'J-107', customerId: 'cust-sv', customerName: 'SV Industries', customerPoId: 'cpo-107', customerPoNumber: 'CPO-2024-104', description: 'Conveyor frame – structural', siteId: 'site-hyd', siteName: 'Hyderabad Plant 1', status: 'active', priority: 'low', plannedStart: '2026-11-01', plannedEnd: '2026-11-20', actualStart: '2026-11-01', owner: 'Suresh Kumar', currentStage: 'Final Inspection', materialReadiness: 'ready', hasBlocker: false, value: 95000,
     stages: [
       { id: 'stg-107-1', jobId: 'job-107', sequence: 1, name: 'Cutting', status: 'complete', plannedStart: '2026-11-01', plannedEnd: '2026-11-04', actualStart: '2026-11-01', actualEnd: '2026-11-04', owner: 'Mohan Das', workCentre: 'Cutting Bay', inputQty: 1, completedGoodQty: 1, rejectedQty: 0, reworkQty: 0, scrapQty: 0, uom: 'unit' },
       { id: 'stg-107-2', jobId: 'job-107', sequence: 2, name: 'Fabrication & Welding', status: 'complete', plannedStart: '2026-11-05', plannedEnd: '2026-11-13', actualStart: '2026-11-05', actualEnd: '2026-11-13', owner: 'Mohan Das', workCentre: 'Fabrication Bay', inputQty: 1, completedGoodQty: 1, rejectedQty: 0, reworkQty: 0, scrapQty: 0, uom: 'unit' },
@@ -301,7 +301,7 @@ export const JOBS: Job[] = [
     ]
   },
   {
-    id: 'job-108', jobNumber: 'J-108', customerId: 'cust-mer', customerName: 'Meridian Engineering', customerPoId: 'cpo-108', customerPoNumber: 'CPO-2024-095', description: 'Instrument manifolds – 50 pcs', siteId: 'site-hyd', siteName: 'Hyderabad Factory', status: 'complete', priority: 'normal', plannedStart: '2026-09-15', plannedEnd: '2026-10-10', actualStart: '2026-09-15', actualEnd: '2026-10-08', owner: 'Suresh Kumar', currentStage: 'Dispatched', materialReadiness: 'ready', hasBlocker: false, value: 220000,
+    id: 'job-108', jobNumber: 'J-108', customerId: 'cust-mer', customerName: 'Meridian Engineering', customerPoId: 'cpo-108', customerPoNumber: 'CPO-2024-095', description: 'Instrument manifolds – 50 pcs', siteId: 'site-hyd', siteName: 'Hyderabad Plant 1', status: 'complete', priority: 'normal', plannedStart: '2026-09-15', plannedEnd: '2026-10-10', actualStart: '2026-09-15', actualEnd: '2026-10-08', owner: 'Suresh Kumar', currentStage: 'Dispatched', materialReadiness: 'ready', hasBlocker: false, value: 220000,
     stages: [
       { id: 'stg-108-1', jobId: 'job-108', sequence: 1, name: 'Machining', status: 'complete', plannedStart: '2026-09-15', plannedEnd: '2026-09-25', actualStart: '2026-09-15', actualEnd: '2026-09-24', owner: 'Mohan Das', workCentre: 'Machining Bay', inputQty: 50, completedGoodQty: 48, rejectedQty: 2, reworkQty: 0, scrapQty: 2, uom: 'pcs' },
       { id: 'stg-108-2', jobId: 'job-108', sequence: 2, name: 'Inspection', status: 'complete', plannedStart: '2026-09-26', plannedEnd: '2026-09-28', actualStart: '2026-09-26', actualEnd: '2026-09-27', owner: 'Priya Patel', workCentre: 'QC Bay', inputQty: 48, completedGoodQty: 48, rejectedQty: 0, reworkQty: 0, scrapQty: 0, uom: 'pcs' },
@@ -321,8 +321,8 @@ export const JOBS: Job[] = [
 
 // ── Job Blockers ──
 export const JOB_BLOCKERS: JobBlocker[] = [
-  { id: 'blk-001', jobId: 'job-102', stageId: 'stg-102-1', type: 'Material', description: 'SS Sheet 3mm 304L not received. SPO-2024-002 overdue by 2 days. Only 1.5 sheets available vs 6 required.', raisedBy: 'Suresh Kumar', raisedAt: '2026-11-03T09:30:00', status: 'open' },
-  { id: 'blk-002', jobId: 'job-104', stageId: 'stg-104-1', type: 'Machine', description: 'Drill Press DP-01 is in breakdown. Cannot complete flange drilling. Maintenance event ME-2024-012 raised.', raisedBy: 'Suresh Kumar', raisedAt: '2026-11-04T08:00:00', status: 'open' },
+  { id: 'blk-001', jobId: 'job-102', jobNumber: 'J-102', stageId: 'stg-102-1', type: 'Material', category: 'Material', description: 'SS Sheet 3mm 304L not received. SPO-2024-002 overdue by 2 days. Only 1.5 sheets available vs 6 required.', raisedBy: 'Suresh Kumar', raisedAt: '2026-11-03T09:30:00', status: 'open' },
+  { id: 'blk-002', jobId: 'job-104', jobNumber: 'J-104', stageId: 'stg-104-1', type: 'Machine', category: 'Machine Breakdown', description: 'Drill Press DP-01 is in breakdown. Cannot complete flange drilling. Maintenance event ME-2024-012 raised.', linkedAssetId: 'ast-dp01', linkedAssetCode: 'DP-01', linkedMaintenanceEventId: 'me-012', linkedMaintenanceEventNumber: 'ME-2024-012', raisedBy: 'Suresh Kumar', raisedAt: '2026-11-04T08:00:00', status: 'open' },
 ];
 
 // ── Job Material Requirements ──
@@ -336,7 +336,7 @@ export const JOB_MATERIAL_REQS: JobMaterialReq[] = [
 export const GRNS: GoodsReceipt[] = [
   { id: 'grn-001', grnNumber: 'GRN-2024-001', supplierId: 'supp-apex', supplierName: 'Apex Consumables', spoId: 'spo-003', spoNumber: 'SPO-2024-003', receivedDate: '2026-10-18', receivedBy: 'Asha Nair', deliveryChallan: 'DC-APEX-4521', vehicleNumber: 'TS09BA1234', status: 'accepted', lineCount: 2 },
   { id: 'grn-002', grnNumber: 'GRN-2024-002', supplierId: 'supp-bgs', supplierName: 'Bharat Gas Supply', spoId: 'spo-004', spoNumber: 'SPO-2024-004', receivedDate: '2026-10-26', receivedBy: 'Asha Nair', deliveryChallan: 'DC-BGS-889', status: 'accepted', lineCount: 2 },
-  { id: 'grn-003', grnNumber: 'GRN-2024-003', supplierId: 'supp-msk', supplierName: 'MSK Steel Pvt Ltd', spoId: 'spo-001', spoNumber: 'SPO-2024-001', receivedDate: '2026-11-04', receivedBy: 'Asha Nair', deliveryChallan: 'DC-MSK-2201', vehicleNumber: 'TS09CD5678', status: 'pending_qc', lineCount: 1, siteId: 'site-hyd', siteName: 'Hyderabad Factory', storeLocationId: 'loc-qrn', storeLocationName: 'Quarantine Store' },
+  { id: 'grn-003', grnNumber: 'GRN-2024-003', supplierId: 'supp-msk', supplierName: 'MSK Steel Pvt Ltd', spoId: 'spo-001', spoNumber: 'SPO-2024-001', receivedDate: '2026-11-04', receivedBy: 'Asha Nair', deliveryChallan: 'DC-MSK-2201', vehicleNumber: 'TS09CD5678', status: 'pending_qc', lineCount: 1, siteId: 'site-hyd', siteName: 'Hyderabad Plant 1', storeLocationId: 'loc-qrn', storeLocationName: 'Quarantine Store' },
 ];
 
 // ── Inventory (derived view) ──
@@ -344,7 +344,8 @@ export const INVENTORY: InventoryItem[] = [
   { id: 'inv-001', materialItemId: 'mat-ms8', materialCode: 'MS-PLT-008', materialName: 'MS Plate 8mm', categoryName: 'MS Steel', locationId: 'loc-rm', locationName: 'Raw Material Store', onHandQty: 835, availableQty: 515, reservedQty: 320, qcHoldQty: 0, inTransitQty: 500, primaryUom: 'kg', secondaryQty: 13.3, secondaryUom: 'm²', reorderPoint: 500, shortage: false, lotCount: 3 },
   { id: 'inv-002', materialItemId: 'mat-ms12', materialCode: 'MS-PLT-012', materialName: 'MS Plate 12mm', categoryName: 'MS Steel', locationId: 'loc-qrn', locationName: 'Quarantine Store', onHandQty: 650, availableQty: 0, reservedQty: 0, qcHoldQty: 650, inTransitQty: 0, primaryUom: 'kg', secondaryQty: 6.9, secondaryUom: 'm²', reorderPoint: 300, shortage: false, lotCount: 1 },
   { id: 'inv-003', materialItemId: 'mat-msp', materialCode: 'MS-PPE-100', materialName: 'MS Pipe 100NB Sch40', categoryName: 'MS Steel', locationId: 'loc-wip', locationName: 'WIP Store', onHandQty: 161, availableQty: 0, reservedQty: 0, qcHoldQty: 0, inTransitQty: 0, primaryUom: 'kg', secondaryQty: 10, secondaryUom: 'm', reorderPoint: 200, shortage: true, lotCount: 1 },
-  { id: 'inv-004', materialItemId: 'mat-ss3', materialCode: 'SS-SHT-304-3', materialName: 'SS Sheet 3mm 304L', categoryName: 'SS Steel', locationId: 'loc-rm', locationName: 'Raw Material Store', onHandQty: 108, availableQty: 108, reservedQty: 0, qcHoldQty: 216, inTransitQty: 300, primaryUom: 'kg', secondaryQty: 1.5, secondaryUom: 'sheet', reorderPoint: 150, shortage: true, lotCount: 2 },
+  { id: 'inv-004', materialItemId: 'mat-ss3', materialCode: 'SS-SHT-304-3', materialName: 'SS Sheet 3mm 304L', categoryName: 'SS Steel', locationId: 'loc-rm', locationName: 'Raw Material Store', onHandQty: 108, availableQty: 108, reservedQty: 0, qcHoldQty: 0, inTransitQty: 300, primaryUom: 'kg', secondaryQty: 1.5, secondaryUom: 'sheet', reorderPoint: 150, shortage: true, lotCount: 1 },
+  { id: 'inv-004-qrn', materialItemId: 'mat-ss3', materialCode: 'SS-SHT-304-3', materialName: 'SS Sheet 3mm 304L', categoryName: 'SS Steel', locationId: 'loc-qrn', locationName: 'Quarantine Store', onHandQty: 216, availableQty: 0, reservedQty: 0, qcHoldQty: 216, inTransitQty: 0, primaryUom: 'kg', secondaryQty: 3, secondaryUom: 'sheet', reorderPoint: 0, shortage: false, lotCount: 1 },
   { id: 'inv-005', materialItemId: 'mat-msfb', materialCode: 'MS-FLT-50x6', materialName: 'MS Flat Bar 50×6', categoryName: 'MS Steel', locationId: 'loc-rm', locationName: 'Raw Material Store', onHandQty: 236, availableQty: 236, reservedQty: 0, qcHoldQty: 0, inTransitQty: 0, primaryUom: 'kg', secondaryQty: 100, secondaryUom: 'm', reorderPoint: 100, shortage: false, lotCount: 1 },
   { id: 'inv-006', materialItemId: 'mat-wr', materialCode: 'WLD-ROD-E6013', materialName: 'Welding Rods E6013', categoryName: 'Consumables', locationId: 'loc-rm', locationName: 'Raw Material Store', onHandQty: 2000, availableQty: 1800, reservedQty: 200, qcHoldQty: 0, inTransitQty: 0, primaryUom: 'pcs', reorderPoint: 1000, shortage: false, lotCount: 1 },
   { id: 'inv-007', materialItemId: 'mat-ar', materialCode: 'GAS-ARG-CYL', materialName: 'Argon Gas', categoryName: 'Gases', locationId: 'loc-rm', locationName: 'Raw Material Store', onHandQty: 3, availableQty: 3, reservedQty: 0, qcHoldQty: 0, inTransitQty: 0, primaryUom: 'cyl', reorderPoint: 5, shortage: true, lotCount: 1 },
@@ -372,10 +373,10 @@ export const CERTIFICATES: MaterialCertificate[] = [
 ];
 
 export const INSPECTIONS: Inspection[] = [
-  { id: 'ins-001', inspectionNumber: 'INS-2024-041', type: 'Incoming', lotId: 'lot-004', inspectorId: 'u-qc', inspectorName: 'Priya Patel', receivedDate: '2026-10-27', date: '2026-10-28', subject: 'Incoming SS Sheet 3mm 304L', templateName: 'Incoming SS Sheet', sampleQty: 3, acceptedQty: 0, rejectedQty: 3, result: 'fail', ncrId: 'ncr-001', ncrNumber: 'NCR-2024-007' },
-  { id: 'ins-002', inspectionNumber: 'INS-2024-042', type: 'Incoming', lotId: 'lot-009', grnId: 'grn-003', grnNumber: 'GRN-2024-003', poId: 'spo-001', spoNumber: 'SPO-2024-001', siteId: 'site-hyd', siteName: 'Hyderabad Factory', inspectorId: 'u-qc', inspectorName: 'Priya Patel', receivedDate: '2026-11-03', date: '2026-11-04', subject: 'Incoming MS Plate 12mm', templateName: 'Incoming MS Plate', sampleQty: 5, acceptedQty: 0, rejectedQty: 0, result: 'pending' },
-  { id: 'ins-003', inspectionNumber: 'INS-2024-040', type: 'In-Process', jobId: 'job-105', jobNumber: 'J-105', stageId: 'stg-105-2', stageName: 'Welding', inspectorId: 'u-qc', inspectorName: 'Priya Patel', date: '2026-11-02', subject: 'J-105 · Welding', templateName: 'Weld Visual Inspection', sampleQty: 10, acceptedQty: 9, rejectedQty: 1, result: 'pass', approvedAt: '2026-11-02T16:00:00' },
-  { id: 'ins-004', inspectionNumber: 'INS-2024-039', type: 'Final', jobId: 'job-103', jobNumber: 'J-103', inspectorId: 'u-qc', inspectorName: 'Priya Patel', date: '2026-10-22', subject: 'J-103 · Final inspection', templateName: 'Final Inspection – Structural', sampleQty: 2, acceptedQty: 2, rejectedQty: 0, result: 'pass', approvedAt: '2026-10-22T16:00:00' },
+  { id: 'ins-001', inspectionNumber: 'INSP-2024-041', type: 'Incoming', lotId: 'lot-004', inspectorId: 'u-qc', inspectorName: 'Priya Patel', receivedDate: '2026-10-27', date: '2026-10-28', subject: 'Incoming SS Sheet 3mm 304L', templateName: 'Incoming SS Sheet', sampleQty: 3, acceptedQty: 0, rejectedQty: 3, result: 'fail', ncrId: 'ncr-001', ncrNumber: 'NCR-2024-007' },
+  { id: 'ins-002', inspectionNumber: 'INSP-2024-042', type: 'Incoming', lotId: 'lot-009', grnId: 'grn-003', grnNumber: 'GRN-2024-003', poId: 'spo-001', spoNumber: 'SPO-2024-001', siteId: 'site-hyd', siteName: 'Hyderabad Plant 1', inspectorId: 'u-qc', inspectorName: 'Priya Patel', receivedDate: '2026-11-03', date: '2026-11-04', subject: 'Incoming MS Plate 12mm', templateName: 'Incoming MS Plate', sampleQty: 5, acceptedQty: 0, rejectedQty: 0, result: 'pending' },
+  { id: 'ins-003', inspectionNumber: 'INSP-2024-040', type: 'In-Process', jobId: 'job-105', jobNumber: 'J-105', stageId: 'stg-105-2', stageName: 'Welding', inspectorId: 'u-qc', inspectorName: 'Priya Patel', date: '2026-11-02', subject: 'J-105 · Welding', templateName: 'Weld Visual Inspection', sampleQty: 10, acceptedQty: 9, rejectedQty: 1, result: 'pass', approvedAt: '2026-11-02T16:00:00' },
+  { id: 'ins-004', inspectionNumber: 'INSP-2024-039', type: 'Final', jobId: 'job-103', jobNumber: 'J-103', inspectorId: 'u-qc', inspectorName: 'Priya Patel', date: '2026-10-22', subject: 'J-103 · Final inspection', templateName: 'Final Inspection – Structural', sampleQty: 2, acceptedQty: 2, rejectedQty: 0, result: 'pass', approvedAt: '2026-10-22T16:00:00' },
 ];
 
 export const NCRS: NCR[] = [
@@ -389,13 +390,13 @@ export const QUALITY_RELEASES: QualityRelease[] = [
 
 // ── Assets ──
 export const ASSETS: Asset[] = [
-  { id: 'ast-wm01', assetCode: 'WM-01', name: 'Lincoln Welding Machine', category: 'Welding Equipment', siteId: 'site-hyd', workCentre: 'Welding Bay', criticality: 'High', status: 'operational', lastServiceDate: '2026-09-15', nextServiceDate: '2025-03-15', purchaseDate: '2020-06-01', manufacturer: 'Lincoln Electric', model: 'PowerWave S350', meterType: 'hours', currentReading: 2840 },
-  { id: 'ast-wm02', assetCode: 'WM-02', name: 'ESAB Welding Machine', category: 'Welding Equipment', siteId: 'site-hyd', workCentre: 'Welding Bay', criticality: 'High', status: 'operational', lastServiceDate: '2026-10-01', nextServiceDate: '2025-04-01', purchaseDate: '2021-02-15', manufacturer: 'ESAB', model: 'Rebel EMP 235ic', meterType: 'hours', currentReading: 1950 },
+  { id: 'ast-wm01', assetCode: 'WM-01', name: 'Lincoln Welding Machine', category: 'Welding Equipment', siteId: 'site-hyd', workCentre: 'Welding Bay', criticality: 'High', status: 'operational', lastServiceDate: '2026-09-15', nextServiceDate: '2027-03-15', purchaseDate: '2020-06-01', manufacturer: 'Lincoln Electric', model: 'PowerWave S350', meterType: 'hours', currentReading: 2840 },
+  { id: 'ast-wm02', assetCode: 'WM-02', name: 'ESAB Welding Machine', category: 'Welding Equipment', siteId: 'site-hyd', workCentre: 'Welding Bay', criticality: 'High', status: 'operational', lastServiceDate: '2026-10-01', nextServiceDate: '2027-04-01', purchaseDate: '2021-02-15', manufacturer: 'ESAB', model: 'Rebel EMP 235ic', meterType: 'hours', currentReading: 1950 },
   { id: 'ast-wm03', assetCode: 'WM-03', name: 'Miller Welding Machine', category: 'Welding Equipment', siteId: 'site-hyd', workCentre: 'Welding Bay', criticality: 'Medium', status: 'in_maintenance', lastServiceDate: '2026-10-28', purchaseDate: '2019-11-20', manufacturer: 'Miller Electric', model: 'Dynasty 280', meterType: 'hours', currentReading: 3200 },
-  { id: 'ast-pc01', assetCode: 'PC-01', name: 'Hypertherm Plasma Cutter', category: 'Cutting Equipment', siteId: 'site-hyd', workCentre: 'Cutting Bay', criticality: 'Critical', status: 'operational', lastServiceDate: '2026-10-15', nextServiceDate: '2025-04-15', purchaseDate: '2022-03-10', manufacturer: 'Hypertherm', model: 'MAXPRO200', meterType: 'hours', currentReading: 890 },
+  { id: 'ast-pc01', assetCode: 'PC-01', name: 'Hypertherm Plasma Cutter', category: 'Cutting Equipment', siteId: 'site-hyd', workCentre: 'Cutting Bay', criticality: 'Critical', status: 'operational', lastServiceDate: '2026-10-15', nextServiceDate: '2027-04-15', purchaseDate: '2022-03-10', manufacturer: 'Hypertherm', model: 'MAXPRO200', meterType: 'hours', currentReading: 890 },
   { id: 'ast-pb01', assetCode: 'PB-01', name: 'Press Brake 100T', category: 'Forming Equipment', siteId: 'site-hyd', workCentre: 'Fabrication Bay', criticality: 'High', status: 'pm_overdue', lastServiceDate: '2026-09-30', nextServiceDate: '2026-10-30', purchaseDate: '2018-08-01', manufacturer: 'Amada', model: 'HFE-100', meterType: 'none' },
-  { id: 'ast-gc01', assetCode: 'GC-01', name: 'Overhead Crane 5T', category: 'Material Handling', siteId: 'site-hyd', workCentre: 'Main Bay', criticality: 'Critical', status: 'operational', lastServiceDate: '2026-10-20', nextServiceDate: '2025-01-20', purchaseDate: '2017-01-15', manufacturer: 'ElectroMech', model: 'EOT-5T', meterType: 'cycles', currentReading: 48200 },
-  { id: 'ast-ag01', assetCode: 'AG-01', name: 'Angle Grinder', category: 'Grinding Equipment', siteId: 'site-hyd', workCentre: 'Fabrication Bay', criticality: 'Low', status: 'operational', lastServiceDate: '2026-11-01', nextServiceDate: '2025-05-01', purchaseDate: '2023-01-10', manufacturer: 'Bosch', model: 'GWS 22-230', meterType: 'none' },
+  { id: 'ast-gc01', assetCode: 'GC-01', name: 'Overhead Crane 5T', category: 'Material Handling', siteId: 'site-hyd', workCentre: 'Main Bay', criticality: 'Critical', status: 'operational', lastServiceDate: '2026-10-20', nextServiceDate: '2027-01-20', purchaseDate: '2017-01-15', manufacturer: 'ElectroMech', model: 'EOT-5T', meterType: 'cycles', currentReading: 48200 },
+  { id: 'ast-ag01', assetCode: 'AG-01', name: 'Angle Grinder', category: 'Grinding Equipment', siteId: 'site-hyd', workCentre: 'Fabrication Bay', criticality: 'Low', status: 'operational', lastServiceDate: '2026-11-01', nextServiceDate: '2027-05-01', purchaseDate: '2023-01-10', manufacturer: 'Bosch', model: 'GWS 22-230', meterType: 'none' },
   { id: 'ast-dp01', assetCode: 'DP-01', name: 'Drill Press', category: 'Drilling Equipment', siteId: 'site-hyd', workCentre: 'Drill Bay', criticality: 'High', status: 'breakdown', lastServiceDate: '2026-09-01', purchaseDate: '2019-03-15', manufacturer: 'Bharat Fritz Werner', model: 'RDM-25', meterType: 'hours', currentReading: 4100 },
 ];
 
@@ -436,9 +437,9 @@ export const VAULT_DOCUMENTS: VaultDocument[] = [
 export const APPROVAL_REQUESTS: ApprovalRequest[] = [
   { id: 'apr-001', requestType: 'Supplier PO Approval', entityRef: 'SPO-2024-002 Revision', entityId: 'spo-002', description: 'Quantity reduction from 300kg to 200kg SS Sheet 304L. Price unchanged at ₹180/kg. Supplier commitment pushed to 10 Nov.', requestedBy: 'Karthik Raju', requestedAt: '2026-11-03T14:00:00', status: 'pending', thresholdValue: 50000, currentValue: 36000 },
   { id: 'apr-002', requestType: 'Stock Adjustment', entityRef: 'Grinding Discs – Cycle Count Variance', entityId: 'inv-008', description: 'Physical count shows 120 pcs vs system quantity of 150 pcs. Variance: -30 pcs (20%). Likely breakage not recorded.', requestedBy: 'Asha Nair', requestedAt: '2026-11-02T11:30:00', status: 'pending' },
-  { id: 'apr-003', requestType: 'PR Approval', entityRef: 'PR-2026-111 — Bulk SS Sheet 304L (₹1,42,500)', entityId: 'pr-demo-11', siteId: 'site-hyd', siteName: 'Hyderabad Factory', description: '750 kg SS Sheet 3mm 304L exceeds ₹1,00,000 owner approval threshold.', requestedBy: 'Karthik Raju', requestedAt: '2026-11-05T09:15:00', status: 'pending', thresholdValue: 100000, currentValue: 142500 },
-  { id: 'apr-004', requestType: 'Supplier PO Approval', entityRef: 'SPO-2026-109 — 42CrMo4 Forged Billet', entityId: 'spo-demo-109', siteId: 'site-hyd', siteName: 'Hyderabad Factory', description: '600 kg 42CrMo4 forged round billet (₹1,42,800) — technical & price verified against SQ-2026-109A.', requestedBy: 'Karthik Raju', requestedAt: '2026-10-27T11:10:00', status: 'approved', approvedBy: 'Ranjith Kodakandla', decisionAt: '2026-10-27T12:05:00', notes: 'Approved critical alloy forging order above ₹1,00,000 threshold.', thresholdValue: 100000, currentValue: 142800 },
-  { id: 'apr-005', requestType: 'Stock Adjustment', entityRef: 'PR-2026-112 — Buffer MS Flat Bar Request', entityId: 'pr-demo-12', siteId: 'site-hyd', siteName: 'Hyderabad Factory', description: 'Additional 250 kg MS Flat Bar 50×6 buffer replenishment request.', requestedBy: 'Mohan Das', requestedAt: '2026-11-02T16:40:00', status: 'rejected', approvedBy: 'Ranjith Kodakandla', decisionAt: '2026-11-03T10:15:00', notes: 'Rejected — duplicate request; 236 kg already available in LOT-2024-006.', thresholdValue: 50000, currentValue: 19500 },
+  { id: 'apr-003', requestType: 'PR Approval', entityRef: 'PR-2026-111 — Bulk SS Sheet 304L (₹1,42,500)', entityId: 'pr-demo-11', siteId: 'site-hyd', siteName: 'Hyderabad Plant 1', description: '750 kg SS Sheet 3mm 304L exceeds ₹1,00,000 owner approval threshold.', requestedBy: 'Karthik Raju', requestedAt: '2026-11-05T09:15:00', status: 'pending', thresholdValue: 100000, currentValue: 142500 },
+  { id: 'apr-004', requestType: 'Supplier PO Approval', entityRef: 'SPO-2026-109 — 42CrMo4 Forged Billet', entityId: 'spo-demo-109', siteId: 'site-hyd', siteName: 'Hyderabad Plant 1', description: '600 kg 42CrMo4 forged round billet (₹1,42,800) — technical & price verified against SQ-2026-109A.', requestedBy: 'Karthik Raju', requestedAt: '2026-10-27T11:10:00', status: 'approved', approvedBy: 'Ranjith Kodakandla', decisionAt: '2026-10-27T12:05:00', notes: 'Approved critical alloy forging order above ₹1,00,000 threshold.', thresholdValue: 100000, currentValue: 142800 },
+  { id: 'apr-005', requestType: 'Stock Adjustment', entityRef: 'PR-2026-112 — Buffer MS Flat Bar Request', entityId: 'pr-demo-12', siteId: 'site-hyd', siteName: 'Hyderabad Plant 1', description: 'Additional 250 kg MS Flat Bar 50×6 buffer replenishment request.', requestedBy: 'Mohan Das', requestedAt: '2026-11-02T16:40:00', status: 'rejected', approvedBy: 'Ranjith Kodakandla', decisionAt: '2026-11-03T10:15:00', notes: 'Rejected — duplicate request; 236 kg already available in LOT-2024-006.', thresholdValue: 50000, currentValue: 19500 },
 ];
 
 // ── Notifications ──
@@ -496,12 +497,12 @@ export const SUPPLIER_QUOTATIONS: SupplierQuotation[] = [
 
 // ── Audit Events (append-only seed — real events appended in store) ──
 export const AUDIT_EVENTS: AuditEvent[] = [
-  { id: 'ae-001', actor: 'Karthik Raju', actorId: 'u-buyer', scope: 'SupplierPO', action: 'create', entityId: 'spo-001', entityRef: 'SPO-2024-001', timestamp: '2026-10-15T09:12:00', source: 'ui' },
-  { id: 'ae-002', actor: 'Ranjith Kodakandla', actorId: 'u-owner', scope: 'SupplierPO', action: 'approve', entityId: 'spo-001', entityRef: 'SPO-2024-001', timestamp: '2026-10-15T11:30:00', source: 'ui', reason: 'Value within budget; supplier pre-approved.' },
-  { id: 'ae-003', actor: 'Asha Nair', actorId: 'u-store', scope: 'GoodsReceipt', action: 'create', entityId: 'grn-001', entityRef: 'GRN-2024-001', timestamp: '2026-10-22T14:05:00', source: 'ui' },
-  { id: 'ae-004', actor: 'Priya Patel', actorId: 'u-qc', scope: 'Inspection', action: 'complete', entityId: 'insp-001', entityRef: 'INSP-2024-001', timestamp: '2026-10-22T16:48:00', source: 'ui', after: { result: 'pass' } },
-  { id: 'ae-005', actor: 'Anita Mehta', actorId: 'u-sales', scope: 'CustomerPO', action: 'create', entityId: 'cpo-001', entityRef: 'CPO-2024-1245', timestamp: '2026-10-10T10:00:00', source: 'ui' },
-  { id: 'ae-006', actor: 'Suresh Kumar', actorId: 'u-super', scope: 'Job', action: 'update', entityId: 'job-101', entityRef: 'J-101', timestamp: '2026-11-04T08:30:00', source: 'ui', after: { currentStage: 'CNC Turning' } },
+  { id: 'ae-001', actor: 'Karthik Raju', actorId: 'u-buyer', role: 'Procurement', scope: 'SupplierPO', action: 'create', entityId: 'spo-001', entityRef: 'SPO-2024-001', timestamp: '2026-10-15T09:12:00', source: 'ui' },
+  { id: 'ae-002', actor: 'Ranjith Kodakandla', actorId: 'u-owner', role: 'Owner / Managing Director', scope: 'SupplierPO', action: 'approve', entityId: 'spo-001', entityRef: 'SPO-2024-001', timestamp: '2026-10-15T11:30:00', source: 'ui', reason: 'Value within budget; supplier pre-approved.' },
+  { id: 'ae-003', actor: 'Asha Nair', actorId: 'u-store', role: 'Storekeeper / Inventory', scope: 'GoodsReceipt', action: 'create', entityId: 'grn-001', entityRef: 'GRN-2024-001', timestamp: '2026-10-22T14:05:00', source: 'ui' },
+  { id: 'ae-004', actor: 'Priya Patel', actorId: 'u-qc', role: 'Quality Control', scope: 'Inspection', action: 'complete', entityId: 'insp-001', entityRef: 'INSP-2024-001', timestamp: '2026-10-22T16:48:00', source: 'ui', after: { result: 'pass' } },
+  { id: 'ae-005', actor: 'Anita Mehta', actorId: 'u-sales', role: 'Sales & Commercial', scope: 'CustomerPO', action: 'create', entityId: 'cpo-001', entityRef: 'CPO-2024-1245', timestamp: '2026-10-10T10:00:00', source: 'ui' },
+  { id: 'ae-006', actor: 'Suresh Kumar', actorId: 'u-super', role: 'Production Supervisor', scope: 'Job', action: 'update', entityId: 'job-101', entityRef: 'J-101', timestamp: '2026-11-04T08:30:00', source: 'ui', after: { currentStage: 'CNC Turning' } },
 ];
 
 // ── Approval Policies ──
@@ -679,8 +680,8 @@ export const CUSTOMER_INVOICES: CustomerInvoice[] = [
   { id: 'cinv-001', invoiceNumber: 'INV-2026-001', customerId: 'cust-mer', customerName: 'Meridian Engineering', customerPoRef: 'CPO-2026-101', customerPoId: 'cpo-101', invoiceDate: '2026-11-01', dueDate: '2026-12-01', amount: 485000, amountPaid: 200000, currency: 'INR', status: 'partial' },
   { id: 'cinv-002', invoiceNumber: 'INV-2026-002', customerId: 'cust-bpe', customerName: 'Bharat Power Equipment', customerPoRef: 'CPO-2026-102', customerPoId: 'cpo-102', invoiceDate: '2026-11-02', dueDate: '2026-12-17', amount: 320000, amountPaid: 0, currency: 'INR', status: 'sent' },
   { id: 'cinv-003', invoiceNumber: 'INV-2026-003', customerId: 'cust-af', customerName: 'Anand Fabricators', customerPoRef: 'CPO-2026-098', customerPoId: 'cpo-103', invoiceDate: '2026-10-15', dueDate: '2026-10-30', amount: 128000, amountPaid: 128000, currency: 'INR', status: 'paid' },
-  { id: 'cinv-004', invoiceNumber: 'INV-2026-004', customerId: 'cust-ntpc', customerName: 'NTPC Vendor Division', customerPoRef: 'CPO-2026-099', customerPoId: 'cpo-104', invoiceDate: '2026-10-20', dueDate: '2026-12-19', amount: 650000, amountPaid: 0, currency: 'INR', status: 'sent' },
-  { id: 'cinv-005', invoiceNumber: 'INV-2026-005', customerId: 'cust-lt', customerName: 'L&T Hydrocarbon', customerPoRef: 'CPO-2026-100', customerPoId: 'cpo-105', invoiceDate: '2026-10-20', dueDate: '2026-11-04', amount: 290000, amountPaid: 0, currency: 'INR', status: 'overdue' },
+  { id: 'cinv-004', invoiceNumber: 'INV-2026-004', customerId: 'cust-ntpc', customerName: 'NTPC Vendor Division', customerPoRef: 'CPO-2026-099', customerPoId: 'cpo-104', invoiceDate: '2026-10-20', dueDate: '2026-12-19', amount: 649944, amountPaid: 0, currency: 'INR', status: 'sent' },
+  { id: 'cinv-005', invoiceNumber: 'INV-2026-005', customerId: 'cust-lt', customerName: 'L&T Hydrocarbon', customerPoRef: 'CPO-2026-100', customerPoId: 'cpo-105', invoiceDate: '2026-10-20', dueDate: '2026-11-04', amount: 290280, amountPaid: 0, currency: 'INR', status: 'overdue' },
   { id: 'cinv-006', invoiceNumber: 'INV-2026-006', customerId: 'cust-mer', customerName: 'Meridian Engineering', customerPoRef: 'CPO-2026-095', customerPoId: 'cpo-108', invoiceDate: '2026-10-01', dueDate: '2026-10-31', amount: 220000, amountPaid: 220000, currency: 'INR', status: 'paid' },
 ];
 
@@ -758,21 +759,25 @@ export const FLAGSHIP_SUPPLIER_RFQS: SupplierQuotation[] = [
 
 // ── Company/Onboarding Config ──
 export const COMPANY_CONFIG = {
-  companyName: 'Shankar Metalworks Pvt. Ltd.',
-  tradingName: 'Shankar Metalworks',
+  companyName: 'Apex Precision Engineering Pvt. Ltd.',
+  tradingName: 'Apex Precision Engineering',
   businessType: 'manufacturing' as const,
-  legalName: 'Shankar Metalworks Private Limited',
+  legalName: 'Apex Precision Engineering Private Limited',
   entityType: 'Private Limited',
-  pan: 'AABCS1234F',
-  registeredAddress: 'Plot No. 45, IDA Uppal',
+  pan: 'AABCA4821M',
+  registeredAddress: 'Plot 42, IDA Nacharam',
   city: 'Hyderabad',
   state: 'Telangana',
-  pincode: '500039',
-  phone: '040-12345678',
-  email: 'admin@shankarmfg.com',
+  pincode: '500076',
+  phone: '+91-40-27172100',
+  email: 'admin@apexprecision.in',
   financialYear: '2026-27',
   currency: 'INR',
-  gstin: '36AABCS1234F1Z5',
+  gstin: '36AABCA4821M1Z2',
+  bankName: 'HDFC Bank',
+  bankAccountNo: '50200012345',
+  ifscCode: 'HDFC0001234',
+  bankBranch: 'Uppal Industrial Area, Hyderabad',
   onboardingComplete: true,
 };
 
@@ -882,7 +887,8 @@ export const MATERIAL_LOTS_DEMO: MaterialLot[] = [
 ];
 
 export const INVENTORY_DEMO: InventoryItem[] = [
-  { id: 'inv-101', materialItemId: 'mat-42crmo4', materialCode: 'FRG-42CD4-RND', materialName: 'Steel Grade 42CrMo4 Forged Round Billet', categoryName: 'Alloy Steel Forgings', locationId: 'loc-rm', locationName: 'Raw Material Store', onHandQty: 320, availableQty: 0, reservedQty: 320, qcHoldQty: 0, inTransitQty: 200, primaryUom: 'kg', reorderPoint: 400, shortage: true, lotCount: 1 },
+  { id: 'inv-101', materialItemId: 'mat-42crmo4', materialCode: 'FRG-42CD4-RND', materialName: 'Steel Grade 42CrMo4 Forged Round Billet', categoryName: 'Alloy Steel Forgings', locationId: 'loc-rm', locationName: 'Raw Material Store', onHandQty: 570, availableQty: 250, reservedQty: 320, qcHoldQty: 0, inTransitQty: 200, primaryUom: 'kg', reorderPoint: 400, shortage: true, lotCount: 2 },
+  { id: 'inv-101-qrn', materialItemId: 'mat-42crmo4', materialCode: 'FRG-42CD4-RND', materialName: 'Steel Grade 42CrMo4 Forged Round Billet', categoryName: 'Alloy Steel Forgings', locationId: 'loc-qrn', locationName: 'Quarantine Store', onHandQty: 150, availableQty: 0, reservedQty: 0, qcHoldQty: 150, inTransitQty: 0, primaryUom: 'kg', reorderPoint: 0, shortage: false, lotCount: 1 },
   { id: 'inv-102', materialItemId: 'mat-42crmo4', materialCode: 'FRG-42CD4-RND', materialName: 'Steel Grade 42CrMo4 Forged Round Billet', categoryName: 'Alloy Steel Forgings', locationId: 'loc-pun-rm', locationName: 'Pune Raw Material Store', onHandQty: 600, availableQty: 600, reservedQty: 0, qcHoldQty: 0, inTransitQty: 0, primaryUom: 'kg', reorderPoint: 400, shortage: false, lotCount: 1 },
 ];
 
@@ -909,23 +915,23 @@ export const JOB_BLOCKERS_DEMO: JobBlocker[] = [
 
 // ── Asset: CNC Machine 04, calendar + running-hour maintenance schedule ──
 export const ASSETS_DEMO: Asset[] = [
-  { id: 'ast-cnc04', assetCode: 'CNC-04', name: 'CNC Vertical Machining Centre 04', category: 'Machining Equipment', siteId: 'site-hyd', workCentre: 'CNC Bay', criticality: 'Critical', status: 'operational', manufacturer: 'DMG MORI', model: 'DMU 50', serialNumber: 'DMG-50-88213', meterType: 'hours', currentReading: 2850, lastServiceReading: 2400, pmFrequencyHours: 600, pmFrequencyDays: 90, lastServiceDate: '2024-09-10', nextServiceDate: '2024-12-09', purchaseDate: '2021-05-15', installationDate: '2021-06-01', commissioningDate: '2021-06-10', responsiblePerson: 'Venkat Rao' },
+  { id: 'ast-cnc04', assetCode: 'CNC-04', name: 'CNC Vertical Machining Centre 04', category: 'Machining Equipment', siteId: 'site-hyd', workCentre: 'CNC Bay', criticality: 'Critical', status: 'operational', manufacturer: 'DMG MORI', model: 'DMU 50', serialNumber: 'DMG-50-88213', meterType: 'hours', currentReading: 2850, lastServiceReading: 2400, pmFrequencyHours: 600, pmFrequencyDays: 90, lastServiceDate: '2026-09-10', nextServiceDate: '2026-12-09', purchaseDate: '2021-05-15', installationDate: '2021-06-01', commissioningDate: '2021-06-10', responsiblePerson: 'Venkat Rao' },
 ];
 
 export const METER_READINGS_DEMO: MeterReading[] = [
-  { id: 'mr-001', assetId: 'ast-cnc04', assetCode: 'CNC-04', reading: 2400, readingDate: '2024-09-10', recordedBy: 'Venkat Rao', readingType: 'post-maintenance', notes: 'Reading at last 600-hour service.' },
-  { id: 'mr-002', assetId: 'ast-cnc04', assetCode: 'CNC-04', reading: 2620, readingDate: '2024-10-05', recordedBy: 'Mohan Das', readingType: 'routine' },
-  { id: 'mr-003', assetId: 'ast-cnc04', assetCode: 'CNC-04', reading: 2850, readingDate: '2024-11-04', recordedBy: 'Mohan Das', readingType: 'routine', notes: 'Shift-end reading.' },
+  { id: 'mr-001', assetId: 'ast-cnc04', assetCode: 'CNC-04', reading: 2400, readingDate: '2026-09-10', recordedBy: 'Venkat Rao', readingType: 'post-maintenance', notes: 'Reading at last 600-hour service.' },
+  { id: 'mr-002', assetId: 'ast-cnc04', assetCode: 'CNC-04', reading: 2620, readingDate: '2026-10-05', recordedBy: 'Mohan Das', readingType: 'routine' },
+  { id: 'mr-003', assetId: 'ast-cnc04', assetCode: 'CNC-04', reading: 2850, readingDate: '2026-11-04', recordedBy: 'Mohan Das', readingType: 'routine', notes: 'Shift-end reading.' },
 ];
 
 export const MAINTENANCE_EVENTS_DEMO: MaintenanceEvent[] = [
-  { id: 'me-020', eventNumber: 'ME-2024-020', type: 'Preventive', assetId: 'ast-cnc04', assetName: 'CNC Vertical Machining Centre 04', assetCode: 'CNC-04', symptom: 'Scheduled 600-hour preventive service', technicianId: 'u-maint', technicianName: 'Venkat Rao', downtimeStart: '2024-09-10T07:00:00', downtimeEnd: '2024-09-10T15:00:00', diagnosis: 'Spindle bearing inspected, coolant filter replaced, ways lubricated.', workDone: 'Full 600-hour preventive maintenance checklist completed per DMG MORI schedule.', status: 'closed', affectedJobs: [], sparesUsed: [{ materialName: 'Coolant Filter', qty: 1, uom: 'pcs' }, { materialName: 'Way Lube', qty: 2, uom: 'ltr' }] },
+  { id: 'me-020', eventNumber: 'ME-2024-020', type: 'Preventive', assetId: 'ast-cnc04', assetName: 'CNC Vertical Machining Centre 04', assetCode: 'CNC-04', symptom: 'Scheduled 600-hour preventive service', technicianId: 'u-maint', technicianName: 'Venkat Rao', downtimeStart: '2026-09-10T07:00:00', downtimeEnd: '2026-09-10T15:00:00', diagnosis: 'Spindle bearing inspected, coolant filter replaced, ways lubricated.', workDone: 'Full 600-hour preventive maintenance checklist completed per DMG MORI schedule.', status: 'closed', affectedJobs: [], sparesUsed: [{ materialName: 'Coolant Filter', qty: 1, uom: 'pcs' }, { materialName: 'Way Lube', qty: 2, uom: 'ltr' }] },
 ];
 
 // ── Inspections: internal fail → rework → internal pass, plus external witness inspection ──
 export const INSPECTIONS_DEMO: Inspection[] = [
   {
-    id: 'ins-200', inspectionNumber: 'INS-2024-200', type: 'In-Process', origin: 'internal', jobId: 'job-200', jobNumber: 'J-200', stageId: 'stg-200-3', stageName: 'CNC Finish Machining',
+    id: 'ins-200', inspectionNumber: 'INSP-2024-200', type: 'In-Process', origin: 'internal', jobId: 'job-200', jobNumber: 'J-200', stageId: 'stg-200-3', stageName: 'CNC Finish Machining',
     productDescription: 'Turbine Casing – Lower Half', quantityInspected: 1, uom: 'unit',
     inspectorId: 'u-qc', inspectorName: 'Priya Patel', date: '2024-11-01', templateId: 'tmpl-insp-casing', templateName: 'Turbine Casing – Final Dimensional & NDT Checklist', checklistVersion: 'v2',
     measurements: [
@@ -935,7 +941,7 @@ export const INSPECTIONS_DEMO: Inspection[] = [
     sampleQty: 1, acceptedQty: 0, rejectedQty: 1, result: 'fail', ncrId: 'ncr-200', ncrNumber: 'NCR-2024-200',
   },
   {
-    id: 'ins-201', inspectionNumber: 'INS-2024-201', type: 'Final', origin: 'internal', jobId: 'job-200', jobNumber: 'J-200', stageId: 'stg-200-5', stageName: 'Final Inspection',
+    id: 'ins-201', inspectionNumber: 'INSP-2024-201', type: 'Final', origin: 'internal', jobId: 'job-200', jobNumber: 'J-200', stageId: 'stg-200-5', stageName: 'Final Inspection',
     productDescription: 'Turbine Casing – Lower Half', quantityInspected: 1, uom: 'unit',
     inspectorId: 'u-qc', inspectorName: 'Priya Patel', date: '2024-11-03', templateId: 'tmpl-insp-casing', templateName: 'Turbine Casing – Final Dimensional & NDT Checklist', checklistVersion: 'v2',
     measurements: [
@@ -947,7 +953,7 @@ export const INSPECTIONS_DEMO: Inspection[] = [
     sampleQty: 1, acceptedQty: 1, rejectedQty: 0, result: 'pass', approvedAt: '2024-11-03T16:00:00', reworkOfInspectionId: 'ins-200',
   },
   {
-    id: 'ins-202', inspectionNumber: 'INS-2024-202', type: 'Final', origin: 'external', jobId: 'job-200', jobNumber: 'J-200',
+    id: 'ins-202', inspectionNumber: 'INSP-2024-202', type: 'Final', origin: 'external', jobId: 'job-200', jobNumber: 'J-200',
     productDescription: 'Turbine Casing – Lower Half', quantityInspected: 1, uom: 'unit',
     inspectorId: 'ext-tuv', inspectorName: 'Markus Weber', externalOrgName: 'TÜV SÜD Industrie Service GmbH (witnessing on behalf of RheinWerk QA)', externalScope: 'Third-party witness inspection of turbine casing lower half per RheinWerk QAP-2024-07', reportRef: 'TUV-WPR-2024-1187',
     date: '2024-11-04', templateId: 'tmpl-insp-casing', templateName: 'Turbine Casing – Final Dimensional & NDT Checklist', checklistVersion: 'v2',
@@ -961,7 +967,7 @@ export const NCRS_DEMO: NCR[] = [
 ];
 
 export const QUALITY_RELEASES_DEMO: QualityRelease[] = [
-  { id: 'qr-200', jobId: 'job-200', jobNumber: 'J-200', inspectionId: 'ins-202', releasedBy: 'Priya Patel', releasedAt: '2024-11-04T16:00:00', certDossierComplete: true, notes: 'Rework re-inspection (INS-2024-201) and external witness inspection (INS-2024-202 / TUV-WPR-2024-1187) both passed. Cleared for partial dispatch.' },
+  { id: 'qr-200', jobId: 'job-200', jobNumber: 'J-200', inspectionId: 'ins-202', releasedBy: 'Priya Patel', releasedAt: '2024-11-04T16:00:00', certDossierComplete: true, notes: 'Rework re-inspection (INSP-2024-201) and external witness inspection (INSP-2024-202 / TUV-WPR-2024-1187) both passed. Cleared for partial dispatch.' },
 ];
 
 // ── Dispatch: partial shipment with package-level and transport detail ──
@@ -981,17 +987,17 @@ export const DISPATCHES_DEMO: Dispatch[] = [
 
 // ── Documents: external inspection report + an asset calibration certificate nearing expiry ──
 export const VAULT_DOCUMENTS_DEMO: VaultDocument[] = [
-  { id: 'doc-011', title: 'TÜV Witness Inspection Report – J-200', docType: 'Inspection Report', category: 'Quality Documents', uploadedBy: 'Priya Patel', uploadedAt: '2024-11-04', issueDate: '2024-11-04', version: 1, fileSize: '3.4 MB', linkedEntities: [{ type: 'Job', ref: 'J-200' }, { type: 'Inspection', ref: 'INS-2024-202' }], certStatus: 'verified', status: 'active' },
-  { id: 'doc-012', title: 'CNC-04 Calibration Certificate', docType: 'Calibration Certificate', category: 'Asset Documents', uploadedBy: 'Venkat Rao', uploadedAt: '2024-09-10', issueDate: '2024-09-10', expiryDate: '2024-11-20', version: 1, fileSize: '0.5 MB', linkedEntities: [{ type: 'Asset', ref: 'CNC-04' }], obligation: { renewalDue: '2024-11-10', responsible: 'Venkat Rao' }, status: 'active' },
+  { id: 'doc-011', title: 'TÜV Witness Inspection Report – J-200', docType: 'Inspection Report', category: 'Quality Documents', uploadedBy: 'Priya Patel', uploadedAt: '2024-11-04', issueDate: '2024-11-04', version: 1, fileSize: '3.4 MB', linkedEntities: [{ type: 'Job', ref: 'J-200' }, { type: 'Inspection', ref: 'INSP-2024-202' }], certStatus: 'verified', status: 'active' },
+  { id: 'doc-012', title: 'CNC-04 Calibration Certificate', docType: 'Calibration Certificate', category: 'Asset Documents', uploadedBy: 'Venkat Rao', uploadedAt: '2026-09-10', issueDate: '2026-09-10', expiryDate: '2026-11-20', version: 1, fileSize: '0.5 MB', linkedEntities: [{ type: 'Asset', ref: 'CNC-04' }], obligation: { renewalDue: '2026-11-10', responsible: 'Venkat Rao' }, status: 'active' },
 ];
 
 export const AUDIT_EVENTS_DEMO: AuditEvent[] = [
-  { id: 'ae-101', actor: 'Anita Mehta', actorId: 'u-sales', scope: 'CustomerPO', action: 'create', entityId: 'cpo-200', entityRef: 'CPO-2024-200', timestamp: '2024-10-20T10:00:00', source: 'ui' },
-  { id: 'ae-102', actor: 'Suresh Kumar', actorId: 'u-super', scope: 'Job', action: 'create', entityId: 'job-200', entityRef: 'J-200', timestamp: '2024-10-22T08:00:00', source: 'ui', after: { stageTemplateId: 'tmpl-heavy-fab' } },
-  { id: 'ae-103', actor: 'Priya Patel', actorId: 'u-qc', scope: 'Inspection', action: 'fail', entityId: 'ins-200', entityRef: 'INS-2024-200', timestamp: '2024-11-01T15:00:00', source: 'ui', after: { result: 'fail' } },
-  { id: 'ae-104', actor: 'Priya Patel', actorId: 'u-qc', scope: 'NCR', action: 'create', entityId: 'ncr-200', entityRef: 'NCR-2024-200', timestamp: '2024-11-01T15:05:00', source: 'ui', reason: 'Bore diameter oversize; disposition: rework.' },
-  { id: 'ae-105', actor: 'Priya Patel', actorId: 'u-qc', scope: 'Inspection', action: 'pass', entityId: 'ins-201', entityRef: 'INS-2024-201', timestamp: '2024-11-03T12:00:00', source: 'ui', after: { result: 'pass' } },
-  { id: 'ae-106', actor: 'Markus Weber', actorId: 'ext-tuv', scope: 'Inspection', action: 'pass', entityId: 'ins-202', entityRef: 'INS-2024-202', timestamp: '2024-11-04T14:00:00', source: 'ui', after: { result: 'pass' } },
-  { id: 'ae-107', actor: 'Priya Patel', actorId: 'u-qc', scope: 'QualityRelease', action: 'create', entityId: 'qr-200', entityRef: 'J-200', timestamp: '2024-11-04T16:00:00', source: 'ui' },
-  { id: 'ae-108', actor: 'Deepa Singh', actorId: 'u-dispatch', scope: 'Dispatch', action: 'create', entityId: 'dsp-200', entityRef: 'DSP-2024-200', timestamp: '2024-11-05T09:00:00', source: 'ui', reason: 'Partial dispatch — only J-200 released; J-201 still in final inspection.' },
+  { id: 'ae-101', actor: 'Anita Mehta', actorId: 'u-sales', role: 'Sales & Commercial', scope: 'CustomerPO', action: 'create', entityId: 'cpo-200', entityRef: 'CPO-2024-200', timestamp: '2024-10-20T10:00:00', source: 'ui' },
+  { id: 'ae-102', actor: 'Suresh Kumar', actorId: 'u-super', role: 'Production Supervisor', scope: 'Job', action: 'create', entityId: 'job-200', entityRef: 'J-200', timestamp: '2024-10-22T08:00:00', source: 'ui', after: { stageTemplateId: 'tmpl-heavy-fab' } },
+  { id: 'ae-103', actor: 'Priya Patel', actorId: 'u-qc', role: 'Quality Control', scope: 'Inspection', action: 'fail', entityId: 'ins-200', entityRef: 'INSP-2024-200', timestamp: '2024-11-01T15:00:00', source: 'ui', after: { result: 'fail' } },
+  { id: 'ae-104', actor: 'Priya Patel', actorId: 'u-qc', role: 'Quality Control', scope: 'NCR', action: 'create', entityId: 'ncr-200', entityRef: 'NCR-2024-200', timestamp: '2024-11-01T15:05:00', source: 'ui', reason: 'Bore diameter oversize; disposition: rework.' },
+  { id: 'ae-105', actor: 'Priya Patel', actorId: 'u-qc', role: 'Quality Control', scope: 'Inspection', action: 'pass', entityId: 'ins-201', entityRef: 'INSP-2024-201', timestamp: '2024-11-03T12:00:00', source: 'ui', after: { result: 'pass' } },
+  { id: 'ae-106', actor: 'Markus Weber', actorId: 'ext-tuv', role: 'Quality Control', scope: 'Inspection', action: 'pass', entityId: 'ins-202', entityRef: 'INSP-2024-202', timestamp: '2024-11-04T14:00:00', source: 'ui', after: { result: 'pass' } },
+  { id: 'ae-107', actor: 'Priya Patel', actorId: 'u-qc', role: 'Quality Control', scope: 'QualityRelease', action: 'create', entityId: 'qr-200', entityRef: 'J-200', timestamp: '2024-11-04T16:00:00', source: 'ui' },
+  { id: 'ae-108', actor: 'Deepa Singh', actorId: 'u-dispatch', role: 'Logistics & Dispatch', scope: 'Dispatch', action: 'create', entityId: 'dsp-200', entityRef: 'DSP-2024-200', timestamp: '2024-11-05T09:00:00', source: 'ui', reason: 'Partial dispatch — only J-200 released; J-201 still in final inspection.' },
 ];

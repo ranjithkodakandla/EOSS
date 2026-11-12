@@ -72,11 +72,11 @@ export default function Procurement() {
   const q = search.toLowerCase();
   const matchSite = (siteId?: string) => siteFilter === 'all' || siteId === siteFilter;
   const statusOptions = tab === 'pr'
-    ? ['draft', 'pending', 'approved', 'converted', 'cancelled']
+    ? ['draft', 'pending', 'approved', 'rejected', 'converted', 'cancelled']
     : tab === 'quotes'
-      ? ['draft', 'sent', 'received', 'selected', 'rejected', 'expired']
+      ? ['draft', 'pending', 'sent', 'received', 'selected', 'approval_rejected', 'rejected', 'expired']
       : tab === 'spo'
-        ? ['draft', 'pending_approval', 'sent', 'confirmed', 'partial', 'received', 'overdue', 'cancelled']
+        ? ['draft', 'pending_approval', 'sent', 'awaiting_supplier_confirmation', 'confirmed', 'supplier_accepted', 'supplier_declined', 'partial', 'received', 'overdue', 'closed', 'cancelled']
         : ['draft', 'pending_qc', 'accepted', 'partial', 'rejected'];
   const matchStatus = (status: string) => statusFilter === 'all' || status === statusFilter;
   const filteredSpoBase = supplierPos.filter(p =>
@@ -127,8 +127,11 @@ export default function Procurement() {
     { id: 'quotes' as ProcTab, label: `Supplier Quotations (${filteredQuotes.length})` },
     { id: 'spo' as ProcTab, label: `Supplier POs (${filteredSpo.length})` },
     { id: 'grn' as ProcTab, label: `Receiving & Inventory (${filteredGrns.length})` },
+    { id: 'approvals' as ProcTab, label: `Approvals (${pendingApprovals})` },
   ];
   const [compareQuotes, setCompareQuotes] = useState<SupplierQuotation[] | null>(null);
+  const [rejectApprovalTarget, setRejectApprovalTarget] = useState<{ id: string; entityRef: string } | null>(null);
+  const [rejectApprovalReason, setRejectApprovalReason] = useState('');
 
   return (
     <div className="flex flex-col h-full">
@@ -473,7 +476,7 @@ export default function Procurement() {
                   <tbody>
                     {filteredQuotes.map(q => {
                       const total = q.lines.reduce((s, l) => s + l.lineTotal, 0) + (q.taxAmount ?? 0) + (q.deliveryCharges ?? 0) - (q.discountAmount ?? 0);
-                      const grouped = supplierQuotations.filter(x => x.prId && x.prId === q.prId);
+                      const grouped = supplierQuotations.filter(x => x.prId && x.prId === q.prId && !['rejected', 'approval_rejected'].includes(x.status));
                       const checked = selectedQuoteIds.includes(q.id);
                       return (
                         <tr key={q.id} onClick={() => openWithOrigin(`/procurement/quote/${q.id}`)} className="cursor-pointer" style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}
@@ -608,30 +611,64 @@ export default function Procurement() {
               </div>
             ) : (
               <div className="space-y-3 max-w-3xl">
-                {visibleApprovals.map(a => (
-                  <div key={a.id} className="rounded-xl border p-4 flex items-start justify-between gap-4"
-                    style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-semibold" style={{ color: 'var(--text)' }}>{a.entityRef}</div>
-                      <div className="text-xs mt-0.5" style={{ color: 'var(--text-3)' }}>{a.requestedBy} · {new Date(a.requestedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} · {a.siteName ?? 'Company-wide / unassigned'}</div>
-                      {a.description && <div className="text-xs mt-1" style={{ color: 'var(--text-2)' }}>{a.description}</div>}
+                {visibleApprovals.map(a => {
+                  const isPr = a.requestType.toLowerCase().includes('requisition') || a.entityRef.startsWith('PR-');
+                  const isSpo = a.requestType.toLowerCase().includes('supplier po') || a.entityRef.startsWith('SPO-');
+                  const linkedPr = isPr ? purchaseReqs.find(p => p.id === a.entityId || p.prNumber === a.entityRef) : undefined;
+                  const rejectionText = a.status === 'rejected'
+                    ? (a.notes || linkedPr?.rejectionReason || linkedPr?.reason)
+                    : undefined;
+                  const targetPath = isPr
+                    ? `/procurement/pr/${a.entityId}`
+                    : isSpo
+                      ? `/procurement/spo/${a.entityId}`
+                      : a.entityRef.startsWith('CPO-')
+                        ? `/sales/po/${a.entityId}`
+                        : null;
+                  return (
+                    <div key={a.id} className="rounded-xl border p-4 flex items-start justify-between gap-4"
+                      style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {targetPath ? (
+                            <button type="button" onClick={() => openWithOrigin(targetPath)} className="text-sm font-semibold text-[var(--brand)] hover:underline font-mono">
+                              {a.entityRef}
+                            </button>
+                          ) : (
+                            <span className="text-sm font-semibold font-mono" style={{ color: 'var(--text)' }}>{a.entityRef}</span>
+                          )}
+                          <span className="text-[11px] px-2 py-0.5 rounded bg-[var(--surface-2)] text-[var(--text-2)]">{a.requestType}</span>
+                        </div>
+                        <div className="text-xs mt-0.5" style={{ color: 'var(--text-3)' }}>{a.requestedBy} · {new Date(a.requestedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} · {a.siteName ?? 'Company-wide / unassigned'}</div>
+                        {a.description && <div className="text-xs mt-1" style={{ color: 'var(--text-2)' }}>{a.description}</div>}
+                        {rejectionText && (
+                          <div className="text-xs mt-1.5 px-2.5 py-1.5 rounded-lg bg-red-50 border border-red-200 text-red-800">
+                            <strong>Rejection reason:</strong> {rejectionText}
+                          </div>
+                        )}
+                        {a.status !== 'pending' && a.approvedBy && (
+                          <div className="text-[11px] mt-1 text-[var(--text-3)]">
+                            {a.status === 'approved' ? 'Approved' : 'Rejected'} by {a.approvedBy}
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        {a.status !== 'pending' && <StatusChip status={a.status} />}
+                        {a.status === 'pending' && canApprove && <button onClick={() => { setRejectApprovalReason(''); setRejectApprovalTarget({ id: a.id, entityRef: a.entityRef }); }}
+                          className="px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors"
+                          style={{ borderColor: 'var(--error,#DC2626)', color: 'var(--error,#DC2626)', background: 'transparent' }}>
+                          Reject
+                        </button>}
+                        {a.status === 'pending' && canApprove && <button onClick={() => resolveApproval(a.id, 'approved', currentUser.name, 'Approved in approval review')}
+                          className="px-3 py-1.5 text-xs font-semibold rounded-lg text-white transition-colors"
+                          style={{ background: 'var(--success,#16A34A)' }}>
+                          Approve
+                        </button>}
+                        {a.status === 'pending' && !canApprove && <span className="text-[11px] text-[var(--text-3)]">Owner approval required</span>}
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      {a.status !== 'pending' && <StatusChip status={a.status} />}
-                      {a.status === 'pending' && canApprove && <button onClick={() => resolveApproval(a.id, 'rejected', currentUser.name, 'Rejected in approval review')}
-                        className="px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors"
-                        style={{ borderColor: 'var(--error,#DC2626)', color: 'var(--error,#DC2626)', background: 'transparent' }}>
-                        Reject
-                      </button>}
-                      {a.status === 'pending' && canApprove && <button onClick={() => resolveApproval(a.id, 'approved', currentUser.name, 'Approved in approval review')}
-                        className="px-3 py-1.5 text-xs font-semibold rounded-lg text-white transition-colors"
-                        style={{ background: 'var(--success,#16A34A)' }}>
-                        Approve
-                      </button>}
-                      {a.status === 'pending' && !canApprove && <span className="text-[11px] text-[var(--text-3)]">Owner approval required</span>}
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -694,6 +731,42 @@ export default function Procurement() {
           </div>
         </div>
       )}
+
+      {rejectApprovalTarget && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-6 w-full max-w-md shadow-xl space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="font-bold text-[var(--text)]">Reject {rejectApprovalTarget.entityRef}?</h2>
+              <button onClick={() => setRejectApprovalTarget(null)} className="text-[var(--text-3)]"><X size={18} /></button>
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-[var(--text-2)] block mb-1">Rejection Reason *</label>
+              <textarea
+                className="eoss-input w-full"
+                rows={3}
+                placeholder="Explain why this request is rejected..."
+                value={rejectApprovalReason}
+                onChange={e => setRejectApprovalReason(e.target.value)}
+              />
+            </div>
+            <div className="flex gap-2">
+              <button type="button" onClick={() => setRejectApprovalTarget(null)} className="flex-1 py-2 border border-[var(--border)] text-[var(--text)] rounded-lg text-sm">Cancel</button>
+              <button
+                type="button"
+                disabled={!rejectApprovalReason.trim()}
+                onClick={() => {
+                  resolveApproval(rejectApprovalTarget.id, 'rejected', currentUser.name, rejectApprovalReason.trim());
+                  setRejectApprovalTarget(null);
+                }}
+                className="flex-1 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-40"
+                style={{ background: 'var(--error,#DC2626)' }}
+              >
+                Confirm Reject
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -711,7 +784,7 @@ function EditSPOForm({ spo, onSave, onCancel }: { spo: SupplierPO; onSave: (p: P
 }
 
 function QuoteCompareModal({
-  quotes,
+  quotes: rawQuotes,
   pr,
   suppliers,
   supplierPos,
@@ -729,6 +802,7 @@ function QuoteCompareModal({
   onGenerateDraftPO: (q: SupplierQuotation, overrideReason?: string, notes?: string) => void;
   onRejectQuote: (q: SupplierQuotation, reason: string) => void;
 }) {
+  const quotes = useMemo(() => rawQuotes.filter(q => !['rejected', 'approval_rejected'].includes(q.status)), [rawQuotes]);
   const comparison = useMemo(
     () => compareAndRecommendQuotations(pr, quotes, suppliers, supplierPos),
     [pr, quotes, suppliers, supplierPos],

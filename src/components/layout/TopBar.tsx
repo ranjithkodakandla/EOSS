@@ -85,7 +85,7 @@ export default function TopBar({ onOpenMenu }: { onOpenMenu?: () => void }) {
           >
             <Search size={15} className="text-[var(--text-2)] group-hover:text-[var(--brand)] flex-shrink-0" />
             <span className="truncate flex-1 text-left text-xs sm:text-[13px] font-normal text-gray-500">
-              Search orders, customers, materials, documents...
+              Search orders, quotes, jobs, approvals, materials...
             </span>
             <kbd className="hidden lg:inline-flex items-center font-mono text-[10px] px-2 py-0.5 rounded-md bg-gray-50 border border-gray-200 text-gray-500 shadow-2xs font-semibold">
               Ctrl + K

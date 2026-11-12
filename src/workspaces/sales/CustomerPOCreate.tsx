@@ -88,7 +88,7 @@ export default function CustomerPOCreate() {
         originType: 'from_quotation',
         availabilityStatus: 'not_assessed',
         deliverToSiteId,
-        deliverToSiteName: selectedSite?.name ?? 'Hyderabad Plant',
+        deliverToSiteName: selectedSite?.name ?? 'Hyderabad Plant 1',
       };
       const poLines: POLine[] = selectedQuoteLines.map((l, i) => ({
         id: `pol-${Date.now()}-${i}`,
@@ -131,7 +131,7 @@ export default function CustomerPOCreate() {
       directOrderReason: directReason.trim(),
       availabilityStatus: 'not_assessed',
       deliverToSiteId,
-      deliverToSiteName: selectedSite?.name ?? 'Hyderabad Plant',
+      deliverToSiteName: selectedSite?.name ?? 'Hyderabad Plant 1',
     };
     const poLines: POLine[] = directLines.map((l, i) => ({
       id: `pol-${Date.now()}-${i}`,

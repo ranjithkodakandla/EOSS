@@ -17,6 +17,9 @@ export function computeProductionStatus(job: Job, now: Date): ProductionStatusIn
   if (job.status === 'complete') {
     return { risk: 'complete', daysRemaining, projectedCompletion: job.actualEnd ?? job.plannedEnd, projectionBasis: 'Actual completion recorded.' };
   }
+  if (job.status === 'cancelled') {
+    return { risk: 'complete', daysRemaining: 0, projectedCompletion: null, projectionBasis: 'Job cancelled.' };
+  }
 
   if (job.hasBlocker) {
     return { risk: 'blocked', daysRemaining, projectedCompletion: null, projectionBasis: 'Job has an open blocker — no reliable projection until resolved.' };

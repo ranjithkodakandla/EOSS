@@ -6,8 +6,9 @@ import StatusChip from '../../components/layout/StatusChip';
 import RelatedRecordsPanel from '../../components/workflow/RelatedRecordsPanel';
 import RecordHistoryPanel from '../../components/workflow/RecordHistoryPanel';
 import { useReturnNavigation } from '../../hooks/useReturnNavigation';
+import { formatDisplayDate } from '../../domain/dates';
 
-const fmt = (d?: string) => d ? new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
+const fmt = (d?: string) => formatDisplayDate(d);
 
 export default function SupplierQuotationDetail() {
   const { id } = useParams<{ id: string }>();
@@ -117,47 +118,54 @@ export default function SupplierQuotationDetail() {
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
-            {canApprove && quote.status !== 'selected' && !linkedSpo && (
-              <button
-                type="button"
-                onClick={() => setEditingPricing(v => !v)}
-                className="btn-ghost text-xs inline-flex items-center gap-1"
-              >
-                <Pencil size={13} /> {editingPricing ? 'Cancel Edit' : 'Update Quote Prices'}
-              </button>
-            )}
-            {canApprove && quote.status !== 'selected' && !linkedSpo && (
-              <>
-                <button
-                  type="button"
-                  onClick={() => {
-                    selectQuotation(quote.id);
-                    approveFinalizeQuotation(quote.id, currentUser.name);
-                    showToast({ type: 'success', title: 'Quotation approved & finalized', body: `${quote.quoteNumber} ready for Draft Supplier PO.` });
-                  }}
-                  className="btn-primary text-xs inline-flex items-center gap-1"
-                >
-                  <CheckCircle2 size={13} /> Approve & Finalize
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { setShowRejectModal(true); setRejectReason(''); }}
-                  className="px-3 py-1.5 rounded-lg border border-red-300 text-red-700 text-xs font-semibold inline-flex items-center gap-1"
-                >
-                  <XCircle size={13} /> Reject
-                </button>
-              </>
-            )}
-            {canApprove && !linkedSpo && quote.status !== 'approval_rejected' && (
-              <button
-                type="button"
-                onClick={handleGenerateSPO}
-                className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white inline-flex items-center gap-1"
-                style={{ background: 'var(--success)' }}
-              >
-                <FileText size={13} /> Draft Supplier PO →
-              </button>
-            )}
+            {(() => {
+              const isQuoteRejected = ['rejected', 'approval_rejected', 'expired'].includes(quote.status) || pr?.status === 'rejected';
+              return (
+                <>
+                  {canApprove && !isQuoteRejected && quote.status !== 'selected' && !linkedSpo && (
+                    <button
+                      type="button"
+                      onClick={() => setEditingPricing(v => !v)}
+                      className="btn-ghost text-xs inline-flex items-center gap-1"
+                    >
+                      <Pencil size={13} /> {editingPricing ? 'Cancel Edit' : 'Update Quote Prices'}
+                    </button>
+                  )}
+                  {canApprove && !isQuoteRejected && quote.status !== 'selected' && !linkedSpo && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          selectQuotation(quote.id);
+                          approveFinalizeQuotation(quote.id, currentUser.name);
+                          showToast({ type: 'success', title: 'Quotation approved & finalized', body: `${quote.quoteNumber} ready for Draft Supplier PO.` });
+                        }}
+                        className="btn-primary text-xs inline-flex items-center gap-1"
+                      >
+                        <CheckCircle2 size={13} /> Approve & Finalize
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setShowRejectModal(true); setRejectReason(''); }}
+                        className="px-3 py-1.5 rounded-lg border border-red-300 text-red-700 text-xs font-semibold inline-flex items-center gap-1"
+                      >
+                        <XCircle size={13} /> Reject
+                      </button>
+                    </>
+                  )}
+                  {canApprove && !linkedSpo && !isQuoteRejected && (
+                    <button
+                      type="button"
+                      onClick={handleGenerateSPO}
+                      className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white inline-flex items-center gap-1"
+                      style={{ background: 'var(--success)' }}
+                    >
+                      <FileText size={13} /> Draft Supplier PO →
+                    </button>
+                  )}
+                </>
+              );
+            })()}
             {linkedSpo && (
               <Link
                 to={`/procurement/spo/${linkedSpo.id}`}

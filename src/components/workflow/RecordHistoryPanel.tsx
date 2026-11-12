@@ -137,7 +137,7 @@ export default function RecordHistoryPanel({
               const actionLabel = getAuditActionLabel(ev.action);
               const scopeLabel = getAuditScopeLabel(ev.scope);
               const moduleLabel = getAuditModule(ev.scope, ev.module);
-              const roleLabel = ev.role ?? formatRoleLabel(undefined);
+              const roleLabel = formatRoleLabel(ev.role, ev.actorId);
               const relRoute = ev.relatedEntityType && ev.relatedEntityId
                 ? getAuditEntityRoute(ev.relatedEntityType, ev.relatedEntityId)
                 : null;

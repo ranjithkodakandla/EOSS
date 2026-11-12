@@ -7,15 +7,10 @@ import {
 import { useStore, DEMO_USERS } from '../../store';
 import StatusChip from '../../components/layout/StatusChip';
 import RecordHistoryPanel from '../../components/workflow/RecordHistoryPanel';
+import { ROLE_LABELS } from '../../domain/audit';
 import type { DemoUser, RoleKey } from '../../types';
 
 type AdminTab = 'company' | 'sites' | 'users' | 'roles' | 'approvals' | 'integrations' | 'ai' | 'audit';
-
-const ROLE_LABELS: Record<string, string> = {
-  owner: 'Owner / GM', sales: 'Sales', buyer: 'Buyer / Procurement',
-  storekeeper: 'Storekeeper', supervisor: 'Production Supervisor', operator: 'Operator',
-  qc: 'QC Inspector', maintenance: 'Maintenance Technician', dispatch: 'Dispatch Personnel', auditor: 'Auditor',
-};
 
 const ROLE_DESCRIPTIONS: Record<string, string> = {
   owner: 'Full access to all workspaces, settings and approvals.',
@@ -229,7 +224,7 @@ export default function AdminSecurity() {
           </div>
           <div className="space-y-4">
             {[
-              { id: 'site-hyd', name: 'Hyderabad Factory', type: 'Factory', city: 'Hyderabad', state: 'Telangana', isPrimary: true, gstin: '36AABCS1234F1Z5' },
+              { id: 'site-hyd', name: 'Hyderabad Plant 1', type: 'Factory', city: 'Hyderabad', state: 'Telangana', isPrimary: true, gstin: '36AABCA4821M1Z2' },
               { id: 'site-wh', name: 'Hyderabad Warehouse', type: 'Warehouse', city: 'Hyderabad', state: 'Telangana', isPrimary: false, gstin: '36AABCS1234F1Z5' },
             ].map(site => (
               <div key={site.id} className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-5">

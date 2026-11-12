@@ -10,9 +10,10 @@ import RelatedRecordsPanel from '../../components/workflow/RelatedRecordsPanel';
 import RecordHistoryPanel from '../../components/workflow/RecordHistoryPanel';
 import { compareAndRecommendQuotations } from '../../domain/quotationComparison';
 import { useReturnNavigation } from '../../hooks/useReturnNavigation';
+import { formatDisplayDate } from '../../domain/dates';
 import type { SupplierQuotation } from '../../types';
 
-const fmt = (d?: string) => d ? new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
+const fmt = (d?: string) => formatDisplayDate(d);
 const fmtMoney = (n: number) => n ? `₹${Math.round(n).toLocaleString('en-IN')}` : '—';
 
 function quoteTotal(q: SupplierQuotation) {
@@ -41,6 +42,8 @@ export default function PRDetail() {
   const [showCompare, setShowCompare] = useState(true);
   const [chosenQuoteId, setChosenQuoteId] = useState<string>('');
   const [overrideReason, setOverrideReason] = useState('');
+  const [pendingOverrideQuote, setPendingOverrideQuote] = useState<{ id: string; mode: 'select' | 'approve' | 'spo' } | null>(null);
+  const [overrideModalReason, setOverrideModalReason] = useState('');
   const [rejectQuoteModal, setRejectQuoteModal] = useState<SupplierQuotation | null>(null);
   const [quoteRejectReason, setQuoteRejectReason] = useState('');
 
@@ -52,26 +55,36 @@ export default function PRDetail() {
     );
   }
 
+  const isPrBlocked = pr.status === 'rejected' || pr.status === 'cancelled';
   const canApprove = ['owner', 'buyer'].includes(currentUser.role);
-  const canEditPr = ['owner', 'buyer', 'supervisor'].includes(currentUser.role) && !['converted', 'cancelled'].includes(pr.status);
+  const canEditPr = ['owner', 'buyer', 'supervisor'].includes(currentUser.role) && !['converted', 'cancelled', 'rejected'].includes(pr.status);
   const lines = pr.lines ?? [];
   const totalEstValue = lines.reduce((s, l) => s + (l.estimatedPrice ?? 0) * (l.requiredQty ?? 0), 0);
 
   const prQuotations = supplierQuotations.filter(q => q.prId === pr.id);
+  const activePrQuotations = prQuotations.filter(q => !['rejected', 'approval_rejected'].includes(q.status));
   const prInvitations = supplierInvitations.filter(i => i.prId === pr.id);
-  const selectedQuotation = prQuotations.find(q => q.status === 'selected');
+  const selectedQuotation = activePrQuotations.find(q => q.status === 'selected');
   const linkedSpo = supplierPos.find(s => s.prId === pr.id && !['cancelled', 'supplier_declined'].includes(s.status));
   const linkedGrns = linkedSpo ? grns.filter(g => g.spoId === linkedSpo.id) : [];
 
-  const minQuoteTotal = prQuotations.length > 0 ? Math.min(...prQuotations.map(quoteTotal)) : 0;
-  const minDeliveryDays = prQuotations.length > 0 ? Math.min(...prQuotations.map(q => q.deliveryDays)) : 0;
+  const minQuoteTotal = activePrQuotations.length > 0 ? Math.min(...activePrQuotations.map(quoteTotal)) : 0;
+  const minDeliveryDays = activePrQuotations.length > 0 ? Math.min(...activePrQuotations.map(q => q.deliveryDays)) : 0;
 
   const prComparison = useMemo(
     () => (prQuotations.length >= 2 ? compareAndRecommendQuotations(pr, prQuotations, suppliers, supplierPos) : null),
     [pr, prQuotations, suppliers, supplierPos],
   );
-  const effectiveWinnerId = chosenQuoteId || selectedQuotation?.id || prComparison?.recommendedQuoteId || prQuotations[0]?.id || '';
-  const isOverridingRec = Boolean(prComparison?.recommendedQuoteId && effectiveWinnerId && effectiveWinnerId !== prComparison.recommendedQuoteId);
+  const activePrComparison = useMemo(
+    () => (activePrQuotations.length >= 2 ? compareAndRecommendQuotations(pr, activePrQuotations, suppliers, supplierPos) : null),
+    [pr, activePrQuotations, suppliers, supplierPos],
+  );
+  const recommendedQuoteId = activePrComparison?.recommendedQuoteId
+    ?? (activePrQuotations.length === 1
+      ? activePrQuotations[0].id
+      : undefined);
+  const effectiveWinnerId = chosenQuoteId || selectedQuotation?.id || recommendedQuoteId || activePrQuotations[0]?.id || '';
+  const isOverridingRec = Boolean(recommendedQuoteId && effectiveWinnerId && effectiveWinnerId !== recommendedQuoteId);
 
   const handleApprove = () => {
     updatePurchaseReq(pr.id, { status: 'approved' });
@@ -80,37 +93,56 @@ export default function PRDetail() {
   };
 
   const handleReject = () => {
-    updatePurchaseReq(pr.id, { status: 'rejected' });
-    showToast({ type: 'info', title: 'PR Rejected', body: rejectNote || 'Requirement rejected.' });
+    const cleanReason = rejectNote.trim() || 'Rejected during review.';
+    updatePurchaseReq(pr.id, { status: 'rejected', reason: cleanReason, rejectionReason: cleanReason });
+    showToast({ type: 'info', title: 'PR Rejected', body: cleanReason });
     setConfirming(null);
   };
 
+  const commitSelectQuote = (quoteId: string, suppliedReason?: string) => {
+    const chosen = prQuotations.find(q => q.id === quoteId);
+    if (!chosen || ['rejected', 'approval_rejected'].includes(chosen.status)) return;
+    const isNonRecommended = Boolean(recommendedQuoteId && quoteId !== recommendedQuoteId);
+    const cleanReason = (suppliedReason ?? overrideReason).trim();
+    if (isNonRecommended) {
+      selectQuotation(quoteId, cleanReason);
+    } else {
+      selectQuotation(quoteId);
+    }
+    approveFinalizeQuotation(quoteId, currentUser.name, isNonRecommended ? cleanReason : undefined);
+    showToast({ type: 'success', title: 'Quotation finalized', body: `${chosen.quoteNumber} (${chosen.supplierName}) approved for PO.` });
+  };
+
   const handleSelectQuote = (quoteId: string) => {
+    if (isPrBlocked) return;
     if (linkedSpo) {
       showToast({ type: 'warning', title: 'PO already created', body: `Supplier PO ${linkedSpo.poNumber} is already linked to ${pr.prNumber}.` });
       return;
     }
-    if (isOverridingRec && quoteId === effectiveWinnerId && !overrideReason.trim()) {
-      showToast({ type: 'warning', title: 'Override reason required', body: 'Please enter an override reason before approving a non-recommended quote.' });
+    const isNonRecommended = Boolean(recommendedQuoteId && quoteId !== recommendedQuoteId);
+    if (isNonRecommended && !overrideReason.trim()) {
+      setOverrideModalReason('');
+      setPendingOverrideQuote({ id: quoteId, mode: 'approve' });
       return;
     }
-    if (isOverridingRec && quoteId === effectiveWinnerId && overrideReason.trim()) {
-      selectQuotation(quoteId, overrideReason.trim());
-    }
-    approveFinalizeQuotation(quoteId, currentUser.name, overrideReason.trim() || undefined);
-    const chosen = prQuotations.find(q => q.id === quoteId);
-    showToast({ type: 'success', title: 'Quotation finalized', body: `${chosen?.quoteNumber} (${chosen?.supplierName}) approved for PO.` });
+    setChosenQuoteId(quoteId);
+    commitSelectQuote(quoteId, overrideReason);
   };
 
-  const handleGenerateSpo = (quoteId: string) => {
+  const handleGenerateSpo = (quoteId: string, suppliedReason?: string) => {
+    if (isPrBlocked) return;
     const qObj = prQuotations.find(q => q.id === quoteId);
-    if (qObj && qObj.status !== 'selected') {
-      if (isOverridingRec && quoteId === effectiveWinnerId && !overrideReason.trim()) {
-        showToast({ type: 'warning', title: 'Override reason required', body: 'Please enter an override reason first.' });
+    if (!qObj || ['rejected', 'approval_rejected'].includes(qObj.status)) return;
+    const isNonRecommended = Boolean(recommendedQuoteId && quoteId !== recommendedQuoteId);
+    const cleanReason = (suppliedReason ?? overrideReason).trim();
+    if (qObj.status !== 'selected') {
+      if (isNonRecommended && !cleanReason) {
+        setOverrideModalReason('');
+        setPendingOverrideQuote({ id: quoteId, mode: 'spo' });
         return;
       }
-      if (overrideReason.trim()) selectQuotation(quoteId, overrideReason.trim());
-      approveFinalizeQuotation(quoteId, currentUser.name, overrideReason.trim() || undefined);
+      selectQuotation(quoteId, isNonRecommended ? cleanReason : undefined);
+      approveFinalizeQuotation(quoteId, currentUser.name, isNonRecommended ? cleanReason : undefined);
     }
     const res = generateSPOFromQuotation(quoteId);
     if (res.error && !res.spo) {
@@ -225,7 +257,20 @@ export default function PRDetail() {
         </div>
       </div>
 
-      <div className="flex-1 overflow-auto p-6 space-y-6">
+          <div className="flex-1 overflow-auto p-6 space-y-6">
+        {pr.status === 'rejected' && (
+          <div className="rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-xs text-red-900 space-y-1">
+            <div className="font-bold">Purchase Requisition Rejected — Downstream Quoting &amp; Ordering Blocked</div>
+            <div>
+              <strong>Reason:</strong> {pr.rejectionReason || pr.reason || 'Rejected during approval review.'}
+            </div>
+            {(pr.rejectedBy || pr.rejectedAt) && (
+              <div className="text-[11px] text-red-800">
+                {pr.rejectedBy ? `Rejected by ${pr.rejectedBy}` : ''}{pr.rejectedAt ? ` · ${fmt(pr.rejectedAt)}` : ''}
+              </div>
+            )}
+          </div>
+        )}
         <RelatedRecordsPanel
           originNote={
             pr.sourceType === 'shortage' && pr.sourceRefLabel
@@ -241,6 +286,15 @@ export default function PRDetail() {
                   typeLabel: pr.sourceType === 'shortage' ? 'Customer Order / Req' : 'Source Reference',
                   reference: pr.sourceRefLabel,
                   to: pr.sourceRefId.startsWith('cpo') ? `/sales/po/${pr.sourceRefId}` : pr.sourceRefId.startsWith('J-') ? `/jobs/${pr.sourceRefId}` : '/procurement?tab=pr',
+                  state: { from: originUrl },
+                }]
+              : []),
+            ...(pr.jobId && pr.jobNumber
+              ? [{
+                  relationship: 'Related' as const,
+                  typeLabel: 'Production Job',
+                  reference: pr.jobNumber,
+                  to: `/jobs/${pr.jobId}`,
                   state: { from: originUrl },
                 }]
               : []),
@@ -290,22 +344,24 @@ export default function PRDetail() {
                 Match and invite suppliers for {pr.prNumber}, track responses, and record received quotations.
               </p>
             </div>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => navigate(`/procurement/supplier-rfq/new?mode=invite&pr=${pr.id}`, { state: { from: originUrl } })}
-                className="btn-primary text-xs inline-flex items-center gap-1.5"
-              >
-                <Send size={12} /> Invite Suppliers
-              </button>
-              <button
-                type="button"
-                onClick={() => navigate(`/procurement/supplier-rfq/new?mode=quote&pr=${pr.id}`, { state: { from: originUrl } })}
-                className="btn-ghost text-xs inline-flex items-center gap-1.5"
-              >
-                <Plus size={12} /> Record Quote Manually
-              </button>
-            </div>
+            {!isPrBlocked && !linkedSpo && (
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => navigate(`/procurement/supplier-rfq/new?mode=invite&pr=${pr.id}`, { state: { from: originUrl } })}
+                  className="btn-primary text-xs inline-flex items-center gap-1.5"
+                >
+                  <Send size={12} /> Invite Suppliers
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigate(`/procurement/supplier-rfq/new?mode=quote&pr=${pr.id}`, { state: { from: originUrl } })}
+                  className="btn-ghost text-xs inline-flex items-center gap-1.5"
+                >
+                  <Plus size={12} /> Record Quote Manually
+                </button>
+              </div>
+            )}
           </div>
 
           {prInvitations.length === 0 ? (
@@ -339,7 +395,7 @@ export default function PRDetail() {
                       </td>
                       <td><StatusChip status={inv.status} /></td>
                       <td className="text-right space-x-1.5">
-                        {['sent', 'awaiting_quotation'].includes(inv.status) && (
+                        {!isPrBlocked && ['sent', 'awaiting_quotation'].includes(inv.status) && (
                           <>
                             <button
                               type="button"
@@ -457,19 +513,28 @@ export default function PRDetail() {
             <tbody>
               {prQuotations.map(q => {
                 const total = quoteTotal(q);
-                const isLowest = prQuotations.length > 1 && total === minQuoteTotal && total > 0;
-                const isFastest = prQuotations.length > 1 && q.deliveryDays === minDeliveryDays;
-                const isWinnerRadio = effectiveWinnerId === q.id;
+                const isQuoteRejected = ['rejected', 'approval_rejected'].includes(q.status);
+                const isLowest = !isQuoteRejected && activePrQuotations.length > 1 && total === minQuoteTotal && total > 0;
+                const isFastest = !isQuoteRejected && activePrQuotations.length > 1 && q.deliveryDays === minDeliveryDays;
+                const isWinnerRadio = !isQuoteRejected && effectiveWinnerId === q.id;
+                const isRec = !isQuoteRejected && recommendedQuoteId === q.id;
                 return (
-                  <tr key={q.id}>
+                  <tr key={q.id} className={isQuoteRejected ? 'opacity-60' : ''}>
                     <td>
                       <div className="flex items-center gap-2">
-                        {!linkedSpo && prQuotations.length >= 2 && (
+                        {!linkedSpo && !isPrBlocked && !isQuoteRejected && activePrQuotations.length >= 2 && (
                           <input
                             type="radio"
                             name="pr-winner-quote"
                             checked={isWinnerRadio}
-                            onChange={() => setChosenQuoteId(q.id)}
+                            onChange={() => {
+                              if (recommendedQuoteId && q.id !== recommendedQuoteId && !overrideReason.trim()) {
+                                setOverrideModalReason('');
+                                setPendingOverrideQuote({ id: q.id, mode: 'select' });
+                                return;
+                              }
+                              setChosenQuoteId(q.id);
+                            }}
                           />
                         )}
                         <Link to={`/procurement/quote/${q.id}`} state={{ from: originUrl }} className="font-mono text-xs font-bold text-[var(--brand)] hover:underline">
@@ -479,7 +544,7 @@ export default function PRDetail() {
                     </td>
                     <td className="font-medium text-sm">
                       {q.supplierName}
-                      {prComparison?.recommendedQuoteId === q.id && (
+                      {isRec && (
                         <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 font-semibold">Recommended</span>
                       )}
                     </td>
@@ -497,7 +562,7 @@ export default function PRDetail() {
                     <td><StatusChip status={q.status} size="sm" /></td>
                     <td className="text-right">
                       <div className="flex items-center justify-end gap-1.5">
-                        {q.status !== 'selected' && !linkedSpo && canApprove && (
+                        {!isQuoteRejected && !isPrBlocked && q.status !== 'selected' && !linkedSpo && canApprove && (
                           <>
                             <button type="button" onClick={() => handleSelectQuote(q.id)} className="px-2.5 py-1 rounded border text-xs font-semibold border-[var(--brand)] text-[var(--brand)] hover:bg-[var(--brand)] hover:text-white transition-colors">
                               Approve Winner
@@ -507,7 +572,7 @@ export default function PRDetail() {
                             </button>
                           </>
                         )}
-                        {!linkedSpo && canApprove && (q.status === 'selected' || isWinnerRadio) && (
+                        {!isQuoteRejected && !isPrBlocked && !linkedSpo && canApprove && (q.status === 'selected' || isWinnerRadio) && (
                           <button type="button" onClick={() => handleGenerateSpo(q.id)} className="px-2.5 py-1 rounded text-xs font-semibold text-white" style={{ background: 'var(--success)' }}>
                             Draft Supplier PO →
                           </button>
@@ -530,9 +595,9 @@ export default function PRDetail() {
                   <Sparkles size={14} className="text-emerald-600" />
                   Side-by-Side Line Item Comparison & Recommendation ({prQuotations.length} Quotes)
                 </div>
-                {prComparison.recommendedQuoteId && (
+                {recommendedQuoteId && (
                   <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-emerald-700 text-white">
-                    Recommended: {prQuotations.find(q => q.id === prComparison.recommendedQuoteId)?.supplierName}
+                    Recommended: {prQuotations.find(q => q.id === recommendedQuoteId)?.supplierName}
                   </span>
                 )}
               </div>
@@ -738,6 +803,55 @@ export default function PRDetail() {
             <div className="flex gap-3">
               <button onClick={() => setConfirming(null)} className="flex-1 py-2 border border-[var(--border)] text-[var(--text)] rounded-lg text-sm">Cancel</button>
               <button onClick={handleReject} className="flex-1 py-2 text-white rounded-lg text-sm font-semibold" style={{ background: 'var(--error,#DC2626)' }}>Reject</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {pendingOverrideQuote && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="rounded-2xl border p-6 w-full max-w-md shadow-xl space-y-4" style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}>
+            <div>
+              <h3 className="font-bold text-[var(--text)]">Override Recommendation Reason Required</h3>
+              <p className="text-xs text-[var(--text-2)] mt-1">
+                You are selecting a quotation that differs from the recommended quote. Enter the business reason before applying this selection.
+              </p>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-[var(--text-2)] mb-1">Override Reason *</label>
+              <textarea
+                className="eoss-input w-full"
+                rows={3}
+                placeholder="e.g. Faster delivery lead time needed for urgent customer schedule."
+                value={overrideModalReason}
+                onChange={e => setOverrideModalReason(e.target.value)}
+              />
+            </div>
+            <div className="flex gap-3">
+              <button type="button" onClick={() => setPendingOverrideQuote(null)} className="flex-1 py-2 border border-[var(--border)] text-[var(--text)] rounded-lg text-sm">Cancel</button>
+              <button
+                type="button"
+                disabled={!overrideModalReason.trim()}
+                onClick={() => {
+                  const reason = overrideModalReason.trim();
+                  const target = pendingOverrideQuote;
+                  setOverrideReason(reason);
+                  setChosenQuoteId(target.id);
+                  setPendingOverrideQuote(null);
+                  if (target.mode === 'select') {
+                    selectQuotation(target.id, reason);
+                    showToast({ type: 'info', title: 'Override recorded', body: 'Non-recommended quote selected with audit reason.' });
+                  } else if (target.mode === 'approve') {
+                    commitSelectQuote(target.id, reason);
+                  } else if (target.mode === 'spo') {
+                    handleGenerateSpo(target.id, reason);
+                  }
+                }}
+                className="flex-1 py-2 text-white rounded-lg text-sm font-semibold disabled:opacity-40"
+                style={{ background: 'var(--brand-fill)' }}
+              >
+                Confirm Selection
+              </button>
             </div>
           </div>
         </div>

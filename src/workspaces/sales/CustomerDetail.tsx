@@ -4,6 +4,7 @@ import { ArrowLeft, ChevronRight, Edit2, Phone, Mail, Star, Upload } from 'lucid
 import { useStore } from '../../store';
 import StatusChip from '../../components/layout/StatusChip';
 import RecordHistoryPanel from '../../components/workflow/RecordHistoryPanel';
+import LinkedDocumentsSection from '../../components/workflow/LinkedDocumentsSection';
 import { isRecordOverdue } from '../../domain/finance';
 
 type Tab = 'overview' | 'orders' | 'rfqs' | 'invoices' | 'payments' | 'contacts' | 'documents' | 'history';
@@ -323,11 +324,15 @@ export default function CustomerDetail() {
         )}
 
         {tab === 'documents' && (
-          <div className="max-w-2xl">
-            <Card title="Documents">
-              <label className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold text-white cursor-pointer mb-4" style={{ background: 'var(--brand-fill)' }}><Upload size={14} /> Upload Customer Document<input type="file" className="hidden" onChange={e => { const file = e.target.files?.[0]; if (!file) return; addDocument({ id: `doc-customer-${Date.now()}`, title: file.name, docType: 'Customer Document', category: 'Customer Documents', uploadedBy: currentUser.name, uploadedAt: new Date().toISOString().slice(0, 10), version: 1, fileSize: `${Math.max(1, Math.round(file.size / 1024))} KB`, linkedEntities: [{ type: 'Customer', ref: customer.id }, { type: 'Customer', ref: customer.tradingName }] }); showToast({ type: 'success', title: 'Customer document uploaded', body: `${file.name} is associated with ${customer.tradingName}.` }); e.target.value = ''; }} /></label>
-              {customerDocuments.length === 0 ? <p className="text-sm text-center py-6" style={{ color: 'var(--text-3)' }}>No customer documents attached.</p> : <div className="space-y-2">{customerDocuments.map(d => <div key={d.id} className="rounded-lg border p-3" style={{ borderColor: 'var(--border)' }}><div className="flex items-start justify-between gap-3"><div><div className="text-sm font-semibold text-[var(--text)]">{d.title}</div><div className="text-xs mt-1 text-[var(--text-2)]">{d.docType} · {d.fileSize} · Uploaded {d.uploadedAt} by {d.uploadedBy}</div><div className="text-[11px] mt-1 text-[var(--text-3)]">Status: {d.status ?? 'Active'} · Customer-scoped document</div></div><div className="flex items-center gap-2"><button type="button" onClick={() => showToast({ type: 'info', title: 'Customer document', body: `${d.title} is available in the ${customer.tradingName} document context.` })} className="text-xs font-semibold" style={{ color: 'var(--brand)' }}>View</button><button type="button" onClick={() => showToast({ type: 'info', title: 'Customer document', body: `Download requested for ${d.title}.` })} className="text-xs font-semibold" style={{ color: 'var(--text-2)' }}>Download</button></div></div></div>)}</div>}
-            </Card>
+          <div className="max-w-2xl space-y-4">
+            <label className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold text-white cursor-pointer" style={{ background: 'var(--brand-fill)' }}><Upload size={14} /> Upload Customer Document<input type="file" className="hidden" onChange={e => { const file = e.target.files?.[0]; if (!file) return; addDocument({ id: `doc-customer-${Date.now()}`, title: file.name, docType: 'Customer Document', category: 'Customer Documents', uploadedBy: currentUser.name, uploadedAt: new Date().toISOString().slice(0, 10), version: 1, fileSize: `${Math.max(1, Math.round(file.size / 1024))} KB`, linkedEntities: [{ type: 'Customer', ref: customer.tradingName }] }); showToast({ type: 'success', title: 'Customer document uploaded', body: `${file.name} is associated with ${customer.tradingName}.` }); e.target.value = ''; }} /></label>
+            <LinkedDocumentsSection
+              entityType="Customer"
+              entityId={customer.id}
+              entityRef={customer.tradingName}
+              entityName={customer.legalName}
+              title="Customer Documents"
+            />
           </div>
         )}
 

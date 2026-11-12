@@ -9,6 +9,7 @@ import WorkflowTimeline from '../../components/workflow/WorkflowTimeline';
 import RelatedRecordsPanel from '../../components/workflow/RelatedRecordsPanel';
 import RecordHistoryPanel from '../../components/workflow/RecordHistoryPanel';
 import { useReturnNavigation } from '../../hooks/useReturnNavigation';
+import { formatDisplayDate } from '../../domain/dates';
 
 export default function SupplierPODetail() {
   const { id } = useParams<{ id: string }>();
@@ -27,7 +28,7 @@ export default function SupplierPODetail() {
   const [draftNotes, setDraftNotes] = useState(po?.notes ?? '');
   const [notifyList, setNotifyList] = useState<Array<{ supplierId: string; supplierName: string; email?: string; message: string; send: boolean }> | null>(null);
   const [supplierDecisionModal, setSupplierDecisionModal] = useState<'accepted' | 'declined' | null>(null);
-  const [supConfirmedDate, setSupConfirmedDate] = useState(po?.committedDate ?? '2026-04-28');
+  const [supConfirmedDate, setSupConfirmedDate] = useState(po?.committedDate ?? '2026-11-18');
   const [supRefNumber, setSupRefNumber] = useState('');
   const [supConfirmNotes, setSupConfirmNotes] = useState('');
   const [supDeclineReason, setSupDeclineReason] = useState('');
@@ -54,7 +55,7 @@ export default function SupplierPODetail() {
   const totalOrdered = lines.reduce((s, l) => s + l.orderedQty, 0);
   const totalReceived = lines.reduce((s, l) => s + l.receivedQty, 0);
   const hasRemainingQty = lines.length === 0 || lines.some(l => l.orderedQty * (1 + (l.tolerancePct ?? 0) / 100) - l.receivedQty > 0);
-  const canRecordGrn = canEdit && ['confirmed', 'supplier_accepted', 'awaiting_supplier_confirmation', 'sent', 'partial', 'overdue'].includes(po.status) && hasRemainingQty;
+  const canRecordGrn = canEdit && ['confirmed', 'supplier_accepted', 'partial', 'overdue'].includes(po.status) && hasRemainingQty;
 
   const handleCancel = () => {
     setSupplierPoStatus(id!, 'cancelled');
@@ -121,32 +122,6 @@ export default function SupplierPODetail() {
           <button onClick={() => setConfirm(true)} className="px-3 py-1.5 border border-[var(--error)] text-[var(--error)] text-sm rounded-lg hover:bg-[var(--error-bg)]">
             <Ban size={14} className="inline mr-1" /> Cancel Supplier PO
           </button>
-        )}
-        {canApprove && ['draft', 'pending_approval'].includes(po.status) && (
-          <button
-            onClick={handleIssuePO}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold text-white"
-            style={{ background: 'var(--success,#16A34A)' }}
-          >
-            <Send size={14} /> Confirm & Issue PO to Supplier
-          </button>
-        )}
-        {canApprove && po.status === 'awaiting_supplier_confirmation' && (
-          <>
-            <button
-              onClick={() => { setSupConfirmedDate(po.committedDate || '2026-04-28'); setSupplierDecisionModal('accepted'); }}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold text-white"
-              style={{ background: 'var(--success,#16A34A)' }}
-            >
-              <CheckCircle2 size={14} /> Supplier Accepted
-            </button>
-            <button
-              onClick={() => { setSupDeclineReason(''); setSupplierDecisionModal('declined'); }}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold border border-red-300 text-red-700"
-            >
-              <XCircle size={14} /> Supplier Declined
-            </button>
-          </>
         )}
         {canApprove && pendingAmendment && (
           <>
@@ -222,7 +197,7 @@ export default function SupplierPODetail() {
               onClick={handleIssuePO}
               className="btn-primary text-xs inline-flex items-center gap-1.5"
             >
-              <Send size={13} /> Confirm & Issue PO
+              <Send size={13} /> Issue Supplier PO
             </button>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -248,14 +223,14 @@ export default function SupplierPODetail() {
           <div>
             <div className="text-sm font-bold text-amber-950">Awaiting Supplier Confirmation</div>
             <p className="text-xs text-amber-900 mt-0.5">
-              Issued {po.sentAt ?? po.raisedDate} by {po.issuedBy ?? 'Buyer'}. Record {po.supplierName}'s acknowledgement or decline to update procurement & receiving readiness.
+              Issued {formatDisplayDate(po.sentAt ?? po.raisedDate)} by {po.issuedBy ?? 'Buyer'}. Record {po.supplierName}'s acknowledgement or decline to update procurement &amp; receiving readiness.
             </p>
           </div>
           {canApprove && (
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={() => { setSupConfirmedDate(po.committedDate || '2026-04-28'); setSupplierDecisionModal('accepted'); }}
+                onClick={() => { setSupConfirmedDate(po.committedDate || '2026-11-18'); setSupplierDecisionModal('accepted'); }}
                 className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-semibold inline-flex items-center gap-1"
               >
                 <CheckCircle2 size={13} /> Record Acceptance
@@ -431,7 +406,7 @@ export default function SupplierPODetail() {
           <div className="flex items-center gap-2 font-semibold text-sm text-[var(--error)] mb-1">
             <AlertTriangle size={14} /> Delivery Overdue
           </div>
-          <p className="text-xs text-[var(--text)]">Committed delivery date was {po.committedDate ? new Date(po.committedDate).toLocaleDateString('en-IN') : '—'}. Record receipt when material arrives.</p>
+          <p className="text-xs text-[var(--text)]">Committed delivery date was {formatDisplayDate(po.committedDate)}. Record receipt when material arrives.</p>
         </div>
       )}
 
@@ -442,8 +417,8 @@ export default function SupplierPODetail() {
             <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
               <Field label="Supplier" value={po.supplierName} />
               <Field label="PO Number" value={po.poNumber} mono />
-              <Field label="Raised Date" value={new Date(po.raisedDate).toLocaleDateString('en-IN')} />
-              <Field label="Committed Date" value={po.committedDate ? new Date(po.committedDate).toLocaleDateString('en-IN') : '—'} />
+              <Field label="Raised Date" value={formatDisplayDate(po.raisedDate)} />
+              <Field label="Committed Date" value={formatDisplayDate(po.committedDate)} />
               <Field label="Payment Terms" value={po.paymentTerms} />
               <Field label="Total Value" value={`₹${po.totalValue.toLocaleString('en-IN')}`} />
               {pr && <Field label="Originating PR" value={pr.prNumber} mono link={`/procurement/pr/${pr.id}`} navigate={navigate} />}
@@ -515,7 +490,7 @@ export default function SupplierPODetail() {
                               {g.grnNumber}
                             </Link>
                           </td>
-                          <td className="text-xs">{new Date(g.receivedDate).toLocaleDateString('en-IN')}</td>
+                          <td className="text-xs">{formatDisplayDate(g.receivedDate)}</td>
                           <td className="font-mono text-xs">{g.deliveryChallan || '—'}</td>
                           <td className="font-mono text-xs">{recTotal > 0 ? `${recTotal} (${g.lineCount} lines)` : `${g.lineCount} lines`}</td>
                           <td><StatusChip status={g.status} size="sm" /></td>
@@ -563,7 +538,9 @@ export default function SupplierPODetail() {
                 ? 'All ordered quantities have been received.'
                 : po.status === 'cancelled'
                   ? 'Cancelled Supplier POs cannot receive goods.'
-                  : `Approve/confirm this PO (${po.status}) before recording a GRN.`}
+                  : po.status === 'awaiting_supplier_confirmation' || po.status === 'sent'
+                    ? 'Awaiting supplier confirmation — confirm supplier acceptance before recording a GRN.'
+                    : `Approve/confirm this PO (${po.status}) before recording a GRN.`}
             </div>
           )}
         </div>

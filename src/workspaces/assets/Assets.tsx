@@ -8,13 +8,34 @@ import { DEMO_NOW } from '../../data/seed';
 import StatusChip, { getStatusLabel } from '../../components/layout/StatusChip';
 import SortableHeader from '../../components/layout/SortableHeader';
 import { sortRows } from '../../domain/tableSort';
+import { formatDisplayDate } from '../../domain/dates';
 import clsx from 'clsx';
 import type { Asset, MaintenanceEvent } from '../../types';
+
+const ASSET_CATEGORIES = [
+  'Machining Equipment',
+  'Press & Forming',
+  'Welding & Fabrication',
+  'Surface & Coating',
+  'Inspection & Metrology',
+  'Material Handling',
+  'Utilities & Compressors',
+];
+
+const WORK_CENTRES = [
+  'CNC Bay',
+  'Turning & Milling',
+  'Press Shop',
+  'Welding Bay',
+  'Assembly & Fitment',
+  'Quality Lab',
+  'Stores & Dispatch',
+];
 
 type AssetSortKey = 'assetCode' | 'name' | 'category' | 'workCentre' | 'criticality' | 'currentReading' | 'lastServiceDate' | 'nextServiceDate' | 'status';
 
 export default function Assets() {
-  const { assets, sites, maintenanceEvents, meterReadings, currentUser, addAsset, archiveAsset, addMaintenanceEvent, updateAsset, showToast } = useStore();
+  const { assets, sites, jobs, maintenanceEvents, meterReadings, currentUser, addAsset, archiveAsset, addMaintenanceEvent, updateAsset, showToast } = useStore();
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -54,9 +75,24 @@ export default function Assets() {
     setLogAssetId(logParam);
     setShowLogEvent(true);
   }, [logParam]);
-  useEffect(() => {
-    if (editParam) { setEditingAssetId(editParam); setShowAssetForm(true); }
-  }, [editParam]);
+  const closeAssetForm = () => {
+    setShowAssetForm(false);
+    setEditingAssetId(undefined);
+    if (searchParams.has('edit')) {
+      const next = new URLSearchParams(searchParams);
+      next.delete('edit');
+      setSearchParams(next, { replace: true });
+    }
+  };
+  const closeLogEvent = () => {
+    setShowLogEvent(false);
+    setLogAssetId(undefined);
+    if (searchParams.has('log')) {
+      const next = new URLSearchParams(searchParams);
+      next.delete('log');
+      setSearchParams(next, { replace: true });
+    }
+  };
   const canManage = ['owner', 'maintenance', 'supervisor'].includes(currentUser.role);
 
   const handleArchiveAsset = (asset: Asset, e: React.MouseEvent) => {
@@ -69,9 +105,10 @@ export default function Assets() {
   const now = new Date(DEMO_NOW);
   const dueByAsset = Object.fromEntries(assets.map(a => [a.id, computeMaintenanceDue(a, meterReadings, now)]));
 
-  const liveAssets = assets.filter(a => showArchived || !a.archivedAt);
+  const liveAssets = assets.filter(a => showArchived || statusFilter === 'retired' || !a.archivedAt);
+  const isOverdueAsset = (a: Asset) => a.status !== 'retired' && (a.status === 'pm_overdue' || dueByAsset[a.id]?.status === 'overdue');
   const breakdowns = liveAssets.filter(a => a.status === 'breakdown').length;
-  const pmOverdue = maintenanceOverdue(liveAssets, meterReadings, now).length;
+  const pmOverdue = liveAssets.filter(isOverdueAsset).length;
   const upcoming = maintenanceDueSoon(liveAssets, meterReadings, now).length;
   const inMaint = assets.filter(a => a.status === 'in_maintenance').length;
   const openEvents = maintenanceEvents.filter(m => m.status !== 'closed').length;
@@ -80,15 +117,25 @@ export default function Assets() {
   const assetStatusCounts = useMemo(() => {
     const counts: Record<string, number> = {};
     for (const st of assetStatusOptions) counts[st] = 0;
-    for (const a of liveAssets) counts[a.status] = (counts[a.status] ?? 0) + 1;
+    for (const a of liveAssets) {
+      if (isOverdueAsset(a) && a.status !== 'breakdown' && a.status !== 'in_maintenance') {
+        counts['pm_overdue'] = (counts['pm_overdue'] ?? 0) + 1;
+      } else {
+        counts[a.status] = (counts[a.status] ?? 0) + 1;
+      }
+    }
     return counts;
-  }, [liveAssets]);
+  }, [liveAssets, dueByAsset]);
 
   const filteredAssetsBase = liveAssets.filter(a => {
     if (search && !a.name.toLowerCase().includes(search.toLowerCase()) && !a.assetCode.toLowerCase().includes(search.toLowerCase()) && !(a.workCentre ?? '').toLowerCase().includes(search.toLowerCase())) return false;
-    if (statusFilter !== 'all' && a.status !== statusFilter) return false;
+    if (statusFilter === 'pm_overdue') {
+      if (!isOverdueAsset(a)) return false;
+    } else if (statusFilter !== 'all' && a.status !== statusFilter) {
+      return false;
+    }
     if (focus === 'breakdown') return a.status === 'breakdown';
-    if (focus === 'overdue') return maintenanceOverdue([a], meterReadings, now).length > 0;
+    if (focus === 'overdue') return isOverdueAsset(a);
     if (focus === 'due') return maintenanceDueSoon([a], meterReadings, now).length > 0;
     return true;
   });
@@ -313,8 +360,8 @@ export default function Assets() {
                     {(focus === 'overdue' || focus === 'due') && (
                       <AssetAction asset={a} events={maintenanceEvents} onSchedule={id => { setLogAssetId(id); setShowLogEvent(true); }} onComplete={id => navigate(`/assets/me/${id}`)} />
                     )}
-                    {canManage && !a.archivedAt && <button onClick={e => handleArchiveAsset(a, e)} className="p-1 rounded hover:bg-[var(--surface-2)]" title="Archive asset"><Archive size={12} style={{ color: 'var(--error,#DC2626)' }} /></button>}
-                    {canManage && !a.archivedAt && <button onClick={e => { e.stopPropagation(); setEditingAssetId(a.id); setShowAssetForm(true); }} className="p-1 rounded hover:bg-[var(--surface-2)]" title="Edit asset"><Pencil size={12} style={{ color: 'var(--brand)' }} /></button>}
+                    {canManage && !a.archivedAt && a.status !== 'retired' && <button onClick={e => handleArchiveAsset(a, e)} className="p-1 rounded hover:bg-[var(--surface-2)]" title="Archive asset"><Archive size={12} style={{ color: 'var(--error,#DC2626)' }} /></button>}
+                    {canManage && !a.archivedAt && a.status !== 'retired' && <button onClick={e => { e.stopPropagation(); setEditingAssetId(a.id); setShowAssetForm(true); }} className="p-1 rounded hover:bg-[var(--surface-2)]" title="Edit asset"><Pencil size={12} style={{ color: 'var(--brand)' }} /></button>}
                   </div>
                 </td>
               </tr>
@@ -357,12 +404,13 @@ export default function Assets() {
       {showLogEvent && (
         <LogEventModal
           initialAssetId={logAssetId}
-          assets={assets}
-          onClose={() => setShowLogEvent(false)}
+          assets={assets.filter(a => a.status !== 'retired' && !a.archivedAt)}
+          jobs={jobs.filter(j => j.status === 'active' || j.status === 'hold' || j.status === 'draft')}
+          onClose={closeLogEvent}
           onSave={(event) => {
             addMaintenanceEvent(event);
             showToast({ type: 'success', title: 'Event logged', body: `${event.eventNumber} has been opened.` });
-            setShowLogEvent(false);
+            closeLogEvent();
             setTab('maintenance');
           }}
         />
@@ -372,7 +420,7 @@ export default function Assets() {
           asset={editingAssetId ? assets.find(a => a.id === editingAssetId) : undefined}
           sites={sites}
           hasOpenBreakdown={Boolean(editingAssetId && maintenanceEvents.some(m => m.assetId === editingAssetId && m.type === 'Breakdown' && m.status !== 'closed'))}
-          onClose={() => { setShowAssetForm(false); setEditingAssetId(undefined); }}
+          onClose={closeAssetForm}
           onSave={asset => {
             if (editingAssetId) {
               const res = updateAsset(editingAssetId, asset);
@@ -384,7 +432,7 @@ export default function Assets() {
               addAsset(asset as Asset);
             }
             showToast({ type: 'success', title: editingAssetId ? 'Asset updated' : 'Asset added', body: `${asset.assetCode} saved.` });
-            setShowAssetForm(false); setEditingAssetId(undefined);
+            closeAssetForm();
             return { ok: true };
           }}
         />
@@ -419,7 +467,13 @@ function AssetAction({ asset, events, onSchedule, onComplete }: {
   );
 }
 
-function LogEventModal({ assets, initialAssetId, onClose, onSave }: { assets: { id: string; name: string; assetCode: string }[]; initialAssetId?: string; onClose: () => void; onSave: (e: MaintenanceEvent) => void }) {
+function LogEventModal({ assets, jobs, initialAssetId, onClose, onSave }: {
+  assets: { id: string; name: string; assetCode: string }[];
+  jobs: { id: string; jobNumber: string; description: string }[];
+  initialAssetId?: string;
+  onClose: () => void;
+  onSave: (e: MaintenanceEvent) => void;
+}) {
   const [form, setForm] = useState({
     assetId: initialAssetId || '',
     type: (initialAssetId ? 'Preventive' : 'Breakdown') as MaintenanceEvent['type'],
@@ -433,6 +487,7 @@ function LogEventModal({ assets, initialAssetId, onClose, onSave }: { assets: { 
     actionRequired: '',
     completionDate: '',
     notes: '',
+    affectedJobIds: [] as string[],
   });
   const [barcodeInput, setBarcodeInput] = useState('');
   const [err, setErr] = useState('');
@@ -484,7 +539,12 @@ function LogEventModal({ assets, initialAssetId, onClose, onSave }: { assets: { 
       expectedDurationHours: form.type === 'Preventive' && form.expectedDurationHours ? Number(form.expectedDurationHours) : undefined,
       notes: form.notes.trim() || undefined,
       status: isResolvedOnCreate ? 'closed' : form.type === 'Preventive' ? 'scheduled' : 'open',
-      affectedJobs: [],
+      affectedJobs: form.type === 'Breakdown'
+        ? form.affectedJobIds
+            .map(jid => jobs.find(j => j.id === jid))
+            .filter((j): j is { id: string; jobNumber: string; description: string } => Boolean(j))
+            .map(j => ({ jobId: j.id, jobNumber: j.jobNumber, impact: `Blocked by ${asset.assetCode} breakdown` }))
+        : [],
       sparesUsed: [],
     });
   };
@@ -552,6 +612,30 @@ function LogEventModal({ assets, initialAssetId, onClose, onSave }: { assets: { 
                 <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Failure Symptom / Description *</label>
                 <input className="eoss-input w-full" value={form.symptom} onChange={e => setForm(f => ({ ...f, symptom: e.target.value }))} placeholder="Describe breakdown symptom and impact" />
               </div>
+              {jobs.length > 0 && (
+                <div>
+                  <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Affected jobs (adds machine blocker automatically)</label>
+                  <div className="max-h-28 overflow-y-auto rounded-lg border border-[var(--border)] p-2 space-y-1 bg-[var(--surface-2)]">
+                    {jobs.map(j => {
+                      const checked = form.affectedJobIds.includes(j.id);
+                      return (
+                        <label key={j.id} className="flex items-center gap-2 text-xs text-[var(--text)] cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => setForm(f => ({
+                              ...f,
+                              affectedJobIds: checked ? f.affectedJobIds.filter(id => id !== j.id) : [...f.affectedJobIds, j.id],
+                            }))}
+                          />
+                          <span className="font-mono font-semibold">{j.jobNumber}</span>
+                          <span className="truncate text-[var(--text-2)]">{j.description}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </>
           )}
 
@@ -679,11 +763,27 @@ function AssetFormModal({ asset, sites, hasOpenBreakdown, onClose, onSave }: {
       <div className="grid sm:grid-cols-2 gap-3">
         <FieldInput label="Asset Code *" value={form.assetCode} onChange={v => setForm(f => ({ ...f, assetCode: v }))} placeholder="CNC-05" />
         <FieldInput label="Asset Name *" value={form.name} onChange={v => setForm(f => ({ ...f, name: v }))} placeholder="CNC Vertical Machining Centre" />
-        <FieldInput label="Category *" value={form.category} onChange={v => setForm(f => ({ ...f, category: v }))} placeholder="Machining Equipment" />
+        <label className="text-xs text-[var(--text-2)]">
+          Category *
+          <select className="eoss-input w-full mt-1" value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))}>
+            <option value="">Select category…</option>
+            {(ASSET_CATEGORIES.includes(form.category) || !form.category ? ASSET_CATEGORIES : [form.category, ...ASSET_CATEGORIES]).map(c => (
+              <option key={c} value={c}>{c}</option>
+            ))}
+          </select>
+        </label>
         <label className="text-xs text-[var(--text-2)]">Site *<select className="eoss-input w-full mt-1" value={form.siteId} onChange={e => setForm(f => ({ ...f, siteId: e.target.value }))}>{sites.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
         <FieldInput label="Manufacturer *" value={form.manufacturer} onChange={v => setForm(f => ({ ...f, manufacturer: v }))} placeholder="DMG MORI" />
         <FieldInput label="Model" value={form.model} onChange={v => setForm(f => ({ ...f, model: v }))} placeholder="DMU 50" />
-        <FieldInput label="Work Centre" value={form.workCentre} onChange={v => setForm(f => ({ ...f, workCentre: v }))} placeholder="CNC Bay" />
+        <label className="text-xs text-[var(--text-2)]">
+          Work Centre
+          <select className="eoss-input w-full mt-1" value={form.workCentre} onChange={e => setForm(f => ({ ...f, workCentre: e.target.value }))}>
+            <option value="">Select work centre…</option>
+            {(WORK_CENTRES.includes(form.workCentre) || !form.workCentre ? WORK_CENTRES : [form.workCentre, ...WORK_CENTRES]).map(w => (
+              <option key={w} value={w}>{w}</option>
+            ))}
+          </select>
+        </label>
         <label className="text-xs text-[var(--text-2)]">Criticality<select className="eoss-input w-full mt-1" value={form.criticality} onChange={e => setForm(f => ({ ...f, criticality: e.target.value as Asset['criticality'] }))}>{(['Low', 'Medium', 'High', 'Critical'] as const).map(v => <option key={v} value={v}>{v}</option>)}</select></label>
         <label className="text-xs text-[var(--text-2)]">
           Operational Status
