@@ -12,7 +12,7 @@ export default function GRNDetail() {
   const navigate = useNavigate();
   const {
     grns, supplierPoLines, lots, inspections, currentUser,
-    rejectGRN, startInspectionForGRN, showToast,
+    rejectGRN, startInspectionForGRN, releaseLotFromHold, showToast,
   } = useStore();
   const [rejectModal, setRejectModal] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
@@ -188,19 +188,31 @@ export default function GRNDetail() {
                       <td className="text-xs">{lot.storeLocationName}</td>
                       <td><StatusChip status={lot.status} size="sm" /></td>
                       <td>
-                        {lotIns ? (
-                          <Link to={`/quality/inspection/${lotIns.id}`} className="font-mono text-xs font-semibold text-[var(--brand)] hover:underline">
-                            {lotIns.inspectionNumber} ({lotIns.result})
-                          </Link>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => handleStartInspection(lot.id)}
-                            className="text-xs font-semibold text-[var(--brand)] hover:underline"
-                          >
-                            Start Inspection
-                          </button>
-                        )}
+                        <div className="flex flex-wrap items-center gap-2">
+                          {lotIns ? (
+                            <Link to={`/quality/inspection/${lotIns.id}`} className="font-mono text-xs font-semibold text-[var(--brand)] hover:underline">
+                              {lotIns.inspectionNumber} ({lotIns.result})
+                            </Link>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => handleStartInspection(lot.id)}
+                              className="text-xs font-semibold text-[var(--brand)] hover:underline"
+                            >
+                              Start Inspection
+                            </button>
+                          )}
+                          {canInspectOrApprove && lot.status === 'qc_hold' && (
+                            <button
+                              type="button"
+                              onClick={() => releaseLotFromHold(lot.id, 'available', currentUser.name, `Released ${lot.lotNumber} to available stock from ${grn.grnNumber}`)}
+                              className="px-2 py-1 rounded text-[11px] font-semibold text-white"
+                              style={{ background: 'var(--success)' }}
+                            >
+                              Release Lot
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );

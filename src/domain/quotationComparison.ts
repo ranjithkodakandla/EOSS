@@ -404,7 +404,8 @@ export function compareAndRecommendQuotations(
   });
 
   evaluations.sort((a, b) => b.score - a.score || a.landedTotal - b.landedTotal);
-  const best = evaluations[0];
+  const nonRejected = evaluations.filter(e => e.quote.status !== 'rejected');
+  const best = nonRejected[0] ?? evaluations[0];
 
   const warnings: string[] = [];
   if (evaluations.some(e => e.missingLineNames.length > 0)) {

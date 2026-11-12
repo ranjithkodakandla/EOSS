@@ -1005,15 +1005,20 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
         timestamp,
         notes: reason,
       };
+      const updatedLots = s.lots.map(l => l.id !== lotId ? l : {
+        ...l,
+        status: decision,
+        storeLocationId: decision === 'available' ? relocated.targetStoreId : l.storeLocationId,
+        storeLocationName: decision === 'available' ? relocated.targetStoreName : l.storeLocationName,
+        acceptedQty,
+        rejectedQty,
+      });
+      const grnStillHasHold = lot.grnId ? updatedLots.some(l => l.grnId === lot.grnId && l.status === 'qc_hold') : false;
       return {
-        lots: s.lots.map(l => l.id !== lotId ? l : {
-          ...l,
-          status: decision,
-          storeLocationId: decision === 'available' ? relocated.targetStoreId : l.storeLocationId,
-          storeLocationName: decision === 'available' ? relocated.targetStoreName : l.storeLocationName,
-          acceptedQty,
-          rejectedQty,
-        }),
+        lots: updatedLots,
+        grns: decision === 'available' && lot.grnId && !grnStillHasHold
+          ? s.grns.map(g => g.id === lot.grnId && (g.status === 'qc_hold' || g.status === 'pending_qc') ? { ...g, status: 'accepted' as const } : g)
+          : s.grns,
         inventory: relocated.inventory,
         movements: [...s.movements, movement],
         inspections: s.inspections.map(ins => ins.lotId !== lotId || ins.result === 'pass' || ins.result === 'fail' ? ins : {
@@ -2189,6 +2194,8 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
         sourceType: 'shortage',
         sourceRefId: po.id,
         sourceRefLabel: po.poNumber,
+        jobId: targetJob?.id,
+        jobNumber: targetJob?.jobNumber,
         status: 'approved',
         lineCount: shortageItems.length,
         totalQty: shortageItems.reduce((s, x) => s + x.shortageQty, 0),
@@ -4361,13 +4368,20 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
 
   // ── Demo Data Lifecycle ──
   resetDemoData: () => {
+    if (typeof window !== 'undefined') {
+      try { sessionStorage.clear(); } catch { /* ignore storage restrictions */ }
+      try { localStorage.removeItem('eoss-demo-store'); } catch { /* ignore storage restrictions */ }
+    }
     set(() => buildInitialData());
     get().showToast({ type: 'success', title: 'Demo data reset', body: 'Restored the original Apex Precision demonstration scenario.' });
+    if (typeof window !== 'undefined' && typeof window.location?.reload === 'function') {
+      window.location.reload();
+    }
   },
 }), {
   name: 'eoss-demo-store',
   storage: createJSONStorage(() => localStorage),
-  version: 5,
+  version: 6,
   migrate: (persistedState, version) => {
     let state = persistedState as Partial<EOSSState>;
     const mergeById = <T extends { id: string }>(existing: T[] = [], additions: T[]) => {
@@ -4452,6 +4466,21 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
         invoiceLines: replaceById(state.invoiceLines, fresh.invoiceLines.filter(l => ['invl-c04', 'invl-c05'].includes(l.id))),
         supplierBills: replaceById(state.supplierBills, fresh.supplierBills.filter(b => ['sinv-002', 'bill-demo-rw1'].includes(b.id))),
         inspections: replaceById(state.inspections, fresh.inspections),
+      };
+    }
+    if (version < 6) {
+      const fresh = buildInitialData();
+      const replaceById = <T extends { id: string }>(existing: T[] = [], replacements: T[]) => {
+        const repMap = new Map(replacements.map(r => [r.id, r]));
+        const updated = existing.map(item => repMap.get(item.id) ?? item);
+        return mergeById(updated, replacements);
+      };
+      state = {
+        ...state,
+        companyConfig: fresh.companyConfig,
+        jobs: replaceById(state.jobs, fresh.jobs.filter(j => j.id === 'job-demo-partial')),
+        poLines: replaceById(state.poLines, fresh.poLines.filter(l => l.id === 'cpol-dc1')),
+        jobMaterialReqs: mergeById(state.jobMaterialReqs, fresh.jobMaterialReqs.filter(r => r.id === 'jmr-demo-partial')),
       };
     }
     return state;

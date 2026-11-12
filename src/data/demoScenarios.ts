@@ -882,7 +882,7 @@ export const DEMO_SALES_POS: CustomerPO[] = [
 export const DEMO_SALES_PO_LINES: POLine[] = [
   { id: 'cpol-da1', poId: 'cpo-demo-a', drawingNumber: 'MER-SKD-201', revision: 'B', description: 'MS Fabricated Pump Skid Base (8mm Plate)', orderedQty: 20, uom: 'pcs', requiredDate: '2026-11-28', rate: 12000, value: 240000, jobId: 'job-demo-a', jobNumber: 'J-211', status: 'in_progress' },
   { id: 'cpol-db1', poId: 'cpo-demo-short', drawingNumber: 'LTH-HDR-202', revision: 'A', description: '100NB Sch40 Process Header Spools (320 kg MS Pipe)', orderedQty: 320, uom: 'kg', requiredDate: '2026-11-30', rate: 1031, value: 330000, jobId: 'job-demo-short', jobNumber: 'J-210', status: 'pending' },
-  { id: 'cpol-dc1', poId: 'cpo-demo-partial', drawingNumber: 'AF-FRM-600', revision: 'A', description: 'MS Plate 8mm — Heavy Base Frame (600 kg)', orderedQty: 600, uom: 'kg', requiredDate: '2026-11-26', rate: 325, value: 195000, status: 'pending' },
+  { id: 'cpol-dc1', poId: 'cpo-demo-partial', drawingNumber: 'AF-FRM-600', revision: 'A', description: 'MS Plate 8mm — Heavy Base Frame (600 kg)', orderedQty: 600, uom: 'kg', requiredDate: '2026-11-26', rate: 325, value: 195000, jobId: 'job-demo-partial', jobNumber: 'J-215', status: 'pending' },
   { id: 'cpol-dd1', poId: 'cpo-demo-direct', drawingNumber: 'NTPC-FLG-203', revision: 'C', description: 'Machined Coupling Flange Set (Grade 10.9 Bolts)', orderedQty: 15, uom: 'sets', requiredDate: '2026-11-22', rate: 11000, value: 165000, jobId: 'job-demo-direct', jobNumber: 'J-213', status: 'in_progress' },
 ];
 
@@ -958,12 +958,27 @@ export const DEMO_SALES_JOBS: Job[] = [
       { id: 'stgd-214-2', jobId: 'job-demo-cancel', sequence: 2, name: 'Final Inspection', status: 'skipped', plannedStart: '2026-11-06', plannedEnd: '2026-11-08', owner: '', workCentre: 'QC Bay', inputQty: 10, completedGoodQty: 0, rejectedQty: 0, reworkQty: 0, scrapQty: 0, uom: 'pcs' },
     ],
   },
+  // Job linked to CPO-2026-202 (ready for live partial availability check: 515 kg available + 85 kg shortage PR-2026-113)
+  {
+    id: 'job-demo-partial', jobNumber: 'J-215', customerId: 'cust-af', customerName: 'Anand Fabricators',
+    customerPoId: 'cpo-demo-partial', customerPoNumber: 'CPO-2026-202', poLineId: 'cpol-dc1', drawingRef: 'AF-FRM-600 Rev A',
+    description: 'MS Plate 8mm — Heavy Base Frame (600 kg)', siteId: 'site-hyd', siteName: 'Hyderabad Plant 1',
+    status: 'active', priority: 'normal', plannedStart: '2026-11-08', plannedEnd: '2026-11-26',
+    owner: 'Suresh Kumar', currentStage: 'Cutting', materialReadiness: 'pending', hasBlocker: false, value: 195000,
+    stageTemplateId: 'tmpl-standard-fabrication', stageTemplateName: 'Standard Fabrication Workflow',
+    stages: [
+      { id: 'stgd-215-1', jobId: 'job-demo-partial', sequence: 1, name: 'Cutting', status: 'pending', plannedStart: '2026-11-08', plannedEnd: '2026-11-12', owner: 'Mohan Das', workCentre: 'Cutting Bay', inputQty: 600, completedGoodQty: 0, rejectedQty: 0, reworkQty: 0, scrapQty: 0, uom: 'kg' },
+      { id: 'stgd-215-2', jobId: 'job-demo-partial', sequence: 2, name: 'Fit-up & Welding', status: 'pending', plannedStart: '2026-11-13', plannedEnd: '2026-11-20', owner: '', workCentre: 'Fabrication Bay', inputQty: 600, completedGoodQty: 0, rejectedQty: 0, reworkQty: 0, scrapQty: 0, uom: 'kg' },
+      { id: 'stgd-215-3', jobId: 'job-demo-partial', sequence: 3, name: 'Inspection & Dispatch', status: 'pending', plannedStart: '2026-11-21', plannedEnd: '2026-11-26', owner: '', workCentre: 'QC Bay', inputQty: 600, completedGoodQty: 0, rejectedQty: 0, reworkQty: 0, scrapQty: 0, uom: 'kg' },
+    ],
+  },
 ];
 
 export const DEMO_SALES_JOB_REQS: JobMaterialReq[] = [
   { id: 'jmr-demo-a1', jobId: 'job-demo-a', stageId: 'stgd-211-1', stageName: 'Cutting', materialItemId: 'mat-ms8', materialName: 'MS Plate 8mm', requiredQty: 180, reservedQty: 180, issuedQty: 180, uom: 'kg', shortage: false, lotIds: ['lot-001'] },
   { id: 'jmr-demo-b1', jobId: 'job-demo-short', stageId: 'stgd-210-1', stageName: 'Cutting', materialItemId: 'mat-msp', materialName: 'MS Pipe 100NB Sch40', requiredQty: 320, reservedQty: 0, issuedQty: 0, uom: 'kg', shortage: true, lotIds: [] },
   { id: 'jmr-demo-d1', jobId: 'job-demo-direct', stageId: 'stgd-213-1', stageName: 'Machining', materialItemId: 'mat-msfb', materialName: 'MS Flat Bar 50×6', requiredQty: 120, reservedQty: 120, issuedQty: 60, uom: 'kg', shortage: false, lotIds: ['lot-006'] },
+  { id: 'jmr-demo-partial', jobId: 'job-demo-partial', stageId: 'stgd-215-1', stageName: 'Cutting', materialItemId: 'mat-ms8', materialName: 'MS Plate 8mm', requiredQty: 600, reservedQty: 0, issuedQty: 0, uom: 'kg', shortage: false, lotIds: [] },
 ];
 
 export const DEMO_SALES_DISPATCHES: Dispatch[] = [
