@@ -76,21 +76,35 @@ export default function QuotationCreate() {
 
   const bomCostDetails = useMemo(() => {
     let totalBomCost = 0;
+    let allLinesHaveBom = lines.length > 0;
     const lineBreakdowns = lines.map(l => {
       const matchingBom = boms.find(b =>
-        (l.drawingNumber && b.productCode.toLowerCase().includes(l.drawingNumber.toLowerCase())) ||
-        (l.productName && b.productName.toLowerCase().includes(l.productName.toLowerCase())) ||
-        (l.drawingNumber && l.drawingNumber.toLowerCase().includes(b.productCode.toLowerCase()))
+        (b.productId && l.drawingNumber && b.productId === l.drawingNumber) ||
+        (l.drawingNumber && b.productCode && b.productCode.trim().toLowerCase() === l.drawingNumber.trim().toLowerCase()) ||
+        (l.productName && b.productName && b.productName.trim().toLowerCase() === l.productName.trim().toLowerCase())
       );
-      const unitBomCost = matchingBom ? matchingBom.totalMaterialCost : (l.unitPrice > 0 ? Math.round(l.unitPrice * 0.62) : 2200);
+      if (!matchingBom) {
+        allLinesHaveBom = false;
+        return { lineId: l.id, hasBom: false, unitBomCost: 0, lineCost: 0 };
+      }
+      const unitBomCost = matchingBom.totalMaterialCost;
       const lineCost = unitBomCost * (l.orderedQty || 1);
       totalBomCost += lineCost;
-      return { lineId: l.id, matchingBom, unitBomCost, lineCost };
+      return { lineId: l.id, hasBom: true, matchingBom, unitBomCost, lineCost };
     });
-    const estMargin = subtotal - totalBomCost;
-    const marginPct = subtotal > 0 ? Math.round((estMargin / subtotal) * 100) : 0;
-    return { totalBomCost, lineBreakdowns, estMargin, marginPct, isLow: marginPct < 20 };
-  }, [lines, subtotal, boms]);
+    const commercialBase = Math.max(0, subtotal - (discountAmount || 0));
+    const estMargin = commercialBase - totalBomCost;
+    const marginPct = commercialBase > 0 ? Math.round((estMargin / commercialBase) * 100) : 0;
+    return {
+      totalBomCost,
+      lineBreakdowns,
+      estMargin,
+      marginPct,
+      commercialBase,
+      bomAvailable: allLinesHaveBom,
+      isLow: allLinesHaveBom && marginPct < 20,
+    };
+  }, [lines, subtotal, discountAmount, boms]);
 
   const handleSubmit = () => {
     const seq = Date.now().toString().slice(-4);
@@ -263,34 +277,50 @@ export default function QuotationCreate() {
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <p className="text-xs text-[var(--text-3)]">
-                  Simulated BOM material cost rollup from engineering master specs
+                  {bomCostDetails.bomAvailable
+                    ? 'BOM material cost rollup from engineering master specs'
+                    : 'No matching engineering BOM found for line items'}
                 </p>
-                <span className={clsx(
-                  'px-2.5 py-0.5 rounded-full text-xs font-bold border',
-                  bomCostDetails.isLow ? 'bg-amber-100 text-amber-900 border-amber-300' : 'bg-emerald-100 text-emerald-900 border-emerald-300'
-                )}>
-                  {bomCostDetails.marginPct}% Material Margin
-                </span>
+                {bomCostDetails.bomAvailable ? (
+                  <span className={clsx(
+                    'px-2.5 py-0.5 rounded-full text-xs font-bold border',
+                    bomCostDetails.isLow ? 'bg-amber-100 text-amber-900 border-amber-300' : 'bg-emerald-100 text-emerald-900 border-emerald-300'
+                  )}>
+                    {bomCostDetails.marginPct}% Material Margin
+                  </span>
+                ) : (
+                  <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold border bg-slate-100 text-slate-700 border-slate-300">
+                    BOM Cost Not Available
+                  </span>
+                )}
               </div>
 
               <div className="grid grid-cols-3 gap-3 p-3 rounded-xl bg-[var(--surface-2)] text-xs">
                 <div>
-                  <span className="text-[10px] text-[var(--text-3)] uppercase tracking-wider block">Quoted Subtotal</span>
-                  <span className="font-mono font-bold text-sm text-[var(--text)]">{fmtMoney(subtotal)}</span>
+                  <span className="text-[10px] text-[var(--text-3)] uppercase tracking-wider block">Net Commercial Base</span>
+                  <span className="font-mono font-bold text-sm text-[var(--text)]">{fmtMoney(bomCostDetails.commercialBase)}</span>
                 </div>
                 <div>
                   <span className="text-[10px] text-[var(--text-3)] uppercase tracking-wider block">Est. BOM Material Cost</span>
-                  <span className="font-mono font-bold text-sm text-slate-600">{fmtMoney(bomCostDetails.totalBomCost)}</span>
+                  {bomCostDetails.bomAvailable ? (
+                    <span className="font-mono font-bold text-sm text-slate-600">{fmtMoney(bomCostDetails.totalBomCost)}</span>
+                  ) : (
+                    <span className="text-xs font-semibold text-[var(--text-3)] italic">BOM Cost Not Available</span>
+                  )}
                 </div>
                 <div>
                   <span className="text-[10px] text-[var(--text-3)] uppercase tracking-wider block">Est. Material Margin</span>
-                  <span className={clsx('font-mono font-bold text-sm', bomCostDetails.isLow ? 'text-amber-600' : 'text-emerald-600')}>
-                    {fmtMoney(bomCostDetails.estMargin)} ({bomCostDetails.marginPct}%)
-                  </span>
+                  {bomCostDetails.bomAvailable ? (
+                    <span className={clsx('font-mono font-bold text-sm', bomCostDetails.isLow ? 'text-amber-600' : 'text-emerald-600')}>
+                      {fmtMoney(bomCostDetails.estMargin)} ({bomCostDetails.marginPct}%)
+                    </span>
+                  ) : (
+                    <span className="text-xs font-semibold text-[var(--text-3)] italic">Margin Not Available (BOM missing)</span>
+                  )}
                 </div>
               </div>
 
-              {bomCostDetails.isLow && (
+              {bomCostDetails.bomAvailable && bomCostDetails.isLow && (
                 <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-center gap-2">
                   <AlertTriangle size={15} className="text-amber-600 flex-shrink-0" />
                   <span>

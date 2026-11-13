@@ -25,6 +25,15 @@ export default function LotDetail() {
 
   const canEdit = ['owner', 'storekeeper', 'qc'].includes(currentUser.role);
 
+  const INBOUND_TYPES = new Set(['Receipt', 'Return', 'Transfer-In', 'Opening Balance']);
+  const sortedMovements = [...lotMovements].sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+  let runningBalance = 0;
+  const movementsWithBalance = sortedMovements.map(m => {
+    const delta = INBOUND_TYPES.has(m.movementType) ? m.primaryQty : -m.primaryQty;
+    runningBalance += delta;
+    return { ...m, balance: runningBalance };
+  });
+
   const handleRelease = () => {
     releaseLotFromHold(lot.id, 'available', currentUser.name, 'Released from QC Hold via Lot Detail');
     setConfirm(null);
@@ -71,7 +80,11 @@ export default function LotDetail() {
                 Start Inspection
               </button>
             )}
-            <button onClick={() => setConfirm({ action: 'release', body: 'Release this lot from QC hold and make it available in Stock on Hand?' })} className="px-3 py-1.5 bg-[var(--success)] text-white rounded-lg text-sm font-medium">Release</button>
+            {(lotInspection?.result === 'pass' || lotInspection?.concessionGranted) ? (
+              <button onClick={() => setConfirm({ action: 'release', body: 'Release this lot from QC hold and make it available in Stock on Hand?' })} className="px-3 py-1.5 bg-[var(--success)] text-white rounded-lg text-sm font-medium">Release</button>
+            ) : (
+              <span className="px-3 py-1.5 text-xs text-[var(--text-3)] border border-[var(--border)] rounded-lg">Release requires passing inspection</span>
+            )}
             <button onClick={() => setConfirm({ action: 'return', body: 'Reject / mark this lot for return to supplier? This will exclude it from available inventory.' })} className="px-3 py-1.5 border border-[var(--error)] text-[var(--error)] rounded-lg text-sm font-medium">Reject / Return</button>
           </div>
         )}
@@ -130,21 +143,32 @@ export default function LotDetail() {
             </div>
             <table className="eoss-table hidden md:table">
               <thead>
-                <tr><th>Timestamp</th><th>Movement</th><th>Qty</th><th>From</th><th>To</th><th>Reference</th><th>By</th></tr>
+                <tr><th>Timestamp</th><th>Movement</th><th>Qty</th><th>Balance</th><th>From</th><th>To</th><th>Reference</th><th>By</th></tr>
               </thead>
               <tbody>
-                {lotMovements.length === 0 && <tr><td colSpan={7} className="text-center py-6 text-sm text-[var(--text-3)]">No movements recorded</td></tr>}
-                {lotMovements.map(m => (
+                {movementsWithBalance.length === 0 && <tr><td colSpan={8} className="text-center py-6 text-sm text-[var(--text-3)]">No movements recorded</td></tr>}
+                {movementsWithBalance.map(m => (
                   <tr key={m.id}>
                     <td className="text-xs text-[var(--text-2)] whitespace-nowrap">{new Date(m.timestamp).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</td>
                     <td><StatusChip status={m.movementType.toLowerCase().replace(/\s|-/g, '_')} label={m.movementType} size="sm" /></td>
-                    <td className="font-mono text-sm font-semibold">{m.primaryQty} {m.uom}</td>
+                    <td className="font-mono text-sm font-semibold">{INBOUND_TYPES.has(m.movementType) ? '+' : '-'}{m.primaryQty} {m.uom}</td>
+                    <td className={`font-mono text-sm font-semibold ${m.balance < 0 ? 'text-[var(--error)]' : ''}`}>{m.balance} {m.uom}</td>
                     <td className="text-xs text-[var(--text-2)]">{m.fromLocation ?? '—'}</td>
                     <td className="text-xs text-[var(--text-2)]">{m.toLocation ?? '—'}</td>
                     <td className="text-xs text-[var(--text-2)]">{m.referenceType}: {m.referenceNumber}</td>
                     <td className="text-xs text-[var(--text-2)]">{m.performedBy}</td>
                   </tr>
                 ))}
+                {movementsWithBalance.length > 0 && (
+                  <tr className="bg-[var(--surface-2)] font-semibold text-xs">
+                    <td colSpan={3} className="px-3 py-2 text-[var(--text-3)]">Closing balance from ledger</td>
+                    <td className={`px-3 py-2 font-mono ${runningBalance !== lot.primaryQty ? 'text-[var(--error)]' : 'text-[var(--success)]'}`}>
+                      {runningBalance} {lot.primaryUom}
+                      {runningBalance !== lot.primaryQty && <span className="ml-1 text-[10px]">(lot shows {lot.primaryQty})</span>}
+                    </td>
+                    <td colSpan={4} />
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>

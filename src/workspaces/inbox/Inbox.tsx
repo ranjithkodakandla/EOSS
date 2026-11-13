@@ -4,7 +4,7 @@ import {
   Inbox as InboxIcon, Mail, MailOpen, AlertCircle, Send, Archive, ArchiveRestore,
   Search, Paperclip, ExternalLink, CheckCircle2, XCircle, Reply, FileText, ArrowLeft,
   MessageSquare, Phone, Settings, Link2, UserCheck, CheckCheck, Clock,
-  FilePlus, RefreshCw, X
+  FilePlus, RefreshCw, X, CheckCircle
 } from 'lucide-react';
 import clsx from 'clsx';
 import { useStore } from '../../store';
@@ -212,9 +212,19 @@ export default function Inbox() {
     if (!selectedMessage) return;
     const matchCust = customers.find(c => c.tradingName.toLowerCase().includes(selectedMessage.senderOrg.toLowerCase()));
     setRfqCustomerId(matchCust?.id || customers[0]?.id || 'cust-001');
-    setRfqDueDate(new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10));
-    setRfqPartDesc(selectedMessage.subject || 'Custom Precision Component');
-    setRfqQty('50');
+    // Parse delivery date from message body (e.g. "by 25th December" or "by 25th Dec")
+    const dateMatch = selectedMessage.body?.match(/by\s+(\d{1,2}(?:st|nd|rd|th)?\s+\w+(?:\s+\d{4})?)/i);
+    const parsedDue = dateMatch ? (() => { try { const d = new Date(dateMatch[1].replace(/st|nd|rd|th/g, '')); return isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10); } catch { return null; } })() : null;
+    setRfqDueDate(parsedDue || new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10));
+    // Strip common channel prefixes from subject
+    const cleanSubject = (selectedMessage.subject || '')
+      .replace(/^(WhatsApp Enquiry|Email Enquiry|Outlook Enquiry):\s*/i, '')
+      .trim() || 'Custom Precision Component';
+    setRfqPartDesc(cleanSubject);
+    // Try to parse quantity from message body
+    const qtyMatch = selectedMessage.body?.match(/(\d[\d,]*)\s*(?:units?|nos?|pcs?|pieces?)/i);
+    const parsedQty = qtyMatch ? String(parseInt(qtyMatch[1].replace(/,/g, ''), 10)) : '50';
+    setRfqQty(parsedQty);
     setShowRfqModal(true);
   };
 
@@ -251,8 +261,12 @@ export default function Inbox() {
     setSqSupplierId(matchSup?.id || suppliers[0]?.id || 'sup-001');
     const openPr = purchaseReqs.find(p => ['approved', 'open', 'quotation_in_progress'].includes(p.status));
     setSqPrId(openPr?.id || '');
-    setSqUnitRate('185');
-    setSqLeadDays('5');
+    // Parse unit rate from body (e.g. "₹85/kg" or "₹185 per unit")
+    const rateMatch = selectedMessage.body?.match(/[₹Rs\.]+\s*(\d[\d,]*(?:\.\d+)?)\s*(?:\/|per\s)/i);
+    setSqUnitRate(rateMatch ? String(parseFloat(rateMatch[1].replace(/,/g, ''))) : '185');
+    // Parse lead days from body (e.g. "5 working days" or "7 days")
+    const leadMatch = selectedMessage.body?.match(/(\d+)\s*(?:working\s+)?days?/i);
+    setSqLeadDays(leadMatch ? leadMatch[1] : '5');
     setShowQuoteModal(true);
   };
 
@@ -282,7 +296,7 @@ export default function Inbox() {
       })) : undefined,
     });
     setShowQuoteModal(false);
-    navigate(`/procurement/quotations/${quote.id}`);
+    navigate(`/procurement/quote/${quote.id}`);
   };
 
   const handleLinkRecord = (e: React.FormEvent) => {
@@ -346,13 +360,13 @@ export default function Inbox() {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-base font-bold text-[var(--text)] leading-tight">Unified Business Inbox</h1>
-              <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200 flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                Live Channels Connected
+              <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200 flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                Simulated · No live internet
               </span>
             </div>
             <p className="text-[11px] text-[var(--text-3)]">
-              Multi-channel communications (Gmail, Outlook, WhatsApp Business API) linked to EOSS records
+              Channels simulate Gmail, Outlook and WhatsApp messages — no live internet requests are made
             </p>
           </div>
         </div>
@@ -576,23 +590,35 @@ export default function Inbox() {
                   <div className="flex items-center gap-1.5 flex-wrap">
                     {/* Quick convert buttons */}
                     {selectedMessage.type === 'customer_rfq' && (
-                      <button
-                        type="button"
-                        onClick={handleOpenRfqModal}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 shadow-sm"
-                      >
-                        <FilePlus size={13} /> Convert to RFQ
-                      </button>
+                      selectedMessage.actionCompleted || selectedMessage.status === 'converted_to_rfq' ? (
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[var(--surface-2)] text-[var(--text-3)] border border-[var(--border)]">
+                          <CheckCircle size={13} /> Already converted
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={handleOpenRfqModal}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 shadow-sm"
+                        >
+                          <FilePlus size={13} /> Convert to RFQ
+                        </button>
+                      )
                     )}
 
                     {selectedMessage.type === 'supplier_quotation' && (
-                      <button
-                        type="button"
-                        onClick={handleOpenQuoteModal}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-purple-600 hover:bg-purple-700 shadow-sm"
-                      >
-                        <FilePlus size={13} /> Convert to Supplier Quote
-                      </button>
+                      selectedMessage.actionCompleted ? (
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[var(--surface-2)] text-[var(--text-3)] border border-[var(--border)]">
+                          <CheckCircle size={13} /> Already converted
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={handleOpenQuoteModal}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-purple-600 hover:bg-purple-700 shadow-sm"
+                        >
+                          <FilePlus size={13} /> Convert to Supplier Quote
+                        </button>
+                      )
                     )}
 
                     <button

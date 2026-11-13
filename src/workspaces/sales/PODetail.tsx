@@ -73,6 +73,7 @@ export default function PODetail() {
           materialName: r.materialName,
           grade: mat?.standardGrade,
           requiredQty: r.requiredQty,
+          alreadyReservedQty: r.reservedQty || 0,
           uom: r.uom,
         };
       });

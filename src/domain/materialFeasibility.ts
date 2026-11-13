@@ -26,6 +26,7 @@ export interface MaterialFeasibility {
   materialItemId: string;
   uom: string;
   requiredQty: number;
+  alreadyReservedQty?: number;
   assignedSiteId: string;
   physicalOnHand: number;
   reserved: number;
@@ -47,6 +48,7 @@ export function computeMaterialFeasibility(params: {
   materialItemId: string;
   uom: string;
   requiredQty: number;
+  alreadyReservedQty?: number;
   assignedSiteId: string;
   lots: MaterialLot[];
   storeLocations: StoreLocation[];
@@ -55,7 +57,7 @@ export function computeMaterialFeasibility(params: {
   supplierPoLines: SupplierPOLine[];
   isPreliminary?: boolean;
 }): MaterialFeasibility {
-  const { materialItemId, uom, requiredQty, assignedSiteId, lots, storeLocations, sites, supplierPos, supplierPoLines, isPreliminary } = params;
+  const { materialItemId, uom, requiredQty, alreadyReservedQty = 0, assignedSiteId, lots, storeLocations, sites, supplierPos, supplierPoLines, isPreliminary } = params;
 
   const matLots = lots.filter(l => l.materialItemId === materialItemId);
 
@@ -87,13 +89,13 @@ export function computeMaterialFeasibility(params: {
   const assigned = bySite.get(assignedSiteId) ?? { siteId: assignedSiteId, siteName: 'Assigned Site', physical: 0, reserved: 0, qcHold: 0, available: 0 };
   const otherSiteStock = Array.from(bySite.values()).filter(b => b.siteId !== assignedSiteId && (b.physical > 0 || b.qcHold > 0));
 
-  // Incoming = open/pending/overdue/partial supplier PO lines for this material, regardless of site (incoming to the company).
+  // Incoming = open/pending/overdue/partial supplier PO lines for this material (excluding declined/cancelled SPOs).
   const incoming: IncomingLine[] = [];
   for (const line of supplierPoLines) {
     if (line.materialItemId !== materialItemId) continue;
     if (line.status === 'received') continue;
     const spo = supplierPos.find(p => p.id === line.spoId);
-    if (!spo) continue;
+    if (!spo || ['declined', 'cancelled'].includes(spo.status)) continue;
     const pendingQty = Math.max(0, line.orderedQty - line.receivedQty);
     if (pendingQty <= 0) continue;
     incoming.push({
@@ -109,14 +111,20 @@ export function computeMaterialFeasibility(params: {
   }
   const incomingQty = incoming.reduce((s, i) => s + i.pendingQty, 0);
 
-  const shortage = Math.max(0, requiredQty - assigned.available);
+  const netRequired = Math.max(0, requiredQty - alreadyReservedQty);
+  const shortage = Math.max(0, netRequired - assigned.available);
 
   let recommendedAction: string;
-  if (shortage <= 0) {
+  if (netRequired === 0) {
+    recommendedAction = `Requirement fully covered by existing reservations (${alreadyReservedQty} ${uom}).`;
+  } else if (shortage <= 0) {
     recommendedAction = 'Sufficient stock available at assigned site. No action needed.';
   } else {
     const altAvailable = otherSiteStock.reduce((s, b) => s + b.available, 0);
     const parts: string[] = [];
+    if (alreadyReservedQty > 0) {
+      parts.push(`${alreadyReservedQty} ${uom} reserved`);
+    }
     if (altAvailable > 0) {
       parts.push(`Transfer ${Math.min(shortage, altAvailable)} ${uom} from ${otherSiteStock.filter(b => b.available > 0).map(b => b.siteName).join(', ')}`);
     }
@@ -134,6 +142,7 @@ export function computeMaterialFeasibility(params: {
     materialItemId,
     uom,
     requiredQty,
+    alreadyReservedQty,
     assignedSiteId,
     physicalOnHand: assigned.physical,
     reserved: assigned.reserved,
@@ -155,6 +164,8 @@ export interface OrderRequirementAssessment {
   grade?: string;
   uom: string;
   requiredQty: number;
+  alreadyReservedQty: number;
+  netRequiredQty: number;
   physicalOnHand: number;
   reservedQty: number;
   qcHoldQty: number;
@@ -167,7 +178,15 @@ export interface OrderRequirementAssessment {
 }
 
 export function assessOrderMaterialRequirements(params: {
-  requirements: { materialItemId: string; materialCode?: string; materialName: string; grade?: string; requiredQty: number; uom: string }[];
+  requirements: {
+    materialItemId: string;
+    materialCode?: string;
+    materialName: string;
+    grade?: string;
+    requiredQty: number;
+    uom: string;
+    alreadyReservedQty?: number;
+  }[];
   assignedSiteId: string;
   lots: MaterialLot[];
   storeLocations: StoreLocation[];
@@ -181,10 +200,13 @@ export function assessOrderMaterialRequirements(params: {
   totalReservableLines: number;
 } {
   const items: OrderRequirementAssessment[] = params.requirements.map(req => {
+    const alreadyReservedQty = req.alreadyReservedQty || 0;
+    const netRequiredQty = Math.max(0, req.requiredQty - alreadyReservedQty);
     const f = computeMaterialFeasibility({
       materialItemId: req.materialItemId,
       uom: req.uom,
       requiredQty: req.requiredQty,
+      alreadyReservedQty,
       assignedSiteId: params.assignedSiteId,
       lots: params.lots,
       storeLocations: params.storeLocations,
@@ -192,10 +214,10 @@ export function assessOrderMaterialRequirements(params: {
       supplierPos: params.supplierPos,
       supplierPoLines: params.supplierPoLines,
     });
-    const toReserveQty = Math.min(req.requiredQty, f.available);
-    const shortageQty = Math.max(0, req.requiredQty - toReserveQty);
+    const toReserveQty = Math.min(netRequiredQty, f.available);
+    const shortageQty = Math.max(0, netRequiredQty - toReserveQty);
     const outcome: OrderRequirementAssessment['outcome'] =
-      shortageQty <= 0 ? 'available' : toReserveQty > 0 ? 'partial' : 'unavailable';
+      (netRequiredQty === 0 || shortageQty <= 0) ? 'available' : toReserveQty > 0 ? 'partial' : 'unavailable';
 
     return {
       materialItemId: req.materialItemId,
@@ -204,6 +226,8 @@ export function assessOrderMaterialRequirements(params: {
       grade: req.grade,
       uom: req.uom,
       requiredQty: req.requiredQty,
+      alreadyReservedQty,
+      netRequiredQty,
       physicalOnHand: f.physicalOnHand,
       reservedQty: f.reserved,
       qcHoldQty: f.qcHold,

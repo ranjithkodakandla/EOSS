@@ -361,6 +361,10 @@ interface EOSSState {
     otherCharges?: number;
     notes?: string;
     issueNow?: boolean;
+    docKind?: Invoice['docKind'];
+    advancePercentage?: number;
+    overInvoicedAllowed?: boolean;
+    overInvoicedReason?: string;
     lines: Array<{
       poLineId?: string;
       productId?: string;
@@ -904,7 +908,21 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
 
   addJobUpdate: (jobId, update) => {
     const { updateJobStage, showToast } = get();
-    set(s => ({ jobUpdates: [...s.jobUpdates, update] }));
+    const job = get().jobs.find(j => j.id === jobId);
+    const stage = job?.stages.find(st => st.id === update.jobStageId);
+    if (stage && update.completedGoodQty > stage.inputQty) {
+      showToast({ type: 'error', title: 'Quantity exceeds input', body: `Completed good qty (${update.completedGoodQty}) cannot exceed stage input qty (${stage.inputQty}).` });
+      return;
+    }
+    set(s => ({
+      jobUpdates: [...s.jobUpdates, update],
+      auditEvents: [...s.auditEvents, {
+        id: `ae-${Date.now()}`, actor: update.performedByName ?? s.currentUser.name, actorId: s.currentUser.id,
+        scope: 'Job', action: 'stage_progress', entityId: update.jobStageId, entityRef: job?.jobNumber ?? jobId,
+        timestamp: update.timestamp, source: 'ui',
+        after: { completedGoodQty: update.completedGoodQty, rejectedQty: update.rejectedQty, scrapQty: update.scrapQty, action: update.action },
+      }],
+    }));
     updateJobStage(jobId, update.jobStageId, {
       completedGoodQty: update.completedGoodQty,
       rejectedQty: update.rejectedQty,
@@ -998,7 +1016,10 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
       const job = req ? s.jobs.find(j => j.id === req.jobId) : undefined;
       if (!req || !job || qty <= 0) return s;
       const siteLocationIds = new Set(s.storeLocations.filter(l => l.siteId === job.siteId).map(l => l.id));
-      const stock = s.inventory.find(i => i.materialItemId === req.materialItemId && siteLocationIds.has(i.locationId) && i.availableQty >= qty);
+      const siteRows = s.inventory.filter(i => i.materialItemId === req.materialItemId && siteLocationIds.has(i.locationId));
+      const totalAvailable = siteRows.reduce((sum, i) => sum + i.availableQty, 0);
+      if (totalAvailable < qty) return s;
+      const stock = siteRows.sort((a, b) => b.availableQty - a.availableQty)[0];
       if (!stock) return s;
       const lotId = req.lotIds[0] ?? s.lots.find(l => l.materialItemId === req.materialItemId)?.id ?? '';
       const timestamp = new Date().toISOString();
@@ -2042,6 +2063,62 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
 
   matchBankStatementRow: (rowId, entityType, entityId, entityRef) => {
     const now = new Date().toISOString();
+    const s0 = get();
+    const row = s0.bankStatements.find(r => r.id === rowId);
+
+    // Auto-create payment when reconciling a credit against an invoice (or debit against a supplier bill)
+    if (row && entityType === 'CustomerInvoice' && row.type === 'credit') {
+      const inv = s0.invoices.find(i => i.id === entityId);
+      if (inv && inv.outstandingAmount > 0) {
+        const applyAmt = Math.min(row.amount, inv.outstandingAmount);
+        const payId = `pay-recon-${Date.now()}`;
+        const paymentNumber = nextSequentialNumber(
+          `PAY-${row.statementDate.slice(0, 4)}`,
+          s0.payments.map(p => p.paymentNumber), 3, 1,
+        );
+        const reconPayment: Payment = {
+          id: payId, paymentNumber, customerId: inv.customerId, customerName: inv.customerName,
+          receiptDate: row.statementDate, currency: 'INR', amount: applyAmt,
+          paymentMethod: 'bank_transfer', transactionRef: row.reference || `RECON-${rowId}`,
+          receivingAccount: 'HDFC A/c 50200012345', status: 'allocated',
+          allocatedAmount: applyAmt, unallocatedAmount: 0, createdBy: s0.currentUser.name, isSimulated: true,
+        };
+        const reconAlloc: PaymentAllocation = {
+          id: `pa-recon-${Date.now()}`, paymentId: payId, paymentNumber,
+          invoiceId: inv.id, invoiceNumber: inv.invoiceNumber, customerId: inv.customerId,
+          allocatedAmount: applyAmt, allocatedDate: row.statementDate, allocatedBy: s0.currentUser.name,
+          notes: 'Auto-created from bank reconciliation',
+        };
+        const newOutstanding = Math.max(0, inv.outstandingAmount - applyAmt);
+        const newStatus: Invoice['status'] = newOutstanding <= 0 ? 'paid' : 'partially_paid';
+        set(s => ({
+          payments: [reconPayment, ...s.payments],
+          paymentAllocations: [...s.paymentAllocations, reconAlloc],
+          invoices: s.invoices.map(i => i.id !== entityId ? i : { ...i, outstandingAmount: newOutstanding, paidAmount: (i.paidAmount || 0) + applyAmt, status: newStatus }),
+          bankStatements: s.bankStatements.map(r => r.id === rowId ? { ...r, status: 'matched', matchedEntityType: entityType, matchedEntityId: entityId, matchedEntityRef: entityRef, reconciledAt: now, reconciledBy: s.currentUser.name } : r),
+          auditEvents: [...s.auditEvents, createAuditEventRecord({ actor: s.currentUser.name, actorId: s.currentUser.id, role: s.currentUser.role, module: 'Finance', scope: 'BankReconciliation', action: 'match_statement_row', entityId: rowId, entityRef, timestamp: now, description: `Reconciled bank credit against ${entityRef}; payment ${paymentNumber} auto-created.` })],
+        }));
+        get().showToast({ type: 'success', title: 'Transaction Reconciled', body: `Payment ${paymentNumber} created and allocated to ${entityRef}.` });
+        return;
+      }
+    }
+
+    if (row && entityType === 'SupplierBill' && row.type === 'debit') {
+      const bill = s0.supplierBills.find(b => b.id === entityId);
+      if (bill && bill.outstandingAmount > 0) {
+        const applyAmt = Math.min(row.amount, bill.outstandingAmount);
+        const newOutstanding = Math.max(0, bill.outstandingAmount - applyAmt);
+        const newStatus: SupplierBill['status'] = newOutstanding <= 0 ? 'paid' : 'partially_paid';
+        set(s => ({
+          supplierBills: s.supplierBills.map(b => b.id !== entityId ? b : { ...b, outstandingAmount: newOutstanding, paidAmount: (b.paidAmount || 0) + applyAmt, status: newStatus }),
+          bankStatements: s.bankStatements.map(r => r.id === rowId ? { ...r, status: 'matched', matchedEntityType: entityType, matchedEntityId: entityId, matchedEntityRef: entityRef, reconciledAt: now, reconciledBy: s.currentUser.name } : r),
+          auditEvents: [...s.auditEvents, createAuditEventRecord({ actor: s.currentUser.name, actorId: s.currentUser.id, role: s.currentUser.role, module: 'Finance', scope: 'BankReconciliation', action: 'match_statement_row', entityId: rowId, entityRef, timestamp: now, description: `Reconciled bank debit against supplier bill ${entityRef}.` })],
+        }));
+        get().showToast({ type: 'success', title: 'Transaction Reconciled', body: `Bank debit matched and ${entityRef} marked paid.` });
+        return;
+      }
+    }
+
     set(s => ({
       bankStatements: s.bankStatements.map(r => r.id === rowId ? {
         ...r,
@@ -2167,13 +2244,27 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
     const insp = state.inspections.find(i => i.id === inspectionId);
     if (!insp) return;
 
+    // Enforce role authorization: Quality Head / Quality lead role required
+    const isQualityAuthorized = ['owner', 'qc'].includes(state.currentUser.role);
+    const actingApprover = isQualityAuthorized ? state.currentUser.name : (approver.trim() || state.currentUser.name);
+    const actingRole = isQualityAuthorized ? 'Quality Head' : state.currentUser.role;
+
+    if (!isQualityAuthorized) {
+      state.showToast({
+        type: 'error',
+        title: 'Unauthorized Concession',
+        body: `Only Quality Head or authorized Quality personnel can grant a technical concession override. Current role: ${state.currentUser.role}`,
+      });
+      return;
+    }
+
     const releaseId = `qr-${Date.now()}`;
     const newRelease: QualityRelease = {
       id: releaseId,
       inspectionId: insp.id,
       jobId: insp.jobId || 'job-001',
       jobNumber: insp.jobNumber || 'J-2026-101',
-      releasedBy: approver,
+      releasedBy: actingApprover,
       releasedAt: now,
       certDossierComplete: true,
       notes: `QA Concession Override: ${reason}`,
@@ -2182,30 +2273,34 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
     set(s => ({
       inspections: s.inspections.map(i => i.id === inspectionId ? {
         ...i,
-        result: 'pass' as const,
-        concessionNotes: reason,
+        // QUA-01: Never overwrite original inspection result; preserve fail in history
         overrideApproved: true,
         overrideReason: reason,
-        overrideBy: approver,
+        overrideBy: actingApprover,
+        concessionGranted: true,
+        concessionReason: reason,
+        concessionApprover: actingApprover,
+        concessionDate: now,
+        concessionNotes: reason,
       } : i),
       qualityReleases: [newRelease, ...s.qualityReleases],
       auditEvents: [...s.auditEvents, createAuditEventRecord({
-        actor: approver,
+        actor: actingApprover,
         actorId: s.currentUser.id,
-        role: 'Quality Head',
+        role: actingRole,
         module: 'Quality',
         scope: 'Inspection',
         action: 'qa_override',
         entityId: inspectionId,
         entityRef: insp.inspectionNumber,
         timestamp: now,
-        description: `Authorized QA override for inspection ${insp.inspectionNumber} (${insp.jobNumber}). Concession reason: ${reason}. Dispatch unblocked.`,
+        description: `Authorized technical concession override for inspection ${insp.inspectionNumber} (${insp.jobNumber}). Original result (${insp.result}) preserved with concession release granted by ${actingApprover} (${actingRole}). Reason: ${reason}. Dispatch unblocked.`,
       })],
     }));
     get().showToast({
       type: 'success',
       title: 'QA Concession Granted',
-      body: `Quality clearance override logged. Dispatch unblocked under authorized concession.`,
+      body: `Quality concession release recorded. Original inspection failure preserved; dispatch unblocked under concession.`,
     });
   },
 
@@ -2360,9 +2455,31 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
 
   // ── Dispatch Actions ──
   setDispatchStatus: (dspId, status) => {
+    const state = get();
+    const existing = state.dispatches.find(d => d.id === dspId);
+    if (!existing) return;
+
+    // DSP-01: Canonical quality release enforcement on dispatch
+    if (status === 'dispatched') {
+      const linkedJobId = existing.jobId;
+      if (linkedJobId) {
+        const inspections = state.inspections.filter(i => i.jobId === linkedJobId);
+        const hasFailedInspectionWithoutConcession = inspections.some(
+          i => (i.result === 'fail' || i.result === 'rejected') && !i.overrideApproved && !i.concessionGranted
+        );
+        const releases = state.qualityReleases.filter(r => r.jobId === linkedJobId);
+        if (hasFailedInspectionWithoutConcession && releases.length === 0) {
+          get().showToast({
+            type: 'error',
+            title: 'Dispatch Blocked by Quality Gate',
+            body: `Cannot dispatch ${existing.dispatchNumber}: Linked job has a failed inspection without an authorized QA concession or quality release.`,
+          });
+          return;
+        }
+      }
+    }
+
     set(s => {
-      const existing = s.dispatches.find(d => d.id === dspId);
-      if (!existing) return s;
       const today = new Date().toISOString().slice(0, 10);
       const dispatchDate = status === 'dispatched' && !existing.dispatchDate ? today : existing.dispatchDate;
       const actualDeliveryDate = (status === 'delivered' || status === 'delivery_confirmed') && !existing.actualDeliveryDate ? today : existing.actualDeliveryDate;
@@ -2382,27 +2499,58 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
     get().showToast({ type: 'success', title: 'Dispatch updated', body: `Status changed to ${status.replace('_', ' ')}` });
   },
 
-  addDispatch: (dispatch) => set(s => ({
-    dispatches: [dispatch, ...s.dispatches],
-    auditEvents: [...s.auditEvents, createAuditEventRecord({
-      actor: s.currentUser.name, actorId: s.currentUser.id, role: s.currentUser.role,
-      scope: 'Dispatch', action: 'create', entityId: dispatch.id, entityRef: dispatch.dispatchNumber,
-      description: `Created dispatch ${dispatch.dispatchNumber} for ${dispatch.customerName} (${dispatch.totalQty} units).`,
-      relatedEntityType: dispatch.customerPoId ? 'CustomerPO' : dispatch.jobId ? 'Job' : undefined,
-      relatedEntityId: dispatch.customerPoId ?? dispatch.jobId,
-      relatedEntityRef: dispatch.customerPoNumber ?? dispatch.jobNumber,
-    })],
-  })),
+  addDispatch: (dispatch) => {
+    const state = get();
+    // DSP-01: Canonical quality release check on dispatch creation
+    if (dispatch.jobId) {
+      const inspections = state.inspections.filter(i => i.jobId === dispatch.jobId);
+      const hasFailedWithoutConcession = inspections.some(
+        i => (i.result === 'fail' || i.result === 'rejected') && !i.overrideApproved && !i.concessionGranted
+      );
+      const releases = state.qualityReleases.filter(r => r.jobId === dispatch.jobId);
+      if (hasFailedWithoutConcession && releases.length === 0) {
+        state.showToast({
+          type: 'error',
+          title: 'Quality Gate Blocked',
+          body: `Cannot prepare dispatch for unreleased job ${dispatch.jobNumber}: Failed inspection pending QA concession release.`,
+        });
+        return;
+      }
+    }
+
+    set(s => ({
+      dispatches: [dispatch, ...s.dispatches],
+      auditEvents: [...s.auditEvents, createAuditEventRecord({
+        actor: s.currentUser.name, actorId: s.currentUser.id, role: s.currentUser.role,
+        scope: 'Dispatch', action: 'create', entityId: dispatch.id, entityRef: dispatch.dispatchNumber,
+        description: `Created dispatch ${dispatch.dispatchNumber} for ${dispatch.customerName} (${dispatch.totalQty} units).`,
+        relatedEntityType: dispatch.customerPoId ? 'CustomerPO' : dispatch.jobId ? 'Job' : undefined,
+        relatedEntityId: dispatch.customerPoId ?? dispatch.jobId,
+        relatedEntityRef: dispatch.customerPoNumber ?? dispatch.jobNumber,
+      })],
+    }));
+  },
 
   recordPoD: (dspId, payload) => {
     const timestamp = new Date().toISOString();
     const today = timestamp.slice(0, 10);
+    const state = get();
+    const existing = state.dispatches.find(d => d.id === dspId);
+    if (!existing) return;
+
+    // DSP-02: Require Received By when recording Proof of Delivery
+    const cleanReceivedBy = payload?.receivedByName?.trim();
+    if (!cleanReceivedBy) {
+      state.showToast({
+        type: 'error',
+        title: 'Proof of Delivery Incomplete',
+        body: 'Recipient name (Received By) is mandatory to record delivery.',
+      });
+      return;
+    }
+
     set(s => {
-      const existing = s.dispatches.find(d => d.id === dspId);
-      if (!existing) return s;
-      const nextStatus: Dispatch['status'] = payload?.receivedByName || payload?.podReference ? 'delivery_confirmed' : existing.status;
       const deliveredDate = payload?.deliveredDate || existing.actualDeliveryDate || today;
-      const receivedByName = payload?.receivedByName?.trim() || existing.receivedByName;
       const deliveryCondition = payload?.condition ?? existing.deliveryCondition ?? 'good';
       const podReference = payload?.podReference?.trim() || existing.podReference || `POD-${existing.dispatchNumber}`;
       const deliveryNotes = payload?.notes?.trim() || existing.deliveryNotes;
@@ -2410,9 +2558,9 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
         dispatches: s.dispatches.map(d => d.id !== dspId ? d : {
           ...d,
           hasPoD: true,
-          status: nextStatus,
+          status: 'delivery_confirmed' as const,
           actualDeliveryDate: deliveredDate,
-          receivedByName,
+          receivedByName: cleanReceivedBy,
           deliveryCondition,
           podReference,
           deliveryNotes,
@@ -2423,27 +2571,27 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
           actor: s.currentUser.name, actorId: s.currentUser.id, role: s.currentUser.role,
           scope: 'Dispatch', action: 'deliver', entityId: dspId, entityRef: existing.dispatchNumber,
           timestamp,
-          description: `Recorded Proof of Delivery (${podReference}) for ${existing.dispatchNumber}${receivedByName ? ` signed by ${receivedByName}` : ''}.`,
+          description: `Recorded Proof of Delivery (${podReference}) for ${existing.dispatchNumber} received by ${cleanReceivedBy}. Delivery status updated to Confirmed.`,
           before: {
             hasPoD: existing.hasPoD,
             status: existing.status,
             actualDeliveryDate: existing.actualDeliveryDate,
-            receivedByName: existing.receivedByName,
-            podReference: existing.podReference,
           },
           after: {
             hasPoD: true,
-            status: nextStatus,
+            status: 'delivery_confirmed',
             actualDeliveryDate: deliveredDate,
-            receivedByName,
+            receivedByName: cleanReceivedBy,
             podReference,
-            deliveryCondition,
           },
-          reason: deliveryNotes,
         })],
       };
     });
-    get().showToast({ type: 'success', title: 'Delivery confirmation & PoD recorded' });
+    get().showToast({
+      type: 'success',
+      title: 'Proof of Delivery Recorded',
+      body: `Delivery confirmed for ${existing.dispatchNumber} by ${cleanReceivedBy}.`,
+    });
   },
 
   // ── NCR Actions ──
@@ -2973,7 +3121,7 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
     return {
       quotations: [
         { ...nextQuotation, parentQuotationId },
-        ...s.quotations.map(q => q.id === parentQuotationId ? { ...q, status: 'superseded' as const, updatedAt: now } : q),
+        ...s.quotations,
       ],
       quotationLines: [...s.quotationLines, ...nextLines],
       auditEvents: [...s.auditEvents, {
@@ -2984,7 +3132,21 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
       }],
     };
   }),
-  updateQuotation: (id, partial) => set(s => ({ quotations: s.quotations.map(q => q.id === id ? { ...q, ...partial } : q) })),
+  updateQuotation: (id, partial) => set(s => {
+    const now = new Date().toISOString();
+    const q = s.quotations.find(x => x.id === id);
+    // When a revision is submitted (sent to customer), supersede the parent
+    const parentUpdate = (partial.status === 'submitted' && q?.parentQuotationId)
+      ? { [q.parentQuotationId]: { status: 'superseded' as const, updatedAt: now } }
+      : {};
+    return {
+      quotations: s.quotations.map(x => {
+        if (x.id === id) return { ...x, ...partial };
+        if (parentUpdate[x.id]) return { ...x, ...parentUpdate[x.id] };
+        return x;
+      }),
+    };
+  }),
 
   assessAndAllocateCustomerPO: (poId, actorName, opts) => {
     const state = get();
@@ -3061,7 +3223,8 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
             materialCode: mat?.itemCode,
             materialName: r.materialName,
             grade: mat?.standardGrade,
-            requiredQty: Math.max(0, r.requiredQty - r.reservedQty),
+            requiredQty: r.requiredQty,
+            alreadyReservedQty: r.reservedQty || 0,
             uom: r.uom,
           };
         }).filter(x => x.requiredQty > 0)
@@ -3079,6 +3242,7 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
             materialName: mat.name,
             grade: mat.standardGrade,
             requiredQty: l.orderedQty,
+            alreadyReservedQty: 0,
             uom: l.uom || mat.primaryUom,
           } : null;
         }).filter((x): x is NonNullable<typeof x> => Boolean(x));
@@ -3097,7 +3261,13 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
       supplierPoLines: state.supplierPoLines,
     });
 
-    const shortageItems = assessment.items.filter(i => i.shortageQty > 0);
+    // Account for qualifying incoming commitments before creating new PR
+    const shortageItems = assessment.items
+      .map(i => {
+        const netShortage = Math.max(0, i.shortageQty - i.incomingQty);
+        return { ...i, netShortageQty: netShortage };
+      })
+      .filter(i => i.netShortageQty > 0);
     const reservableItems = assessment.items.filter(i => i.toReserveQty > 0);
 
     // Avoid duplicate open PR for same PO/requirement
@@ -3127,9 +3297,9 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
         sourceRefLabel: po.poNumber,
         jobId: targetJob?.id,
         jobNumber: targetJob?.jobNumber,
-        status: 'approved',
+        status: 'pending_approval',
         lineCount: shortageItems.length,
-        totalQty: shortageItems.reduce((s, x) => s + x.shortageQty, 0),
+        totalQty: shortageItems.reduce((s, x) => s + x.netShortageQty, 0),
         priority: 'high',
         deliverToSiteId: siteId,
         deliverToSiteName: site?.name ?? po.deliverToSiteName,
@@ -3144,7 +3314,7 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
           materialName: si.materialName,
           description: si.materialName,
           grade: si.grade,
-          requiredQty: si.shortageQty,
+          requiredQty: si.netShortageQty,
           uom: si.uom,
           requiredDate: poLinesList[0]?.requiredDate || today,
         })),
@@ -3291,28 +3461,49 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
           ...j,
           materialReadiness: nextJobReadiness,
         } : j) : baseJobs,
-        auditEvents: [...s.auditEvents, createAuditEventRecord({
-          actor: actorName,
-          actorId: s.currentUser.id,
-          role: s.currentUser.role,
-          module: 'Sales',
-          scope: 'CustomerPO',
-          action: 'assess_material_availability',
-          entityId: po.id,
-          entityRef: po.poNumber,
-          timestamp: now,
-          description: `Assessed material availability for ${po.poNumber}: ${assessment.overallStatus.replace(/_/g, ' ')} (${reservedCount} reserved${createdPr ? `, auto-raised ${createdPr.prNumber}` : ''}${createdJob ? `, auto-created draft Job ${createdJob.jobNumber}` : ''}).`,
-          changes: [
-            { field: 'availabilityStatus', label: 'Material Availability', previousValue: prevAvail, newValue: assessment.overallStatus },
-            ...(reservedCount > 0 ? [{ field: 'reservedQty', label: 'Reserved Qty', previousValue: '0', newValue: String(reservedCount) }] : []),
-          ],
-          after: {
-            availabilityStatus: assessment.overallStatus,
-            reservedQty: reservedCount,
-            createdPrNumber: createdPr?.prNumber ?? existingPr?.prNumber,
-            jobId: targetJob?.id,
-          },
-        })],
+        auditEvents: [
+          ...s.auditEvents,
+          createAuditEventRecord({
+            actor: actorName,
+            actorId: s.currentUser.id,
+            role: s.currentUser.role,
+            module: 'Sales',
+            scope: 'CustomerPO',
+            action: 'assess_material_availability',
+            entityId: po.id,
+            entityRef: po.poNumber,
+            timestamp: now,
+            description: `Assessed material availability for ${po.poNumber}: ${assessment.overallStatus.replace(/_/g, ' ')} (${reservedCount} reserved${createdPr ? `, auto-raised ${createdPr.prNumber} (Pending Approval)` : ''}${createdJob ? `, auto-created draft Job ${createdJob.jobNumber}` : ''}).`,
+            changes: [
+              { field: 'availabilityStatus', label: 'Material Availability', previousValue: prevAvail, newValue: assessment.overallStatus },
+              ...(reservedCount > 0 ? [{ field: 'reservedQty', label: 'Reserved Qty', previousValue: '0', newValue: String(reservedCount) }] : []),
+            ],
+            after: {
+              availabilityStatus: assessment.overallStatus,
+              reservedQty: reservedCount,
+              createdPrNumber: createdPr?.prNumber ?? existingPr?.prNumber,
+            },
+          }),
+          ...(createdPr ? [createAuditEventRecord({
+            actor: actorName,
+            actorId: s.currentUser.id,
+            role: s.currentUser.role,
+            module: 'Procurement',
+            scope: 'PurchaseRequisition',
+            action: 'create',
+            entityId: createdPr.id,
+            entityRef: createdPr.prNumber,
+            timestamp: now,
+            description: `Auto-generated Purchase Requisition ${createdPr.prNumber} for net material shortage on ${po.poNumber} (${createdPr.totalQty} total units). Status set to Pending Approval.`,
+            after: {
+              status: 'pending_approval',
+              sourceType: 'shortage',
+              sourceRefId: po.id,
+              sourceRefLabel: po.poNumber,
+              totalQty: createdPr.totalQty,
+            },
+          })] : []),
+        ],
       };
     });
 
@@ -3793,23 +3984,23 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
         lots.push({
           id: lotId, lotNumber: `${grn.grnNumber}-${line.materialItemId}`, materialItemId: line.materialItemId,
           materialName: line.materialName, supplierId: grn.supplierId, supplierName: grn.supplierName, grnId,
-          receivedDate: grn.receivedDate, grade: material?.standardGrade, status: 'available', storeLocationId: locationId,
+          receivedDate: grn.receivedDate, grade: material?.standardGrade, status: 'qc_hold', storeLocationId: locationId,
           storeLocationName: locationName, primaryQty: line.acceptedQty, primaryUom: line.uom, certStatus: 'pending',
         });
         const existing = inventory.find(i => i.materialItemId === line.materialItemId && i.locationId === locationId);
         if (existing) {
           inventory = inventory.map(i => i.id !== existing.id ? i : {
-            ...i, onHandQty: i.onHandQty + line.acceptedQty, availableQty: i.availableQty + line.acceptedQty,
-            lotCount: i.lotCount + 1, shortage: i.availableQty + line.acceptedQty < i.reorderPoint,
+            ...i, onHandQty: i.onHandQty + line.acceptedQty, qcHoldQty: i.qcHoldQty + line.acceptedQty,
+            lotCount: i.lotCount + 1,
           });
         } else {
           inventory.unshift({
             id: `inv-${Date.now()}-${line.materialItemId}`, materialItemId: line.materialItemId,
             materialCode: material?.itemCode ?? line.materialItemId, materialName: line.materialName,
             categoryName: material?.categoryName ?? 'Uncategorised', locationId, locationName,
-            onHandQty: line.acceptedQty, availableQty: line.acceptedQty, reservedQty: 0, qcHoldQty: 0,
+            onHandQty: line.acceptedQty, availableQty: 0, reservedQty: 0, qcHoldQty: line.acceptedQty,
             inTransitQty: 0, primaryUom: line.uom, reorderPoint: material?.reorderPoint ?? 0,
-            shortage: line.acceptedQty < (material?.reorderPoint ?? 0), lotCount: 1,
+            shortage: 0 < (material?.reorderPoint ?? 0), lotCount: 1,
           });
         }
         movements.push({ id: `sm-${Date.now()}-${line.id}`, lotId, movementType: 'Receipt', primaryQty: line.acceptedQty, uom: line.uom,
@@ -3822,7 +4013,7 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
           entityId: grn.id, entityRef: grn.grnNumber, timestamp, source: 'ui', after: { acceptedLineCount: lines.length } }],
       };
     });
-    get().showToast({ type: 'success', title: 'GRN accepted', body: 'Accepted quantities are now available in Inventory. Pending and rejected quantities remain excluded.' });
+    get().showToast({ type: 'success', title: 'GRN accepted', body: 'Accepted quantities are now on QC Hold. Release them through an Incoming Inspection to make them available.' });
   },
 
   rejectGRN: (grnId, by, reason) => {
@@ -4245,7 +4436,7 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
         const alreadyInvoiced = existingInvLines
           .filter(il => il.poLineId === poLine.id || il.drawingNumber === poLine.drawingNumber)
           .reduce((s, il) => s + il.quantity, 0);
-        if (alreadyInvoiced + reqLine.quantity > poLine.orderedQty) {
+        if (alreadyInvoiced + reqLine.quantity > poLine.orderedQty && !payload.overInvoicedAllowed) {
           return {
             ok: false,
             error: `Cannot invoice ${reqLine.quantity} ${reqLine.uom} of "${reqLine.productName}": only ${Math.max(0, poLine.orderedQty - alreadyInvoiced)} ${poLine.uom} remaining uninvoiced on ${po.poNumber}.`,
@@ -4286,6 +4477,10 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
       paymentTerms: payload.paymentTerms ?? po.paymentTerms,
       currency: po.currency || 'INR',
       status,
+      docKind: payload.docKind || (payload.advancePercentage ? 'advance_payment_request' : 'tax_invoice'),
+      advancePercentage: payload.advancePercentage,
+      overInvoicedAllowed: payload.overInvoicedAllowed,
+      overInvoicedReason: payload.overInvoicedReason,
       taxType: payload.taxType,
       subtotal: totals.subtotal,
       discountAmount: payload.discountAmount ?? 0,
@@ -4855,6 +5050,15 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
     const bill = state.supplierBills.find(b => b.id === billId);
     if (!bill) return { ok: false, error: 'Supplier bill not found.' };
     if (['paid', 'rejected', 'void'].includes(bill.status)) return { ok: false, error: `Cannot approve a bill in status ${bill.status}.` };
+
+    // FIN-03: Block approval of mismatched/disputed bills without mandatory resolution justification
+    const isDisputedOrMismatched = bill.status === 'disputed' || bill.status === 'on_hold' || bill.matchStatus === 'mismatched';
+    if (isDisputedOrMismatched && (!notes || !notes.trim())) {
+      return {
+        ok: false,
+        error: `Cannot approve mismatched/disputed bill ${bill.billNumber} without a mandatory resolution reason. Please provide justification for overriding discrepancies.`,
+      };
+    }
     const now = new Date().toISOString();
     const nextStatus: SupplierBill['status'] = bill.paidAmount > 0 ? 'partially_paid' : 'approved';
     set(s => ({

@@ -367,8 +367,18 @@ export default function Procurement() {
         {tab === 'quotes' && (() => {
           const selectedQuoteObjs = supplierQuotations.filter(q => selectedQuoteIds.includes(q.id));
           const distinctPrIds = Array.from(new Set(selectedQuoteObjs.map(q => q.prId).filter(Boolean)));
+          const selectedPr = distinctPrIds.length === 1 ? purchaseReqs.find(p => p.id === distinctPrIds[0]) : undefined;
           const crossPrBlocked = selectedQuoteObjs.length >= 2 && (distinctPrIds.length !== 1 || selectedQuoteObjs.some(q => !q.prId));
-          const canCompareSelected = selectedQuoteObjs.length >= 2 && !crossPrBlocked;
+          const materialMismatchBlocked = selectedPr && selectedQuoteObjs.length >= 2 && selectedQuoteObjs.some(q =>
+            !q.lines.some(ql =>
+              (selectedPr.lines ?? []).some(prl =>
+                (prl.materialItemId && ql.materialItemId && ql.materialItemId === prl.materialItemId) ||
+                (prl.materialCode && ql.materialCode && ql.materialCode.toLowerCase() === prl.materialCode.toLowerCase()) ||
+                (ql.materialName && prl.materialName && ql.materialName.toLowerCase() === prl.materialName.toLowerCase())
+              )
+            )
+          );
+          const canCompareSelected = selectedQuoteObjs.length >= 2 && !crossPrBlocked && !materialMismatchBlocked;
           const toggleQuoteSelect = (id: string) =>
             setSelectedQuoteIds(prev => (prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]));
 
@@ -396,7 +406,12 @@ export default function Procurement() {
                           — Cross-PR comparison is blocked. Select quotations for the same Purchase Requisition.
                         </span>
                       )}
-                      {!crossPrBlocked && selectedQuoteObjs.length === 1 && (
+                      {!crossPrBlocked && materialMismatchBlocked && (
+                        <span className="ml-2 text-red-600 font-semibold">
+                          — Material mismatch blocked. Selected quotations must quote the same PR line materials.
+                        </span>
+                      )}
+                      {!crossPrBlocked && !materialMismatchBlocked && selectedQuoteObjs.length === 1 && (
                         <span className="ml-2 text-[var(--text-3)]">— Select at least one more quote on the same PR ({selectedQuoteObjs[0].prNumber ?? 'PR'}) to compare.</span>
                       )}
                     </span>

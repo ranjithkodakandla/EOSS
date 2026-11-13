@@ -394,7 +394,7 @@ export interface PurchaseRequisition {
   sourceRefId?: ID;
   sourceRefLabel?: string;
   sourceMaterialReqId?: ID;
-  status: 'draft' | 'pending' | 'approved' | 'quotation_in_progress' | 'approved_for_po' | 'po_drafted' | 'po_issued' | 'converted' | 'closed' | 'cancelled' | 'rejected';
+  status: 'draft' | 'pending' | 'pending_approval' | 'approved' | 'quotation_in_progress' | 'approved_for_po' | 'po_drafted' | 'po_issued' | 'converted' | 'closed' | 'cancelled' | 'rejected';
   lineCount: number;
   totalQty: number;
   priority: 'low' | 'normal' | 'high' | 'urgent';
@@ -724,7 +724,14 @@ export interface Inspection {
   sampleQty: number;
   acceptedQty: number;
   rejectedQty: number;
-  result: 'pass' | 'fail' | 'hold' | 'pending' | 'partial';
+  result: 'pass' | 'fail' | 'hold' | 'pending' | 'partial' | 'rejected';
+  overrideApproved?: boolean;
+  concessionGranted?: boolean;
+  concessionApprovedBy?: string;
+  concessionApprovedRole?: string;
+  concessionReason?: string;
+  concessionGrantedAt?: string;
+  releaseStatus?: 'unreleased' | 'released_via_concession' | 'released';
   ncrId?: ID;
   ncrNumber?: string;
   reworkOfInspectionId?: ID;
@@ -1417,6 +1424,8 @@ export interface Invoice {
   irnFailureReason?: string;
   placeOfSupply?: string;
   financialYear?: string;
+  eInvoiceCancelReason?: string;
+  eInvoiceCancelledAt?: string;
 }
 
 export interface InvoiceLine {
@@ -1733,6 +1742,7 @@ export type SupplierBillStatus =
 
 export type ThreeWayMatchStatus =
   | 'matched'
+  | 'mismatched'
   | 'qty_mismatch'
   | 'rate_mismatch'
   | 'missing_grn'
@@ -1832,6 +1842,8 @@ export interface SupplierBill {
   irnFailureReason?: string;
   placeOfSupply?: string;
   financialYear?: string;
+  eInvoiceCancelReason?: string;
+  eInvoiceCancelledAt?: string;
 }
 
 export interface SupplierPayment {

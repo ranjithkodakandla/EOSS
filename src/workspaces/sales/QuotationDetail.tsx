@@ -30,20 +30,38 @@ export default function QuotationDetail() {
 
   const bomStats = useMemo(() => {
     let totalBomCost = 0;
-    lines.forEach(l => {
+    let allLinesHaveBom = lines.length > 0;
+    const lineDetails = lines.map(l => {
       const match = boms.find(b =>
-        (l.drawingNumber && b.productCode.toLowerCase().includes(l.drawingNumber.toLowerCase())) ||
-        (l.productName && b.productName.toLowerCase().includes(l.productName.toLowerCase())) ||
-        (l.drawingNumber && l.drawingNumber.toLowerCase().includes(b.productCode.toLowerCase()))
+        (l.productId && b.productId === l.productId) ||
+        (l.drawingNumber && b.productCode && b.productCode.trim().toLowerCase() === l.drawingNumber.trim().toLowerCase()) ||
+        (l.productName && b.productName && b.productName.trim().toLowerCase() === l.productName.trim().toLowerCase())
       );
-      const unitCost = match ? match.totalMaterialCost : (l.unitPrice > 0 ? Math.round(l.unitPrice * 0.62) : 2200);
-      totalBomCost += unitCost * (l.orderedQty || 1);
+      if (!match) {
+        allLinesHaveBom = false;
+        return { lineId: l.id, hasBom: false, unitCost: 0, lineCost: 0 };
+      }
+      const unitCost = match.totalMaterialCost;
+      const lineCost = unitCost * (l.orderedQty || 1);
+      totalBomCost += lineCost;
+      return { lineId: l.id, hasBom: true, unitCost, lineCost };
     });
+
     const sub = quotation?.subtotal ?? lines.reduce((s, l) => s + l.value, 0);
-    const estMargin = sub - totalBomCost;
-    const marginPct = sub > 0 ? Math.round((estMargin / sub) * 100) : 0;
-    return { totalBomCost, estMargin, marginPct, isLow: marginPct < 20 };
-  }, [lines, quotation?.subtotal, boms]);
+    const disc = quotation?.discountAmount ?? 0;
+    const commercialBase = Math.max(0, sub - disc);
+    const estMargin = commercialBase - totalBomCost;
+    const marginPct = commercialBase > 0 ? Math.round((estMargin / commercialBase) * 100) : 0;
+    return {
+      totalBomCost,
+      estMargin,
+      marginPct,
+      isLow: allLinesHaveBom && marginPct < 20,
+      bomAvailable: allLinesHaveBom,
+      commercialBase,
+      lineDetails,
+    };
+  }, [lines, quotation?.subtotal, quotation?.discountAmount, boms]);
 
   if (!quotation) return (
     <div className="p-8 text-center text-sm text-[var(--text-2)]">
@@ -57,8 +75,9 @@ export default function QuotationDetail() {
 
   const canSubmit = quotation.status === 'draft' && ['owner', 'sales'].includes(currentUser.role);
   const canAccept = quotation.status === 'submitted' && ['owner', 'sales'].includes(currentUser.role);
-  const canRevise = !['accepted', 'superseded'].includes(quotation.status) && !existingPO && ['owner', 'sales'].includes(currentUser.role);
-  const canConvert = quotation.status === 'accepted' && !existingPO && ['owner', 'sales'].includes(currentUser.role);
+  const activeRevisionExists = childRevisions.some(r => r.status !== 'draft');
+  const canRevise = !['accepted', 'superseded'].includes(quotation.status) && !existingPO && !activeRevisionExists && ['owner', 'sales'].includes(currentUser.role);
+  const canConvert = quotation.status === 'accepted' && !existingPO && !activeRevisionExists && ['owner', 'sales'].includes(currentUser.role);
 
   const handleReviseQuotation = () => {
     const nextRev = (quotation.revision ?? quotation.version ?? 1) + 1;
@@ -66,7 +85,11 @@ export default function QuotationDetail() {
     const nextId = `qt-rev-${Date.now()}`;
     const disc = Number(reviseDiscount) || 0;
     const nextSubtotal = quotation.subtotal ?? lines.reduce((s, l) => s + l.value, 0);
-    const nextTotal = Math.max(0, Math.round(nextSubtotal - disc + (quotation.taxAmount ?? 0)));
+    const taxableAmount = Math.max(0, nextSubtotal - disc);
+    const taxPct = quotation.taxRatePct ?? 18;
+    const nextTaxAmount = Math.round((taxableAmount * taxPct) / 100);
+    const nextTotal = Math.round(taxableAmount + nextTaxAmount);
+    const today = new Date().toISOString().slice(0, 10);
     const nextQ: CustomerQuotation = {
       ...quotation,
       id: nextId,
@@ -74,10 +97,11 @@ export default function QuotationDetail() {
       parentQuotationId: quotation.id,
       revision: nextRev,
       version: nextRev,
-      status: 'submitted',
+      status: 'draft',
       discountAmount: disc,
+      taxAmount: nextTaxAmount,
       totalValue: nextTotal,
-      quotationDate: '2026-04-17',
+      quotationDate: today,
       notes: reviseNotes.trim() || quotation.notes,
     };
     const nextLines: CustomerQuotationLine[] = lines.map((l, i) => ({
@@ -87,7 +111,7 @@ export default function QuotationDetail() {
     }));
     reviseQuotation(quotation.id, nextQ, nextLines);
     setReviseModal(false);
-    showToast({ type: 'success', title: `Revision ${nextRev} issued`, body: `${nextQ.quotationNumber} supersedes ${quotation.quotationNumber}.` });
+    showToast({ type: 'success', title: `Revision ${nextRev} drafted`, body: `${nextQ.quotationNumber} created as draft revision superseding ${quotation.quotationNumber}.` });
     navigate(`/sales/quotation/${nextId}`, { state: { from: originUrl } });
   };
 
@@ -317,38 +341,61 @@ export default function QuotationDetail() {
                 <Layers size={14} className="text-blue-500" /> Commercial Intelligence & BOM Material Margin Analysis
               </h4>
               <p className="text-[11px] text-[var(--text-3)]">
-                BOM material rollup against selling prices
+                {bomStats.bomAvailable ? 'BOM material rollup against net commercial price' : 'No engineering BOM found matching line items'}
               </p>
             </div>
-            <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${
-              bomStats.isLow ? 'bg-amber-100 text-amber-900 border-amber-300' : 'bg-emerald-100 text-emerald-900 border-emerald-300'
-            }`}>
-              {bomStats.marginPct}% Material Margin
-            </span>
+            {bomStats.bomAvailable ? (
+              <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${
+                bomStats.isLow ? 'bg-amber-100 text-amber-900 border-amber-300' : 'bg-emerald-100 text-emerald-900 border-emerald-300'
+              }`}>
+                {bomStats.marginPct}% Material Margin
+              </span>
+            ) : (
+              <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold border bg-slate-100 text-slate-700 border-slate-300">
+                BOM Cost Not Available
+              </span>
+            )}
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3 rounded-xl bg-[var(--surface-2)] text-xs">
             <div>
-              <span className="text-[10px] text-[var(--text-3)] uppercase tracking-wider block">Quoted Subtotal</span>
+              <span className="text-[10px] text-[var(--text-3)] uppercase tracking-wider block">Net Commercial Base</span>
               <span className="font-mono font-bold text-sm text-[var(--text)]">
-                {fmtMoney(quotation.subtotal ?? lines.reduce((s, l) => s + l.value, 0))}
+                {fmtMoney(bomStats.commercialBase)}
               </span>
+              {(quotation.discountAmount ?? 0) > 0 && (
+                <span className="text-[10px] text-[var(--text-3)] block mt-0.5">
+                  Subtotal {fmtMoney(quotation.subtotal ?? 0)} - Disc {fmtMoney(quotation.discountAmount ?? 0)}
+                </span>
+              )}
             </div>
             <div>
               <span className="text-[10px] text-[var(--text-3)] uppercase tracking-wider block">Est. BOM Material Cost</span>
-              <span className="font-mono font-bold text-sm text-slate-600">
-                {fmtMoney(bomStats.totalBomCost)}
-              </span>
+              {bomStats.bomAvailable ? (
+                <span className="font-mono font-bold text-sm text-slate-600">
+                  {fmtMoney(bomStats.totalBomCost)}
+                </span>
+              ) : (
+                <span className="text-xs font-semibold text-[var(--text-3)] italic">
+                  BOM Cost Not Available
+                </span>
+              )}
             </div>
             <div>
               <span className="text-[10px] text-[var(--text-3)] uppercase tracking-wider block">Est. Material Margin</span>
-              <span className={`font-mono font-bold text-sm ${bomStats.isLow ? 'text-amber-600' : 'text-emerald-600'}`}>
-                {fmtMoney(bomStats.estMargin)} ({bomStats.marginPct}%)
-              </span>
+              {bomStats.bomAvailable ? (
+                <span className={`font-mono font-bold text-sm ${bomStats.isLow ? 'text-amber-600' : 'text-emerald-600'}`}>
+                  {fmtMoney(bomStats.estMargin)} ({bomStats.marginPct}%)
+                </span>
+              ) : (
+                <span className="text-xs font-semibold text-[var(--text-3)] italic">
+                  Margin Not Available (BOM missing)
+                </span>
+              )}
             </div>
           </div>
 
-          {bomStats.isLow && (
+          {bomStats.bomAvailable && bomStats.isLow && (
             <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-center gap-2">
               <AlertTriangle size={15} className="text-amber-600 flex-shrink-0" />
               <span>

@@ -54,7 +54,7 @@ export default function InvoiceCreate() {
   const [paymentTerms, setPaymentTerms] = useState('Net 30');
   const [dueDate, setDueDate] = useState('2026-12-12');
   const [taxType, setTaxType] = useState<'CGST_SGST' | 'IGST' | 'Export_LUT'>('CGST_SGST');
-  const [docKind, setDocKind] = useState<'tax_invoice' | 'advance_request' | 'proforma' | 'partial_invoice' | 'credit_note'>('tax_invoice');
+  const [docKind, setDocKind] = useState<'tax_invoice' | 'advance_payment_request' | 'proforma_invoice' | 'partial_invoice' | 'credit_note'>('tax_invoice');
   const [advancePct, setAdvancePct] = useState<number>(20);
   const [allowOverInvoice, setAllowOverInvoice] = useState(false);
   const [overInvoiceReason, setOverInvoiceReason] = useState('');
@@ -151,9 +151,9 @@ export default function InvoiceCreate() {
       return;
     }
 
-    const isOverInvoicing = po && totals.totalAmount > (poInvoicingStats.remainingInvoicable + 100);
-    if (isOverInvoicing && !allowOverInvoice) {
-      setError(`Over-Invoicing Guard: Total invoice (₹${totals.totalAmount.toLocaleString('en-IN')}) exceeds remaining unbilled PO value (₹${poInvoicingStats.remainingInvoicable.toLocaleString('en-IN')}). Enable authorized override with justification to proceed.`);
+    const isOverInvoicing = po && totals.totalAmount > poInvoicingStats.remainingInvoicable;
+    if (isOverInvoicing && (!allowOverInvoice || !overInvoiceReason.trim())) {
+      setError(`Over-Invoicing Guard: Total invoice (₹${totals.totalAmount.toLocaleString('en-IN')}) exceeds remaining unbilled PO value (₹${poInvoicingStats.remainingInvoicable.toLocaleString('en-IN')}). An authorized override with non-empty justification is required to proceed.`);
       return;
     }
 
@@ -167,6 +167,10 @@ export default function InvoiceCreate() {
       discountAmount: Number(discountAmount) || 0,
       freightAmount: Number(freightAmount) || 0,
       otherCharges: Number(otherCharges) || 0,
+      docKind,
+      advancePercentage: docKind === 'advance_payment_request' ? advancePct : undefined,
+      overInvoicedAllowed: allowOverInvoice,
+      overInvoicedReason: overInvoiceReason.trim() || undefined,
       notes: notes.trim() || (allowOverInvoice ? `[Authorized Override: ${overInvoiceReason}]` : undefined),
       issueNow,
       lines: lines.map(l => ({
@@ -224,8 +228,8 @@ export default function InvoiceCreate() {
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           {[
             { id: 'tax_invoice', label: 'Tax Invoice', desc: 'Standard final tax invoice' },
-            { id: 'advance_request', label: 'Advance Request', desc: 'Customer deposit / pre-payment' },
-            { id: 'proforma', label: 'Proforma Invoice', desc: 'Quotation billing preview' },
+            { id: 'advance_payment_request', label: 'Advance Request', desc: 'Customer deposit / pre-payment' },
+            { id: 'proforma_invoice', label: 'Proforma Invoice', desc: 'Quotation billing preview' },
             { id: 'partial_invoice', label: 'Partial Invoice', desc: 'Milestone / stage billing' },
           ].map(d => {
             const active = docKind === d.id;
@@ -235,7 +239,7 @@ export default function InvoiceCreate() {
                 type="button"
                 onClick={() => {
                   setDocKind(d.id as any);
-                  if (d.id === 'advance_request' && po) {
+                  if (d.id === 'advance_payment_request' && po) {
                     const advVal = Math.round((po.totalValue * 20) / 100);
                     setLines([{
                       drawingNumber: po.poNumber,
@@ -264,7 +268,7 @@ export default function InvoiceCreate() {
         </div>
 
         {/* Quick Advance % Selectors */}
-        {docKind === 'advance_request' && po && (
+        {docKind === 'advance_payment_request' && po && (
           <div className="pt-2 border-t border-[var(--border)] flex items-center gap-2 flex-wrap">
             <span className="text-xs font-semibold text-[var(--text-2)]">Select Advance %:</span>
             {[10, 20, 25, 30, 50].map(pct => (
@@ -348,7 +352,7 @@ export default function InvoiceCreate() {
       )}
 
       {/* Over-Invoicing Warning & Authorization Override */}
-      {po && totals.totalAmount > (poInvoicingStats.remainingInvoicable + 100) && (
+      {po && totals.totalAmount > poInvoicingStats.remainingInvoicable && (
         <div className="p-3.5 rounded-xl border border-amber-300 bg-amber-50 text-amber-900 text-xs space-y-2">
           <div className="flex items-center gap-2 font-bold">
             <AlertCircle size={15} className="text-amber-600" />

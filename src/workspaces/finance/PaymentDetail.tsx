@@ -240,6 +240,38 @@ export default function PaymentDetail() {
                 <span className="font-medium text-[var(--text-1)]">{payment.createdBy || 'Finance Team'}</span>
               </div>
             </div>
+            {payment.foreignCurrency && (
+              <div className="mt-4 pt-3 border-t border-[var(--border)] grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
+                <div>
+                  <span className="text-[var(--text-3)] block text-[11px]">Foreign Currency</span>
+                  <span className="font-medium text-[var(--text-1)]">{payment.foreignCurrency} {payment.foreignAmount?.toLocaleString('en-IN')}</span>
+                </div>
+                {payment.exchangeRate && (
+                  <div>
+                    <span className="text-[var(--text-3)] block text-[11px]">Exchange Rate</span>
+                    <span className="font-medium text-[var(--text-1)]">1 {payment.foreignCurrency} = ₹{payment.exchangeRate.toFixed(4)}</span>
+                  </div>
+                )}
+                {payment.swiftReference && (
+                  <div>
+                    <span className="text-[var(--text-3)] block text-[11px]">SWIFT / Wire Ref</span>
+                    <span className="font-mono font-medium text-[var(--text-1)]">{payment.swiftReference}</span>
+                  </div>
+                )}
+                {payment.remittanceBank && (
+                  <div>
+                    <span className="text-[var(--text-3)] block text-[11px]">Remittance Bank</span>
+                    <span className="font-medium text-[var(--text-1)]">{payment.remittanceBank}</span>
+                  </div>
+                )}
+                {payment.bankChargesInr !== undefined && (
+                  <div>
+                    <span className="text-[var(--text-3)] block text-[11px]">Bank Charges (INR)</span>
+                    <span className="font-medium text-[var(--text-1)]">₹{payment.bankChargesInr.toLocaleString('en-IN')}</span>
+                  </div>
+                )}
+              </div>
+            )}
             {payment.notes && (
               <div className="mt-4 pt-3 border-t border-[var(--border)] text-xs text-[var(--text-2)]">
                 <span className="font-medium text-[var(--text-1)]">Notes: </span>

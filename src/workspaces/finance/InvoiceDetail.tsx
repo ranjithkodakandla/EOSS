@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   ArrowLeft, FileText, CreditCard, AlertTriangle, CheckCircle2, Ban, Edit3, Send, ShieldAlert, Plus,
-  QrCode, FileCheck2
+  QrCode, FileCheck2, AlertCircle
 } from 'lucide-react';
 import { useStore } from '../../store';
 import { computeDaysOverdue, isRecordOverdue, computeGstTotals } from '../../domain/finance';
@@ -408,7 +408,45 @@ export default function InvoiceDetail() {
       </div>
 
       {/* Simulated IRP E-Invoice & Signed QR Card */}
-      {invoice.irn && (
+      {invoice.irn && invoice.eInvoiceStatus === 'cancelled' && (
+        <div className="mb-6 p-4 rounded-xl border border-rose-300 bg-rose-50 text-slate-800 space-y-3 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <span className="p-1.5 rounded-lg bg-rose-600 text-white">
+                <AlertCircle size={16} />
+              </span>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-xs font-bold text-rose-950 uppercase tracking-wider">
+                    E-Invoice Cancelled on Simulated IRP
+                  </h3>
+                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-200 text-rose-900 border border-rose-300">
+                    IRN CANCELLED
+                  </span>
+                </div>
+                <p className="text-[11px] text-rose-800">
+                  Ack No: <span className="font-mono">{invoice.ackNo}</span> · Historical Ack Date: {invoice.ackDate}
+                </p>
+              </div>
+            </div>
+            <span className="text-[10px] uppercase font-bold text-rose-700 bg-white px-2 py-1 rounded border border-rose-200">
+              IRP Status: Voided
+            </span>
+          </div>
+
+          <div className="p-2.5 rounded bg-white border border-rose-200 text-xs text-rose-900 space-y-1">
+            <div><strong>Cancellation Reason:</strong> {invoice.eInvoiceCancelReason || 'Cancelled by finance authority'}</div>
+            {invoice.eInvoiceCancelledAt && (
+              <div className="text-[11px] text-rose-700">Cancelled At: {new Date(invoice.eInvoiceCancelledAt).toLocaleString('en-IN')}</div>
+            )}
+            <div className="text-[10px] text-slate-500 font-mono mt-1 break-all">
+              Historical IRN: {invoice.irn} (Voided — Not valid for B2B e-way generation)
+            </div>
+          </div>
+        </div>
+      )}
+
+      {invoice.irn && invoice.eInvoiceStatus !== 'cancelled' && (
         <div className="mb-6 p-4 rounded-xl border border-emerald-300 bg-emerald-50/60 text-slate-800 space-y-3 shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">
@@ -456,6 +494,9 @@ export default function InvoiceDetail() {
               <span className="text-[9px] text-slate-500 font-mono">B2B E-Way Ready</span>
             </div>
           </div>
+          <p className="text-[10px] text-slate-500 italic">
+            * Simulated IRP environment for prototype demonstration.
+          </p>
         </div>
       )}
 
@@ -741,16 +782,32 @@ export default function InvoiceDetail() {
                   <span className="tabular-nums">{fmtINR(invoice.subtotal)}</span>
                 </div>
                 {(invoice.freightAmount || 0) > 0 && (
-                  <div className="flex justify-between text-[var(--text-2)]">
-                    <span>Freight Charges</span>
-                    <span className="tabular-nums">{fmtINR(invoice.freightAmount || 0)}</span>
-                  </div>
+                  <>
+                    <div className="flex justify-between text-[var(--text-2)]">
+                      <span>Freight Charges</span>
+                      <span className="tabular-nums">{fmtINR(invoice.freightAmount || 0)}</span>
+                    </div>
+                    {invoice.taxType !== 'Export_LUT' && (
+                      <div className="flex justify-between text-[var(--text-3)] text-[11px] pl-3">
+                        <span>GST on Freight (18%)</span>
+                        <span className="tabular-nums">{fmtINR(Math.round((invoice.freightAmount || 0) * 0.18))}</span>
+                      </div>
+                    )}
+                  </>
                 )}
                 {(invoice.otherCharges || 0) > 0 && (
-                  <div className="flex justify-between text-[var(--text-2)]">
-                    <span>Other Charges</span>
-                    <span className="tabular-nums">{fmtINR(invoice.otherCharges || 0)}</span>
-                  </div>
+                  <>
+                    <div className="flex justify-between text-[var(--text-2)]">
+                      <span>Other Charges</span>
+                      <span className="tabular-nums">{fmtINR(invoice.otherCharges || 0)}</span>
+                    </div>
+                    {invoice.taxType !== 'Export_LUT' && (
+                      <div className="flex justify-between text-[var(--text-3)] text-[11px] pl-3">
+                        <span>GST on Other Charges (18%)</span>
+                        <span className="tabular-nums">{fmtINR(Math.round((invoice.otherCharges || 0) * 0.18))}</span>
+                      </div>
+                    )}
+                  </>
                 )}
                 {(invoice.discountAmount || 0) > 0 && (
                   <div className="flex justify-between text-[var(--success)]">

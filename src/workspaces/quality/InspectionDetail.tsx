@@ -322,14 +322,18 @@ export default function InspectionDetail() {
 
                 <div className="space-y-3 text-xs">
                   <div>
-                    <label className="block font-semibold mb-1 text-[var(--text)]">Approving Quality Authority *</label>
-                    <input
-                      type="text"
-                      value={overrideApprover}
-                      onChange={e => setOverrideApprover(e.target.value)}
-                      className="w-full p-2 rounded-lg border bg-[var(--surface-2)] outline-none text-[var(--text)]"
-                      style={{ borderColor: 'var(--border)' }}
-                    />
+                    <label className="block font-semibold mb-1 text-[var(--text)]">Acting Quality Authority</label>
+                    <div className="p-2.5 rounded-lg border bg-[var(--surface-2)] flex items-center justify-between" style={{ borderColor: 'var(--border)' }}>
+                      <div>
+                        <div className="font-semibold text-[var(--text)]">{currentUser.name}</div>
+                        <div className="text-[11px] text-[var(--text-3)]">Session Role: {currentUser.role === 'owner' ? 'Owner / Acting Quality Head' : currentUser.role === 'qc' ? 'Quality Lead' : currentUser.role}</div>
+                      </div>
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                        ['owner', 'qc'].includes(currentUser.role) ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'
+                      }`}>
+                        {['owner', 'qc'].includes(currentUser.role) ? 'Authorized' : 'Unauthorized'}
+                      </span>
+                    </div>
                   </div>
 
                   <div>
@@ -346,6 +350,12 @@ export default function InspectionDetail() {
                   </div>
                 </div>
 
+                {!['owner', 'qc'].includes(currentUser.role) && (
+                  <div className="p-2.5 rounded-lg border border-red-200 bg-red-50 text-red-700 text-xs">
+                    Technical concessions require Quality Head authority. Your current simulated role is <strong>{currentUser.role}</strong>. Switch to Owner or Quality role to authorize.
+                  </div>
+                )}
+
                 <div className="flex justify-end gap-2 pt-2 border-t" style={{ borderColor: 'var(--border)' }}>
                   <button
                     type="button"
@@ -357,9 +367,9 @@ export default function InspectionDetail() {
                   </button>
                   <button
                     type="button"
-                    disabled={!overrideReason.trim()}
+                    disabled={!overrideReason.trim() || !['owner', 'qc'].includes(currentUser.role)}
                     onClick={() => {
-                      overrideQualityGate(ins.id, overrideReason.trim(), overrideApprover.trim());
+                      overrideQualityGate(ins.id, overrideReason.trim(), currentUser.name);
                       setShowOverrideModal(false);
                     }}
                     className="px-4 py-1.5 rounded-lg text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-40"

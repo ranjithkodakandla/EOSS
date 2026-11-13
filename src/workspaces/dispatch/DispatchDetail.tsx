@@ -276,13 +276,14 @@ export default function DispatchDetail() {
                   </div>
                   <div className="grid grid-cols-2 gap-2">
                     <div>
-                      <label className="block text-[11px] text-[var(--text-3)] mb-1">Received By</label>
+                      <label className="block text-[11px] font-semibold text-[var(--text)] mb-1">Received By *</label>
                       <input
                         type="text"
-                        placeholder="Customer receiver name"
+                        placeholder="Customer receiver name (mandatory)"
                         value={receivedByName}
                         onChange={e => setReceivedByName(e.target.value)}
                         className="w-full px-2.5 py-1.5 bg-[var(--surface)] border border-[var(--border)] rounded-lg text-[var(--text)]"
+                        required
                       />
                     </div>
                     <div>
@@ -307,16 +308,17 @@ export default function DispatchDetail() {
                     />
                   </div>
                   <button
+                    disabled={!receivedByName.trim()}
                     onClick={() =>
                       recordPoD(dispatch.id, {
                         deliveredDate,
-                        receivedByName: receivedByName.trim() || undefined,
+                        receivedByName: receivedByName.trim(),
                         condition,
                         podReference: podReference.trim() || undefined,
                         notes: deliveryNotes.trim() || undefined,
                       })
                     }
-                    className="w-full py-2 bg-[var(--success)] text-white rounded-lg text-xs font-semibold hover:opacity-90 transition-opacity"
+                    className="w-full py-2 bg-[var(--success)] text-white rounded-lg text-xs font-semibold hover:opacity-90 transition-opacity disabled:opacity-40"
                   >
                     Confirm Delivery &amp; Record PoD
                   </button>
