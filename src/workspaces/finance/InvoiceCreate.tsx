@@ -54,6 +54,10 @@ export default function InvoiceCreate() {
   const [paymentTerms, setPaymentTerms] = useState('Net 30');
   const [dueDate, setDueDate] = useState('2026-12-12');
   const [taxType, setTaxType] = useState<'CGST_SGST' | 'IGST' | 'Export_LUT'>('CGST_SGST');
+  const [docKind, setDocKind] = useState<'tax_invoice' | 'advance_request' | 'proforma' | 'partial_invoice' | 'credit_note'>('tax_invoice');
+  const [advancePct, setAdvancePct] = useState<number>(20);
+  const [allowOverInvoice, setAllowOverInvoice] = useState(false);
+  const [overInvoiceReason, setOverInvoiceReason] = useState('');
   const [discountAmount, setDiscountAmount] = useState('0');
   const [freightAmount, setFreightAmount] = useState('0');
   const [otherCharges, setOtherCharges] = useState('0');
@@ -67,6 +71,16 @@ export default function InvoiceCreate() {
     () => (po ? dispatches.filter(d => d.customerPoId === po.id || d.customerPoNumber === po.poNumber || d.customerId === po.customerId) : []),
     [po, dispatches]
   );
+
+  const poInvoicingStats = useMemo(() => {
+    if (!po) return { totalPoValue: 0, previouslyInvoiced: 0, remainingInvoicable: 0, percentInvoiced: 0 };
+    const prevInvoiced = invoices
+      .filter(i => i.poId === po.id && i.status !== 'void')
+      .reduce((s, i) => s + (i.totalAmount || 0), 0);
+    const remaining = Math.max(0, po.totalValue - prevInvoiced);
+    const pct = po.totalValue > 0 ? Math.min(100, Math.round((prevInvoiced / po.totalValue) * 100)) : 0;
+    return { totalPoValue: po.totalValue, previouslyInvoiced: prevInvoiced, remainingInvoicable: remaining, percentInvoiced: pct };
+  }, [po, invoices]);
 
   useEffect(() => {
     if (!po) {
@@ -136,6 +150,13 @@ export default function InvoiceCreate() {
       setError('Select a Customer PO to invoice.');
       return;
     }
+
+    const isOverInvoicing = po && totals.totalAmount > (poInvoicingStats.remainingInvoicable + 100);
+    if (isOverInvoicing && !allowOverInvoice) {
+      setError(`Over-Invoicing Guard: Total invoice (₹${totals.totalAmount.toLocaleString('en-IN')}) exceeds remaining unbilled PO value (₹${poInvoicingStats.remainingInvoicable.toLocaleString('en-IN')}). Enable authorized override with justification to proceed.`);
+      return;
+    }
+
     const res = createCustomerInvoice({
       poId: po.id,
       dispatchIds: selectedDispatchIds,
@@ -146,7 +167,7 @@ export default function InvoiceCreate() {
       discountAmount: Number(discountAmount) || 0,
       freightAmount: Number(freightAmount) || 0,
       otherCharges: Number(otherCharges) || 0,
-      notes: notes.trim() || undefined,
+      notes: notes.trim() || (allowOverInvoice ? `[Authorized Override: ${overInvoiceReason}]` : undefined),
       issueNow,
       lines: lines.map(l => ({
         poLineId: l.poLineId,
@@ -192,6 +213,170 @@ export default function InvoiceCreate() {
       {error && (
         <div className="rounded-xl border border-[var(--error)] bg-[var(--error-bg)] px-4 py-3 text-sm text-[var(--error)] flex items-center gap-2">
           <AlertCircle size={15} /> {error}
+        </div>
+      )}
+
+      {/* Document Kind Selector */}
+      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 space-y-3">
+        <label className="block text-xs font-bold text-[var(--text)] uppercase tracking-wider">
+          Invoice / Billing Document Type
+        </label>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          {[
+            { id: 'tax_invoice', label: 'Tax Invoice', desc: 'Standard final tax invoice' },
+            { id: 'advance_request', label: 'Advance Request', desc: 'Customer deposit / pre-payment' },
+            { id: 'proforma', label: 'Proforma Invoice', desc: 'Quotation billing preview' },
+            { id: 'partial_invoice', label: 'Partial Invoice', desc: 'Milestone / stage billing' },
+          ].map(d => {
+            const active = docKind === d.id;
+            return (
+              <button
+                key={d.id}
+                type="button"
+                onClick={() => {
+                  setDocKind(d.id as any);
+                  if (d.id === 'advance_request' && po) {
+                    const advVal = Math.round((po.totalValue * 20) / 100);
+                    setLines([{
+                      drawingNumber: po.poNumber,
+                      productName: `Advance Payment Request (20%) against ${po.poNumber}`,
+                      hsnSac: '9954',
+                      orderedQty: 1,
+                      alreadyInvoicedQty: 0,
+                      remainingQty: 1,
+                      quantity: 1,
+                      uom: 'Lot',
+                      unitPrice: advVal,
+                      discountPct: 0,
+                      taxPct: 18,
+                    }]);
+                  }
+                }}
+                className={`p-2.5 rounded-lg border text-left transition-colors ${
+                  active ? 'border-[var(--brand)] bg-[var(--brand)]/10' : 'border-[var(--border)] bg-[var(--surface-2)]/50 hover:bg-[var(--surface-2)]'
+                }`}
+              >
+                <div className={`text-xs font-bold ${active ? 'text-[var(--brand)]' : 'text-[var(--text)]'}`}>{d.label}</div>
+                <div className="text-[10px] text-[var(--text-3)] mt-0.5">{d.desc}</div>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Quick Advance % Selectors */}
+        {docKind === 'advance_request' && po && (
+          <div className="pt-2 border-t border-[var(--border)] flex items-center gap-2 flex-wrap">
+            <span className="text-xs font-semibold text-[var(--text-2)]">Select Advance %:</span>
+            {[10, 20, 25, 30, 50].map(pct => (
+              <button
+                key={pct}
+                type="button"
+                onClick={() => {
+                  setAdvancePct(pct);
+                  const advVal = Math.round((po.totalValue * pct) / 100);
+                  setLines([{
+                    drawingNumber: po.poNumber,
+                    productName: `Advance Payment Request (${pct}%) against ${po.poNumber}`,
+                    hsnSac: '9954',
+                    orderedQty: 1,
+                    alreadyInvoicedQty: 0,
+                    remainingQty: 1,
+                    quantity: 1,
+                    uom: 'Lot',
+                    unitPrice: advVal,
+                    discountPct: 0,
+                    taxPct: 18,
+                  }]);
+                }}
+                className={`px-2.5 py-1 rounded-md text-xs font-bold border transition-colors ${
+                  advancePct === pct ? 'bg-[var(--brand)] text-white border-[var(--brand)]' : 'border-[var(--border)] text-[var(--text-2)] hover:bg-[var(--surface-2)]'
+                }`}
+              >
+                {pct}% (₹{Math.round((po.totalValue * pct) / 100).toLocaleString('en-IN')})
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* PO Invoicing Progress Tracking */}
+      {po && (
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 space-y-2">
+          <div className="flex items-center justify-between text-xs">
+            <span className="font-bold text-[var(--text)]">PO Cumulative Invoicing Progress ({po.poNumber})</span>
+            <span className="text-[var(--text-3)] font-mono">
+              ₹{poInvoicingStats.previouslyInvoiced.toLocaleString('en-IN')} / ₹{poInvoicingStats.totalPoValue.toLocaleString('en-IN')} ({poInvoicingStats.percentInvoiced}%)
+            </span>
+          </div>
+
+          <div className="w-full h-2.5 rounded-full bg-[var(--surface-2)] overflow-hidden flex">
+            <div
+              className="h-full bg-emerald-500 transition-all duration-300"
+              style={{ width: `${poInvoicingStats.percentInvoiced}%` }}
+              title={`Previously Billed: ₹${poInvoicingStats.previouslyInvoiced.toLocaleString('en-IN')}`}
+            />
+            {totals.totalAmount > 0 && (
+              <div
+                className="h-full bg-blue-500 transition-all duration-300"
+                style={{ width: `${Math.min(100 - poInvoicingStats.percentInvoiced, Math.round((totals.totalAmount / (poInvoicingStats.totalPoValue || 1)) * 100))}%` }}
+                title={`This Bill: ₹${totals.totalAmount.toLocaleString('en-IN')}`}
+              />
+            )}
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 text-[11px]">
+            <div>
+              <span className="text-[var(--text-3)] block">Total PO Value</span>
+              <span className="font-semibold font-mono text-[var(--text)]">₹{poInvoicingStats.totalPoValue.toLocaleString('en-IN')}</span>
+            </div>
+            <div>
+              <span className="text-[var(--text-3)] block">Billed to Date</span>
+              <span className="font-semibold font-mono text-emerald-600">₹{poInvoicingStats.previouslyInvoiced.toLocaleString('en-IN')}</span>
+            </div>
+            <div>
+              <span className="text-[var(--text-3)] block">This Bill Total</span>
+              <span className="font-semibold font-mono text-blue-600">₹{totals.totalAmount.toLocaleString('en-IN')}</span>
+            </div>
+            <div>
+              <span className="text-[var(--text-3)] block">Remaining Unbilled</span>
+              <span className="font-semibold font-mono text-[var(--text-2)]">
+                ₹{Math.max(0, poInvoicingStats.remainingInvoicable - totals.totalAmount).toLocaleString('en-IN')}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Over-Invoicing Warning & Authorization Override */}
+      {po && totals.totalAmount > (poInvoicingStats.remainingInvoicable + 100) && (
+        <div className="p-3.5 rounded-xl border border-amber-300 bg-amber-50 text-amber-900 text-xs space-y-2">
+          <div className="flex items-center gap-2 font-bold">
+            <AlertCircle size={15} className="text-amber-600" />
+            Over-Invoicing Guard Triggered
+          </div>
+          <p>
+            This invoice total (₹{totals.totalAmount.toLocaleString('en-IN')}) exceeds the remaining unbilled value of {po.poNumber} (₹{poInvoicingStats.remainingInvoicable.toLocaleString('en-IN')}).
+          </p>
+          <div className="pt-2 border-t border-amber-200 flex flex-col gap-2">
+            <label className="flex items-center gap-2 font-semibold cursor-pointer">
+              <input
+                type="checkbox"
+                checked={allowOverInvoice}
+                onChange={e => setAllowOverInvoice(e.target.checked)}
+                className="rounded text-[var(--brand)]"
+              />
+              Authorize Commercial Override (Requires Reason)
+            </label>
+            {allowOverInvoice && (
+              <input
+                type="text"
+                value={overInvoiceReason}
+                onChange={e => setOverInvoiceReason(e.target.value)}
+                placeholder="Enter justification (e.g. Scope expansion, approved amendment revision, combined tooling charges)…"
+                className="w-full p-2 rounded-lg border border-amber-300 bg-white text-xs outline-none text-slate-800"
+              />
+            )}
+          </div>
         </div>
       )}
 

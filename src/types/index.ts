@@ -1403,6 +1403,20 @@ export interface Invoice {
   voidedBy?: string;
   notes?: string;
   isSimulated?: boolean;
+  docKind?: 'tax_invoice' | 'proforma_invoice' | 'advance_payment_request' | 'partial_invoice' | 'credit_note' | 'debit_note';
+  advancePercentage?: number;
+  remainingPoValue?: number;
+  overInvoicedAllowed?: boolean;
+  overInvoicedReason?: string;
+  hsnSacCode?: string;
+  eInvoiceStatus?: 'draft' | 'validated' | 'submitted' | 'irn_generated' | 'failed' | 'cancelled';
+  irn?: string;
+  ackNo?: string;
+  ackDate?: string;
+  signedQrCode?: string;
+  irnFailureReason?: string;
+  placeOfSupply?: string;
+  financialYear?: string;
 }
 
 export interface InvoiceLine {
@@ -1434,7 +1448,7 @@ export interface Payment {
   receiptDate: string;
   currency: string;
   amount: number;
-  paymentMethod: 'bank_transfer' | 'neft' | 'rtgs' | 'imps' | 'upi' | 'cheque' | 'cash' | 'other';
+  paymentMethod: 'bank_transfer' | 'neft' | 'rtgs' | 'imps' | 'upi' | 'cheque' | 'cash' | 'wire_transfer' | 'swift' | 'other';
   transactionRef: string;
   receivingAccount: string;
   status: 'received' | 'allocated' | 'partially_allocated' | 'reversed';
@@ -1442,11 +1456,19 @@ export interface Payment {
   unallocatedAmount: number;
   isAdvance?: boolean;
   notes?: string;
+  foreignCurrency?: string;
+  foreignAmount?: number;
+  exchangeRate?: number;
+  inrEquivalent?: number;
+  bankChargesInr?: number;
+  swiftReference?: string;
+  remittanceBank?: string;
   createdBy: string;
   reversedReason?: string;
   reversedAt?: string;
   reversedBy?: string;
   isSimulated?: boolean;
+  attachmentName?: string;
 }
 
 export interface PaymentAllocation {
@@ -1796,6 +1818,20 @@ export interface SupplierBill {
   createdBy: string;
   notes?: string;
   isSimulated?: boolean;
+  docKind?: 'tax_invoice' | 'proforma_invoice' | 'advance_payment_request' | 'partial_invoice' | 'credit_note' | 'debit_note';
+  advancePercentage?: number;
+  remainingPoValue?: number;
+  overInvoicedAllowed?: boolean;
+  overInvoicedReason?: string;
+  hsnSacCode?: string;
+  eInvoiceStatus?: 'draft' | 'validated' | 'submitted' | 'irn_generated' | 'failed' | 'cancelled';
+  irn?: string;
+  ackNo?: string;
+  ackDate?: string;
+  signedQrCode?: string;
+  irnFailureReason?: string;
+  placeOfSupply?: string;
+  financialYear?: string;
 }
 
 export interface SupplierPayment {
@@ -1814,6 +1850,13 @@ export interface SupplierPayment {
   unallocatedAmount: number;
   isAdvance?: boolean;
   notes?: string;
+  foreignCurrency?: string;
+  foreignAmount?: number;
+  exchangeRate?: number;
+  inrEquivalent?: number;
+  bankChargesInr?: number;
+  swiftReference?: string;
+  remittanceBank?: string;
   createdBy: string;
   reversedReason?: string;
   reversedAt?: string;
@@ -1836,13 +1879,28 @@ export interface SupplierPaymentAllocation {
 }
 
 // ── Inbox / Business Communication Centre ──
-export type InboxFolder = 'inbox' | 'unread' | 'needs_action' | 'sent' | 'archived';
+export type InboxFolder =
+  | 'inbox'
+  | 'unread'
+  | 'needs_action'
+  | 'email'
+  | 'whatsapp'
+  | 'customer_rfqs'
+  | 'supplier_quotes'
+  | 'unassigned'
+  | 'sent'
+  | 'archived';
+
+export type InboxChannel = 'email_gmail' | 'email_outlook' | 'whatsapp';
 
 export type InboxMessageStatus =
   | 'unread'
   | 'read'
   | 'action_required'
   | 'action_completed'
+  | 'converted_to_rfq'
+  | 'converted_to_quote'
+  | 'linked'
   | 'replied'
   | 'archived';
 
@@ -1865,6 +1923,7 @@ export interface InboxAttachment {
   name: string;
   size: string;
   kind: 'pdf' | 'xlsx' | 'img' | 'doc';
+  url?: string;
 }
 
 export interface InboxThreadEntry {
@@ -1874,16 +1933,33 @@ export interface InboxThreadEntry {
   timestamp: string;
   body: string;
   isOutgoing?: boolean;
+  channel?: InboxChannel;
+  attachments?: InboxAttachment[];
+}
+
+export interface ConnectedChannel {
+  id: string;
+  channel: InboxChannel;
+  name: string;
+  accountIdentifier: string;
+  connectedAt: string;
+  status: 'connected' | 'disconnected' | 'sync_error';
+  unreadCount: number;
+  lastSync: string;
+  isSimulated: boolean;
 }
 
 export interface InboxMessage {
   id: ID;
   type: InboxMessageType;
+  channel: InboxChannel;
   senderName: string;
-  senderEmail: string;
+  senderEmail?: string;
+  senderPhone?: string;
   senderOrg: string;
   recipientName: string;
-  recipientEmail: string;
+  recipientEmail?: string;
+  recipientPhone?: string;
   subject: string;
   preview: string;
   body: string;
@@ -1894,9 +1970,14 @@ export interface InboxMessage {
   status: InboxMessageStatus;
   actionRequired: boolean;
   actionCompleted?: boolean;
-  actionOutcome?: 'approved' | 'rejected' | 'confirmed' | 'replied' | 'completed';
+  actionOutcome?: 'approved' | 'rejected' | 'confirmed' | 'replied' | 'completed' | 'converted';
+  assignedTo?: string;
+  assignedRole?: string;
+  internalNotes?: string;
   module: 'Sales' | 'Procurement' | 'Inventory' | 'Dispatch' | 'Finance' | 'Quality';
-  relatedEntityType:
+  relatedEntityType?:
+    | 'Customer'
+    | 'Supplier'
     | 'CustomerRFQ'
     | 'CustomerQuotation'
     | 'CustomerPO'
@@ -1904,16 +1985,96 @@ export interface InboxMessage {
     | 'SupplierQuotation'
     | 'SupplierPO'
     | 'GoodsReceipt'
+    | 'Job'
     | 'Dispatch'
     | 'CustomerInvoice'
     | 'SupplierBill'
     | 'InventoryItem';
-  relatedEntityId: ID;
-  relatedEntityRef: string;
-  relatedPath: string;
+  relatedEntityId?: ID;
+  relatedEntityRef?: string;
+  relatedPath?: string;
+  actionPath?: string;
   approvalRequestId?: ID;
   attachments?: InboxAttachment[];
   thread?: InboxThreadEntry[];
   metadata?: Record<string, string | number>;
 }
+
+// ── BOM (Bill of Materials) ──
+export interface BOMItem {
+  id: ID;
+  materialItemId: ID;
+  materialCode: string;
+  materialName: string;
+  category: 'raw_material' | 'component' | 'consumable';
+  requiredQty: number; // per unit of finished product
+  uom: string;
+  wastagePct: number; // e.g. 5%
+  unitCost: number; // in INR
+  totalCost: number; // Math.round(requiredQty * (1 + wastagePct/100) * unitCost)
+  notes?: string;
+}
+
+export interface ProductBOM {
+  id: ID;
+  productId: ID;
+  productCode: string;
+  productName: string;
+  revision: string;
+  items: BOMItem[];
+  totalMaterialCost: number;
+  lastUpdated: string;
+  sourceOfPrices: string;
+  status: 'active' | 'draft' | 'archived';
+  notes?: string;
+}
+
+// ── Supplier Catalog & Pricing History ──
+export interface SupplierPriceHistoryEntry {
+  date: string;
+  price: number;
+  currency: string;
+  quoteRef: string;
+  leadTimeDays: number;
+  notes?: string;
+}
+
+export interface SupplierCatalogItem {
+  id: ID;
+  supplierId: ID;
+  supplierName: string;
+  materialItemId: ID;
+  materialCode: string;
+  materialName: string;
+  supplierItemCode: string;
+  lastQuotedPrice: number;
+  currency: string;
+  uom: string;
+  minOrderQty: number;
+  typicalLeadTimeDays: number;
+  lastQuotedDate: string;
+  priceHistory: SupplierPriceHistoryEntry[];
+  supplierStatus: 'preferred' | 'approved' | 'under_review' | 'blocked';
+  deliveryReliabilityNotes: string;
+  onTimeDeliveryRatePct: number;
+}
+
+// ── Bank Statement & Reconciliation ──
+export interface BankStatementRow {
+  id: ID;
+  statementDate: string;
+  description: string;
+  reference: string; // UTR or Ref
+  type: 'credit' | 'debit';
+  amount: number;
+  currency: string;
+  matchedEntityType?: 'Customer' | 'CustomerInvoice' | 'Payment' | 'Supplier' | 'SupplierBill' | 'SupplierPayment';
+  matchedEntityId?: ID;
+  matchedEntityRef?: string;
+  matchedEntityName?: string;
+  matchConfidence?: number; // 0-100%
+  matchReason?: string;
+  status: 'unmatched' | 'suggested' | 'matched' | 'ignored';
+}
+
 

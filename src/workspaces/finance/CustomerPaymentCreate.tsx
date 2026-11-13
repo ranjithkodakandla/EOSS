@@ -19,6 +19,12 @@ export default function CustomerPaymentCreate() {
   const [transactionRef, setTransactionRef] = useState('');
   const [receivingAccount, setReceivingAccount] = useState('Apex Precision — HDFC 50200012345');
   const [amount, setAmount] = useState(presetInvoice ? String(presetInvoice.outstandingAmount) : '');
+  const [foreignCurrency, setForeignCurrency] = useState<'USD' | 'EUR' | 'GBP'>('USD');
+  const [foreignAmount, setForeignAmount] = useState('');
+  const [exchangeRate, setExchangeRate] = useState('83.25');
+  const [bankChargesInr, setBankChargesInr] = useState('0');
+  const [swiftRef, setSwiftRef] = useState('');
+  const [remittanceBank, setRemittanceBank] = useState('');
   const [notes, setNotes] = useState('');
   const [allocMap, setAllocMap] = useState<Record<string, string>>(
     presetInvoice ? { [presetInvoice.id]: String(presetInvoice.outstandingAmount) } : {}
@@ -80,11 +86,18 @@ export default function CustomerPaymentCreate() {
       receiptDate,
       amount: numericAmount,
       paymentMethod,
-      transactionRef: transactionRef || `SIM-NEFT-${Date.now().toString().slice(-6)}`,
+      transactionRef: transactionRef || (paymentMethod === 'bank_transfer' && swiftRef ? swiftRef : `SIM-${paymentMethod.toUpperCase()}-${Date.now().toString().slice(-6)}`),
       receivingAccount,
       notes: notes.trim() || undefined,
       isAdvance: allocations.length === 0,
       allocations,
+      foreignCurrency: paymentMethod === 'bank_transfer' && foreignAmount ? foreignCurrency : undefined,
+      foreignAmount: paymentMethod === 'bank_transfer' && foreignAmount ? Number(foreignAmount) : undefined,
+      exchangeRate: paymentMethod === 'bank_transfer' && exchangeRate ? Number(exchangeRate) : undefined,
+      inrEquivalent: paymentMethod === 'bank_transfer' && foreignAmount ? numericAmount : undefined,
+      bankChargesInr: paymentMethod === 'bank_transfer' && bankChargesInr ? Number(bankChargesInr) : undefined,
+      swiftReference: paymentMethod === 'bank_transfer' && swiftRef ? swiftRef : undefined,
+      remittanceBank: paymentMethod === 'bank_transfer' && remittanceBank ? remittanceBank : undefined,
     });
 
     if (!res.ok) {
@@ -160,6 +173,90 @@ export default function CustomerPaymentCreate() {
           <input value={receivingAccount} onChange={e => setReceivingAccount(e.target.value)}
             className="w-full px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--surface)] text-sm text-[var(--text)]" />
         </div>
+
+        {paymentMethod === 'bank_transfer' && (
+          <div className="md:col-span-2 p-3.5 rounded-xl border border-blue-200 bg-blue-50/50 space-y-3">
+            <div className="flex items-center justify-between text-xs font-bold text-blue-900">
+              <span>International Remittance / SWIFT Details</span>
+              <span className="text-[10px] font-normal text-blue-700">Foreign Exchange Settlement</span>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+              <div>
+                <label className="block text-[11px] font-medium text-slate-700 mb-1">Currency</label>
+                <select
+                  value={foreignCurrency}
+                  onChange={e => setForeignCurrency(e.target.value as any)}
+                  className="w-full p-2 rounded-lg border border-blue-200 bg-white outline-none font-bold"
+                >
+                  <option value="USD">USD ($)</option>
+                  <option value="EUR">EUR (€)</option>
+                  <option value="GBP">GBP (£)</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-[11px] font-medium text-slate-700 mb-1">Foreign Amount</label>
+                <input
+                  type="number"
+                  value={foreignAmount}
+                  onChange={e => {
+                    setForeignAmount(e.target.value);
+                    const fx = Number(exchangeRate) || 83.25;
+                    const inr = Math.round((Number(e.target.value) || 0) * fx);
+                    if (inr > 0) setAmount(String(inr));
+                  }}
+                  placeholder="e.g. 5000"
+                  className="w-full p-2 rounded-lg border border-blue-200 bg-white outline-none font-mono font-bold"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-medium text-slate-700 mb-1">Exchange Rate (₹)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={exchangeRate}
+                  onChange={e => {
+                    setExchangeRate(e.target.value);
+                    const famt = Number(foreignAmount) || 0;
+                    const inr = Math.round(famt * (Number(e.target.value) || 83.25));
+                    if (inr > 0) setAmount(String(inr));
+                  }}
+                  className="w-full p-2 rounded-lg border border-blue-200 bg-white outline-none font-mono"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-medium text-slate-700 mb-1">Bank Charges (₹)</label>
+                <input
+                  type="number"
+                  value={bankChargesInr}
+                  onChange={e => setBankChargesInr(e.target.value)}
+                  placeholder="e.g. 1500"
+                  className="w-full p-2 rounded-lg border border-blue-200 bg-white outline-none font-mono"
+                />
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-[11px] font-medium text-slate-700 mb-1">SWIFT Reference / FIRC #</label>
+                <input
+                  type="text"
+                  value={swiftRef}
+                  onChange={e => setSwiftRef(e.target.value)}
+                  placeholder="e.g. SWIFT-NY-884920"
+                  className="w-full p-2 rounded-lg border border-blue-200 bg-white outline-none font-mono"
+                />
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-[11px] font-medium text-slate-700 mb-1">Remitting Bank Name</label>
+                <input
+                  type="text"
+                  value={remittanceBank}
+                  onChange={e => setRemittanceBank(e.target.value)}
+                  placeholder="e.g. Deutsche Bank AG, Frankfurt"
+                  className="w-full p-2 rounded-lg border border-blue-200 bg-white outline-none"
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="md:col-span-2">
           <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Notes</label>
           <input value={notes} onChange={e => setNotes(e.target.value)} placeholder="Remittance advice / TDS deduction note…"

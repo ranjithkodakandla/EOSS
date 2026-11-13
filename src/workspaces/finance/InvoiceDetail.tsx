@@ -1,7 +1,8 @@
 import React, { useMemo, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
-  ArrowLeft, FileText, CreditCard, AlertTriangle, CheckCircle2, Ban, Edit3, Send, ShieldAlert, Plus
+  ArrowLeft, FileText, CreditCard, AlertTriangle, CheckCircle2, Ban, Edit3, Send, ShieldAlert, Plus,
+  QrCode, FileCheck2
 } from 'lucide-react';
 import { useStore } from '../../store';
 import { computeDaysOverdue, isRecordOverdue, computeGstTotals } from '../../domain/finance';
@@ -36,10 +37,14 @@ export default function InvoiceDetail() {
   const issueCustomerInvoice = useStore(s => s.issueCustomerInvoice);
   const updateCustomerInvoiceDraft = useStore(s => s.updateCustomerInvoiceDraft);
   const voidCustomerInvoice = useStore(s => s.voidCustomerInvoice);
+  const generateEInvoiceIRN = useStore(s => s.generateEInvoiceIRN);
+  const cancelEInvoiceIRN = useStore(s => s.cancelEInvoiceIRN);
 
   const invoice = invoices.find(i => i.id === id);
 
   const [editingDraft, setEditingDraft] = useState(false);
+  const [showCancelIrnModal, setShowCancelIrnModal] = useState(false);
+  const [cancelIrnReason, setCancelIrnReason] = useState('');
   const [draftInvoiceDate, setDraftInvoiceDate] = useState('');
   const [draftDueDate, setDraftDueDate] = useState('');
   const [draftPaymentTerms, setDraftPaymentTerms] = useState('');
@@ -271,6 +276,17 @@ export default function InvoiceDetail() {
                 <Plus size={13} /> Record Payment ({fmtINR(invoice.outstandingAmount)})
               </Link>
             )}
+            {!isVoided && invoice.status !== 'draft' && !invoice.irn && canManageFinance && (
+              <button
+                onClick={() => {
+                  generateEInvoiceIRN(invoice.id);
+                  setFeedback({ type: 'ok', msg: 'Simulated IRP E-Invoice generated! IRN hash and Signed QR registered.' });
+                }}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-colors shadow-sm"
+              >
+                <QrCode size={13} /> Generate E-Invoice (IRP)
+              </button>
+            )}
             {!isVoided && invoice.paidAmount === 0 && canManageFinance && (
               <button
                 onClick={() => setShowVoidModal(true)}
@@ -390,6 +406,58 @@ export default function InvoiceDetail() {
           <p className="text-[11px] text-[var(--text-3)] mt-0.5">Due {fmtDate(invoice.dueDate)}</p>
         </div>
       </div>
+
+      {/* Simulated IRP E-Invoice & Signed QR Card */}
+      {invoice.irn && (
+        <div className="mb-6 p-4 rounded-xl border border-emerald-300 bg-emerald-50/60 text-slate-800 space-y-3 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <span className="p-1.5 rounded-lg bg-emerald-600 text-white">
+                <FileCheck2 size={16} />
+              </span>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-xs font-bold text-emerald-950 uppercase tracking-wider">
+                    GST E-Invoice Registered (Simulated IRP)
+                  </h3>
+                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                    IRN ACTIVE
+                  </span>
+                </div>
+                <p className="text-[11px] text-emerald-800">
+                  Ack No: <strong className="font-mono">{invoice.ackNo}</strong> · Ack Date: <strong>{invoice.ackDate}</strong>
+                </p>
+              </div>
+            </div>
+
+            {canManageFinance && (
+              <button
+                type="button"
+                onClick={() => setShowCancelIrnModal(true)}
+                className="px-2.5 py-1 rounded-lg border border-rose-300 text-[11px] font-semibold text-rose-700 bg-white hover:bg-rose-50"
+              >
+                Cancel IRN
+              </button>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3 pt-2 border-t border-emerald-200 text-xs">
+            <div className="md:col-span-3 space-y-1">
+              <span className="text-[10px] uppercase font-bold text-emerald-900 block">
+                Invoice Reference Number (IRN · 64-char Hash)
+              </span>
+              <p className="font-mono text-[11px] p-2 rounded bg-white border border-emerald-200 text-emerald-950 break-all select-all">
+                {invoice.irn}
+              </p>
+            </div>
+            <div className="flex flex-col items-center justify-center p-2 rounded bg-white border border-emerald-200 text-center">
+              <QrCode size={36} className="text-emerald-800 mb-1" />
+              <span className="text-[10px] font-bold text-emerald-900">Signed QR Verified</span>
+              <span className="text-[9px] text-slate-500 font-mono">B2B E-Way Ready</span>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Inline Draft Editor */}
       {editingDraft && (
@@ -906,6 +974,51 @@ export default function InvoiceDetail() {
                 className="px-4 py-1.5 text-xs font-semibold rounded-lg bg-red-600 hover:bg-red-500 disabled:opacity-40 text-white"
               >
                 Confirm Void
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Cancel IRN Modal */}
+      {showCancelIrnModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-[var(--surface-2)] border border-[var(--border)] rounded-xl max-w-md w-full p-5 space-y-4">
+            <div className="flex items-center gap-2 text-rose-500">
+              <Ban size={18} />
+              <h3 className="text-sm font-semibold">Cancel E-Invoice IRN ({invoice.invoiceNumber})</h3>
+            </div>
+            <p className="text-xs text-[var(--text-2)]">
+              Under GST rules, IRN cancellation must be reported within 24 hours. A cancellation reason is mandatory.
+            </p>
+            <div>
+              <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Cancellation Reason *</label>
+              <textarea
+                rows={3}
+                value={cancelIrnReason}
+                onChange={e => setCancelIrnReason(e.target.value)}
+                placeholder="e.g. Duplicate entry, Data entry mistake, Order cancelled by customer"
+                className="w-full px-3 py-2 text-xs bg-[var(--surface-3)] border border-[var(--border)] rounded-lg text-[var(--text-1)]"
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setShowCancelIrnModal(false)}
+                className="px-3 py-1.5 text-xs rounded-lg border border-[var(--border)] text-[var(--text-2)]"
+              >
+                Back
+              </button>
+              <button
+                onClick={() => {
+                  if (!cancelIrnReason.trim()) return;
+                  cancelEInvoiceIRN(invoice.id, cancelIrnReason.trim());
+                  setShowCancelIrnModal(false);
+                  setFeedback({ type: 'ok', msg: 'E-Invoice IRN cancelled on simulated IRP.' });
+                }}
+                disabled={!cancelIrnReason.trim()}
+                className="px-4 py-1.5 text-xs font-semibold rounded-lg bg-rose-600 hover:bg-rose-500 disabled:opacity-40 text-white"
+              >
+                Confirm Cancel IRN
               </button>
             </div>
           </div>

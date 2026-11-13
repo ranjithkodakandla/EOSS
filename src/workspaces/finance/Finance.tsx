@@ -26,7 +26,8 @@ type FinanceTab =
   | 'bills'
   | 'supplier_payments'
   | 'payables'
-  | 'collections';
+  | 'collections'
+  | 'reconciliation';
 
 const VALID_TABS: FinanceTab[] = [
   'overview',
@@ -37,6 +38,7 @@ const VALID_TABS: FinanceTab[] = [
   'supplier_payments',
   'payables',
   'collections',
+  'reconciliation',
 ];
 
 const TAB_LABELS: Record<FinanceTab, string> = {
@@ -48,6 +50,7 @@ const TAB_LABELS: Record<FinanceTab, string> = {
   supplier_payments: 'Supplier Payments',
   payables: 'Payables & Ageing',
   collections: 'Statements & History',
+  reconciliation: 'Bank Reconciliation',
 };
 
 export default function Finance() {
@@ -77,6 +80,9 @@ export default function Finance() {
   const suppliers = useStore(s => s.suppliers);
   const auditEvents = useStore(s => s.auditEvents);
   const currentRole = useStore(s => s.currentUser.role);
+  const bankStatements = useStore(s => s.bankStatements);
+  const matchBankStatementRow = useStore(s => s.matchBankStatementRow);
+  const rejectBankStatementMatch = useStore(s => s.rejectBankStatementMatch);
 
   const [search, setSearch] = useState('');
   const [invoiceStatusFilter, setInvoiceStatusFilter] = useState<string>('all');
@@ -1106,6 +1112,133 @@ export default function Finance() {
                   </div>
                 );
               })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Tab: Bank Reconciliation */}
+      {tab === 'reconciliation' && (
+        <div className="space-y-5">
+          {/* Header & Stats */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="bg-[var(--surface-2)] border border-[var(--border)] rounded-xl p-3.5">
+              <p className="text-[11px] uppercase tracking-wider text-[var(--text-3)]">Feed Status</p>
+              <div className="flex items-center gap-1.5 mt-1">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="text-sm font-bold text-emerald-600">HDFC Bank Feed Active</span>
+              </div>
+              <p className="text-[10px] text-[var(--text-3)] mt-0.5">A/C 50200012345 (Current)</p>
+            </div>
+            <div className="bg-[var(--surface-2)] border border-[var(--border)] rounded-xl p-3.5">
+              <p className="text-[11px] uppercase tracking-wider text-[var(--text-3)]">Imported Lines</p>
+              <p className="text-lg font-bold text-[var(--text-1)] tabular-nums mt-1">{bankStatements.length} transactions</p>
+              <p className="text-[10px] text-[var(--text-3)] mt-0.5">Current statement cycle</p>
+            </div>
+            <div className="bg-[var(--surface-2)] border border-[var(--border)] rounded-xl p-3.5">
+              <p className="text-[11px] uppercase tracking-wider text-[var(--text-3)]">Reconciled</p>
+              <p className="text-lg font-bold text-[var(--success)] tabular-nums mt-1">
+                {bankStatements.filter(s => s.status === 'matched').length} / {bankStatements.length} matched
+              </p>
+              <p className="text-[10px] text-[var(--text-3)] mt-0.5">Auto-matched on UTR / amount</p>
+            </div>
+            <div className="bg-[var(--surface-2)] border border-[var(--border)] rounded-xl p-3.5">
+              <p className="text-[11px] uppercase tracking-wider text-[var(--text-3)]">Pending Review</p>
+              <p className="text-lg font-bold text-amber-500 tabular-nums mt-1">
+                {bankStatements.filter(s => s.status !== 'matched' && s.status !== 'ignored').length} lines
+              </p>
+              <p className="text-[10px] text-[var(--text-3)] mt-0.5">Requires confirmation</p>
+            </div>
+          </div>
+
+          <div className="p-3 rounded-lg bg-blue-50/70 border border-blue-200 text-blue-900 text-xs flex items-center justify-between gap-3">
+            <span>
+              <strong>Simulated Bank Feed:</strong> Automatic matching identifies invoices and vendor payouts by exact UTR, reference hash, and invoice amount. Reconciling logs to the append-only audit trail.
+            </span>
+          </div>
+
+          {/* Statement Lines Table */}
+          <div className="bg-[var(--surface-2)] border border-[var(--border)] rounded-xl overflow-hidden">
+            <div className="px-4 py-3 border-b border-[var(--border)] flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-[var(--text-1)]">Bank Statement Transactions</h3>
+              <span className="text-xs text-[var(--text-3)]">Statement Date: 01 Nov – 13 Nov 2026</span>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-[var(--border)] text-[var(--text-3)] bg-[var(--surface-3)]/40 text-left">
+                    <th className="px-3 py-2.5 font-medium">Date</th>
+                    <th className="px-3 py-2.5 font-medium">Narration / Description</th>
+                    <th className="px-3 py-2.5 font-medium">UTR / Ref #</th>
+                    <th className="px-3 py-2.5 font-medium text-right">Debit (Dr)</th>
+                    <th className="px-3 py-2.5 font-medium text-right">Credit (Cr)</th>
+                    <th className="px-3 py-2.5 font-medium">Suggested EOSS Match</th>
+                    <th className="px-4 py-2.5 font-medium text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[var(--border)]">
+                  {bankStatements.map(row => (
+                    <tr key={row.id} className="hover:bg-[var(--surface-3)]/40 transition-colors">
+                      <td className="px-3 py-3 text-[var(--text-2)] whitespace-nowrap">{fmtDate(row.statementDate)}</td>
+                      <td className="px-3 py-3 font-medium text-[var(--text-1)] max-w-xs">{row.description}</td>
+                      <td className="px-3 py-3 font-mono text-[11px] text-[var(--text-3)]">{row.reference}</td>
+                      <td className="px-3 py-3 text-right tabular-nums text-rose-500 font-medium">
+                        {row.type === 'debit' ? fmtINR(row.amount) : '—'}
+                      </td>
+                      <td className="px-3 py-3 text-right tabular-nums text-emerald-600 font-semibold">
+                        {row.type === 'credit' ? fmtINR(row.amount) : '—'}
+                      </td>
+                      <td className="px-3 py-3">
+                        {row.status === 'matched' ? (
+                          <div className="flex items-center gap-1.5 text-emerald-600 font-semibold">
+                            <CheckCircle2 size={13} />
+                            <span>Matched to {row.matchedEntityRef}</span>
+                          </div>
+                        ) : row.status === 'ignored' ? (
+                          <span className="text-[var(--text-3)] italic">Ignored</span>
+                        ) : row.matchedEntityRef ? (
+                          <div className="space-y-0.5">
+                            <div className="font-semibold text-[var(--text-1)]">
+                              {row.matchedEntityRef} <span className="text-[10px] text-[var(--text-3)]">({row.matchedEntityType})</span>
+                            </div>
+                            <div className="text-[10px] font-bold text-blue-600">
+                              {row.matchConfidence ? `${Math.round(row.matchConfidence)}% Confidence` : 'Auto-detected match'}
+                            </div>
+                          </div>
+                        ) : (
+                          <span className="text-[var(--text-3)]">No match candidate</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        {(row.status === 'suggested' || row.status === 'unmatched') && row.matchedEntityId && row.matchedEntityType && (
+                          <div className="inline-flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => matchBankStatementRow(row.id, row.matchedEntityType!, row.matchedEntityId!, row.matchedEntityRef || '')}
+                              className="px-2.5 py-1 rounded-md text-[11px] font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
+                            >
+                              Confirm Match
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => rejectBankStatementMatch(row.id)}
+                              className="px-2 py-1 rounded-md text-[11px] font-medium border border-[var(--border)] text-[var(--text-3)] hover:text-[var(--text-1)]"
+                            >
+                              Ignore
+                            </button>
+                          </div>
+                        )}
+                        {row.status === 'matched' && (
+                          <span className="text-[11px] font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                            Reconciled
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
         </div>

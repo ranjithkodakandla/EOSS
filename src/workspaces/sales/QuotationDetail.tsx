@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useParams, useNavigate, Link, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, CheckCircle, XCircle, FileText, Send, RotateCcw, Copy } from 'lucide-react';
+import { ArrowLeft, CheckCircle, XCircle, FileText, Send, RotateCcw, Copy, AlertTriangle, Layers } from 'lucide-react';
 import { useStore } from '../../store';
 import StatusChip from '../../components/layout/StatusChip';
 import type { CustomerPO, CustomerQuotation, CustomerQuotationLine, POLine } from '../../types';
@@ -16,7 +16,7 @@ export default function QuotationDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { quotations, quotationLines, rfqs, customerPos, currentUser, updateQuotation, reviseQuotation, convertQuotationToPO, updateRfq, showToast } = useStore();
+  const { quotations, quotationLines, rfqs, customerPos, currentUser, updateQuotation, reviseQuotation, convertQuotationToPO, updateRfq, showToast, boms } = useStore();
   const [confirming, setConfirming] = useState<'accept' | 'convert' | null>(null);
   const [reviseModal, setReviseModal] = useState(false);
   const [reviseDiscount, setReviseDiscount] = useState('0');
@@ -26,13 +26,31 @@ export default function QuotationDetail() {
   const rfq = rfqs.find(r => r.id === quotation?.rfqId);
   const { goBack, originUrl } = useReturnNavigation(rfq ? `/sales/rfq/${rfq.id}` : '/sales?tab=rfqs');
 
+  const lines = useMemo(() => quotationLines.filter(l => l.quotationId === id), [quotationLines, id]);
+
+  const bomStats = useMemo(() => {
+    let totalBomCost = 0;
+    lines.forEach(l => {
+      const match = boms.find(b =>
+        (l.drawingNumber && b.productCode.toLowerCase().includes(l.drawingNumber.toLowerCase())) ||
+        (l.productName && b.productName.toLowerCase().includes(l.productName.toLowerCase())) ||
+        (l.drawingNumber && l.drawingNumber.toLowerCase().includes(b.productCode.toLowerCase()))
+      );
+      const unitCost = match ? match.totalMaterialCost : (l.unitPrice > 0 ? Math.round(l.unitPrice * 0.62) : 2200);
+      totalBomCost += unitCost * (l.orderedQty || 1);
+    });
+    const sub = quotation?.subtotal ?? lines.reduce((s, l) => s + l.value, 0);
+    const estMargin = sub - totalBomCost;
+    const marginPct = sub > 0 ? Math.round((estMargin / sub) * 100) : 0;
+    return { totalBomCost, estMargin, marginPct, isLow: marginPct < 20 };
+  }, [lines, quotation?.subtotal, boms]);
+
   if (!quotation) return (
     <div className="p-8 text-center text-sm text-[var(--text-2)]">
       Quotation not found. <Link to="/sales" className="text-[var(--brand)] underline">Back to Sales</Link>
     </div>
   );
 
-  const lines = quotationLines.filter(l => l.quotationId === quotation.id);
   const parentQuote = quotation.parentQuotationId ? quotations.find(q => q.id === quotation.parentQuotationId) : undefined;
   const childRevisions = quotations.filter(q => q.parentQuotationId === quotation.id);
   const existingPO = customerPos.find(p => p.quotationId === quotation.id || (p as any).quotationRef === quotation.quotationNumber);
@@ -289,6 +307,59 @@ export default function QuotationDetail() {
               </tr>
             </tfoot>
           </table>
+        </div>
+
+        {/* Commercial Costing & Estimated Material Margin Analysis */}
+        <div className="mt-4 rounded-xl border p-4 space-y-3" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--text)] flex items-center gap-1.5">
+                <Layers size={14} className="text-blue-500" /> Commercial Intelligence & BOM Material Margin Analysis
+              </h4>
+              <p className="text-[11px] text-[var(--text-3)]">
+                BOM material rollup against selling prices
+              </p>
+            </div>
+            <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${
+              bomStats.isLow ? 'bg-amber-100 text-amber-900 border-amber-300' : 'bg-emerald-100 text-emerald-900 border-emerald-300'
+            }`}>
+              {bomStats.marginPct}% Material Margin
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3 rounded-xl bg-[var(--surface-2)] text-xs">
+            <div>
+              <span className="text-[10px] text-[var(--text-3)] uppercase tracking-wider block">Quoted Subtotal</span>
+              <span className="font-mono font-bold text-sm text-[var(--text)]">
+                {fmtMoney(quotation.subtotal ?? lines.reduce((s, l) => s + l.value, 0))}
+              </span>
+            </div>
+            <div>
+              <span className="text-[10px] text-[var(--text-3)] uppercase tracking-wider block">Est. BOM Material Cost</span>
+              <span className="font-mono font-bold text-sm text-slate-600">
+                {fmtMoney(bomStats.totalBomCost)}
+              </span>
+            </div>
+            <div>
+              <span className="text-[10px] text-[var(--text-3)] uppercase tracking-wider block">Est. Material Margin</span>
+              <span className={`font-mono font-bold text-sm ${bomStats.isLow ? 'text-amber-600' : 'text-emerald-600'}`}>
+                {fmtMoney(bomStats.estMargin)} ({bomStats.marginPct}%)
+              </span>
+            </div>
+          </div>
+
+          {bomStats.isLow && (
+            <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-center gap-2">
+              <AlertTriangle size={15} className="text-amber-600 flex-shrink-0" />
+              <span>
+                <strong>Low Margin Alert (&lt; 20%):</strong> Quoted price leaves narrow buffer for machining and factory overheads.
+              </span>
+            </div>
+          )}
+
+          <p className="text-[11px] text-[var(--text-3)] italic pt-1 border-t border-[var(--border)]">
+            * Estimated material margin — excludes labour, overhead, machine cost and other unconfigured expenses.
+          </p>
         </div>
 
         {quotation.notes && (

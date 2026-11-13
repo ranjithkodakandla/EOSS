@@ -14,12 +14,15 @@ export default function InspectionDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { inspections, lots, grns, jobs, qualityReleases, currentUser, addNCR, linkNCRToInspection, updateInspection, completeIncomingInspection, addQualityRelease } = useStore();
+  const { inspections, lots, grns, jobs, qualityReleases, currentUser, addNCR, linkNCRToInspection, updateInspection, completeIncomingInspection, addQualityRelease, overrideQualityGate } = useStore();
   const { goBack } = useReturnNavigation('/quality');
   const canRaiseNCR = ['owner', 'qc'].includes(currentUser.role);
   const canRelease = ['owner', 'qc'].includes(currentUser.role);
   const [recording, setRecording] = useState(false);
   const [recForm, setRecForm] = useState({ accepted: 0, rejected: 0, notes: '' });
+  const [showOverrideModal, setShowOverrideModal] = useState(false);
+  const [overrideReason, setOverrideReason] = useState('');
+  const [overrideApprover, setOverrideApprover] = useState('Suresh Nair (Quality Head)');
 
   const ins = inspections.find(i => i.id === id);
   useEffect(() => {
@@ -252,38 +255,119 @@ export default function InspectionDetail() {
             </div>
           )}
 
-          {ins.result === 'fail' && !ins.ncrId && canRaiseNCR && (
-            <div className="bg-[var(--warning-bg)] border border-[var(--warning)] rounded-xl p-4">
-              <div className="font-semibold text-sm text-[var(--warning)] mb-1 flex items-center gap-1.5">
-                <AlertTriangle size={14} /> Inspection Failed — No NCR
+          {ins.result === 'fail' && (
+            <div className="bg-rose-50 border border-rose-300 rounded-xl p-4 space-y-3">
+              <div className="font-semibold text-sm text-rose-800 flex items-center gap-1.5">
+                <AlertTriangle size={16} className="text-rose-600" /> Dispatch Gate Active — Release Blocked
               </div>
-              <p className="text-xs text-[var(--text-2)] mb-3">This inspection failed but no NCR has been raised yet.</p>
-              <button
-                onClick={() => {
-                  const ncrId = `ncr-new-${++ncrSeq}`;
-                  const ncrNumber = `NCR-2024-${String(ncrSeq).padStart(3, '0')}`;
-                  const newNCR: NCR = {
-                    id: ncrId,
-                    ncrNumber,
-                    inspectionId: ins.id,
-                    sourceType: ins.type === 'Incoming' ? 'Incoming' : 'In-Process',
-                    severity: 'Major',
-                    description: `Non-conformance raised from failed inspection ${ins.inspectionNumber}`,
-                    affectedQty: ins.rejectedQty,
-                    disposition: 'Pending',
-                    raisedBy: currentUser.name,
-                    raisedAt: new Date().toISOString(),
-                    status: 'open',
-                    lotId: ins.lotId,
-                    jobId: ins.jobId,
-                  };
-                  addNCR(newNCR);
-                  linkNCRToInspection(ins.id, ncrId, ncrNumber);
-                }}
-                className="w-full py-2 bg-[var(--warning)] text-white rounded-lg text-sm font-medium"
-              >
-                Raise NCR
-              </button>
+              <p className="text-xs text-rose-700 leading-relaxed">
+                Finished goods cannot be released or dispatched while inspection is in failed status.
+                {ins.ncrNumber ? ` Linked Non-Conformance: ${ins.ncrNumber}` : ''}
+              </p>
+
+              <div className="flex flex-wrap gap-2 pt-1">
+                {!ins.ncrId && canRaiseNCR && (
+                  <button
+                    onClick={() => {
+                      const ncrId = `ncr-new-${++ncrSeq}`;
+                      const ncrNumber = `NCR-2024-${String(ncrSeq).padStart(3, '0')}`;
+                      const newNCR: NCR = {
+                        id: ncrId,
+                        ncrNumber,
+                        inspectionId: ins.id,
+                        sourceType: ins.type === 'Incoming' ? 'Incoming' : 'In-Process',
+                        severity: 'Major',
+                        description: `Non-conformance raised from failed inspection ${ins.inspectionNumber}`,
+                        affectedQty: ins.rejectedQty,
+                        disposition: 'Pending',
+                        raisedBy: currentUser.name,
+                        raisedAt: new Date().toISOString(),
+                        status: 'open',
+                        lotId: ins.lotId,
+                        jobId: ins.jobId,
+                      };
+                      addNCR(newNCR);
+                      linkNCRToInspection(ins.id, ncrId, ncrNumber);
+                    }}
+                    className="flex-1 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-semibold"
+                  >
+                    Raise NCR
+                  </button>
+                )}
+
+                {canRelease && (
+                  <button
+                    type="button"
+                    onClick={() => setShowOverrideModal(true)}
+                    className="flex-1 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold shadow-sm"
+                  >
+                    QA Concession Override
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* QA Concession Modal */}
+          {showOverrideModal && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+              <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
+                <div className="flex items-center gap-2 text-blue-600">
+                  <ShieldCheck size={20} />
+                  <h3 className="text-base font-bold text-[var(--text)]">Authorize QA Concession Override</h3>
+                </div>
+                <p className="text-xs text-[var(--text-2)] leading-relaxed">
+                  Authorized technical concession overrides the inspection failure for {ins.inspectionNumber} ({ins.jobNumber || 'Batch'}), marks quality release, and unblocks customer dispatch.
+                </p>
+
+                <div className="space-y-3 text-xs">
+                  <div>
+                    <label className="block font-semibold mb-1 text-[var(--text)]">Approving Quality Authority *</label>
+                    <input
+                      type="text"
+                      value={overrideApprover}
+                      onChange={e => setOverrideApprover(e.target.value)}
+                      className="w-full p-2 rounded-lg border bg-[var(--surface-2)] outline-none text-[var(--text)]"
+                      style={{ borderColor: 'var(--border)' }}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-semibold mb-1 text-[var(--text)]">Mandatory Concession Justification *</label>
+                    <textarea
+                      rows={3}
+                      value={overrideReason}
+                      onChange={e => setOverrideReason(e.target.value)}
+                      placeholder="e.g. Dimensions within customer-approved deviation envelope as per DA-2026-03; surface finish acceptable for final assembly…"
+                      className="w-full p-2 rounded-lg border bg-[var(--surface-2)] outline-none text-[var(--text)] resize-y"
+                      style={{ borderColor: 'var(--border)' }}
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-2 pt-2 border-t" style={{ borderColor: 'var(--border)' }}>
+                  <button
+                    type="button"
+                    onClick={() => setShowOverrideModal(false)}
+                    className="px-3.5 py-1.5 rounded-lg border text-xs font-semibold text-[var(--text-2)]"
+                    style={{ borderColor: 'var(--border)' }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!overrideReason.trim()}
+                    onClick={() => {
+                      overrideQualityGate(ins.id, overrideReason.trim(), overrideApprover.trim());
+                      setShowOverrideModal(false);
+                    }}
+                    className="px-4 py-1.5 rounded-lg text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-40"
+                  >
+                    Confirm Concession & Release
+                  </button>
+                </div>
+              </div>
             </div>
           )}
 

@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Plus, Trash2, Check } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, Check, AlertTriangle, Layers } from 'lucide-react';
+import clsx from 'clsx';
 import { useStore, CUSTOMERS } from '../../store';
 import type { CustomerQuotation, CustomerQuotationLine } from '../../types';
 
@@ -38,7 +39,7 @@ function newLine(n: number, rfqLine?: any): QLine {
 export default function QuotationCreate() {
   const { rfqId } = useParams<{ rfqId: string }>();
   const navigate = useNavigate();
-  const { rfqs, customers, addQuotation, createDirectQuotation, currentUser, showToast } = useStore();
+  const { rfqs, customers, addQuotation, createDirectQuotation, currentUser, showToast, boms } = useStore();
 
   const rfq = rfqs.find(r => r.id === rfqId) as (typeof rfqs[0] & Record<string, any>) | undefined;
   const rfqLines: any[] = rfq?.lines ?? [];
@@ -72,6 +73,24 @@ export default function QuotationCreate() {
   const totalValue = Math.round(taxable + taxAmount);
   const fmtMoney = (n: number) => `₹${n.toLocaleString('en-IN')}`;
   const validUntil = addDays(DEMO_NOW, parseInt(validDays) || 30);
+
+  const bomCostDetails = useMemo(() => {
+    let totalBomCost = 0;
+    const lineBreakdowns = lines.map(l => {
+      const matchingBom = boms.find(b =>
+        (l.drawingNumber && b.productCode.toLowerCase().includes(l.drawingNumber.toLowerCase())) ||
+        (l.productName && b.productName.toLowerCase().includes(l.productName.toLowerCase())) ||
+        (l.drawingNumber && l.drawingNumber.toLowerCase().includes(b.productCode.toLowerCase()))
+      );
+      const unitBomCost = matchingBom ? matchingBom.totalMaterialCost : (l.unitPrice > 0 ? Math.round(l.unitPrice * 0.62) : 2200);
+      const lineCost = unitBomCost * (l.orderedQty || 1);
+      totalBomCost += lineCost;
+      return { lineId: l.id, matchingBom, unitBomCost, lineCost };
+    });
+    const estMargin = subtotal - totalBomCost;
+    const marginPct = subtotal > 0 ? Math.round((estMargin / subtotal) * 100) : 0;
+    return { totalBomCost, lineBreakdowns, estMargin, marginPct, isLow: marginPct < 20 };
+  }, [lines, subtotal, boms]);
 
   const handleSubmit = () => {
     const seq = Date.now().toString().slice(-4);
@@ -236,6 +255,53 @@ export default function QuotationCreate() {
                 <div className="text-xs text-[var(--text-3)]">Total Quotation Value</div>
                 <div className="text-xl font-bold text-[var(--text)] font-mono">{fmtMoney(totalValue)}</div>
               </div>
+            </div>
+          </Card>
+
+          {/* BOM Material Costing & Margin Analysis */}
+          <Card title="Commercial Intelligence & Material Margin Analysis">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-[var(--text-3)]">
+                  Simulated BOM material cost rollup from engineering master specs
+                </p>
+                <span className={clsx(
+                  'px-2.5 py-0.5 rounded-full text-xs font-bold border',
+                  bomCostDetails.isLow ? 'bg-amber-100 text-amber-900 border-amber-300' : 'bg-emerald-100 text-emerald-900 border-emerald-300'
+                )}>
+                  {bomCostDetails.marginPct}% Material Margin
+                </span>
+              </div>
+
+              <div className="grid grid-cols-3 gap-3 p-3 rounded-xl bg-[var(--surface-2)] text-xs">
+                <div>
+                  <span className="text-[10px] text-[var(--text-3)] uppercase tracking-wider block">Quoted Subtotal</span>
+                  <span className="font-mono font-bold text-sm text-[var(--text)]">{fmtMoney(subtotal)}</span>
+                </div>
+                <div>
+                  <span className="text-[10px] text-[var(--text-3)] uppercase tracking-wider block">Est. BOM Material Cost</span>
+                  <span className="font-mono font-bold text-sm text-slate-600">{fmtMoney(bomCostDetails.totalBomCost)}</span>
+                </div>
+                <div>
+                  <span className="text-[10px] text-[var(--text-3)] uppercase tracking-wider block">Est. Material Margin</span>
+                  <span className={clsx('font-mono font-bold text-sm', bomCostDetails.isLow ? 'text-amber-600' : 'text-emerald-600')}>
+                    {fmtMoney(bomCostDetails.estMargin)} ({bomCostDetails.marginPct}%)
+                  </span>
+                </div>
+              </div>
+
+              {bomCostDetails.isLow && (
+                <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-center gap-2">
+                  <AlertTriangle size={15} className="text-amber-600 flex-shrink-0" />
+                  <span>
+                    <strong>Low Margin Alert (&lt; 20%):</strong> Quoted price leaves limited headroom for machining and conversion overheads. Consider revising unit rate or optimizing raw material grade.
+                  </span>
+                </div>
+              )}
+
+              <p className="text-[11px] text-[var(--text-3)] italic pt-1 border-t border-[var(--border)]">
+                * Estimated material margin — excludes labour, overhead, machine cost and other unconfigured expenses.
+              </p>
             </div>
           </Card>
 

@@ -9,7 +9,7 @@ import type { Dispatch } from '../../types';
 export default function DispatchDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { dispatches, currentUser, setDispatchStatus, recordPoD, qualityReleases, invoices, customerPos } = useStore();
+  const { dispatches, currentUser, setDispatchStatus, recordPoD, qualityReleases, invoices, customerPos, inspections, jobs } = useStore();
 
   const dispatch = dispatches.find(d => d.id === id);
   const [deliveredDate, setDeliveredDate] = useState(dispatch?.actualDeliveryDate || '2026-11-12');
@@ -20,6 +20,12 @@ export default function DispatchDetail() {
 
   if (!dispatch) return <div className="p-6 text-[var(--text-2)]">Dispatch not found</div>;
   const release = dispatch.qualityReleaseId ? qualityReleases.find(r => r.id === dispatch.qualityReleaseId) : null;
+  const relevantJob = dispatch.jobNumber ? jobs.find(j => j.jobNumber === dispatch.jobNumber) : undefined;
+  const failedInspection = inspections.find(
+    i => (i.jobNumber === dispatch.jobNumber || (relevantJob && i.jobId === relevantJob.id)) && i.result === 'fail'
+  );
+  const isQCGateBlocked = Boolean(failedInspection && !release);
+
   const linkedPO = dispatch.customerPoId
     ? customerPos.find(p => p.id === dispatch.customerPoId)
     : dispatch.customerPoNumber
@@ -123,13 +129,36 @@ export default function DispatchDetail() {
         </div>
 
         <div className="space-y-4">
+          {/* Quality Inspection Gate Blocker */}
+          {isQCGateBlocked && (
+            <div className="p-4 rounded-xl border border-rose-300 bg-rose-50 text-rose-900 space-y-2.5 shadow-sm">
+              <div className="flex items-center gap-2 font-bold text-sm text-rose-800">
+                <Box size={16} className="text-rose-600" /> Dispatch Blocked — Quality Inspection Gate Active
+              </div>
+              <p className="text-xs leading-relaxed text-rose-700">
+                Dispatch execution is locked because final inspection <strong>{failedInspection?.inspectionNumber}</strong> failed dimensional tolerances.
+                {failedInspection?.ncrNumber ? ` Linked Non-Conformance: ${failedInspection.ncrNumber}.` : ''}
+              </p>
+              <div className="pt-1">
+                <button
+                  type="button"
+                  onClick={() => navigate(`/quality/inspection/${failedInspection?.id}`)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold shadow-sm"
+                >
+                  Review Inspection & Authorize QA Concession →
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Draft → Pending Docs */}
           {canDispatch && dispatch.status === 'draft' && (
             <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
               <h3 className="font-semibold text-sm text-[var(--text)] mb-3">Dispatch Actions</h3>
               <button
+                disabled={isQCGateBlocked}
                 onClick={() => setDispatchStatus(dispatch.id, 'pending_docs')}
-                className="w-full py-2.5 bg-[var(--brand-fill)] text-white rounded-lg text-sm font-medium"
+                className="w-full py-2.5 bg-[var(--brand-fill)] text-white rounded-lg text-sm font-medium disabled:opacity-40"
               >
                 Prepare Documents
               </button>
@@ -142,12 +171,16 @@ export default function DispatchDetail() {
               <h3 className="font-semibold text-sm text-[var(--text)] mb-3">Dispatch Actions</h3>
               <div className="space-y-2">
                 <button
+                  disabled={isQCGateBlocked}
                   onClick={() => setDispatchStatus(dispatch.id, 'dispatched')}
-                  className="w-full py-2.5 bg-[var(--brand-fill)] text-white rounded-lg text-sm font-medium flex items-center justify-center gap-2"
+                  className="w-full py-2.5 bg-[var(--brand-fill)] text-white rounded-lg text-sm font-medium flex items-center justify-center gap-2 disabled:opacity-40"
                 >
                   <Truck size={14} /> Mark Dispatched
                 </button>
-                <button className="w-full py-2 border border-[var(--border)] text-[var(--text)] rounded-lg text-sm">
+                <button
+                  disabled={isQCGateBlocked}
+                  className="w-full py-2 border border-[var(--border)] text-[var(--text)] rounded-lg text-sm disabled:opacity-40"
+                >
                   Generate E-Way Bill
                 </button>
               </div>

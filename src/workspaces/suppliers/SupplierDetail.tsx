@@ -19,7 +19,7 @@ export default function SupplierDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const {
-    suppliers, supplierPos, materials, grns, supplierBills, supplierPayments,
+    suppliers, supplierPos, materials, grns, supplierBills, supplierPayments, supplierCatalog,
   } = useStore();
 
   const supplier = suppliers.find(s => s.id === id);
@@ -27,6 +27,7 @@ export default function SupplierDetail() {
   const supplierGrns = useMemo(() => grns.filter(g => g.supplierId === id), [grns, id]);
   const bills = useMemo(() => supplierBills.filter(b => b.supplierId === id), [supplierBills, id]);
   const payouts = useMemo(() => supplierPayments.filter(p => p.supplierId === id), [supplierPayments, id]);
+  const catalogItems = useMemo(() => supplierCatalog.filter(c => c.supplierId === id), [supplierCatalog, id]);
   const suppliedItems = useMemo(
     () => materials.filter(m => m.preferredSupplierIds?.includes(id ?? '')),
     [materials, id],
@@ -263,6 +264,83 @@ export default function SupplierDetail() {
                       <StatusChip status={p.status} size="sm" />
                       <span className="font-semibold tabular-nums text-[var(--text)]">{fmtINR(p.amount)}</span>
                     </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Supplier Item Catalogue & Price History */}
+          <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <h3 className="font-semibold text-sm text-[var(--text)] flex items-center gap-2">
+                  <Package size={14} className="text-[var(--brand)]" /> Item Catalogue, Standard Pricing & Lead Times ({catalogItems.length})
+                </h3>
+                <p className="text-[11px] text-[var(--text-3)]">
+                  Pre-negotiated catalog prices, minimum order quantities, and historical price revisions
+                </p>
+              </div>
+            </div>
+
+            {catalogItems.length === 0 ? (
+              <p className="text-xs text-[var(--text-3)]">No catalog items configured for this supplier yet.</p>
+            ) : (
+              <div className="space-y-3">
+                {catalogItems.map(item => (
+                  <div
+                    key={item.id}
+                    className="p-3.5 rounded-xl border border-[var(--border)] bg-[var(--surface-2)]/40 space-y-2.5"
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold text-xs text-[var(--text)]">{item.materialName}</span>
+                          <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-[var(--surface)] border border-[var(--border)] text-[var(--text-3)]">
+                            {item.materialCode}
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-[var(--text-3)] mt-0.5">
+                          MOQ: <span className="font-medium text-[var(--text-2)]">{item.minOrderQty} {item.uom}</span> · Lead Time: <span className="font-medium text-[var(--text-2)]">{item.typicalLeadTimeDays} days</span>
+                        </div>
+                      </div>
+
+                      <div className="text-right">
+                        <div className="text-xs font-bold text-[var(--brand)]">
+                          ₹{item.lastQuotedPrice.toLocaleString('en-IN')} / {item.uom}
+                        </div>
+                        {item.onTimeDeliveryRatePct && (
+                          <div className="text-[10px] font-semibold text-emerald-600">
+                            ★ {item.onTimeDeliveryRatePct}% On-Time Delivery
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {item.deliveryReliabilityNotes && (
+                      <p className="text-[11px] text-[var(--text-3)] italic bg-[var(--surface)] p-2 rounded-lg border border-[var(--border)]">
+                        {item.deliveryReliabilityNotes}
+                      </p>
+                    )}
+
+                    {item.priceHistory && item.priceHistory.length > 0 && (
+                      <div className="pt-2 border-t border-[var(--border)]">
+                        <div className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-3)] mb-1.5">
+                          Historical Quotation Revisions
+                        </div>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                          {item.priceHistory.map((ph, idx) => (
+                            <div key={idx} className="p-2 rounded-lg bg-[var(--surface)] border border-[var(--border)] text-[11px]">
+                              <div className="text-[10px] text-[var(--text-3)]">{fmtDate(ph.date)}</div>
+                              <div className="font-semibold text-[var(--text)]">₹{ph.price} / {item.uom}</div>
+                              {ph.quoteRef && (
+                                <div className="text-[10px] font-mono text-[var(--text-3)]">{ph.quoteRef}</div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

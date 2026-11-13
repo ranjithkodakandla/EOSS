@@ -14,9 +14,13 @@ import type {
   MeterReading, QualityRelease, InspectionTemplate, StageTemplate,
   JobMaterialReq, JobBlocker, SupplierPOLine, POAmendment, SupplierInvitation,
   Party, SupplierBill, SupplierBillLine, SupplierPayment, SupplierPaymentAllocation,
-  InboxMessage, InboxMessageStatus,
+  InboxMessage, InboxMessageStatus, ConnectedChannel, ProductBOM, SupplierCatalogItem, BankStatementRow,
+  SupplierQuotationLine,
 } from '../types';
-import { SEED_INBOX_MESSAGES } from '../data/inboxSeed';
+import { SEED_INBOX_MESSAGES, SEED_CONNECTED_CHANNELS } from '../data/inboxSeed';
+import { SEED_PRODUCT_BOMS } from '../data/bomSeed';
+import { SEED_SUPPLIER_CATALOG } from '../data/supplierCatalogSeed';
+import { SEED_BANK_STATEMENTS } from '../data/bankStatementSeed';
 import { stampPlaces } from '../domain/places';
 import { assessOrderMaterialRequirements } from '../domain/materialFeasibility';
 import { createAuditEventRecord, diffRecordFields } from '../domain/audit';
@@ -106,6 +110,10 @@ interface EOSSState {
   documents: VaultDocument[];
   approvalRequests: ApprovalRequest[];
   inboxMessages: InboxMessage[];
+  connectedChannels: ConnectedChannel[];
+  boms: ProductBOM[];
+  supplierCatalog: SupplierCatalogItem[];
+  bankStatements: BankStatementRow[];
   pulseExceptions: PulseException[];
   customerPos: CustomerPO[];
   supplierPos: SupplierPO[];
@@ -201,7 +209,29 @@ interface EOSSState {
   markInboxMessageRead: (messageId: string, read?: boolean) => void;
   archiveInboxMessage: (messageId: string, archived?: boolean) => void;
   replyToInboxMessage: (messageId: string, body: string) => void;
-  completeInboxAction: (messageId: string, outcome: 'approved' | 'rejected' | 'confirmed' | 'completed', notes?: string) => void;
+  completeInboxAction: (messageId: string, outcome: 'approved' | 'rejected' | 'confirmed' | 'completed' | 'converted', notes?: string) => void;
+  createRFQFromInbox: (messageId: string, rfqData: Partial<CustomerRFQ>) => CustomerRFQ;
+  createSupplierQuoteFromInbox: (messageId: string, quoteData: Partial<SupplierQuotation>) => SupplierQuotation;
+  linkRecordToInboxMessage: (messageId: string, entityType: NonNullable<InboxMessage['relatedEntityType']>, entityId: string, entityRef: string, path: string) => void;
+  assignInboxMessage: (messageId: string, assignedTo: string, assignedRole: string) => void;
+  updateConnectedChannel: (channelId: string, partial: Partial<ConnectedChannel>) => void;
+
+  // BOM actions
+  updateProductBOM: (bom: ProductBOM) => void;
+
+  // Supplier Catalog actions
+  updateSupplierCatalogItem: (item: SupplierCatalogItem) => void;
+
+  // Bank Statement & Reconciliation actions
+  matchBankStatementRow: (rowId: string, entityType: NonNullable<BankStatementRow['matchedEntityType']>, entityId: string, entityRef: string) => void;
+  rejectBankStatementMatch: (rowId: string) => void;
+
+  // E-Invoice IRN actions
+  generateEInvoiceIRN: (invoiceId: string) => { irn: string; ackNo: string; ackDate: string; signedQrCode: string };
+  cancelEInvoiceIRN: (invoiceId: string, reason: string) => void;
+
+  // Quality Gate Override
+  overrideQualityGate: (inspectionId: string, reason: string, approver: string) => void;
 
   // Document actions
   addDocument: (doc: VaultDocument) => void;
@@ -373,6 +403,13 @@ interface EOSSState {
     notes?: string;
     isAdvance?: boolean;
     allocations?: Array<{ invoiceId: string; amount: number; notes?: string }>;
+    foreignCurrency?: string;
+    foreignAmount?: number;
+    exchangeRate?: number;
+    inrEquivalent?: number;
+    bankChargesInr?: number;
+    swiftReference?: string;
+    remittanceBank?: string;
   }) => { ok: boolean; payment?: Payment; error?: string };
   allocateCustomerPayment: (paymentId: string, allocations: Array<{ invoiceId: string; amount: number; notes?: string }>) => { ok: boolean; error?: string };
   reverseCustomerPayment: (paymentId: string, reason: string) => { ok: boolean; error?: string };
@@ -414,6 +451,13 @@ interface EOSSState {
     notes?: string;
     isAdvance?: boolean;
     allocations?: Array<{ billId: string; amount: number; notes?: string }>;
+    foreignCurrency?: string;
+    foreignAmount?: number;
+    exchangeRate?: number;
+    inrEquivalent?: number;
+    bankChargesInr?: number;
+    swiftReference?: string;
+    remittanceBank?: string;
   }) => { ok: boolean; payment?: SupplierPayment; error?: string };
   allocateSupplierPayment: (paymentId: string, allocations: Array<{ billId: string; amount: number; notes?: string }>) => { ok: boolean; error?: string };
   reverseSupplierPayment: (paymentId: string, reason: string) => { ok: boolean; error?: string };
@@ -738,6 +782,10 @@ function buildSeed() {
     documents: [...VAULT_DOCUMENTS, ...VAULT_DOCUMENTS_DEMO],
     approvalRequests: [...APPROVAL_REQUESTS],
     inboxMessages: [...SEED_INBOX_MESSAGES],
+    connectedChannels: [...SEED_CONNECTED_CHANNELS],
+    boms: [...SEED_PRODUCT_BOMS],
+    supplierCatalog: [...SEED_SUPPLIER_CATALOG],
+    bankStatements: [...SEED_BANK_STATEMENTS],
     pulseExceptions: [...PULSE_EXCEPTIONS],
     customerPos: [...CUSTOMER_POS, FLAGSHIP_PO, ...CUSTOMER_POS_DEMO, ...DEMO_SALES_POS],
     supplierPos: [...SUPPLIER_POS, ...SUPPLIER_POS_DEMO, ...DEMO_SUPPLIER_POS],
@@ -1663,18 +1711,18 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
         actorId: state.currentUser.id,
         role: roleLabel,
         module: msg.module,
-        scope: msg.relatedEntityType,
+        scope: msg.relatedEntityType || 'Inbox',
         action: 'reply_message',
-        entityId: msg.relatedEntityId,
-        entityRef: msg.relatedEntityRef,
+        entityId: msg.relatedEntityId || msg.id,
+        entityRef: msg.relatedEntityRef || msg.subject,
         timestamp,
-        description: `Logged simulated reply to ${msg.senderName} (${msg.senderOrg}) regarding ${msg.relatedEntityRef}.`,
+        description: `Logged simulated reply to ${msg.senderName} (${msg.senderOrg}) regarding ${msg.relatedEntityRef || msg.subject}.`,
       })],
     }));
     get().showToast({
       type: 'success',
       title: 'Reply recorded (simulated)',
-      body: `Logged response to ${msg.senderName} on ${msg.relatedEntityRef}. No external email was sent.`,
+      body: `Logged response to ${msg.senderName} on ${msg.relatedEntityRef || msg.subject}. No external email was sent.`,
     });
   },
 
@@ -1719,10 +1767,10 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
             module: 'Procurement',
             scope: 'SupplierPO',
             action: outcome === 'confirmed' ? 'confirm' : outcome === 'approved' ? 'approve' : 'reject',
-            entityId: msg.relatedEntityId,
-            entityRef: msg.relatedEntityRef,
+            entityId: msg.relatedEntityId || msg.id,
+            entityRef: msg.relatedEntityRef || msg.subject,
             timestamp,
-            description: `${outcome === 'confirmed' ? 'Recorded supplier confirmation' : outcome === 'approved' ? 'Approved delivery extension' : 'Rejected request'} for ${msg.relatedEntityRef} from Inbox.`,
+            description: `${outcome === 'confirmed' ? 'Recorded supplier confirmation' : outcome === 'approved' ? 'Approved delivery extension' : 'Rejected request'} for ${msg.relatedEntityRef || msg.subject} from Inbox.`,
             reason: notes,
             changes: spo && nextCommitted && nextCommitted !== spo.committedDate
               ? [{ field: 'committedDate', label: 'Committed Delivery', previousValue: spo.committedDate, newValue: nextCommitted }]
@@ -1730,7 +1778,7 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
           })],
         };
       });
-      get().showToast({ type: 'success', title: 'Supplier PO updated', body: `${msg.relatedEntityRef} updated from Inbox.` });
+      get().showToast({ type: 'success', title: 'Supplier PO updated', body: `${msg.relatedEntityRef || 'Order'} updated from Inbox.` });
       return;
     }
 
@@ -1743,6 +1791,422 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
         status: 'action_completed' as InboxMessageStatus,
       }),
     }));
+  },
+
+  createRFQFromInbox: (messageId, rfqData) => {
+    const state = get();
+    const msg = state.inboxMessages.find(m => m.id === messageId);
+    const now = new Date().toISOString();
+    const today = now.slice(0, 10);
+    const rfqId = `rfq-${Date.now()}`;
+    const rfqNumber = nextSequentialNumber('RFQ-2026', state.rfqs.map(r => r.rfqNumber), 3, 101);
+    const customer = state.customers.find(c => c.id === rfqData.customerId) || state.customers.find(c => c.tradingName.toLowerCase().includes(msg?.senderOrg?.toLowerCase() || ''));
+    
+    const newRfq: CustomerRFQ = {
+      id: rfqId,
+      rfqNumber,
+      customerId: customer?.id || rfqData.customerId || 'cust-001',
+      customerName: customer?.tradingName || rfqData.customerName || msg?.senderOrg || 'Customer Enquiry',
+      receivedDate: today,
+      requiredBy: rfqData.requiredBy || new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10),
+      status: 'open',
+      lineCount: rfqData.lineCount || 1,
+      channel: msg?.channel === 'whatsapp' ? 'WhatsApp' : msg?.channel === 'email_outlook' ? 'Outlook' : 'Email',
+      owner: state.currentUser.name,
+      customerContactPerson: msg?.senderName,
+      customerEmail: msg?.senderEmail,
+      customerPhone: msg?.senderPhone,
+      internalNotes: rfqData.internalNotes || `Created from ${msg?.channel === 'whatsapp' ? 'WhatsApp enquiry' : 'Email message'}: "${msg?.subject || ''}"`,
+      title: msg?.subject,
+    };
+
+    set(s => ({
+      rfqs: [newRfq, ...s.rfqs],
+      inboxMessages: s.inboxMessages.map(m => m.id !== messageId ? m : {
+        ...m,
+        read: true,
+        actionCompleted: true,
+        actionOutcome: 'converted',
+        status: 'converted_to_rfq' as InboxMessageStatus,
+        relatedEntityType: 'CustomerRFQ' as const,
+        relatedEntityId: newRfq.id,
+        relatedEntityRef: newRfq.rfqNumber,
+        actionPath: `/sales/rfq/${newRfq.id}`,
+      }),
+      auditEvents: [...s.auditEvents, createAuditEventRecord({
+        actor: s.currentUser.name,
+        actorId: s.currentUser.id,
+        role: s.currentUser.role,
+        module: 'Sales',
+        scope: 'CustomerRFQ',
+        action: 'create',
+        entityId: newRfq.id,
+        entityRef: newRfq.rfqNumber,
+        timestamp: now,
+        description: `Created Customer RFQ ${newRfq.rfqNumber} directly from Inbox message (${msg?.senderName || 'Customer'}).`,
+      })],
+    }));
+    get().showToast({
+      type: 'success',
+      title: 'RFQ Created',
+      body: `Customer RFQ ${newRfq.rfqNumber} successfully created and linked to this conversation.`,
+    });
+    return newRfq;
+  },
+
+  createSupplierQuoteFromInbox: (messageId, quoteData) => {
+    const state = get();
+    const msg = state.inboxMessages.find(m => m.id === messageId);
+    const now = new Date().toISOString();
+    const today = now.slice(0, 10);
+    const quoteId = `sq-${Date.now()}`;
+    const quotationNumber = nextSequentialNumber('SQ-2026', state.supplierQuotations.map(q => q.quoteNumber), 3, 101);
+    const supplier = state.suppliers.find(s => s.id === quoteData.supplierId) || state.suppliers.find(s => s.tradingName.toLowerCase().includes(msg?.senderOrg?.toLowerCase() || ''));
+    const linkedPr = quoteData.prId ? state.purchaseReqs.find(p => p.id === quoteData.prId) : undefined;
+    
+    const quoteLines: SupplierQuotationLine[] = quoteData.lines && quoteData.lines.length > 0 ? quoteData.lines : (linkedPr?.lines ? linkedPr.lines.map((l, idx) => ({
+      id: `${quoteId}-l${idx + 1}`,
+      quoteId,
+      materialItemId: l.materialItemId,
+      materialCode: l.materialCode,
+      materialName: l.materialName,
+      grade: l.grade,
+      quotedQty: l.requiredQty,
+      uom: l.uom,
+      unitPrice: 185,
+      taxPct: 18,
+      lineTotal: l.requiredQty * 185,
+    })) : [{
+      id: `${quoteId}-l1`,
+      quoteId,
+      materialItemId: 'mat-ss3',
+      materialCode: 'RM-SS-003',
+      materialName: 'SS304L Round Bar Ø65mm',
+      quotedQty: 250,
+      uom: 'kg',
+      unitPrice: 345,
+      taxPct: 18,
+      lineTotal: 250 * 345,
+    }]);
+
+    const totalVal = quoteLines.reduce((acc, l) => acc + ((l.quotedQty || 1) * (l.unitPrice || 0)), 0);
+
+    const newQuote: SupplierQuotation = {
+      id: quoteId,
+      quoteNumber: quotationNumber,
+      supplierId: supplier?.id || quoteData.supplierId || 'sup-001',
+      supplierName: supplier?.tradingName || quoteData.supplierName || msg?.senderOrg || 'Supplier',
+      prId: quoteData.prId || linkedPr?.id || (msg?.relatedEntityType === 'PurchaseRequisition' ? msg.relatedEntityId : undefined),
+      prNumber: quoteData.prNumber || linkedPr?.prNumber || (msg?.relatedEntityType === 'PurchaseRequisition' ? msg.relatedEntityRef : undefined),
+      quoteDate: today,
+      validUntil: quoteData.validUntil || new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
+      currency: quoteData.currency || 'INR',
+      status: 'received',
+      paymentTerms: quoteData.paymentTerms || '30 days net',
+      deliveryDays: quoteData.deliveryDays || 6,
+      taxAmount: Math.round(totalVal * 0.18),
+      lines: quoteLines,
+      notes: quoteData.notes || `Created from ${msg?.channel === 'whatsapp' ? 'WhatsApp message' : 'Email'}: "${msg?.subject || ''}"`,
+    };
+
+    set(s => ({
+      supplierQuotations: [newQuote, ...s.supplierQuotations],
+      purchaseReqs: linkedPr ? s.purchaseReqs.map(p => p.id === linkedPr.id ? { ...p, status: 'quotation_in_progress' as const } : p) : s.purchaseReqs,
+      inboxMessages: s.inboxMessages.map(m => m.id !== messageId ? m : {
+        ...m,
+        read: true,
+        actionCompleted: true,
+        actionOutcome: 'converted',
+        status: 'converted_to_quote' as InboxMessageStatus,
+        relatedEntityType: 'SupplierQuotation' as const,
+        relatedEntityId: newQuote.id,
+        relatedEntityRef: newQuote.quoteNumber,
+        actionPath: `/procurement/quotations/${newQuote.id}`,
+      }),
+      auditEvents: [...s.auditEvents, createAuditEventRecord({
+        actor: s.currentUser.name,
+        actorId: s.currentUser.id,
+        role: s.currentUser.role,
+        module: 'Procurement',
+        scope: 'SupplierQuotation',
+        action: 'create',
+        entityId: newQuote.id,
+        entityRef: newQuote.quoteNumber,
+        timestamp: now,
+        description: `Created Supplier Quotation ${newQuote.quoteNumber} from Inbox communication (${newQuote.supplierName}).`,
+      })],
+    }));
+    get().showToast({
+      type: 'success',
+      title: 'Supplier Quotation Recorded',
+      body: `Supplier Quotation ${newQuote.quoteNumber} logged and linked to ${newQuote.prNumber || 'Procurement'}.`,
+    });
+    return newQuote;
+  },
+
+  linkRecordToInboxMessage: (messageId, entityType, entityId, entityRef, path) => {
+    const timestamp = new Date().toISOString();
+    set(s => ({
+      inboxMessages: s.inboxMessages.map(m => m.id !== messageId ? m : {
+        ...m,
+        relatedEntityType: entityType,
+        relatedEntityId: entityId,
+        relatedEntityRef: entityRef,
+        actionPath: path,
+      }),
+      auditEvents: [...s.auditEvents, createAuditEventRecord({
+        actor: s.currentUser.name,
+        actorId: s.currentUser.id,
+        role: s.currentUser.role,
+        scope: 'Inbox',
+        action: 'link_record',
+        entityId,
+        entityRef,
+        timestamp,
+        description: `Linked conversation (${messageId}) to ${entityType} ${entityRef}.`,
+      })],
+    }));
+    get().showToast({
+      type: 'success',
+      title: 'Record Linked',
+      body: `Message linked to ${entityType} ${entityRef}.`,
+    });
+  },
+
+  assignInboxMessage: (messageId, assignedTo, assignedRole) => {
+    set(s => ({
+      inboxMessages: s.inboxMessages.map(m => m.id !== messageId ? m : {
+        ...m,
+        assignedTo,
+        assignedRole,
+      }),
+    }));
+    get().showToast({
+      type: 'info',
+      title: 'Message Assigned',
+      body: `Assigned conversation to ${assignedTo} (${assignedRole}).`,
+    });
+  },
+
+  updateConnectedChannel: (channelId, partial) => {
+    set(s => ({
+      connectedChannels: s.connectedChannels.map(c => c.id === channelId ? { ...c, ...partial } : c),
+    }));
+    get().showToast({
+      type: 'success',
+      title: 'Channel Status Updated',
+      body: `Channel configuration updated.`,
+    });
+  },
+
+  updateProductBOM: (bom) => {
+    const now = new Date().toISOString();
+    set(s => {
+      const exists = s.boms.some(b => b.id === bom.id);
+      return {
+        boms: exists ? s.boms.map(b => b.id === bom.id ? bom : b) : [bom, ...s.boms],
+        auditEvents: [...s.auditEvents, createAuditEventRecord({
+          actor: s.currentUser.name,
+          actorId: s.currentUser.id,
+          role: s.currentUser.role,
+          module: 'Production',
+          scope: 'BOM',
+          action: exists ? 'update' : 'create',
+          entityId: bom.id,
+          entityRef: bom.productCode,
+          timestamp: now,
+          description: `${exists ? 'Updated' : 'Created'} BOM for ${bom.productName} (Total BOM Cost: ₹${bom.totalMaterialCost.toLocaleString('en-IN')}).`,
+        })],
+      };
+    });
+    get().showToast({
+      type: 'success',
+      title: 'BOM Saved',
+      body: `Bill of Materials for ${bom.productName} successfully updated.`,
+    });
+  },
+
+  updateSupplierCatalogItem: (item) => {
+    set(s => {
+      const exists = s.supplierCatalog.some(c => c.id === item.id);
+      return {
+        supplierCatalog: exists ? s.supplierCatalog.map(c => c.id === item.id ? item : c) : [item, ...s.supplierCatalog],
+      };
+    });
+    get().showToast({
+      type: 'success',
+      title: 'Supplier Catalog Updated',
+      body: `Item ${item.materialName} updated for ${item.supplierName}.`,
+    });
+  },
+
+  matchBankStatementRow: (rowId, entityType, entityId, entityRef) => {
+    const now = new Date().toISOString();
+    set(s => ({
+      bankStatements: s.bankStatements.map(r => r.id === rowId ? {
+        ...r,
+        status: 'matched',
+        matchedEntityType: entityType,
+        matchedEntityId: entityId,
+        matchedEntityRef: entityRef,
+        reconciledAt: now,
+        reconciledBy: s.currentUser.name,
+      } : r),
+      auditEvents: [...s.auditEvents, createAuditEventRecord({
+        actor: s.currentUser.name,
+        actorId: s.currentUser.id,
+        role: s.currentUser.role,
+        module: 'Finance',
+        scope: 'BankReconciliation',
+        action: 'match_statement_row',
+        entityId: rowId,
+        entityRef,
+        timestamp: now,
+        description: `Reconciled bank transaction ${rowId} against ${entityType} ${entityRef}.`,
+      })],
+    }));
+    get().showToast({
+      type: 'success',
+      title: 'Transaction Reconciled',
+      body: `Matched bank line against ${entityType} ${entityRef}.`,
+    });
+  },
+
+  rejectBankStatementMatch: (rowId) => {
+    set(s => ({
+      bankStatements: s.bankStatements.map(r => r.id === rowId ? {
+        ...r,
+        status: 'ignored',
+      } : r),
+    }));
+    get().showToast({
+      type: 'info',
+      title: 'Match Ignored',
+      body: `Statement line marked as ignored.`,
+    });
+  },
+
+  generateEInvoiceIRN: (invoiceId) => {
+    const now = new Date();
+    const ackDateStr = now.toISOString().slice(0, 19).replace('T', ' ');
+    const ackNoStr = `1126${Math.floor(100000000 + Math.random() * 900000000)}`;
+    const hexChars = '0123456789abcdef';
+    let irnStr = '';
+    const seed = invoiceId.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0);
+    for (let i = 0; i < 64; i++) {
+      irnStr += hexChars[(seed * (i + 13) + i * 7) % 16];
+    }
+    const signedQrCode = `einv:${irnStr.slice(0, 16)}:GSTIN:36AABCE1234F1Z5:DATE:${now.toISOString().slice(0, 10)}`;
+
+    set(s => {
+      const inv = s.invoices.find(i => i.id === invoiceId);
+      return {
+        invoices: s.invoices.map(i => i.id === invoiceId ? {
+          ...i,
+          eInvoiceStatus: 'irn_generated' as const,
+          irn: irnStr,
+          ackNo: ackNoStr,
+          ackDate: ackDateStr,
+          signedQrCode,
+        } : i),
+        auditEvents: [...s.auditEvents, createAuditEventRecord({
+          actor: s.currentUser.name,
+          actorId: s.currentUser.id,
+          role: s.currentUser.role,
+          module: 'Finance',
+          scope: 'Invoice',
+          action: 'generate_irn',
+          entityId: invoiceId,
+          entityRef: inv?.invoiceNumber || invoiceId,
+          timestamp: now.toISOString(),
+          description: `Simulated IRP E-Invoice generated for ${inv?.invoiceNumber || invoiceId}. IRN: ${irnStr.slice(0, 16)}...`,
+        })],
+      };
+    });
+    get().showToast({
+      type: 'success',
+      title: 'IRN Generated (Simulated IRP)',
+      body: `E-Invoice IRN & Signed QR generated successfully.`,
+    });
+    return { irn: irnStr, ackNo: ackNoStr, ackDate: ackDateStr, signedQrCode };
+  },
+
+  cancelEInvoiceIRN: (invoiceId, reason) => {
+    const now = new Date().toISOString();
+    set(s => {
+      const inv = s.invoices.find(i => i.id === invoiceId);
+      return {
+        invoices: s.invoices.map(i => i.id === invoiceId ? {
+          ...i,
+          eInvoiceStatus: 'cancelled' as const,
+        } : i),
+        auditEvents: [...s.auditEvents, createAuditEventRecord({
+          actor: s.currentUser.name,
+          actorId: s.currentUser.id,
+          role: s.currentUser.role,
+          module: 'Finance',
+          scope: 'Invoice',
+          action: 'cancel_irn',
+          entityId: invoiceId,
+          entityRef: inv?.invoiceNumber || invoiceId,
+          timestamp: now,
+          description: `Cancelled E-Invoice IRN for ${inv?.invoiceNumber || invoiceId}. Reason: ${reason}`,
+        })],
+      };
+    });
+    get().showToast({
+      type: 'warning',
+      title: 'IRN Cancelled',
+      body: `E-Invoice registration cancelled on simulated IRP.`,
+    });
+  },
+
+  overrideQualityGate: (inspectionId, reason, approver) => {
+    const now = new Date().toISOString();
+    const state = get();
+    const insp = state.inspections.find(i => i.id === inspectionId);
+    if (!insp) return;
+
+    const releaseId = `qr-${Date.now()}`;
+    const newRelease: QualityRelease = {
+      id: releaseId,
+      inspectionId: insp.id,
+      jobId: insp.jobId || 'job-001',
+      jobNumber: insp.jobNumber || 'J-2026-101',
+      releasedBy: approver,
+      releasedAt: now,
+      certDossierComplete: true,
+      notes: `QA Concession Override: ${reason}`,
+    };
+
+    set(s => ({
+      inspections: s.inspections.map(i => i.id === inspectionId ? {
+        ...i,
+        result: 'pass' as const,
+        concessionNotes: reason,
+        overrideApproved: true,
+        overrideReason: reason,
+        overrideBy: approver,
+      } : i),
+      qualityReleases: [newRelease, ...s.qualityReleases],
+      auditEvents: [...s.auditEvents, createAuditEventRecord({
+        actor: approver,
+        actorId: s.currentUser.id,
+        role: 'Quality Head',
+        module: 'Quality',
+        scope: 'Inspection',
+        action: 'qa_override',
+        entityId: inspectionId,
+        entityRef: insp.inspectionNumber,
+        timestamp: now,
+        description: `Authorized QA override for inspection ${insp.inspectionNumber} (${insp.jobNumber}). Concession reason: ${reason}. Dispatch unblocked.`,
+      })],
+    }));
+    get().showToast({
+      type: 'success',
+      title: 'QA Concession Granted',
+      body: `Quality clearance override logged. Dispatch unblocked under authorized concession.`,
+    });
   },
 
   addApprovalRequest: (request) => set(s => ({
@@ -2529,8 +2993,63 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
     const siteId = opts?.siteId || po.deliverToSiteId || state.sites[0]?.id || 'site-hyd';
     const site = state.sites.find(st => st.id === siteId);
     const linkedJobs = state.jobs.filter(j => j.customerPoId === po.id);
-    const targetJob = opts?.jobId ? state.jobs.find(j => j.id === opts.jobId) : linkedJobs[0];
+    let targetJob = opts?.jobId ? state.jobs.find(j => j.id === opts.jobId) : linkedJobs[0];
     const poLinesList = state.poLines.filter(l => l.poId === po.id);
+    const now = new Date().toISOString();
+    const today = now.slice(0, 10);
+
+    let createdJob: Job | undefined;
+    if (!targetJob) {
+      const template = STAGE_TEMPLATES[0];
+      const jId = `job-auto-${Date.now()}`;
+      const jNum = nextSequentialNumber(
+        `J-${today.slice(0, 4)}`,
+        state.jobs.map(j => j.jobNumber),
+        3,
+        101,
+      );
+      const stageList: JobStage[] = template.stages.map((st, idx) => ({
+        id: `stage-${jId}-${idx + 1}`,
+        jobId: jId,
+        sequence: st.sequence,
+        name: st.name,
+        status: (idx === 0 ? 'pending' : 'pending') as JobStage['status'],
+        plannedStart: today,
+        plannedEnd: today,
+        workCentre: st.workCentre,
+        inputQty: poLinesList[0]?.orderedQty || 10,
+        completedGoodQty: 0,
+        rejectedQty: 0,
+        reworkQty: 0,
+        scrapQty: 0,
+        uom: poLinesList[0]?.uom || 'nos',
+      }));
+
+      createdJob = {
+        id: jId,
+        jobNumber: jNum,
+        customerId: po.customerId,
+        customerName: po.customerName,
+        customerPoId: po.id,
+        customerPoNumber: po.poNumber,
+        description: poLinesList[0]?.description || 'Machined Flange Component',
+        siteId,
+        siteName: site?.name || 'Hyderabad Main Plant',
+        status: 'draft',
+        priority: 'normal',
+        plannedStart: today,
+        plannedEnd: poLinesList[0]?.requiredDate || today,
+        owner: actorName,
+        currentStage: template.stages[0]?.name || 'Cutting',
+        stages: stageList,
+        materialReadiness: 'awaiting_procurement',
+        hasBlocker: false,
+        stageTemplateId: template.id,
+        stageTemplateName: template.name,
+        operationalNotes: `Draft Job Card auto-generated from Customer PO ${po.poNumber}.`,
+      };
+      targetJob = createdJob;
+    }
 
     // Derive requirements either from existing JobMaterialReqs or matching PO line items against materials master
     const existingReqs = targetJob ? state.jobMaterialReqs.filter(r => r.jobId === targetJob.id) : [];
@@ -2578,8 +3097,6 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
       supplierPoLines: state.supplierPoLines,
     });
 
-    const now = new Date().toISOString();
-    const today = now.slice(0, 10);
     const shortageItems = assessment.items.filter(i => i.shortageQty > 0);
     const reservableItems = assessment.items.filter(i => i.toReserveQty > 0);
 
@@ -2761,39 +3278,43 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
         ? 'partial'
         : 'awaiting_procurement';
 
-    set(s => ({
-      lots: updatedLots,
-      inventory: updatedInventory,
-      jobMaterialReqs: updatedReqs,
-      movements: [...s.movements, ...newMovements],
-      purchaseReqs: updatedPurchaseReqs,
-      customerPos: s.customerPos.map(c => c.id === po.id ? { ...c, availabilityStatus: assessment.overallStatus } : c),
-      jobs: targetJob ? s.jobs.map(j => j.id === targetJob.id ? {
-        ...j,
-        materialReadiness: nextJobReadiness,
-      } : j) : s.jobs,
-      auditEvents: [...s.auditEvents, createAuditEventRecord({
-        actor: actorName,
-        actorId: s.currentUser.id,
-        role: s.currentUser.role,
-        module: 'Sales',
-        scope: 'CustomerPO',
-        action: 'assess_material_availability',
-        entityId: po.id,
-        entityRef: po.poNumber,
-        timestamp: now,
-        description: `Assessed material availability for ${po.poNumber}: ${assessment.overallStatus.replace(/_/g, ' ')} (${reservedCount} reserved${createdPr ? `, auto-raised ${createdPr.prNumber}` : ''}).`,
-        changes: [
-          { field: 'availabilityStatus', label: 'Material Availability', previousValue: prevAvail, newValue: assessment.overallStatus },
-          ...(reservedCount > 0 ? [{ field: 'reservedQty', label: 'Reserved Qty', previousValue: '0', newValue: String(reservedCount) }] : []),
-        ],
-        after: {
-          availabilityStatus: assessment.overallStatus,
-          reservedQty: reservedCount,
-          createdPrNumber: createdPr?.prNumber ?? existingPr?.prNumber,
-        },
-      })],
-    }));
+    set(s => {
+      const baseJobs = createdJob ? [createdJob, ...s.jobs] : s.jobs;
+      return {
+        lots: updatedLots,
+        inventory: updatedInventory,
+        jobMaterialReqs: updatedReqs,
+        movements: [...s.movements, ...newMovements],
+        purchaseReqs: updatedPurchaseReqs,
+        customerPos: s.customerPos.map(c => c.id === po.id ? { ...c, availabilityStatus: assessment.overallStatus } : c),
+        jobs: targetJob ? baseJobs.map(j => j.id === targetJob.id ? {
+          ...j,
+          materialReadiness: nextJobReadiness,
+        } : j) : baseJobs,
+        auditEvents: [...s.auditEvents, createAuditEventRecord({
+          actor: actorName,
+          actorId: s.currentUser.id,
+          role: s.currentUser.role,
+          module: 'Sales',
+          scope: 'CustomerPO',
+          action: 'assess_material_availability',
+          entityId: po.id,
+          entityRef: po.poNumber,
+          timestamp: now,
+          description: `Assessed material availability for ${po.poNumber}: ${assessment.overallStatus.replace(/_/g, ' ')} (${reservedCount} reserved${createdPr ? `, auto-raised ${createdPr.prNumber}` : ''}${createdJob ? `, auto-created draft Job ${createdJob.jobNumber}` : ''}).`,
+          changes: [
+            { field: 'availabilityStatus', label: 'Material Availability', previousValue: prevAvail, newValue: assessment.overallStatus },
+            ...(reservedCount > 0 ? [{ field: 'reservedQty', label: 'Reserved Qty', previousValue: '0', newValue: String(reservedCount) }] : []),
+          ],
+          after: {
+            availabilityStatus: assessment.overallStatus,
+            reservedQty: reservedCount,
+            createdPrNumber: createdPr?.prNumber ?? existingPr?.prNumber,
+            jobId: targetJob?.id,
+          },
+        })],
+      };
+    });
 
     const message = assessment.overallStatus === 'available'
       ? `All required materials available at ${site?.name ?? 'site'}. Stock reserved.`
@@ -3999,6 +4520,13 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
       unallocatedAmount: unallocated,
       isAdvance: payload.isAdvance || totalAllocated === 0,
       notes: payload.notes,
+      foreignCurrency: payload.foreignCurrency,
+      foreignAmount: payload.foreignAmount,
+      exchangeRate: payload.exchangeRate,
+      inrEquivalent: payload.inrEquivalent,
+      bankChargesInr: payload.bankChargesInr,
+      swiftReference: payload.swiftReference,
+      remittanceBank: payload.remittanceBank,
       createdBy: state.currentUser.name,
       isSimulated: true,
     };
@@ -4448,6 +4976,13 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
       unallocatedAmount: unallocated,
       isAdvance: payload.isAdvance || totalAllocated === 0,
       notes: payload.notes,
+      foreignCurrency: payload.foreignCurrency,
+      foreignAmount: payload.foreignAmount,
+      exchangeRate: payload.exchangeRate,
+      inrEquivalent: payload.inrEquivalent,
+      bankChargesInr: payload.bankChargesInr,
+      swiftReference: payload.swiftReference,
+      remittanceBank: payload.remittanceBank,
       createdBy: state.currentUser.name,
       isSimulated: true,
     };
@@ -5054,6 +5589,10 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
       supplierPayments: state.supplierPayments ?? [...SEED_SUPPLIER_PAYMENTS],
       supplierPaymentAllocations: state.supplierPaymentAllocations ?? [...SEED_SUPPLIER_PAYMENT_ALLOCATIONS],
       inboxMessages: mergeById(state.inboxMessages ?? [], SEED_INBOX_MESSAGES),
+      connectedChannels: state.connectedChannels ?? [...SEED_CONNECTED_CHANNELS],
+      boms: state.boms ?? [...SEED_PRODUCT_BOMS],
+      supplierCatalog: state.supplierCatalog ?? [...SEED_SUPPLIER_CATALOG],
+      bankStatements: state.bankStatements ?? [...SEED_BANK_STATEMENTS],
       auditEvents: mergeById(state.auditEvents, SEED_RICH_AUDIT_EVENTS),
       jobs: state.jobs.map(j => {
         const template = j.stageTemplateId ? STAGE_TEMPLATES.find(t => t.id === j.stageTemplateId) : STAGE_TEMPLATES.find(t => t.stages.length === j.stages.length) ?? STAGE_TEMPLATES[0];
