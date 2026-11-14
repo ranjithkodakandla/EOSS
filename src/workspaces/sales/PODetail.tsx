@@ -10,6 +10,7 @@ import RelatedRecordsPanel from '../../components/workflow/RelatedRecordsPanel';
 import RecordHistoryPanel from '../../components/workflow/RecordHistoryPanel';
 import { useReturnNavigation } from '../../hooks/useReturnNavigation';
 import { assessOrderMaterialRequirements } from '../../domain/materialFeasibility';
+import OrderJourneyCard, { type JourneyStep } from '../../components/home/OrderJourneyCard';
 
 type DetailTab = 'overview' | 'lines' | 'amendments' | 'jobs' | 'documents' | 'history';
 
@@ -126,6 +127,156 @@ export default function PODetail() {
   const canEdit = ['owner', 'sales'].includes(currentUser.role);
   const canApprove = currentUser.role === 'owner';
   const returnTo = searchParams.get('from') || '/sales?tab=pos';
+
+  // Build Order Journey steps from real linked records
+  const journeySteps = useMemo((): JourneyStep[] => {
+    const isDirectOrder = po.isDirectOrder || po.originType === 'direct_order';
+    const firstJob = linkedJobs[0];
+    const firstPr = linkedShortagePrs[0];
+    const firstSpo = linkedSpos[0];
+    const firstGrn = linkedGrns[0];
+    const firstDispatch = linkedDispatches[0];
+    const firstInvoice = linkedInvoices[0];
+    const firstPayment = linkedPayments[0];
+    const hasShortage = po.availabilityStatus === 'shortage' || po.availabilityStatus === 'partial';
+    const isAllocated = po.availabilityStatus === 'allocated' || po.availabilityStatus === 'partial';
+
+    const steps: JourneyStep[] = [];
+
+    if (!isDirectOrder) {
+      steps.push({
+        id: 'rfq',
+        label: 'Customer RFQ',
+        status: originatingRfq ? 'completed' : 'not_applicable',
+        reference: originatingRfq?.rfqNumber,
+        recordPath: originatingRfq ? `/sales/rfq/${originatingRfq.id}` : undefined,
+        date: originatingRfq ? new Date(originatingRfq.createdAt || originatingRfq.rfqDate || '').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : undefined,
+      });
+      steps.push({
+        id: 'quotation',
+        label: 'Customer Quotation',
+        status: quotation ? 'completed' : 'not_applicable',
+        reference: quotation?.quotationNumber,
+        recordPath: quotation ? `/sales/quotation/${quotation.id}` : undefined,
+        date: quotation ? new Date(quotation.sentDate || quotation.createdAt || '').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : undefined,
+      });
+    }
+
+    steps.push({
+      id: 'cpo',
+      label: 'Customer PO',
+      status: 'in_progress',
+      reference: po.poNumber,
+      date: new Date(po.acceptedDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }),
+      note: `${po.customerName} · ₹${(po.totalValue / 100000).toFixed(2)}L`,
+    });
+
+    steps.push({
+      id: 'material',
+      label: 'Material Assessment',
+      status: !po.availabilityStatus || po.availabilityStatus === 'not_assessed'
+        ? 'pending'
+        : isAllocated ? 'completed'
+        : hasShortage ? (firstPr ? 'completed' : 'blocked')
+        : 'completed',
+      reference: po.availabilityStatus && po.availabilityStatus !== 'not_assessed' ? po.availabilityStatus.replace('_', ' ') : undefined,
+      blocker: hasShortage && !firstPr ? 'Material shortage — Purchase Requisition not yet raised' : undefined,
+      note: isAllocated ? 'Stock reserved for this order' : undefined,
+    });
+
+    steps.push({
+      id: 'pr',
+      label: 'Purchase Requisition',
+      status: !hasShortage
+        ? 'not_applicable'
+        : firstPr
+        ? (firstPr.status === 'approved' || firstPr.status === 'converted' ? 'completed' : 'in_progress')
+        : 'pending',
+      reference: firstPr?.prNumber,
+      recordPath: firstPr ? `/procurement/pr/${firstPr.id}` : undefined,
+      blocker: firstPr?.status === 'pending_approval' ? 'Awaiting approval' : undefined,
+      note: linkedShortagePrs.length > 1 ? `${linkedShortagePrs.length} PRs raised` : undefined,
+    });
+
+    steps.push({
+      id: 'spo',
+      label: 'Supplier PO',
+      status: !hasShortage
+        ? 'not_applicable'
+        : firstSpo
+        ? (['received', 'complete'].includes(firstSpo.status) ? 'completed' : 'in_progress')
+        : (firstPr?.status === 'approved' || firstPr?.status === 'converted' ? 'pending' : 'not_applicable'),
+      reference: firstSpo?.spoNumber ?? firstSpo?.poNumber,
+      recordPath: firstSpo ? `/procurement/spo/${firstSpo.id}` : undefined,
+      date: firstSpo?.confirmedDate ? new Date(firstSpo.confirmedDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : undefined,
+      note: linkedSpos.length > 1 ? `${linkedSpos.length} Supplier POs` : undefined,
+    });
+
+    steps.push({
+      id: 'grn',
+      label: 'GRN & Inspection',
+      status: !hasShortage
+        ? 'not_applicable'
+        : firstGrn
+        ? 'completed'
+        : (firstSpo ? 'pending' : 'not_applicable'),
+      reference: firstGrn?.grnNumber,
+      recordPath: firstGrn ? `/procurement?tab=grn&grn=${firstGrn.id}` : undefined,
+      date: firstGrn?.receivedDate ? new Date(firstGrn.receivedDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : undefined,
+      note: linkedGrns.length > 1 ? `${linkedGrns.length} GRNs received` : undefined,
+    });
+
+    steps.push({
+      id: 'production',
+      label: 'Production Job',
+      status: firstJob
+        ? (firstJob.status === 'complete' ? 'completed' : firstJob.status === 'hold' ? 'blocked' : 'in_progress')
+        : (isAllocated ? 'pending' : 'not_applicable'),
+      reference: firstJob?.jobNumber,
+      recordPath: firstJob ? `/jobs/${firstJob.id}` : undefined,
+      date: firstJob?.estimatedEnd ? new Date(firstJob.estimatedEnd).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : undefined,
+      blocker: firstJob?.status === 'hold' ? `Job on hold — ${firstJob.currentStage}` : undefined,
+      note: linkedJobs.length > 1 ? `${linkedJobs.length} jobs` : firstJob ? `Stage: ${firstJob.currentStage}` : undefined,
+    });
+
+    steps.push({
+      id: 'dispatch',
+      label: 'Dispatch',
+      status: firstDispatch
+        ? (['dispatched', 'delivered', 'pod_received'].includes(firstDispatch.status) ? 'completed' : 'in_progress')
+        : (firstJob?.status === 'complete' ? 'pending' : 'not_applicable'),
+      reference: firstDispatch?.dispatchNumber,
+      recordPath: firstDispatch ? `/dispatch/${firstDispatch.id}` : undefined,
+      date: firstDispatch?.dispatchDate ? new Date(firstDispatch.dispatchDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : undefined,
+      note: linkedDispatches.length > 1 ? `${linkedDispatches.length} dispatches` : undefined,
+    });
+
+    steps.push({
+      id: 'invoice',
+      label: 'Customer Invoice',
+      status: firstInvoice
+        ? (['paid', 'partial'].includes(firstInvoice.status) ? 'completed' : 'in_progress')
+        : (firstDispatch ? 'pending' : 'not_applicable'),
+      reference: firstInvoice?.invoiceNumber,
+      recordPath: firstInvoice ? `/finance/invoice/${firstInvoice.id}` : undefined,
+      date: firstInvoice?.invoiceDate ? new Date(firstInvoice.invoiceDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : undefined,
+      note: firstInvoice ? `₹${firstInvoice.totalAmount.toLocaleString('en-IN')}` : undefined,
+    });
+
+    steps.push({
+      id: 'payment',
+      label: 'Customer Payment',
+      status: firstPayment
+        ? (firstPayment.status === 'confirmed' ? 'completed' : 'in_progress')
+        : (firstInvoice ? 'pending' : 'not_applicable'),
+      reference: firstPayment?.referenceNumber ?? firstPayment?.paymentNumber,
+      recordPath: firstPayment ? `/finance/payment/${firstPayment.id}` : undefined,
+      blocker: firstInvoice && firstInvoice.status === 'overdue' ? `Invoice overdue — ${firstInvoice.invoiceNumber}` : undefined,
+      note: firstPayment ? `₹${firstPayment.amount.toLocaleString('en-IN')}` : undefined,
+    });
+
+    return steps;
+  }, [po, originatingRfq, quotation, linkedJobs, linkedShortagePrs, linkedSpos, linkedGrns, linkedDispatches, linkedInvoices, linkedPayments]);
   const canCancel = canEdit && po.status !== 'complete' && po.status !== 'cancelled' && poJobs.every(j => j.status === 'cancelled' || j.status === 'complete');
   const canAmend = canEdit && !['complete', 'cancelled'].includes(po.status) && poJobs.every(j => !['in_progress', 'complete'].includes(j.status));
   const fmt = (d: string) => new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
@@ -434,6 +585,9 @@ export default function PODetail() {
           <div className="p-6 grid grid-cols-1 lg:grid-cols-3 gap-5 max-w-7xl">
             {/* Left: PO Info */}
             <div className="lg:col-span-2 space-y-5">
+              {/* Order Journey — connected lifecycle view */}
+              <OrderJourneyCard steps={journeySteps} />
+
               <Card title="Customer & PO Information">
                 <dl className="grid grid-cols-2 gap-x-6 gap-y-3">
                   <DL label="Customer" value={po.customerName} />

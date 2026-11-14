@@ -51,7 +51,7 @@ export default function SupplierRecommendationPanel({ materialItemId }: { materi
           </tbody>
         </table>
       </div>
-      <p className="text-[11px] text-[var(--text-3)]">You make the final supplier selection — EOSS does not auto-create a Supplier PO.</p>
+      <p className="text-[11px] text-[var(--text-3)]">You make the final supplier selection — BOSS does not auto-create a Supplier PO.</p>
     </div>
   );
 }

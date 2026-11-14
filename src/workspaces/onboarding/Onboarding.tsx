@@ -90,7 +90,7 @@ export default function Onboarding() {
       onboardingComplete: true,
     });
     completeOnboarding();
-    showToast({ type: 'success', title: 'EOSS activated!', body: 'Your company is configured. Welcome to EOSS.' });
+    showToast({ type: 'success', title: 'BOSS activated!', body: 'Your company is configured. Welcome to BOSS.' });
     navigate('/');
   };
 
@@ -100,11 +100,11 @@ export default function Onboarding() {
         {/* Logo */}
         <div className="flex items-center gap-3 mb-8 justify-center">
           <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[var(--brand)] to-purple-500 flex items-center justify-center shadow-lg">
-            <div className="text-white font-black text-sm">E</div>
+            <div className="text-white font-black text-sm">B</div>
           </div>
           <div>
-            <div className="text-xl font-extrabold text-[var(--text)]">EOSS</div>
-            <div className="text-xs text-[var(--text-3)]">Business OS for Indian MSMEs</div>
+            <div className="text-xl font-extrabold text-[var(--text)]">BOSS</div>
+            <div className="text-xs text-[var(--text-3)]">Business Operating Solution System</div>
           </div>
         </div>
 
@@ -136,7 +136,7 @@ export default function Onboarding() {
           {/* Step 1: Welcome */}
           {step === 1 && (
             <div>
-              <h2 className="text-2xl font-extrabold text-[var(--text)] mb-1">Welcome to EOSS</h2>
+              <h2 className="text-2xl font-extrabold text-[var(--text)] mb-1">Welcome to BOSS</h2>
               <p className="text-sm text-[var(--text-2)] mb-6">Let's configure your business workspace in a few simple steps. This takes about 5 minutes.</p>
               <h3 className="text-sm font-semibold text-[var(--text)] mb-3">What best describes your operations?</h3>
               <div className="grid grid-cols-2 gap-3">
@@ -338,7 +338,7 @@ export default function Onboarding() {
           {step === 7 && (
             <div>
               <h2 className="text-xl font-bold text-[var(--text)] mb-1">Review & Activate</h2>
-              <p className="text-sm text-[var(--text-2)] mb-5">Review your configuration before activating EOSS for your business.</p>
+              <p className="text-sm text-[var(--text-2)] mb-5">Review your configuration before activating BOSS for your business.</p>
               <div className="space-y-3">
                 <ReviewSection label="Business Type" value={step1.businessType.charAt(0).toUpperCase() + step1.businessType.slice(1)} />
                 <ReviewSection label="Company Name" value={step2.companyName || '—'} required />
@@ -353,7 +353,7 @@ export default function Onboarding() {
               </div>
               <div className="mt-5 p-3 rounded-xl border border-[var(--success)]/30 bg-[var(--success)]/5 flex items-start gap-2">
                 <CheckCircle size={16} className="text-[var(--success)] mt-0.5 flex-shrink-0" />
-                <p className="text-xs text-[var(--text-2)]">All mandatory configuration is complete. Click <strong>Activate EOSS</strong> to start using your workspace.</p>
+                <p className="text-xs text-[var(--text-2)]">All mandatory configuration is complete. Click <strong>Activate BOSS</strong> to start using your workspace.</p>
               </div>
             </div>
           )}
@@ -371,7 +371,7 @@ export default function Onboarding() {
               </button>
             ) : (
               <button onClick={finish} className="ml-auto flex items-center gap-2 px-6 py-2.5 bg-[var(--success)] text-white rounded-xl text-sm font-semibold hover:opacity-90 transition-opacity">
-                <CheckCircle size={16} /> Activate EOSS
+                <CheckCircle size={16} /> Activate BOSS
               </button>
             )}
           </div>

@@ -150,7 +150,7 @@ export default function PaymentDetail() {
       <div className="mb-4 px-3.5 py-2.5 rounded-lg bg-[var(--accent)]/10 border border-[var(--accent)]/25 text-xs text-[var(--text-2)] flex items-center gap-2">
         <ShieldAlert size={14} className="text-[var(--accent)] shrink-0" />
         <span>
-          <strong>Prototype Simulation:</strong> Bank UTR / NEFT / Cheque receipt and settlement updates are simulated within EOSS. No live bank reconciliation occurred.
+          <strong>Prototype Simulation:</strong> Bank UTR / NEFT / Cheque receipt and settlement updates are simulated within BOSS. No live bank reconciliation occurred.
         </span>
       </div>
 

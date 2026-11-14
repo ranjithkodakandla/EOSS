@@ -1173,7 +1173,7 @@ export default function Finance() {
                     <th className="px-3 py-2.5 font-medium">UTR / Ref #</th>
                     <th className="px-3 py-2.5 font-medium text-right">Debit (Dr)</th>
                     <th className="px-3 py-2.5 font-medium text-right">Credit (Cr)</th>
-                    <th className="px-3 py-2.5 font-medium">Suggested EOSS Match</th>
+                    <th className="px-3 py-2.5 font-medium">Suggested BOSS Match</th>
                     <th className="px-4 py-2.5 font-medium text-right">Actions</th>
                   </tr>
                 </thead>

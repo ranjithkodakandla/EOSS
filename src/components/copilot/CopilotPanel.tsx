@@ -239,7 +239,7 @@ export default function CopilotPanel({ compactTopBar = false, onClose }: Props) 
               style={{ background: 'var(--surface)', borderColor: 'var(--border)', boxShadow: 'var(--shadow-elevated)' }}
             >
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-[var(--text)]">Ask EOSS</span>
+                <span className="text-xs font-bold text-[var(--text)]">Ask BOSS</span>
                 <button
                   type="button"
                   onClick={() => setExpanded(false)}

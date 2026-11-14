@@ -533,7 +533,7 @@ export default function SupplierRFQCreate() {
                     Review Recipients Before Sending ({selectedMatchCards.length})
                   </h2>
                   <p className="text-xs text-[var(--text-3)] mt-0.5">
-                    Prototype notice: No live external emails/messages are dispatched; invitation records will be created in EOSS with audit tracking.
+                    Prototype notice: No live external emails/messages are dispatched; invitation records will be created in BOSS with audit tracking.
                   </p>
                 </div>
                 <span className="text-xs px-2.5 py-1 rounded-full bg-[var(--surface-2)] font-medium text-[var(--text-2)]">

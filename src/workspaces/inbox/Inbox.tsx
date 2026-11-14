@@ -699,7 +699,7 @@ export default function Inbox() {
                   >
                     <div className="space-y-0.5">
                       <div className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-3)]">
-                        Linked EOSS Business Record
+                        Linked BOSS Business Record
                       </div>
                       <div className="flex items-center gap-2 text-xs">
                         <button
@@ -1152,7 +1152,7 @@ export default function Inbox() {
           <form onSubmit={handleLinkRecord} className="w-full max-w-md rounded-2xl border p-6 space-y-4 bg-[var(--surface)] text-[var(--text)] shadow-2xl" style={{ borderColor: 'var(--border)' }}>
             <div className="flex items-center justify-between pb-2 border-b" style={{ borderColor: 'var(--border)' }}>
               <div>
-                <h3 className="text-base font-bold">Link EOSS Record</h3>
+                <h3 className="text-base font-bold">Link BOSS Record</h3>
                 <p className="text-xs text-[var(--text-3)]">Associate conversation with an existing operational record</p>
               </div>
               <button type="button" onClick={() => setShowLinkModal(false)} className="p-1 rounded-lg hover:bg-[var(--surface-2)]">

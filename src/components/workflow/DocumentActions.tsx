@@ -140,7 +140,7 @@ export default function DocumentActions({
       ${notes ? `<div class="notes"><strong>Notes:</strong> ${escapeHtml(notes)}</div>` : ''}
       <div class="footer">
         <span>Prepared by ${escapeHtml(currentUser.name)}</span>
-        <span>Generated from EOSS Operational Workspace</span>
+        <span>Generated from BOSS Operational Workspace</span>
       </div>
       <div class="no-print" style="margin-top:24px"><button onclick="window.print()" style="padding:8px 16px;font-weight:600;cursor:pointer">Print / Save as PDF</button></div>
       </body></html>`);

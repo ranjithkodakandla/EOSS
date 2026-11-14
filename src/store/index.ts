@@ -1720,7 +1720,7 @@ export const useStore = create<EOSSState>()(persist((set, get) => ({
           {
             id: `th-${Date.now()}`,
             senderName: actor,
-            senderRoleOrOrg: `${roleLabel} · EOSS`,
+            senderRoleOrOrg: `${roleLabel} · BOSS`,
             timestamp,
             body: trimmed,
             isOutgoing: true,

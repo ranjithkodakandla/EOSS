@@ -335,7 +335,7 @@ export default function InvoiceDetail() {
       <div className="mb-4 px-3.5 py-2.5 rounded-lg bg-[var(--accent)]/10 border border-[var(--accent)]/25 text-xs text-[var(--text-2)] flex items-center gap-2">
         <ShieldAlert size={14} className="text-[var(--accent)] shrink-0" />
         <span>
-          <strong>Prototype Simulation:</strong> GST e-Invoice filings, customer emails, and tax postings are simulated locally in EOSS. No live GSTN or ERP submission occurred.
+          <strong>Prototype Simulation:</strong> GST e-Invoice filings, customer emails, and tax postings are simulated locally in BOSS. No live GSTN or ERP submission occurred.
         </span>
       </div>
 

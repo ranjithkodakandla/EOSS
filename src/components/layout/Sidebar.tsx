@@ -102,7 +102,7 @@ export default function Sidebar({ mobileOpen = false, onClose }: { mobileOpen?: 
       <NavLink
         to="/"
         end
-        aria-label="Go to EOSS Home"
+        aria-label="Go to BOSS Home"
         className={clsx(
           'flex items-center flex-shrink-0 h-[64px] border-b hover:bg-white/5 transition-colors',
           collapsed ? 'justify-center' : 'px-4 gap-3'
@@ -125,10 +125,10 @@ export default function Sidebar({ mobileOpen = false, onClose }: { mobileOpen?: 
         {!collapsed && (
           <div className="overflow-hidden leading-tight">
             <div className="text-base font-bold text-white tracking-tight flex items-center gap-1.5">
-              <span>EOSS</span>
+              <span>BOSS</span>
             </div>
             <div className="text-[10px] font-medium text-white/60 tracking-normal whitespace-nowrap">
-              Business OS for SMEs
+              Business Operating Solution System
             </div>
           </div>
         )}

@@ -33,7 +33,7 @@ export function recommendSuppliers(params: {
     return {
       hasSufficientHistory: false,
       evidence: [],
-      reason: 'No historical purchase records exist for this material. Select a supplier manually; EOSS cannot yet recommend one based on evidence.',
+      reason: 'No historical purchase records exist for this material. Select a supplier manually; BOSS cannot yet recommend one based on evidence.',
     };
   }
 

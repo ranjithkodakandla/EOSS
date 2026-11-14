@@ -27,7 +27,7 @@ export const SEED_CONNECTED_CHANNELS: ConnectedChannel[] = [
     id: 'chan-whatsapp',
     channel: 'whatsapp',
     name: 'WhatsApp Business API',
-    accountIdentifier: '+91 98490 12345 (EOSS Ops)',
+    accountIdentifier: '+91 98490 12345 (BOSS Ops)',
     connectedAt: '2026-10-10T12:00:00',
     status: 'connected',
     unreadCount: 2,
@@ -344,7 +344,7 @@ Stainless Source India`,
       {
         id: 'th-001-1',
         senderName: 'Karthik Raju',
-        senderRoleOrOrg: 'Procurement · EOSS',
+        senderRoleOrOrg: 'Procurement · BOSS',
         timestamp: '2026-11-03T14:00:00',
         body: 'Forwarded supplier revision request to Owner approval queue (apr-001) for 300 kg → 200 kg on SPO-2024-002.',
         isOutgoing: true,
@@ -365,7 +365,7 @@ Stainless Source India`,
     type: 'cycle_count_variance',
     senderName: 'Asha Nair',
     senderEmail: 'stores@eoss-mfg.in',
-    senderOrg: 'EOSS Stores — Hyderabad Plant 1',
+    senderOrg: 'BOSS Stores — Hyderabad Plant 1',
     recipientName: 'Ranjith Kodakandla',
     recipientEmail: 'owner@eoss-mfg.in',
     subject: 'Cycle Count Variance — Grinding Disc 125mm (-30 pcs)',
@@ -426,7 +426,7 @@ Storekeeper`,
 
 Please find attached our tax invoice SINV-MSK-2026-001 (₹1,11,805 incl. 18% GST) against SPO-2024-001.
 
-Note from EOSS Finance: Bill BILL-2026-001 is currently flagged for Three-Way Match review (650 kg MS Plate 12mm received on GRN-2024-003; 500 kg MS Plate 8mm pending receipt).
+Note from BOSS Finance: Bill BILL-2026-001 is currently flagged for Three-Way Match review (650 kg MS Plate 12mm received on GRN-2024-003; 500 kg MS Plate 8mm pending receipt).
 
 Regards,
 MSK Steel Billing`,
@@ -461,7 +461,7 @@ MSK Steel Billing`,
     recipientEmail: 'accounts@eoss-mfg.in',
     subject: 'Payment Advice for INV-2026-002 (₹3,20,000)',
     preview: 'NEFT transfer initiated for ₹3,20,000 against INV-2026-002 (UTR: HDFC26110489122). Please record receipt.',
-    body: `Dear EOSS Finance Team,
+    body: `Dear BOSS Finance Team,
 
 We have processed the payment against your invoice INV-2026-002 (CPO-2024-102):
 
@@ -538,7 +538,7 @@ Bharat Gas Supply`,
     type: 'general',
     senderName: 'Anita Mehta',
     senderEmail: 'sales@eoss-mfg.in',
-    senderOrg: 'EOSS Sales',
+    senderOrg: 'BOSS Sales',
     recipientName: 'Vikram Patel',
     recipientEmail: 'sourcing@meridianeng.in',
     subject: 'Sent: Revised Quotation QT-2026-201 Rev 2',
@@ -549,7 +549,7 @@ Please find attached the revised quotation QT-2026-201 (Rev 2) incorporating the
 
 Best regards,
 Anita Mehta
-EOSS Manufacturing`,
+BOSS Manufacturing`,
     timestamp: '2026-11-01T10:15:00',
     read: true,
     archived: false,

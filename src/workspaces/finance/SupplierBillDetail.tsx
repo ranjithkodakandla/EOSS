@@ -239,7 +239,7 @@ export default function SupplierBillDetail() {
       <div className="mb-4 px-3.5 py-2.5 rounded-lg bg-[var(--accent)]/10 border border-[var(--accent)]/25 text-xs text-[var(--text-2)] flex items-center gap-2">
         <ShieldAlert size={14} className="text-[var(--accent)] shrink-0" />
         <span>
-          <strong>Prototype Simulation:</strong> Vendor invoice GST credit verification and 3-way matching checks run against simulated EOSS procurement &amp; QC records.
+          <strong>Prototype Simulation:</strong> Vendor invoice GST credit verification and 3-way matching checks run against simulated BOSS procurement &amp; QC records.
         </span>
       </div>
 

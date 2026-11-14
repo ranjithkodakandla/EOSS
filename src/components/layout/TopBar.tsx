@@ -200,9 +200,9 @@ export default function TopBar({ onOpenMenu }: { onOpenMenu?: () => void }) {
                     borderColor: 'var(--border, #E5E0F5)',
                   }}
                 >
-                  <div className="font-bold text-[var(--text)]">EOSS Business OS v1.0</div>
+                  <div className="font-bold text-[var(--text)]">BOSS — Business Operating Solution System v1.0</div>
                   <div className="text-[var(--text-2)]">
-                    Autonomous manufacturing & trading business operating system for growing Indian SMEs.
+                    Business operating system for manufacturing & trading MSMEs.
                   </div>
                   <div className="pt-2 border-t border-[var(--border)] font-mono text-[11px] text-[var(--brand)]">
                     Hyderabad Hub · Tenant: Apex Precision Engineering Pvt Ltd

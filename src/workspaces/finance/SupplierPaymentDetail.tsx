@@ -148,7 +148,7 @@ export default function SupplierPaymentDetail() {
       <div className="mb-4 px-3.5 py-2.5 rounded-lg bg-[var(--accent)]/10 border border-[var(--accent)]/25 text-xs text-[var(--text-2)] flex items-center gap-2">
         <ShieldAlert size={14} className="text-[var(--accent)] shrink-0" />
         <span>
-          <strong>Prototype Simulation:</strong> Vendor NEFT/RTGS payout and UTR references are simulated locally in EOSS. No live bank transfer was executed.
+          <strong>Prototype Simulation:</strong> Vendor NEFT/RTGS payout and UTR references are simulated locally in BOSS. No live bank transfer was executed.
         </span>
       </div>
 
